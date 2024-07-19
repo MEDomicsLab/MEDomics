@@ -123,6 +123,17 @@ const nodesParams = {
     img: "save_model.png",
     title: "Save model",
     possibleSettings: { classification: classificationSettings["save_model"], regression: regressionSettings["save_model"] }
+  },
+  group_models: {
+    type: "standardNode",
+    classes: "action group_models",
+    nbInput: 1,
+    nbOutput: 1,
+    input: ["model"],
+    output: ["model"],
+    img: "group_models.png",
+    title: "Group models",
+    possibleSettings: { classification: classificationSettings["group_models"], regression: regressionSettings["group_models"] }
   }
 }
 

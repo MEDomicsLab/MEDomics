@@ -283,9 +283,11 @@ const Workflow = ({ setWorkflowType, workflowType }) => {
     const createTreeFromNodesRec = (node) => {
       let children = {}
 
+      // for each edge, we check if the source node is the current node
       edges.forEach((edge) => {
         if (edge.source == node.id) {
-          let targetNode = deepCopy(nodes.find((node) => node.id === edge.target))
+          // we find the target node associated with the edge
+          let targetNode = deepCopy(nodes.find((_node) => _node.id === edge.target))
           if (targetNode.type != "groupNode") {
             let subIdText = ""
             let subflowId = targetNode.data.internal.subflowId
@@ -312,7 +314,6 @@ const Workflow = ({ setWorkflowType, workflowType }) => {
         }
       }
     })
-
     return treeMenuData
   }
 
@@ -700,6 +701,7 @@ const Workflow = ({ setWorkflowType, workflowType }) => {
             edgesCopy = edgesCopy.reduce((acc, edge) => {
               if (edge.target == currentNode.id) {
                 let sourceNode = nodes.find((node) => node.id == edge.source)
+                console.log("----------sourceNode", sourceNode)
                 if (sourceNode.data.internal.type == "model") {
                   acc.push(edge)
                 }
@@ -716,14 +718,13 @@ const Workflow = ({ setWorkflowType, workflowType }) => {
           if (node[key].nodes != {}) {
             // if this is a create model node, we need to add n pipelines
             if (hasModels) {
-              edgesCopy.forEach((edge) => {
-                let id = key + "*" + edge.source
-                if (key != up2Id) {
-                  children[id] = cleanTreeDataRec(node[key].nodes)
-                } else {
-                  children[id] = {}
-                }
-              })
+              let allEdgesSourceIds = edgesCopy.map((edge) => edge.source).join(".")
+              let id = key + "*" + allEdgesSourceIds
+              if (key != up2Id) {
+                children[id] = cleanTreeDataRec(node[key].nodes)
+              } else {
+                children[id] = {}
+              }
               // if this is not a create model node, we continue normally
             } else {
               if (key != up2Id) {

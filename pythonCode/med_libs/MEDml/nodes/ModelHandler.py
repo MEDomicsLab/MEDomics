@@ -67,7 +67,9 @@ class ModelHandler(Node):
                 f"trained_models = [pycaret_exp.create_model({self.CodeHandler.convert_dict_to_params(settings)})]"
             )
         trained_models_copy = trained_models.copy()
-        self._info_for_next_node = {'models': trained_models}
+        settings_for_next = copy.deepcopy(settings)
+        settings_for_next['fct_type'] = self.type
+        self._info_for_next_node = {'models': trained_models, 'id': self.id, 'settings': settings_for_next}
         for model in trained_models_copy:
             model_copy = copy.deepcopy(model)
             trained_models_json[model_copy.__class__.__name__] = model_copy.__dict__

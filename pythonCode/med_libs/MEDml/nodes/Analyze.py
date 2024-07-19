@@ -40,7 +40,7 @@ class Analyze(Node):
         """
         selection = self.config_json['data']['internal']['selection']
         print()
-        print(Fore.BLUE + "=== Analysing === " + 'paths' +
+        print(Fore.BLUE + "=== Analysing === " +
               Fore.YELLOW + f"({self.username})" + Fore.RESET)
         print(Fore.CYAN + f"Using {selection}" + Fore.RESET)
         settings = copy.deepcopy(self.settings)

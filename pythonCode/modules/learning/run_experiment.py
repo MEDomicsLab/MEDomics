@@ -5,6 +5,7 @@ import sys
 import pymongo
 
 from pathlib import Path
+
 sys.path.append(
     str(Path(os.path.dirname(os.path.abspath(__file__))).parent.parent))
 from med_libs.server_utils import go_print
@@ -29,7 +30,7 @@ class GoExecScriptRunExperiment(GoExecutionScript):
     """
 
     def __init__(self, json_params: dict, _id: str = None, isProgressInThread: bool = False):
-        super().__init__(json_params, _id)
+        super().__init__(json_params, _id, debug=False)
         self.storing_mode = USE_RAM_FOR_EXPERIMENTS_STORING
         # self.storing_mode = USE_SAVE_FOR_EXPERIMENTS_STORING
         self.current_experiment = None

@@ -28,6 +28,9 @@ import { FlowResultsContext } from "../context/flowResultsContext"
  */
 const checkIfObjectContainsId = (obj, id) => {
   let res = false
+  if (!obj) {
+    return res
+  }
   Object.keys(obj).forEach((key) => {
     if (key.includes(id)) {
       res = obj[key]
@@ -191,8 +194,16 @@ const PipelinesResults = ({ pipelines, selectionMode, flowContent }) => {
   const createTitleFromPipe = useCallback(
     (pipeline) => {
       let pipelineId = pipeline.join("-")
-      const getName = (id) => {
+      const getName = (id, pipeline = null) => {
         let node = flowContent.nodes.find((node) => node.id == id)
+        if (pipeline) {
+          let nextNode = pipeline.indexOf(id) + 1 < pipeline.length ? flowContent.nodes.find((node) => node.id == pipeline[pipeline.indexOf(id) + 1]) : null
+          if (nextNode && nextNode.data.internal.type == "group_models") {
+            let prevEdges = flowContent.edges.filter((edge) => edge.target == nextNode.id)
+            let prevIds = prevEdges.map((edge) => edge.source)
+            return prevIds.map((id) => getName(id)).join(" & ")
+          }
+        }
         return node && node.data.internal.name
       }
 
@@ -234,12 +245,22 @@ const PipelinesResults = ({ pipelines, selectionMode, flowContent }) => {
         console.log("code generation", pipeline)
         let resultsCopy = deepCopy(flowResults)
         console.log("resultsCopy", resultsCopy)
-        pipeline.forEach((id) => {
+        pipeline.forEach((id, index) => {
+          // check if next node is a group_models
+          let nextNode = index + 1 < pipeline.length ? flowContent.nodes.find((node) => node.id == pipeline[index + 1]) : null
+          console.log("nextNode", nextNode)
+          let isNextGroupModels = nextNode && nextNode.data.internal.type == "group_models"
+          if (isNextGroupModels) {
+            console.log("next node is a group_models")
+            console.log(checkIfObjectContainsId(resultsCopy, id))
+          }
           let nodeResults = checkIfObjectContainsId(resultsCopy, id)
           if (nodeResults) {
-            finalCode = [...finalCode, ...Object.values(nodeResults.results.code.content)]
-            console.log("imports", Object.values(nodeResults.results.code.imports))
-            finalImports = [...finalImports, ...Object.values(nodeResults.results.code.imports)]
+            if (!isNextGroupModels) {
+              finalCode = [...finalCode, ...Object.values(nodeResults.results.code.content)]
+              console.log("imports", Object.values(nodeResults.results.code.imports))
+              finalImports = [...finalImports, ...Object.values(nodeResults.results.code.imports)]
+            }
             resultsCopy = nodeResults.next_nodes
           } else {
             console.log("id " + id + " not found in results")
@@ -302,7 +323,12 @@ const PipelinesResults = ({ pipelines, selectionMode, flowContent }) => {
           }
         }
         // HEADER
-        addMarkdown(["## Notebook automatically generated\n\n", "**Scene:** " + sceneName + "\n\n", "**Pipeline:** " + pipeline.map((id) => getName(id)).join(" ➡️ ") + "\n\n", "**Date:** " + new Date().toLocaleString() + "\n\n"])
+        addMarkdown([
+          "## Notebook automatically generated\n\n",
+          "**Scene:** " + sceneName + "\n\n",
+          "**Pipeline:** " + pipeline.map((id) => getName(id, pipeline)).join(" ➡️ ") + "\n\n",
+          "**Date:** " + new Date().toLocaleString() + "\n\n"
+        ])
         // IMPORTS
         addCode(imports.map((imp) => imp.content + newLineChar))
         // CODE
@@ -373,7 +399,7 @@ const PipelinesResults = ({ pipelines, selectionMode, flowContent }) => {
             optionLabel="name"
             options={pipeline.map((id) => {
               return {
-                name: getName(id),
+                name: getName(id, pipeline),
                 value: id,
                 class: `${isChecked(id) ? "checked" : "unchecked"} ${!hasRun(id) ? "pipe-name-notRun" : ""}`
               }
@@ -408,11 +434,26 @@ const PipelinesResults = ({ pipelines, selectionMode, flowContent }) => {
 
   return (
     <Accordion multiple activeIndex={accordionActiveIndex} onTabChange={(e) => setAccordionActiveIndex(e.index)} className="pipeline-results-accordion">
-      {pipelines.map((pipeline, index) => (
-        <AccordionTab disabled={!isResults} key={index} header={createTitleFromPipe(pipeline)}>
-          <PipelineResult key={index} pipeline={pipeline} selectionMode={selectionMode} flowContent={flowContent} />
-        </AccordionTab>
-      ))}
+      {pipelines.map((pipeline, index) => {
+        let curNode = deepCopy(flowResults)
+        let isValid = true
+        pipeline.map((id) => {
+          let nodeResults = checkIfObjectContainsId(curNode, id)
+          if (nodeResults) {
+            curNode = nodeResults.next_nodes
+            if (nodeResults.results && nodeResults.results.data && "prev_node_complete" in nodeResults.results.data) {
+              isValid = nodeResults.results.data.prev_node_complete
+            }
+          }
+        })
+        if (isValid) {
+          return (
+            <AccordionTab disabled={!isResults} key={index} header={createTitleFromPipe(pipeline)}>
+              <PipelineResult key={index} pipeline={pipeline} selectionMode={selectionMode} flowContent={flowContent} />
+            </AccordionTab>
+          )
+        }
+      })}
     </Accordion>
   )
 }

@@ -154,15 +154,16 @@ const WorkflowBase = ({ isGoodConnection, groupNodeHandlingDefault, onDeleteNode
       }
 
       const setHasRunRec = (obj) => {
+        console.log("obj", obj)
         Object.keys(obj).forEach((id) => {
           setHasRun(id)
-          setHasRunRec(obj[id].next_nodes)
+          obj[id].next_nodes && setHasRunRec(obj[id].next_nodes)
         })
       }
       if (Object.keys(flowResults).length > 0) {
         Object.keys(flowResults).forEach((id) => {
           setHasRun(id)
-          setHasRunRec(flowResults[id].next_nodes)
+          flowResults[id].next_nodes && setHasRunRec(flowResults[id].next_nodes)
         })
       } else {
         nodes.forEach((node) => {
@@ -245,10 +246,12 @@ const WorkflowBase = ({ isGoodConnection, groupNodeHandlingDefault, onDeleteNode
 
       const setHasRunRec = (obj) => {
         Object.keys(obj).forEach((id) => {
-          Object.keys(obj[id].next_nodes).forEach((nextId) => {
-            setHasRun(id, nextId)
-          })
-          setHasRunRec(obj[id].next_nodes)
+          if (obj[id].next_nodes) {
+            Object.keys(obj[id].next_nodes).forEach((nextId) => {
+              setHasRun(id, nextId)
+            })
+            obj[id].next_nodes && setHasRunRec(obj[id].next_nodes)
+          }
         })
       }
 
@@ -256,7 +259,7 @@ const WorkflowBase = ({ isGoodConnection, groupNodeHandlingDefault, onDeleteNode
         Object.keys(flowResults[id].next_nodes).forEach((nextId) => {
           setHasRun(id, nextId)
         })
-        setHasRunRec(flowResults[id].next_nodes)
+        flowResults[id].next_nodes && setHasRunRec(flowResults[id].next_nodes)
       })
       edges.forEach((edge) => {
         edge.data ? (edge.data.hasRun = edgesHasRun.includes(edge.id)) : (edge.data = { hasRun: edgesHasRun.includes(edge.id) })
