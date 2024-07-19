@@ -152,6 +152,7 @@ matplotlib==3.6.0
 matplotlib-inline==0.1.6
 mdurl==0.1.2
 memory-profiler==0.61.0
+MEDfl==0.1.31
 missingno==0.4.2
 mistune==3.0.2
 mlflow==2.8.0
