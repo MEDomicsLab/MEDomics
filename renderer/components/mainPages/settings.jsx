@@ -82,7 +82,7 @@ const SettingsPage = (pageId = "settings") => {
   useEffect(() => {
     ipcRenderer.invoke("get-settings").then((receivedSettings) => {
       console.log("received settings", receivedSettings)
-      setSettings(receivedSettings)
+      setSettings(receivedSettings || {})
       if (receivedSettings?.condaPath) {
         setCondaPath(receivedSettings?.condaPath)
       }
@@ -139,7 +139,7 @@ const SettingsPage = (pageId = "settings") => {
 
   useEffect(() => {
     ipcRenderer.invoke("getBundledPythonEnvironment").then((res) => {
-      console.log("Python imbedded: ", res)
+      console.log("Python embedded: ", res)
       if (res !== null) {
         ipcRenderer.invoke("getInstalledPythonPackages", res).then((pythonPackages) => {
           console.log("Installed Python Packages: ", pythonPackages)
@@ -150,6 +150,10 @@ const SettingsPage = (pageId = "settings") => {
   }, [])
 
   const startMongo = () => {
+    if (!workspace || !workspace.workingDirectory || !workspace.workingDirectory.path) {
+      console.error("Workspace not defined")
+      return 
+    }
     let workspacePath = workspace.workingDirectory.path
     const mongoConfigPath = path.join(workspacePath, ".medomics", "mongod.conf")
     let mongod = getMongoDBPath()
@@ -215,7 +219,7 @@ const SettingsPage = (pageId = "settings") => {
       }
     } else if (process.platform === "linux") {
       // Check if mongod is in the process.env.PATH
-      const paths = process.env.PATH.split(path.delimiter)
+      const paths = process.env.PATH ? process.env.PATH.split(path.delimiter) : [];
       for (let i = 0; i < paths.length; i++) {
         const binPath = path.join(paths[i], "mongod")
         if (fs.existsSync(binPath)) {

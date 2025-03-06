@@ -28,14 +28,21 @@ const isProd = process.env.NODE_ENV === "production"
 let splashScreen // The splash screen is the window that is displayed while the application is loading
 export var mainWindow // The main window is the window of the application
 
+import Sudoer from 'electron-sudo';
+ 
+let options = {name: 'electron sudo application'},
+    sudoer = new Sudoer(options);
+ 
+
 //**** AUTO UPDATER ****//
 const { autoUpdater } = require("electron-updater")
 const log = require("electron-log")
 
 autoUpdater.logger = log
 autoUpdater.logger.transports.file.level = "info"
-autoUpdater.autoDownload = false
-autoUpdater.autoInstallOnAppQuit = true
+autoUpdater.autoDownload = true
+autoUpdater.autoInstallOnAppQuit = false
+
 
 //*********** LOG **************// This is used to send the console.log messages to the main window
 //**** ELECTRON-LOG ****//
