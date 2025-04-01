@@ -19,7 +19,7 @@ import { getCollectionColumns, insertMEDDataObjectIfNotExists } from "../mongoDB
 import DataTableFromDB from "../dbComponents/dataTableFromDB"
 import { randomUUID } from "crypto"
 import { toast } from "react-toastify"
-
+import { shell } from "electron"
 /**
  *
  * @param {string} pageId The id of the page
@@ -355,30 +355,40 @@ const ApplicationPageWithModulePage = ({ pageId = "application-456" }) => {
     <>
       <ModulePage pageId={pageId} shadow>
         <div style={{ padding: "0.5rem" }}>
-        <div className="application-introduction">
+
+          <div className="application-introduction">
+
             <h2>🚀 Model Deployment</h2>
+
             <p>
-              This module allows users to deploy a machine learning model for inference. 
-              First, you'll have to choose a model. Then, you can choose between two input methods:
+              This module allows users to deploy a machine learning model for inference.
+              First, you'll have to choose a model. Then, you can select between two input methods:
             </p>
 
-            <p><span className="app-tool-name">→ Manual Sample Entry:</span> Fill in the required feature values manually to test a single sample.</p>
-
-            <p><span className="app-tool-name">→ Test File Input:</span> Upload a dataset file (CSV format) to run batch predictions on multiple samples.</p>
-
-
-            <p className="gitbook-link">
-              📖 Learn more about this tool in
-              <span> our </span> 
-              <a href="https://medomics-udes.gitbook.io/medomicslab-docs/tutorials/deployment/application-module"
-                target="_blank" rel="noopener noreferrer" 
-                className="gitbook-anchor" 
-                style={{ color: "#0056b3", textDecoration: "none" }}>
-                GitBook documentation
-              </a>. 🔗
+            <p>
+              <span className="app-tool-name">→ Manual Sample Entry:</span> Fill in the required feature values manually to test a single sample.
             </p>
+
+            <p>
+              <span className="app-tool-name">→ Test File Input:</span> Upload a dataset file (CSV format) to run batch predictions on multiple samples.
+            </p>
+
+            <div>
+              <p>
+                📖 Learn more about this tool in our{' '}
+                <u
+                  onClick={() => shell.openExternal("https://medomics-udes.gitbook.io/medomicslab-docs/tutorials/deployment/application-module")}
+                  style={{ color: "#0056b3", textDecoration: "none", cursor: "pointer" }}
+                >
+                  documentation. 🔗
+                </u>
+              </p>
+            </div>
+
           </div>
+
           <ApplicationPage pageId={pageId} />
+
         </div>
       </ModulePage>
     </>

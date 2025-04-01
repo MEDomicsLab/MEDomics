@@ -1,6 +1,7 @@
 import React from "react"
 import ModulePage from "./moduleBasics/modulePage"
 import ExtractionJPG from "../extractionImage/extractionJPG"
+import { shell } from 'electron'
 
 const ExtractionImagePage = ({ pageId }) => {
   return (
@@ -12,12 +13,13 @@ const ExtractionImagePage = ({ pageId }) => {
           The image extraction page takes JPG images as input and extracts embeddings using a selected model.
           </p>
           <p className="gitbook-link">
-            📖 Learn more about this process in <span> our </span> 
-            <a href="https://medomics-udes.gitbook.io/medomicslab-docs/tutorials/design/extraction-modules/image-extraction-page" 
-              target="_blank" rel="noopener noreferrer" className="gitbook-anchor" style={{ color: "#0056b3", textDecoration: "none" }}>
-              GitBook documentation
-            </a>. 🔗
-          </p>
+          📖 Learn more about this process in our
+          <u
+            onClick={() => shell.openExternal("https://medomics-udes.gitbook.io/medomicslab-docs/tutorials/design/extraction-modules/image-extraction-page")}
+            style={{ color: "#0056b3", textDecoration: "none", cursor: "pointer" }}
+          > documentation. 🔗
+          </u>
+        </p>
         </div>
 
         <hr></hr>

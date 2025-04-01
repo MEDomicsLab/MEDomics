@@ -15,7 +15,7 @@ import SimpleCleaningToolsDB from "./inputToolsDB/simpleCleaningToolsDB"
 import SubsetCreationToolsDB from "./inputToolsDB/subsetCreationToolsDB"
 import TransformColumnToolsDB from "./inputToolsDB/transformColumnToolsDB"
 import { getCollectionData } from "./utils"
-
+import { shell } from "electron"
 /**
  * @description
  * This component provides calls all the other components to build the input tools.
@@ -100,12 +100,14 @@ const InputToolsComponent = ({ data, exportOptions, refreshData, columns, transf
           before machine learning. It allows users to clean, transform, and organize data efficiently.
         </p>
         <p className="gitbook-link">
-          📖 Learn how to use these tools in <span> our </span> 
-            <a href="https://medomics-udes.gitbook.io/medomicslab-docs/tutorials/design/input-module" 
-              target="_blank" rel="noopener noreferrer" style={{ color: "#0056b3", textDecoration: "none"}} className="gitbook-anchor">
-              GitBook documentation
-            </a>. 🔗
-          </p>
+          📖 Learn how to use these tools in our
+          <u
+            onClick={() => shell.openExternal("https://medomics-udes.gitbook.io/medomicslab-docs/tutorials/design/input-module")}
+            style={{ color: "#0056b3", textDecoration: "none", cursor: "pointer" }}
+          > documentation. 🔗
+          </u>
+        </p>
+
       </div>
 
       </div>

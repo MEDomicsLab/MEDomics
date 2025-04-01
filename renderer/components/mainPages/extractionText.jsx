@@ -1,6 +1,7 @@
 import ExtractionTabularData from "../extractionTabular/extractionTabularData"
 import React from "react"
 import ModulePage from "./moduleBasics/modulePage"
+import { shell } from 'electron'
 
 const ExtractionTextPage = ({ pageId }) => {
   return (
@@ -13,11 +14,12 @@ const ExtractionTextPage = ({ pageId }) => {
             and extracts embeddings using a selected model.
           </p>
           <p className="gitbook-link">
-          📖 Learn more about this process in <span> our </span> 
-            <a href="https://medomics-udes.gitbook.io/medomicslab-docs/tutorials/design/extraction-modules/text-extraction-page" 
-              target="_blank" rel="noopener noreferrer" style={{ color: "#0056b3", textDecoration: "none" }} className="gitbook-anchor">
-              GitBook documentation
-            </a>. 🔗
+                    📖 Learn more about this process in our
+                    <u
+                      onClick={() => shell.openExternal("https://medomics-udes.gitbook.io/medomicslab-docs/tutorials/design/extraction-modules/text-extraction-page")}
+                      style={{ color: "#0056b3", textDecoration: "none", cursor: "pointer" }}
+                    > documentation. 🔗
+                    </u>
           </p>
         </div>
         <ExtractionTabularData extractionTypeList={["BioBERT"]} serverUrl={"/extraction_text/"} defaultFilename={"text_extracted_features"} />

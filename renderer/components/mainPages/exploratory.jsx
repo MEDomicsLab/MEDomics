@@ -5,6 +5,7 @@ import { ErrorRequestContext } from "../generalPurpose/errorRequestContext"
 import DTale from "../exploratory/dtale"
 import SweetViz from "../exploratory/sweetViz"
 import YDataProfiling from "../exploratory/yDataProfiling"
+import { shell } from 'electron'
 
 /**
  *
@@ -33,13 +34,13 @@ const ExploratoryPage = () => {
           sorting, visualizing, and modifying data in real time.</p>
 
           <p className="gitbook-link">
-            📖 Learn how to use these tools in  
-            <span> our </span> 
-            <a href="https://medomics-udes.gitbook.io/medomicslab-docs/tutorials/design/exploratory-module" 
-              target="_blank" rel="noopener noreferrer" className="gitbook-anchor" style={{ color: "#0056b3", textDecoration: "none"}}>
-              GitBook documentation
-            </a>. 🔗
-          </p>
+          📖 Learn how to use these tools in our
+          <u
+            onClick={() => shell.openExternal("https://medomics-udes.gitbook.io/medomicslab-docs/tutorials/design/exploratory-module")}
+            style={{ color: "#0056b3", textDecoration: "none", cursor: "pointer" }}
+          > documentation. 🔗
+          </u>
+        </p>
 
         <SweetViz pageId="SweetViz" port={port} setError={setError} />
         <YDataProfiling pageId="ydata-profiling" port={port} setError={setError} />
