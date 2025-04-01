@@ -25,6 +25,17 @@ const nodesParams = {
       regression: regressionSettings["dataset"]
     }
   },
+  split: {
+    type: "splitNode",
+    classes: "action analyze run endNode",
+    nbInput: 1,
+    nbOutput: 0,
+    input: ["dataset"],
+    output: [],
+    img: "split.png",
+    title: "Split",
+    possibleSettings: { classification: classificationSettings["split"], regression: regressionSettings["analyze"] }
+  },
   clean: {
     type: "standardNode",
     classes: "action clean run",

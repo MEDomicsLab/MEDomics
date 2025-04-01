@@ -243,18 +243,22 @@ export const updateHasWarning = (data) => {
   data.internal.hasWarning = { state: false }
   if ("default" in data.setupParam.possibleSettings) {
     Object.entries(data.setupParam.possibleSettings.default).map(([settingName, setting]) => {
-      if (settingName in data.internal.settings) {
-        let value = deepCopy(data.internal.settings[settingName])
-        let defaultVal = deepCopy(defaultValueFromType[setting.type])
-        if (typeof data.internal.settings[settingName] === "object") {
-          value = JSON.stringify(data.internal.settings[settingName])
-          defaultVal = JSON.stringify(defaultValueFromType[setting.type])
-        }
-        if (value == defaultVal) {
+      try {
+        if (settingName in data.internal.settings) {
+          let value = deepCopy(data.internal.settings[settingName])
+          let defaultVal = deepCopy(defaultValueFromType[setting.type])
+          if (typeof data.internal.settings[settingName] === "object") {
+            value = JSON.stringify(data.internal.settings[settingName])
+            defaultVal = JSON.stringify(defaultValueFromType[setting.type])
+          }
+          if (value == defaultVal) {
+            data.internal.hasWarning = { state: true, tooltip: <p>Please fill all the mandatory fields</p> }
+          }
+        } else {
           data.internal.hasWarning = { state: true, tooltip: <p>Please fill all the mandatory fields</p> }
         }
-      } else {
-        data.internal.hasWarning = { state: true, tooltip: <p>Please fill all the mandatory fields</p> }
+      } catch (error) {
+        console.error("Error in updateHasWarning function:", error)
       }
     })
   }

@@ -37,6 +37,7 @@ import { FlowInfosContext } from "../flow/context/flowInfosContext.jsx"
 import { overwriteMEDDataObjectContent } from "../mongoDB/mongoDBUtils.js"
 import { getCollectionData } from "../dbComponents/utils.js"
 import { MEDDataObject } from "../workspace/NewMedDataObject.js"
+import SplitNode from "./nodesTypes/splitNode.jsx"
 
 const staticNodesParams = nodesParams // represents static nodes parameters
 
@@ -80,6 +81,7 @@ const Workflow = ({ setWorkflowType, workflowType }) => {
   const nodeTypes = useMemo(
     () => ({
       standardNode: StandardNode,
+      splitNode: SplitNode,
       selectionNode: SelectionNode,
       groupNode: GroupNode,
       optimizeIO: OptimizeIO,

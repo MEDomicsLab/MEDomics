@@ -1,5 +1,105 @@
 /* eslint-disable */
 const classificationSettings = {
+  split: {
+    "default": {
+      "split_type": {
+        "type": "list",
+        "tooltip": "<p>Type of data division to perform.</p>",
+        "default_val": "random_sub_sampling",
+        "choices": {
+          "random_sub_sampling": "random_sub_sampling", 
+          "cross_validation": "cross_validation", 
+          "bootstrapping": "bootstrapping", 
+          "user_defined": "user_defined"
+        }
+      },
+      "n_iterations": {
+        "type": "int",
+        "tooltip": "<p>Number of iterations or divisions to perform.</p>",
+        "default_val": "1"
+      },
+      "shuffle": {
+        "type": "bool",
+        "tooltip": "<p>Option to shuffle data before division.</p>",
+        "default_val": "True"
+      },
+      "random_state": {
+        "type": "int",
+        "tooltip": "<p>Seed used by the random number generator for reproducibility.</p>",
+        "default_val": "42"
+      }
+    },
+    "options": {
+      // Options for Random Sub-Sampling
+      "random_sub_sampling": {
+        "test_size": {
+          "type": "float",
+          "tooltip": "<p>Fraction of data to use for the test set (between 0 and 1).</p>",
+          "default_val": "0.2"
+        }
+      },
+      
+      // Options for Cross-Validation
+      "cross_validation": {
+        "outer_cv": {
+          "num_outer_folds": {
+            "type": "int",
+            "tooltip": "<p>Number of folds for external validation.</p>",
+            "default_val": "5"
+          },
+          "type_outer_cv": {
+            "type": "select",
+            "tooltip": "<p>Type of external validation to use.</p>",
+            "default_val": "kfold",
+            "options": ["kfold", "stratified_kfold"]
+          }
+        },
+        "inner_cv": {
+          "num_inner_folds": {
+            "type": "int",
+            "tooltip": "<p>Number of folds for internal validation.</p>",
+            "default_val": "10"
+          },
+          "type_inner_cv": {
+            "type": "select",
+            "tooltip": "<p>Type of internal validation to use.</p>",
+            "default_val": "kfold",
+            "options": ["kfold", "stratified_kfold"]
+          }
+        }
+      },
+      
+      // Options for Bootstrapping
+      "bootstrapping": {
+        "sample_size": {
+          "type": "float",
+          "tooltip": "<p>Size of the samples generated for each iteration (fraction of data between 0 and 1).</p>",
+          "default_val": "0.8"
+        }
+      },
+      
+      // Options for User-Defined
+      "user_defined": {
+        "train_indices": {
+          "type": "json",
+          "tooltip": "<p>List or array containing the indices of training data.</p>",
+          "default_val": "[]"
+        },
+        "test_indices": {
+          "type": "json",
+          "tooltip": "<p>List or array containing the indices of test data.</p>",
+          "default_val": "[]"
+        }
+      },
+      
+      // Common options for stratification
+      "stratification": {
+        "type": "bool",
+        "tooltip": "<p>Allows maintaining the distribution of classes or groups during division.</p>",
+        "default_val": "False"
+      }
+    }
+  },
   clean: {
     options: {
       imputation_type: {
