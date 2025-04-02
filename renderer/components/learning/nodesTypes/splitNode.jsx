@@ -107,108 +107,105 @@ const SplitNode = ({ id, data }) => {
   return (
     <>
       <Node
-        key={id}
-        id={id}
-        data={data}
-        setupParam={data.setupParam}
-        nodeLink="/documentation/split"
-        defaultSettings={
-          <>
-            {data.setupParam?.possibleSettings && "default" in data.setupParam.possibleSettings && (
-              <>
-                  <Dropdown
-                    className="form-select"
-                    value={splitType}
-                    onChange={(e) => { 
-                      setSplitType(e.value);
-                      data.internal.settings.split_type = e.value.name;
-                      updateNode({
-                        id: id,
-                        updatedData: data.internal,
-                      });
-                      updateSplitOptions();
-                    }}
-                    options={Object.entries(data.setupParam?.possibleSettings.default.split_type.choices).map(([option]) => {
-                      return {
-                        name: option
-                      }
-                    })}
-                    optionLabel="name"
-                  />
-                <Stack direction="vertical" gap={1}>
-                  {Object.entries(data.setupParam.possibleSettings.default).map(
-                    ([settingName, setting]) => {
-                      // format setting name to be displayed
-                      const formattedSettingName = settingName.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase());
-                      return (
-                        <Input
-                          setHasWarning={handleWarning}
-                          key={settingName}
-                          name={formattedSettingName}
-                          settingInfos={setting}
-                          currentValue={data.internal.settings[settingName]}
-                          onInputChange={onInputChange}
-                        />
-                      );
-                    }
-                  )}
-                </Stack>
-              </>
-            )}
-          </>
-        }
-        nodeSpecific={
-          <>
-            {/* Display button only if other options are available */}
-            <Button variant="light" className="width-100 btn-contour" onClick={() => setModalShow(true)}>
-              <Icon.Plus width="30px" height="30px" className="img-fluid" />
-            </Button>
+  key={id}
+  id={id}
+  data={data}
+  setupParam={data.setupParam}
+  nodeLink="/documentation/split"
 
-            {data.setupParam?.possibleSettings?.options && (
-              <ModalSettingsChooser
-                show={modalShow}
-                onHide={() => setModalShow(false)}
-                options={data.setupParam.possibleSettings.options}
-                data={data}
-                id={id}
-              />
-            )}
-
-            {/* Display options specific to the selected split type */}
-            {splitOptions.map((optionType) => {
-              // Special case for Cross-Validation which has a nested structure
-              if (optionType === "cross_validation") {
-                return renderCrossValidationOptions();
-              }
-
-              // For other types, display options directly
-              return Object.entries(data.setupParam.possibleSettings.options[optionType]).map(
-                ([settingName, setting]) => {
-                  // Ignore nested objects (like outer_cv and inner_cv)
-                  if (typeof setting === "object" && !("type" in setting)) {
-                    return null;
-                  }
-
-                  // Format the setting name to be displayed
-                  const formattedSettingName = settingName.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase());
-
-                  {console.log("formattedSettingName", formattedSettingName);}
-
-                  return (
-                    <Input
-                      key={`${optionType}-${settingName}`}
-                      name={formattedSettingName}
-                      settingInfos={setting}
-                      currentValue={data.internal.settings[settingName]}
-                      onInputChange={onInputChange}
-                    />
-                  );
-                }
-              );
+  // --- Couche 1 : Split Type + paramètres généraux ---
+  defaultSettings={
+    <>
+      {data.setupParam?.possibleSettings && "default" in data.setupParam.possibleSettings && (
+        <>
+          <h6 className="mb-2">General parameters</h6>
+          <Dropdown
+            className="form-select"
+            value={splitType}
+            onChange={(e) => { 
+              setSplitType(e.value);
+              data.internal.settings.split_type = e.value.name;
+              updateNode({
+                id: id,
+                updatedData: data.internal,
+              });
+              updateSplitOptions();
+            }}
+            options={Object.entries(data.setupParam?.possibleSettings.default.split_type.choices).map(([option]) => {
+              return { name: option }
             })}
-          </>
+            optionLabel="name"
+          />
+
+          <Stack direction="vertical" gap={1} className="mt-2">
+            {Object.entries(data.setupParam.possibleSettings.default).map(
+              ([settingName, setting]) => {
+                if (settingName === "split_type") return null; 
+                const formattedSettingName = settingName.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase());
+                return (
+                  <Input
+                    setHasWarning={handleWarning}
+                    key={settingName}
+                    name={formattedSettingName}
+                    settingInfos={setting}
+                    currentValue={data.internal.settings[settingName]}
+                    onInputChange={onInputChange}
+                  />
+                );
+              }
+            )}
+          </Stack>
+        </>
+      )}
+    </>
+  }
+
+  // --- Couche 2 : Paramètres spécifiques à la méthode choisie ---
+  nodeSpecific={
+    <>
+      <h6 className="mt-4 mb-2">Parameters for <i>{splitType.name}</i> method</h6>
+
+      {/* Bouton modal */}
+      <Button variant="light" className="width-100 btn-contour" onClick={() => setModalShow(true)}>
+        <Icon.Plus width="30px" height="30px" className="img-fluid" />
+      </Button>
+
+      {data.setupParam?.possibleSettings?.options && (
+        <ModalSettingsChooser
+          show={modalShow}
+          onHide={() => setModalShow(false)}
+          options={data.setupParam.possibleSettings.options}
+          data={data}
+          id={id}
+        />
+      )}
+
+      {/* Options spécifiques */}
+      {splitOptions.map((optionType) => {
+        if (optionType === "cross_validation") {
+          return renderCrossValidationOptions();
         }
-      />
+
+        return Object.entries(data.setupParam.possibleSettings.options[optionType]).map(
+          ([settingName, setting]) => {
+            if (typeof setting === "object" && !("type" in setting)) return null;
+            const formattedSettingName = settingName.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase());
+            return (
+              <Input
+                key={`${optionType}-${settingName}`}
+                name={formattedSettingName}
+                settingInfos={setting}
+                currentValue={data.internal.settings[settingName]}
+                onInputChange={onInputChange}
+              />
+            );
+          }
+        );
+      })}
+    </>
+  }
+/>
+
     </>
   );
 };
