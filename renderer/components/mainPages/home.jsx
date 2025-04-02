@@ -96,13 +96,8 @@ const HomePage = () => {
           </h3>
           
           <p>
-            If you are new to MEDomicsLab, a great way to start is by following the <strong>Testing Phase</strong>. 
-            This guided phase walks you through the entire application, allowing you to explore its functionalities using real medical datasets.
-          </p>
-
-          <p>
-            The Testing Phase helps you understand how to manage datasets, run analyses, and evaluate machine learning models 
-            in a structured way. It is an ideal starting point for beginners who want to familiarize themselves with the platform.
+          To effectively navigate MEDomicsLab and its functionalities, we recommend consulting the official documentation and tutorial resources.
+          These materials will help you understand how to manage datasets, perform analyses, and evaluate machine learning models within the platform.
           </p>
 
           <p>We provide dedicated tutorials and documentation to guide you step by step:</p>
@@ -115,6 +110,13 @@ const HomePage = () => {
               </a>
             </li>
 
+            <li>🎥 Module Tutorials:  
+              <a href="https://www.youtube.com/playlist?list=PLEPy2VhC4-D6B7o0MuNNEz2DeHDR8NICj" 
+                 target="_blank" rel="noopener noreferrer" style={{ color: "#0056b3", textDecoration: "none", marginLeft: "5px" }}>
+                YouTube Module Guides
+              </a>
+            </li>
+
             <li>🎥 Testing Phase Tutorials:  
               <a href="https://www.youtube.com/playlist?list=PLEPy2VhC4-D4vuJO3X7fHboLv1k_HbGsW" 
                  target="_blank" rel="noopener noreferrer" style={{ color: "#0056b3", textDecoration: "none", marginLeft: "5px" }}>
@@ -122,27 +124,21 @@ const HomePage = () => {
               </a>
             </li>
 
-            <li>🎥 Module Tutorials:  
-              <a href="https://www.youtube.com/playlist?list=PLEPy2VhC4-D6B7o0MuNNEz2DeHDR8NICj" 
-                 target="_blank" rel="noopener noreferrer" style={{ color: "#0056b3", textDecoration: "none", marginLeft: "5px" }}>
-                YouTube Module Guides
-              </a>
-            </li>
-          </ul>
+            </ul>
 
           {/* Warning section */}
           <div 
-            style={{
-              marginTop: "1rem",
-              padding: "1rem",
-              backgroundColor: "#ffeeba",
-              borderLeft: "4px solid #ffc107",
-              borderRadius: "5px"
-            }}
-          >
-            ⚠️ <strong>Warning:</strong> The Testing Phase includes tutorials on the official pre-released version of the platform, which was made available in January 2024. 
-            Although the platform has evolved, these tutorials remain a valuable resource to help you navigate MEDomicsLab as a beginner.
-          </div>
+          style={{
+            marginTop: "1rem",
+            padding: "1rem",
+            backgroundColor: "#ffeeba",
+            borderLeft: "4px solid #ffc107",
+            borderRadius: "5px"
+          }}
+        >
+          ⚠️ <strong>Note:</strong> The Testing Phase offers the first official tutorials of MEDomicsLab, based on the pre-released version launched in January 2024. Despite subsequent improvements, these tutorials are still a valuable starting point for new users.
+        </div>
+
         </div>
       </Stack>
 
