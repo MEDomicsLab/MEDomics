@@ -29,7 +29,7 @@ const nodesParams = {
     type: "splitNode",
     classes: "action analyze run endNode",
     nbInput: 1,
-    nbOutput: 0,
+    nbOutput: 1,
     input: ["dataset"],
     output: [],
     img: "split.png",
