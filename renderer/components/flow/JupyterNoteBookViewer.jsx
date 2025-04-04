@@ -184,27 +184,38 @@ const JupyterNotebookViewer = ({ path }) => {
 
           <div className={`cell ${isCodeCell ? "code-cell" : "markdown-cell"}`}>
             {editMode[index] ? (
-              <AceEditor
-                ref={(ref) => (editorRefs.current[index] = ref)}
-                mode={isCodeCell ? "python" : "markdown"}
-                theme="tomorrow"
-                value={cellContent}
-                onChange={(newContent) => handleCellChange(index, newContent)}
-                onBlur={() => toggleEditMode(index)}
-                name={`editor-${index}`}
-                editorProps={{ $blockScrolling: true }}
-                setOptions={{
-                  useWorker: false,
-                  enableBasicAutocompletion: true,
-                  enableLiveAutocompletion: true,
-                  enableSnippets: true,
-                  showLineNumbers: true
-                }}
-                width="100%"
-                height={`${Math.max(cellContent.split("\n").length * 1.5, 5)}em`}
-                fontSize={14}
-                style={{ border: "1px solid #ccc", borderRadius: "5px" }}
-              />
+                <AceEditor
+                    ref={(ref) => (editorRefs.current[index] = ref)}
+                    mode={isCodeCell ? "python" : "markdown"}
+                    theme="tomorrow"
+                    value={cellContent}
+                    onChange={(newContent) => handleCellChange(index, newContent)}
+                    onBlur={() => toggleEditMode(index)}
+                    name={`editor-${index}`}
+                    editorProps={{ $blockScrolling: true }}
+                    setOptions={{
+                      useWorker: false,
+                      enableBasicAutocompletion: true,
+                      enableLiveAutocompletion: true,
+                      enableSnippets: true,
+                      showLineNumbers: true,
+                      tabSize: 2,
+                      wrap: true,
+                    }}
+                    width="100%"
+                    height={`${Math.max(cellContent.split("\n").length * 1.5, 5)}em`}
+                    fontSize={14}
+                    style={{ border: "1px solid #ccc", borderRadius: "5px" }}
+                    commands={[
+                      {
+                        name: "newLine",
+                        bindKey: { win: "Enter", mac: "Enter" },
+                        exec: (editor) => {
+                          editor.insert("\n");
+                        },
+                      },
+                    ]}
+                />
             ) : isCodeCell ? (
               <div onClick={() => toggleEditMode(index)}>
                 <SyntaxHighlighter language="python" style={coy}>
