@@ -8,12 +8,20 @@ import AceEditor from "react-ace"
 import "ace-builds/src-noconflict/mode-python"
 import "ace-builds/src-noconflict/theme-tomorrow"
 import { FaCopy, FaArrowUp, FaArrowDown, FaPlusCircle, FaPlusSquare, FaTrash } from "react-icons/fa"
+import { Button } from "primereact/button"
 
+/**
+ * Jupyter Notebook viewer
+ * @param {string} path - the path of the file to edit
+ * @returns {JSX.Element} - A Jupyter Notebook viewer
+ */
 const JupyterNotebookViewer = ({ path }) => {
   const [notebookContent, setNotebookContent] = useState(null)
   const [error, setError] = useState(null)
   const [editMode, setEditMode] = useState({})
   const editorRefs = useRef({})
+  const [loadingSave, setLoadingSave] = useState(false)
+  const [saved, setSaved] = useState(true)
 
   useEffect(() => {
     if (!path) return
@@ -44,16 +52,21 @@ const JupyterNotebookViewer = ({ path }) => {
     const updatedCells = [...notebookContent.cells]
     updatedCells[index].source = newContent.split("\n")
     setNotebookContent({ ...notebookContent, cells: updatedCells })
+    setSaved(false)
   }
 
   const saveNotebook = (cells = notebookContent?.cells) => {
     if (!notebookContent) return
+    setLoadingSave(true)
     const data = JSON.stringify({ ...notebookContent, cells: cells || notebookContent.cells }, null, 2)
     fs.writeFile(path, data, (err) => {
+      setLoadingSave(false)
       if (err) {
         console.error("Error saving notebook:", err)
+        toast.error("Error saving notebook")
         return
       }
+      setSaved(true)
       toast.success("Saved file successfully")
     })
   }
@@ -74,7 +87,6 @@ const JupyterNotebookViewer = ({ path }) => {
     setEditMode((prev) => {
       const newEditMode = { ...prev, [index]: !prev[index] }
       if (!prev[index]) {
-        // Focus the editor when entering edit mode
         setTimeout(() => {
           editorRefs.current[index]?.editor?.focus()
         }, 0)
@@ -83,7 +95,6 @@ const JupyterNotebookViewer = ({ path }) => {
     })
   }
 
-  // Cell operations
   const duplicateCell = (index) => {
     const newCells = [...notebookContent.cells]
     newCells.splice(index, 0, deepCopy(newCells[index]))
@@ -174,7 +185,7 @@ const JupyterNotebookViewer = ({ path }) => {
           <div className={`cell ${isCodeCell ? "code-cell" : "markdown-cell"}`}>
             {editMode[index] ? (
               <AceEditor
-                ref={(ref) => (editorRefs.current[index] = ref)} // Assign ref to the editor
+                ref={(ref) => (editorRefs.current[index] = ref)}
                 mode={isCodeCell ? "python" : "markdown"}
                 theme="tomorrow"
                 value={cellContent}
@@ -320,13 +331,24 @@ const JupyterNotebookViewer = ({ path }) => {
           }
         `}
       </style>
+      <div className="flex-container justify-between items-center w-full mb-3 mt-2 p-2">
+        <Button
+          style={{ height: "40px", marginTop: "10px" }}
+          label="Save Changes"
+          icon="pi pi-save"
+          className="p-button-success"
+          size="small"
+          onClick={() => saveNotebook()}
+          loading={loadingSave}
+          disabled={saved}
+        />
+      </div>
       {error && <p className="error-message">{error}</p>}
       {notebookContent ? <div className="notebook-content">{renderCells()}</div> : <p className="loading-message">Loading Jupyter Notebook...</p>}
     </div>
   )
 }
 
-// Helper function to deep copy objects
 function deepCopy(obj) {
   return JSON.parse(JSON.stringify(obj))
 }
