@@ -80,20 +80,38 @@ const PipelineResult = ({ pipeline, selectionMode, flowContent }) => {
       let selectedNode = flowContent.nodes.find((node) => node.id == selectedId)
       let resultsCopy = deepCopy(flowResults)
       let selectedResults = false
+      let isGroupModelsFinal = true
+      let isAfterGroupModels = false
+      let passGroupModels = false
       pipeline.forEach((id) => {
         resultsCopy = checkIfObjectContainsId(resultsCopy, id)
         if (resultsCopy) {
+          let curNode = flowContent.nodes.find((node) => node.id == id)
+          console.log("curNode", curNode, "type", curNode.data.internal.type)
+          if (curNode.data.internal.type == "group_models") {
+            console.log("FLAG")
+            passGroupModels = true
+            console.log("passGroupModels", passGroupModels)
+          }
           if (id == selectedId) {
             selectedResults = resultsCopy.results
-          } else {
-            resultsCopy = resultsCopy.next_nodes
+            isAfterGroupModels = passGroupModels
           }
+
+          console.log("resultsCopy", resultsCopy)
+          if (resultsCopy.results && resultsCopy.results.data && "prev_node_complete" in resultsCopy.results.data) {
+            console.log("prev_node_complete", resultsCopy.results.data.prev_node_complete, isAfterGroupModels)
+
+            isGroupModelsFinal = resultsCopy.results.data.prev_node_complete
+          }
+          resultsCopy = resultsCopy.next_nodes
         } else {
           !selectedNode.data.internal.hasRun && (toReturn = <div className="pipe-name-notRun">Has not been run yet !</div>)
         }
       })
+      console.log("isAfterGroupModels", isAfterGroupModels)
       console.log("selectedResults", selectedResults)
-      if (selectedResults) {
+      if (selectedResults && (isGroupModelsFinal || !isAfterGroupModels)) {
         let type = selectedNode.data.internal.type
         console.log("type", type)
         if (type == "dataset" || type == "clean") {
@@ -107,8 +125,6 @@ const PipelineResult = ({ pipeline, selectionMode, flowContent }) => {
         } else {
           toReturn = <div>Results not available for this node type</div>
         }
-      } else {
-        toReturn = <div className="pipe-name-notRun">Has not been run yet !</div>
       }
     }
 
@@ -198,11 +214,11 @@ const PipelinesResults = ({ pipelines, selectionMode, flowContent }) => {
         let node = flowContent.nodes.find((node) => node.id == id)
         if (pipeline) {
           let nextNode = pipeline.indexOf(id) + 1 < pipeline.length ? flowContent.nodes.find((node) => node.id == pipeline[pipeline.indexOf(id) + 1]) : null
-          if (nextNode && nextNode.data.internal.type == "group_models") {
-            let prevEdges = flowContent.edges.filter((edge) => edge.target == nextNode.id)
-            let prevIds = prevEdges.map((edge) => edge.source)
-            return prevIds.map((id) => getName(id)).join(" & ")
-          }
+          // if (nextNode && nextNode.data.internal.type == "group_models") {
+          //   let prevEdges = flowContent.edges.filter((edge) => edge.target == nextNode.id)
+          //   let prevIds = prevEdges.map((edge) => edge.source)
+          //   return prevIds.map((id) => getName(id)).join(" & ")
+          // }
         }
         return node && node.data.internal.name
       }
@@ -430,24 +446,11 @@ const PipelinesResults = ({ pipelines, selectionMode, flowContent }) => {
   return (
     <Accordion multiple activeIndex={accordionActiveIndex} onTabChange={(e) => setAccordionActiveIndex(e.index)} className="pipeline-results-accordion">
       {pipelines.map((pipeline, index) => {
-        let curNode = deepCopy(flowResults)
-        let isValid = true
-        pipeline.map((id) => {
-          let nodeResults = checkIfObjectContainsId(curNode, id)
-          if (nodeResults) {
-            curNode = nodeResults.next_nodes
-            if (nodeResults.results && nodeResults.results.data && "prev_node_complete" in nodeResults.results.data) {
-              isValid = nodeResults.results.data.prev_node_complete
-            }
-          }
-        })
-        if (isValid) {
-          return (
-            <AccordionTab disabled={!isResults} key={index} header={createTitleFromPipe(pipeline)}>
-              <PipelineResult key={index} pipeline={pipeline} selectionMode={selectionMode} flowContent={flowContent} />
-            </AccordionTab>
-          )
-        }
+        return (
+          <AccordionTab disabled={!isResults} key={index} header={createTitleFromPipe(pipeline)}>
+            <PipelineResult key={index} pipeline={pipeline} selectionMode={selectionMode} flowContent={flowContent} />
+          </AccordionTab>
+        )
       })}
     </Accordion>
   )

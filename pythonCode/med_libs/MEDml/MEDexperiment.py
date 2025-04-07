@@ -238,13 +238,7 @@ class MEDexperiment(ABC):
                 exp_to_return = experiment
                 self._progress['currentLabel'] = node.username
                 if not node.has_run() or prev_node.has_changed():
-                    if node.type == 'group_models':
-                        print("group_models")
-                        data = node.execute(experiment, **prev_node.get_info_for_next_node())
-                        node_can_go = data['prev_node_complete']
-                    else:
-                        data = node.execute(experiment, **prev_node.get_info_for_next_node())
-
+                    data = node.execute(experiment, **prev_node.get_info_for_next_node())
                     node_info['results'] = {
                         'prev_node_id': prev_node.id,
                         'data': data,
@@ -271,14 +265,13 @@ class MEDexperiment(ABC):
                     'next_nodes': copy.deepcopy(next_nodes_id_json),
                     'results': node_info['results']
                 }
-                if node_can_go:
-                    self.execute_next_nodes(
-                        prev_node=node,
-                        next_nodes_to_execute=next_nodes_id_json,
-                        next_nodes=node_info['next_nodes'],
-                        results=results[current_node_id]['next_nodes'],
-                        experiment=exp_to_return
-                    )
+                self.execute_next_nodes(
+                    prev_node=node,
+                    next_nodes_to_execute=next_nodes_id_json,
+                    next_nodes=node_info['next_nodes'],
+                    results=results[current_node_id]['next_nodes'],
+                    experiment=exp_to_return
+                )
                 print(f'END-{node.username}')
 
     @abstractmethod
