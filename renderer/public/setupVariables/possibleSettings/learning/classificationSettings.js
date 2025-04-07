@@ -52,7 +52,7 @@ const classificationSettings = {
           min: 0.1,
           max: 0.99
         },
-        stratification: {
+        stratify: {
           type: "bool",
           tooltip: "Preserve the distribution of classes during splitting.",
           default_val: "False"
@@ -66,14 +66,10 @@ const classificationSettings = {
           min: 2,
           max: 20
         },
-        type_cv: {
-          type: "list",
-          tooltip: "Choose the type of cross-validation for the Outer Split.",
-          default_val: "kfold",
-          choices: {
-            kfold: "K-Fold",
-            stratified_kfold: "Stratified K-Fold"
-          }
+        stratify: {
+          type: "bool",
+          tooltip: "Preserve the distribution of classes during Inner splitting.",
+          default_val: "False"
         }
       },
       bootstrapping: {
@@ -87,12 +83,12 @@ const classificationSettings = {
       },
       user_defined: {
         train_indices: {
-          type: "json",
+          type: "string",
           tooltip: "Custom list of training indices (array of integers).",
           default_val: "[]"
         },
         test_indices: {
-          type: "json",
+          type: "string",
           tooltip: "Custom list of testing indices (array of integers).",
           default_val: "[]"
         }
@@ -107,7 +103,7 @@ const classificationSettings = {
           min: 0.1,
           max: 0.99
         },
-        stratification: {
+        stratify: {
           type: "bool",
           tooltip: "Preserve the distribution of classes during Inner splitting.",
           default_val: "False"
@@ -121,14 +117,10 @@ const classificationSettings = {
           min: 2,
           max: 20
         },
-        type_cv: {
-          type: "list",
-          tooltip: "Choose the type of Inner cross-validation.\nIf not specified, PyCaret will use its default.",
-          default_val: "kfold",
-          choices: {
-            kfold: "K-Fold",
-            stratified_kfold: "Stratified K-Fold"
-          }
+        stratify: {
+          type: "bool",
+          tooltip: "Preserve the distribution of classes during Inner splitting.",
+          default_val: "False"
         }
       },
       bootstrapping: {
