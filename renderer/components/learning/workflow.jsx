@@ -499,7 +499,7 @@ const Workflow = ({ setWorkflowType, workflowType }) => {
       Object.entries(settings).forEach(([settingName, setting]) => {
         if (!setting) return
         
-        if ("type" in setting) {
+        if (setting.hasOwnProperty("type")) {
           tempDefaultSettings[settingName] = setting.default_val ?? defaultValueFromType[setting.type] ?? null
         } else if (typeof setting === "object") {
           tempDefaultSettings[settingName] = tempDefaultSettings[settingName] || {}
@@ -507,7 +507,7 @@ const Workflow = ({ setWorkflowType, workflowType }) => {
           Object.entries(setting).forEach(([name, actualSetting]) => {
             if (!actualSetting) return
             
-            if ("type" in actualSetting) {
+            if (actualSetting.hasOwnProperty("type")) {
               tempDefaultSettings[settingName][name] = actualSetting.default_val ?? defaultValueFromType[actualSetting.type] ?? null
             } else if (typeof actualSetting === "object") {
               tempDefaultSettings[settingName][name] = {}
@@ -824,6 +824,8 @@ const Workflow = ({ setWorkflowType, workflowType }) => {
       newJson.identifiers["plots"] = plotDirectoryID
       newJson.nbNodes2Run = nbNodes2Run + 1 // +1 because the results generation is a time consuming task
       let success = await overwriteMEDDataObjectContent(backendMetadataFileID, [newJson])
+
+      console.log("Debug flow sent newJson", newJson)
 
       return { success: success, isValid: isValidDefault }
     },
