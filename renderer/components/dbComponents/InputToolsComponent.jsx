@@ -8,13 +8,14 @@ import { DataContext } from "../workspace/dataContext"
 import BasicToolsDB from "./inputToolsDB/basicToolsDB"
 import DropDuplicatesToolsDB from "./inputToolsDB/dropDuplicatesToolsDB"
 import FeatureReductionToolsDB from "./inputToolsDB/featureReductionToolsDB/featureReductionToolsDB"
+import ConvertCategoricalColumnIntoNumericDB from "./inputToolsDB/convertCategoricalColumnIntoNumericDB"
 import GroupingTaggingToolsDB from "./inputToolsDB/groupingTaggingToolsDB"
 import HoldoutSetCreationToolsDB from "./inputToolsDB/holdoutSetCreationToolsDB"
 import MergeToolsDB from "./inputToolsDB/mergeToolsDB"
 import SimpleCleaningToolsDB from "./inputToolsDB/simpleCleaningToolsDB"
 import SubsetCreationToolsDB from "./inputToolsDB/subsetCreationToolsDB"
 import TransformColumnToolsDB from "./inputToolsDB/transformColumnToolsDB"
-import { getCollectionData } from "./utils"
+import { getCollectionSize } from "../mongoDB/mongoDBUtils.js"
 
 /**
  * @description
@@ -28,125 +29,99 @@ import { getCollectionData } from "./utils"
  * @param {Object[]} props.innerData - Inner data
  * @param {Object} props.lastEdit - Last edit
  */
-const InputToolsComponent = ({ data, exportOptions, refreshData, columns, transformData, innerData, lastEdit }) => {
+const InputToolsComponent = ({ exportOptions }) => {
   const { globalData } = useContext(DataContext) // We get the global data from the context
-  const [altData, setAltData] = useState(data)
-  const [altColumns, setAltColumns] = useState(columns)
+  const [collectionId, setCollectionId] = useState(null)
+  const [collectionSize, setCollectionSize] = useState(0)
   const panelContainerStyle = {
     height: "100%",
     overflow: "auto"
   }
-  exportOptions = [
-    {
-      label: "CSV",
-      command: () => {
-        // handleExport is undefined here @MahdiAll99
-        // eslint-disable-next-line no-undef
-        handleExport("CSV")
-      }
-    },
-    {
-      label: "JSON",
-      command: () => {
-        // handleExport is undefined here @MahdiAll99
-        // eslint-disable-next-line no-undef
-        handleExport("JSON")
-      }
-    }
-  ]
-
-  // Fetch data from MongoDB on component mount
-  useEffect(() => {
-    if (altData && altData.id && !innerData) {
-      getCollectionData(altData.id)
-        .then((fetchedData) => {
-          console.log("Fetched data:", fetchedData)
-          let collData = fetchedData.map((item) => {
-            let keys = Object.keys(item)
-            let values = Object.values(item)
-            let dataObject = {}
-            for (let i = 0; i < keys.length; i++) {
-              dataObject[keys[i]] = keys[i] === "_id" ? item[keys[i]].toString() : values[i]
-            }
-            return dataObject
-          })
-          if (collData && collData.length > 0 && !columns) {
-            const allKeys = new Set()
-            collData.forEach((item) => {
-              Object.keys(item).forEach((key) => allKeys.add(key))
-            })
-            const keys = Array.from(allKeys).filter((key) => key !== "_id")
-            columns = keys.map((key) => ({ field: key, header: key }))
-            setAltColumns(columns)
-          }
-        })
-        .catch((error) => {
-          console.error("Failed to fetch data:", error)
-        })
-    } else {
-      console.warn("Invalid data prop:", altData)
-    }
-  }, [altData])
 
   const selectedCSVFiles = Object.values(globalData).filter((item) => item.type === "csv")
+
+  // console the id of the selected collection
+  useEffect(() => {
+    console.log("globalData", globalData)
+  }, [globalData])
+
+  // console log the collectionId
+  useEffect(() => {
+    console.log("collectionId", collectionId)
+  }, [collectionId])
+
+  useEffect(() => {
+    if (collectionId) {
+      const fetchCollectionSize = async () => {
+        const size = await getCollectionSize(collectionId)
+        setCollectionSize(size)
+      }
+      fetchCollectionSize()
+    }
+  }, [collectionId])
+
+  useEffect(() => {
+    console.log("size", collectionSize)
+  }, [collectionSize])
 
   return (
     <div style={panelContainerStyle}>
       <div style={{ textAlign: "center", marginTop: "20px", marginBottom: "20px" }}>
         <h1>Database Input Tools</h1>
       </div>
-      {!data ? (
-        <Card
-          className="cute-box"
-          title="Select a CSV to get started"
-          style={{
-            marginTop: "10px",
-            backgroundColor: "#cfcfcfa4"
-          }}
-        >
-          <Dropdown
-            filter
-            style={{ maxWidth: "300px" }}
-            value={altData}
-            onChange={(e) => setAltData(e.value)}
-            options={selectedCSVFiles}
-            optionLabel="name"
-            className="w-full md:w-14rem margintop8px"
-            display="chip"
-            placeholder="Select CSV files"
-          />
-        </Card>
-      ) : null}
-      {!altData ? (
+      <Card
+        className="cute-box"
+        title="Select a CSV to get started"
+        style={{
+          marginTop: "10px",
+          backgroundColor: "#cfcfcfa4"
+        }}
+      >
+        <Dropdown
+          filter
+          style={{ maxWidth: "300px" }}
+          value={selectedCSVFiles.find((item) => item.id === collectionId)}
+          onChange={(e) => setCollectionId(e.value.id)}
+          options={selectedCSVFiles}
+          optionLabel="name"
+          className="w-full md:w-14rem margintop8px"
+          display="chip"
+          placeholder="Select CSV files"
+        />
+      </Card>
+      {!collectionId ? (
         <></>
       ) : (
         <>
           <Panel header="Basic Tools" toggleable collapsed={true}>
-            <BasicToolsDB exportOptions={exportOptions} refreshData={refreshData} currentCollection={!altData ? null : altData.id} />
+            <BasicToolsDB collectionSize={collectionSize} currentCollection={!collectionId ? null : collectionId} />
+          </Panel>
+          <Panel header="Convert Categorical Column Into Numeric" toggleable collapsed={true}>
+            <ConvertCategoricalColumnIntoNumericDB exportOptions={exportOptions} currentCollection={!collectionId ? null : collectionId} />
           </Panel>
           <Panel header="Drop Duplicates Tools" toggleable collapsed={true}>
-            <DropDuplicatesToolsDB exportOptions={exportOptions} currentCollection={!altData ? null : altData.id} />
+            <DropDuplicatesToolsDB exportOptions={exportOptions} currentCollection={!collectionId ? null : collectionId} />
           </Panel>
           <Panel header="Transform Column Tools" toggleable collapsed={true}>
-            <TransformColumnToolsDB columns={columns} transformData={transformData} currentCollection={!altData ? null : altData.id} refreshData={refreshData} />
+            <TransformColumnToolsDB currentCollection={!collectionId ? null : collectionId} />
           </Panel>
           <Panel header="Merge Tools" toggleable collapsed={true}>
-            <MergeToolsDB refreshData={refreshData} currentCollection={!altData ? null : altData.id} />
+            <MergeToolsDB currentCollection={!collectionId ? null : collectionId} />
           </Panel>
           <Panel header="Simple Cleaning Tools" toggleable collapsed={true}>
-            <SimpleCleaningToolsDB refreshData={refreshData} lastEdit={lastEdit} data={altData} columns={altColumns} currentCollection={!altData ? null : altData.id} />
+            <SimpleCleaningToolsDB currentCollection={!collectionId ? null : collectionId} />
           </Panel>
           <Panel header="Holdout Set Creation Tools" toggleable collapsed={true}>
-            <HoldoutSetCreationToolsDB refreshData={refreshData} data={altData} currentCollection={!altData ? null : altData.id} />
+            <HoldoutSetCreationToolsDB currentCollection={!collectionId ? null : collectionId} />
           </Panel>
           <Panel header="Sample | Row Grouping Tools" toggleable collapsed={true}>
-            <SubsetCreationToolsDB currentCollection={!altData ? null : altData.id} data={altData} refreshData={refreshData} />
+            <SubsetCreationToolsDB currentCollection={!collectionId ? null : collectionId} />
           </Panel>
           <Panel header="Feature | Column Tagging Tools" toggleable collapsed={true}>
-            <GroupingTaggingToolsDB refreshData={refreshData} />
+            <GroupingTaggingToolsDB />
           </Panel>
           <Panel header="Feature Reduction Tools" toggleable collapsed={true}>
-            <FeatureReductionToolsDB data={altData} refreshData={refreshData} />
+            <FeatureReductionToolsDB currentCollection={!collectionId ? null : collectionId} />
           </Panel>
           <Panel header="MEDprofiles" toggleable collapsed={true}>
             <ModulePage>

@@ -7,9 +7,9 @@ import { Message } from "primereact/message"
 import { MultiSelect } from "primereact/multiselect"
 import { OverlayPanel } from "primereact/overlaypanel"
 import { TreeSelect } from "primereact/treeselect"
-import React, { useContext, useEffect, useRef, useState } from "react"; // Corrected imports
+import React, { useContext, useEffect, useRef, useState } from "react"
 import { PlusSquare } from "react-bootstrap-icons"
-import { toast } from "react-toastify"; // Assuming toast is from react-toastify
+import { toast } from "react-toastify"
 import { requestBackend } from "../../../utilities/requests"
 import { getCollectionColumns } from "../../mongoDB/mongoDBUtils"
 import { ServerConnectionContext } from "../../serverConnection/connectionContext"
@@ -20,7 +20,7 @@ import { DataContext } from "../../workspace/dataContext"
  * This component is used to create and apply tags to dataset columns.
  * It allows the user to select the datasets to tag, create tags, and apply them to the selected columns.
  */
-const GroupingTaggingToolsDB = ({ refreshData }) => {
+const GroupingTaggingToolsDB = () => {
   const [options, setOptions] = useState([])
   const { globalData } = useContext(DataContext)
   const [selectedCollections, setSelectedCollections] = useState([])
@@ -36,6 +36,7 @@ const GroupingTaggingToolsDB = ({ refreshData }) => {
   const op = useRef(null)
   const [tagId, setTagId] = useState(localStorage.getItem("myUUID"))
 
+  // Generate a unique id for the tag
   useEffect(() => {
     if (!tagId) {
       let uuid = "column_tags"
@@ -44,16 +45,7 @@ const GroupingTaggingToolsDB = ({ refreshData }) => {
     }
   }, [])
 
-  useEffect(() => {
-    console.log("selectedTags", selectedTags)
-    console.log("selectedColumnsToTag", selectedColumnsToTag)
-    console.log("selectedCollections", selectedCollections)
-  }, [selectedTags, selectedColumnsToTag, selectedCollections])
-
-  useEffect(() => {
-    console.log("tagId", tagId)
-  }, [tagId])
-
+  // Fetch columns data for selected collections
   useEffect(() => {
     const fetchColumnsData = async () => {
       const columnsData = []
@@ -69,12 +61,14 @@ const GroupingTaggingToolsDB = ({ refreshData }) => {
     }
   }, [selectedCollections])
 
+  // Update the treeSelectData when selectedCollections change
   useEffect(() => {
     setSelectedColumnsToTag([])
     const updatedTreeSelectData = treeSelectData.filter((item) => selectedCollections.includes(item.key))
     setTreeSelectData(updatedTreeSelectData)
   }, [selectedCollections])
 
+  // Update the treeSelectData when columnsByCollection change
   useEffect(() => {
     const treeFinalData = selectedCollections.map((collection) => ({
       label: globalData[collection].name,
@@ -89,6 +83,7 @@ const GroupingTaggingToolsDB = ({ refreshData }) => {
     setTreeSelectData(treeFinalData)
   }, [columnsByCollection])
 
+  // Update the options when globalData or selectedCollections change
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -103,14 +98,15 @@ const GroupingTaggingToolsDB = ({ refreshData }) => {
         toast.error("Failed to fetch collection data.")
       }
     }
-
     fetchData()
   }, [globalData, selectedCollections])
 
+  // Handle the change of selected collections
   const handleSelectChange = (newSelection) => {
     setSelectedCollections(newSelection)
   }
 
+  // Add a tag to the tags dictionary
   const addTagToTagsDict = (tag, color, newTagsDict, protect) => {
     if (newTagsDict[tag]) {
       toast.error(`Tag ${tag} already exists.`)
@@ -120,6 +116,7 @@ const GroupingTaggingToolsDB = ({ refreshData }) => {
     return newTagsDict
   }
 
+  // Handle the creation of tags
   const handleTagsCreation = (e) => {
     let innerTagsList = e.value
     if (innerTagsList.length > 0) {
@@ -135,41 +132,47 @@ const GroupingTaggingToolsDB = ({ refreshData }) => {
     }
   }
 
+  // Generate a random color
   const generateRandomColor = () => {
     let color = "#" + Math.floor(Math.random() * 16777215).toString(16)
     return color
   }
 
+  // Custom chip for tags
   const customChip = (option) => {
     let style = { padding: "0px 5px", backgroundColor: tagsDict[option].color, color: tagsDict[option].fontColor }
 
     return <Chip className="custom-token" label={option} style={style}></Chip>
   }
 
+  // Handle the change of color for a tag
   const handleChangeColor = (tag, e) => {
     const newTagsDict = { ...tagsDict, [tag]: { ...tagsDict[tag], color: e.target.value } }
     setTagsDict(newTagsDict)
   }
 
+  // Handle the toggle of font color for a tag
   const handleToggleFontColor = (tag) => {
     const newFontColor = tagsDict[tag].fontColor === "black" ? "white" : "black"
     const newTagsDict = { ...tagsDict, [tag]: { ...tagsDict[tag], fontColor: newFontColor } }
     setTagsDict(newTagsDict)
   }
 
+  // Handle the deletion of a tag
   const handleDeleteTag = (tag) => {
-    // eslint-disable-next-line no-unused-vars
     const { [tag]: oldTag, ...rest } = tagsDict
     setTagsDict(rest)
     setSelectedTags(selectedTags.filter((selectedTag) => selectedTag !== tag))
   }
 
+  // Handle the change of tag name
   const handleChangeTagName = (tag, event) => {
     setCurrentTag(tag)
     setTempTagName(tag)
     op.current.toggle(event)
   }
 
+  // Handle the confirmation of tag name change
   const handleTagChangeConfirm = () => {
     if (tempTagName && !tagsDict[tempTagName]) {
       let newTagsDict = {}
@@ -185,6 +188,7 @@ const GroupingTaggingToolsDB = ({ refreshData }) => {
     op.current.hide()
   }
 
+  // Apply tags to columns (backend logic here)
   const applyTagsToColumns = async (selectedColumns, selectedTags) => {
     let jsonToSend = {}
     jsonToSend = {
@@ -192,14 +196,13 @@ const GroupingTaggingToolsDB = ({ refreshData }) => {
       collections: selectedCollections,
       columns: selectedColumns,
       tags: selectedTags,
-      databaseName: "data"
     }
     console.log("id", tagId)
     setLoading(true)
     requestBackend(
-      port, 
-      "/input/create_tags/", 
-      jsonToSend, 
+      port,
+      "/input/create_tags/",
+      jsonToSend,
       (jsonResponse) => {
         console.log("jsonResponse", jsonResponse)
         if (jsonResponse.error) {
@@ -218,6 +221,7 @@ const GroupingTaggingToolsDB = ({ refreshData }) => {
     )
   }
 
+  // Handle the selection of a tag
   const handleTagSelection = (selectedTag) => {
     if (selectedColumnsToTag.length < 1) {
       toast.error("Please select columns to tag.")
@@ -238,6 +242,7 @@ const GroupingTaggingToolsDB = ({ refreshData }) => {
               <h6 style={{ paddingBottom: "0.25rem", margin: "0rem", marginInline: "0.5rem", height: "1.5rem" }}>Datasets to tag</h6>
               <MultiSelect
                 display="chip"
+                filter 
                 value={selectedCollections}
                 options={options}
                 onChange={(e) => handleSelectChange(e.value)}
@@ -290,44 +295,24 @@ const GroupingTaggingToolsDB = ({ refreshData }) => {
                             padding: "2px 6px",
                             fontSize: "12px",
                             fontWeight: "bold",
-                            textAlign: "center",
+                            textAlign: "center"
                           }}
                         />
                       </div>
                       <div style={{ marginLeft: "10px", marginRight: "10px" }}>
-                        <input
-                          type="color"
-                          value={tagsDict[tag].color}
-                          onChange={() => handleChangeColor(tag, event)}
-                          style={{ width: "40px", height: "30px", padding: "2px" }}
-                        />
+                        <input type="color" value={tagsDict[tag].color} onChange={() => handleChangeColor(tag, event)} style={{ width: "40px", height: "30px", padding: "2px" }} />
                       </div>
-                      <Button
-                        icon="pi pi-refresh"
-                        onClick={() => handleToggleFontColor(tag)}
-                        className="margin-left-10"
-                        style={{ padding: "4px 8px", fontSize: "12px", marginLeft: "10px" }}
-                      />
+                      <Button icon="pi pi-refresh" onClick={() => handleToggleFontColor(tag)} className="margin-left-10" style={{ padding: "4px 8px", fontSize: "12px", marginLeft: "10px" }} />
                       <Button
                         icon="pi pi-pencil"
                         onClick={(event) => handleChangeTagName(tag, event)}
                         className="margin-left-10"
                         style={{ padding: "4px 8px", fontSize: "12px", marginLeft: "10px" }}
                       />
-                      <Button
-                        icon="pi pi-trash"
-                        onClick={() => handleDeleteTag(tag)}
-                        className="margin-left-10"
-                        style={{ padding: "4px 8px", fontSize: "12px", marginLeft: "10px" }}
-                      />
+                      <Button icon="pi pi-trash" onClick={() => handleDeleteTag(tag)} className="margin-left-10" style={{ padding: "4px 8px", fontSize: "12px", marginLeft: "10px" }} />
                       <OverlayPanel ref={op} dismissable>
                         <div>
-                          <InputText
-                            placeholder="Change Tag Name"
-                            type="text"
-                            value={tempTagName}
-                            onChange={(e) => setTempTagName(e.target.value)}
-                          />
+                          <InputText placeholder="Change Tag Name" type="text" value={tempTagName} onChange={(e) => setTempTagName(e.target.value)} />
                           <Button onClick={handleTagChangeConfirm}>Confirm</Button>
                         </div>
                       </OverlayPanel>

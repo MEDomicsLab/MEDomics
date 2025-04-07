@@ -2,7 +2,7 @@ import React, { createContext, useState, useContext } from "react"
 import { useEffect } from "react"
 import { toast } from "react-toastify"
 import { DataContext } from "../workspace/dataContext"
-import { overwriteMEDDataObjectProperties, collectionExists } from "../mongoDB/mongoDBUtils"
+import { overwriteMEDDataObjectProperties, getCollectionSize } from "../mongoDB/mongoDBUtils"
 
 /**
  * @typedef {React.Context} LayoutModelContext
@@ -26,6 +26,7 @@ function LayoutModelProvider({ children, layoutModel, setLayoutModel }) {
   const [layoutMainState, setLayoutMainState] = useState(layoutModel)
   const [layoutRequestQueue, setLayoutRequestQueue] = useState([])
   const [developerMode, setDeveloperMode] = useState(false)
+  const [isEditorOpen, setIsEditorOpen] = useState(false)
 
   /**
    * @param {FlexLayout.Model.Action} action - The actions passed on by the flexlayout-react library
@@ -94,14 +95,10 @@ function LayoutModelProvider({ children, layoutModel, setLayoutModel }) {
           return openImageViewer(action, globalData)
         case "openInPDFViewer":
           return openPDFViewer(action)
-        case "openInTextEditor":
-          return openTextEditor(action)
         case "openHtmlViewer":
           return openHtmlViewer(action)
         case "openInModelViewer":
           return openModelViewer(action)
-        case "openInJSONViewer":
-          return openInJSONViewer(action)
         case "openPandasProfiling":
           return openInPandasProfiling(action)
         /*********** OPEN *****************/
@@ -173,7 +170,7 @@ function LayoutModelProvider({ children, layoutModel, setLayoutModel }) {
         name: object.data,
         id: object.index,
         component: component,
-        config: { id: object.index, name: object.data, extension: object.type }
+        config: { id: object.index, name: object.data, extension: object.type, fileSize: getCollectionSize(object.index) }
       }
       let layoutRequestQueueCopy = [...layoutRequestQueue]
       layoutRequestQueueCopy.push({ type: "ADD_TAB", payload: newChild })
@@ -286,15 +283,6 @@ function LayoutModelProvider({ children, layoutModel, setLayoutModel }) {
       layoutRequestQueueCopy.push({ type: "ADD_TAB", payload: newChild })
       setLayoutRequestQueue(layoutRequestQueueCopy)
     }
-  }
-
-  /**
-   * @summary Function that adds a tab of the JSON Viewer Module to the layout model
-   * @params {Object} action - The action passed on by the dispatchLayout function
-   */
-  const openInJSONViewer = (action) => {
-    console.log("OPEN IN JSON VIEWER", action)
-    openInDotDotDot(action, "jsonViewer")
   }
 
   /**
@@ -434,14 +422,6 @@ function LayoutModelProvider({ children, layoutModel, setLayoutModel }) {
   }
 
   /**
-   * @summary Function that adds a tab with a text editor to the layout model
-   * @params {Object} action - The action passed on by the dispatchLayout function
-   */
-  const openTextEditor = (action) => {
-    openInDotDotDot(action, "textEditor", globalData)
-  }
-
-  /**
    * @summary Function that adds a tab with an image viewer to the layout model
    * @params {Object} action - The action passed on by the dispatchLayout function
    */
@@ -485,18 +465,20 @@ function LayoutModelProvider({ children, layoutModel, setLayoutModel }) {
       openInTab(action, "dataTableFromDB")
       return
     }
-    const doesCollectionExists = await collectionExists(object.index)
+    // const doesCollectionExists = await collectionExists(object.index)
 
-    if (!doesCollectionExists) {
-      toast.error("The collection does not exist in the database. Try reloading the page.")
-      /* if (fileSize > maxBSONSize) {
-        // await ConvertBinaryToOriginalData(globalData, object)
-        // setTimeout(() => openInTab(action, "dataTableFromDB"), 1500)
-        toast.warn("The file is too large to be displayed in the data table.")
-      } */
-    } else {
-      openInTab(action, "dataTableFromDB")
-    }
+    // // 16mb max BSON size
+    // const maxBSONSize = 16777216
+    // const fileSize = await getCollectionSize(object.index)
+    // console.log("size", fileSize)
+
+    // if (!doesCollectionExists) {
+    //   toast.error("The collection does not exist in the database. Try reloading the page.")
+    // } else if (fileSize > maxBSONSize) {
+    //   toast.warn("The file is too large to be displayed in the data table, but you can still use it freely in the application.")
+    // } else {
+    openInTab(action, "dataTableFromDB")
+    // }
   }
 
   /**
@@ -599,7 +581,7 @@ function LayoutModelProvider({ children, layoutModel, setLayoutModel }) {
   // The children are wrapped by the LayoutModelContext.Provider and will have access to the layoutModel, the dispatchLayout function and the flexlayoutInterpreter function
   return (
     <LayoutModelContext.Provider
-      value={{ layoutModel, setLayoutModel, dispatchLayout, flexlayoutInterpreter, layoutMainState, setLayoutMainState, layoutRequestQueue, setLayoutRequestQueue, developerMode, setDeveloperMode }}
+      value={{ layoutModel, setLayoutModel, dispatchLayout, flexlayoutInterpreter, layoutMainState, setLayoutMainState, layoutRequestQueue, setLayoutRequestQueue, developerMode, setDeveloperMode, isEditorOpen, setIsEditorOpen }}
     >
       {children}
     </LayoutModelContext.Provider>

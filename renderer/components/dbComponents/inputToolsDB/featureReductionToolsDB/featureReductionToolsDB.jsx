@@ -6,7 +6,7 @@ import ApplyPCADB from "./ApplyPcaDB"
 import { Message } from "primereact/message"
 import { DataContext } from "../../../workspace/dataContext"
 
-const FeatureReductionToolsDB = ({ data, refreshData }) => {
+const FeatureReductionToolsDB = ({ currentCollection }) => {
   const { globalData } = useContext(DataContext)
   return (
     <div
@@ -18,20 +18,20 @@ const FeatureReductionToolsDB = ({ data, refreshData }) => {
         padding: "5px"
       }}
     >
-      <Message style={{ marginBottom: "15px" }} severity="success" text={`Current Collection: ${globalData[data.id].name}`} />
+      <Message style={{ marginBottom: "15px" }} severity="success" text={`Current Collection: ${globalData[currentCollection].name}`} />
       <TabView>
         <TabPanel header="PCA">
           <TabView>
             <TabPanel header="Create PCA">
-              <CreatePCADB currentCollection={data.id} refreshData={refreshData} />
+              <CreatePCADB currentCollection={currentCollection} />
             </TabPanel>
             <TabPanel header="Apply PCA">
-              <ApplyPCADB currentCollection={data.id} refreshData={refreshData} />
+              <ApplyPCADB currentCollection={currentCollection} />
             </TabPanel>
           </TabView>
         </TabPanel>
         <TabPanel header="Spearman">
-          <SpearmanDB currentCollection={data.id} refreshData={refreshData} />
+          <SpearmanDB currentCollection={currentCollection} />
         </TabPanel>
       </TabView>
     </div>

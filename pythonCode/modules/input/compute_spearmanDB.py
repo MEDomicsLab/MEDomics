@@ -1,16 +1,16 @@
 import json
-import sys
 import os
-import pandas as pd
+import sys
 from pathlib import Path
+
+import pandas as pd
+
 sys.path.append(
     str(Path(os.path.dirname(os.path.abspath(__file__))).parent.parent))
-from med_libs.GoExecutionScript import GoExecutionScript, parse_arguments
-from med_libs.server_utils import go_print
 
-# To deal with the DB
-from pymongo import MongoClient
-import math
+from med_libs.GoExecutionScript import GoExecutionScript, parse_arguments
+from med_libs.mongodb_utils import connect_to_mongo
+from med_libs.server_utils import go_print
 
 json_params_dict, id_ = parse_arguments()
 go_print("running script.py:" + id_)
@@ -48,7 +48,6 @@ class GoExecScriptComputeSpearman(GoExecutionScript):
         keep_target = json_config["keepTarget"]
         overwrite = json_config["overwrite"]
         collection_name = json_config["collection"]
-        database_name = json_config["databaseName"]
         new_collection_name = json_config["newCollectionName"]
 
 
@@ -56,8 +55,7 @@ class GoExecScriptComputeSpearman(GoExecutionScript):
             selected_columns.remove(target)
 
         # Connect to MongoDB
-        client = MongoClient('localhost', 54017)
-        db = client[database_name]
+        db = connect_to_mongo()
         collection = db[collection_name]
 
         # Fetch data and convert to DataFrame 

@@ -18,19 +18,13 @@ import { insertMEDDataObjectIfNotExists } from "../../mongoDB/mongoDBUtils"
 import { ServerConnectionContext } from "../../serverConnection/connectionContext"
 import { DataContext } from "../../workspace/dataContext"
 import { MEDDataObject } from "../../workspace/NewMedDataObject"
-import { getCollectionData } from "../utils"
 
 /**
  * @description
  * This component provides simple cleaning tools to handle missing values within a dataset.
- * @param {Object} props
- * @param {string} props.lastEdit - Last edit
- * @param {Object[]} props.data - Data
- * @param {Object[]} props.columns - Columns
  * @param {string} props.currentCollection - Current collection
- * @param {Function} props.refreshData - Function to refresh the data
  */
-const SimpleCleaningToolsDB = ({ lastEdit, data, columns, currentCollection, refreshData }) => {
+const SimpleCleaningToolsDB = ({ currentCollection }) => {
   const [tableData, setTableData] = useState([])
   const [rowData, setRowData] = useState([])
   const [columnThreshold, setColumnThreshold] = useState(100)
@@ -43,6 +37,7 @@ const SimpleCleaningToolsDB = ({ lastEdit, data, columns, currentCollection, ref
   const [newCollectionName, setNewCollectionName] = useState("")
   const [cleanType, setCleanType] = useState("columns")
   const [loading, setLoading] = useState(false)
+  const [loadingDB, setLoadingDB] = useState(false)
   const op = useRef(null)
   const [cleaningOption, setCleaningOption] = useState("drop")
   const cleaningOptions = ["drop", "random fill", "mean fill", "median fill", "mode fill", "bfill", "ffill"]
@@ -50,51 +45,47 @@ const SimpleCleaningToolsDB = ({ lastEdit, data, columns, currentCollection, ref
   const { port } = useContext(ServerConnectionContext)
   const { globalData } = useContext(DataContext)
 
-  // Function to show the data in the columns and rows datatables
+  // Function that calls the backend to get the missing values data for the column and row
   useEffect(() => {
     async function fetchData() {
-      const fetchedData = await getCollectionData(currentCollection)
+      let jsonToSend = {}
+      jsonToSend["collectionName"] = currentCollection
 
-      const columnsData = columns.map((column) => {
-        const NaNValues = fetchedData.reduce((count, row) => {
-          return count + (row[column.field] === null || row[column.field] === undefined || row[column.field] === "" ? 1 : 0)
-        }, 0)
-        const percentage = (NaNValues / fetchedData.length) * 100
+      setLoadingDB(true)
 
-        return { column: column.header, NaN: NaNValues, percentage: `${percentage.toFixed(2)}%` }
-      })
-
-      setTableData(columnsData)
-
-      const rowData = fetchedData.map((row, index) => {
-        const NaNValues = Object.values(row).reduce((count, value) => {
-          return count + (value === null || value === undefined || value === "" ? 1 : 0)
-        }, 0)
-        const percentage = (NaNValues / (Object.keys(row).length - 1)) * 100
-
-        return { rowIndex: `${index}`, NaN: NaNValues, percentage: `${percentage.toFixed(2)}%` }
-      })
-
-      setRowData(rowData)
+      const response = await requestBackend(
+        port,
+        "/input/get_row_column_missing_values/",
+        jsonToSend,
+        async (response) => {
+          setLoadingDB(false)
+          const columnsData = response.columnsData
+          const rowData = response.rowData
+          setTableData(columnsData)
+          setRowData(rowData)
+        },
+        (error) => {
+          setLoadingDB(false)
+          console.error("Failed to fetch missing values data:", error)
+        }
+      )
     }
-
     fetchData()
-  }, [currentCollection, data, columns, lastEdit])
+  }, [currentCollection])
 
-  // Sets the columns to drop
+  // Sets the columns to drop depending on the threshold
   const handleCleanColumns = () => {
-    const columnsBelowThreshold = columns
-      .filter((column) => {
-        const columnData = tableData.find((data) => data.column === column.header)
+    const columnsBelowThreshold = tableData
+      .filter((columnData) => {
         const percentage = parseFloat(columnData.percentage)
         return percentage >= columnThreshold
       })
-      .map((column) => column.header)
+      .map((columnData) => columnData.column)
 
     setColumnsToClean(columnsBelowThreshold)
   }
 
-  // Sets the rows to drop
+  // Sets the rows to drop depending on the threshold
   const handleCleanRows = () => {
     const rowsBelowThreshold = rowData
       .filter((row) => {
@@ -158,7 +149,6 @@ const SimpleCleaningToolsDB = ({ lastEdit, data, columns, currentCollection, ref
         type: type,
         cleanMethod: cleaningOption,
         overwrite: overwrite,
-        databaseName: "data",
         collectionName: globalData[currentCollection].id,
         rowThreshold: rowThreshold,
         columnThreshold: columnThreshold,
@@ -172,7 +162,6 @@ const SimpleCleaningToolsDB = ({ lastEdit, data, columns, currentCollection, ref
         type: type,
         cleanMethod: cleaningOption,
         overwrite: overwrite,
-        databaseName: "data",
         collectionName: globalData[currentCollection].id,
         rowThreshold: rowThreshold,
         columnThreshold: columnThreshold,
@@ -229,10 +218,11 @@ const SimpleCleaningToolsDB = ({ lastEdit, data, columns, currentCollection, ref
           className="p-datatable-striped p-datatable-gridlines"
           value={tableData}
           readOnly
+          loading={loadingDB}
           rowClassName={(rowData) => (columnsToClean.includes(rowData.column) ? "highlight-row" : "")}
         >
-          <Column field="column" header={`Columns (${columns.length})`} sortable></Column>
-          <Column field="NaN" header="Number of empty" sortable></Column>
+          <Column field="column" header={`Columns (${tableData.length})`} sortable></Column>
+          <Column field="numEmpty" header="Number of empty" sortable></Column>
           <Column field="percentage" header="% of empty" sortable></Column>
         </DataTable>
         <div style={{ marginTop: "20px" }}>
@@ -242,10 +232,11 @@ const SimpleCleaningToolsDB = ({ lastEdit, data, columns, currentCollection, ref
             className="p-datatable-striped p-datatable-gridlines"
             value={rowData}
             readOnly
+            loading={loadingDB}
             rowClassName={(rowData) => (columnsToClean.includes(rowData.column) ? "highlight-row" : "")}
           >
-            <Column field="rowIndex" header={`Row index (${columns.length})`} sortable></Column>
-            <Column field="NaN" header="Number of empty" sortable></Column>
+            <Column field="rowIndex" header={`Row index (${rowData.length})`} sortable></Column>
+            <Column field="numEmpty" header="Number of empty" sortable></Column>
             <Column field="percentage" header="% of empty" sortable></Column>
           </DataTable>
         </div>
@@ -415,16 +406,12 @@ const SimpleCleaningToolsDB = ({ lastEdit, data, columns, currentCollection, ref
       </div>
       <div style={{ display: "flex", justifyContent: "center", alignItems: "center" }}>
         <div className="p-inputgroup w-full md:w-30rem" style={{ margin: "5px", fontSize: "1rem", width: "205px", marginTop: "20px" }}>
-          <InputText
-            value={newCollectionName}
-            onChange={(e) => setNewCollectionName(e.target.value)}
-            placeholder="New clean dataset name"
-          />
+          <InputText value={newCollectionName} onChange={(e) => setNewCollectionName(e.target.value)} placeholder="New clean dataset name" />
           <span className="p-inputgroup-addon">.csv</span>
         </div>
         <Button
           icon="pi pi-plus"
-          style={{ margin: "5px", fontSize: "1rem", padding: "6px 10px", width: "150px", height : "50px", marginTop: "20px" }}
+          style={{ margin: "5px", fontSize: "1rem", padding: "6px 10px", width: "150px", height: "50px", marginTop: "20px" }}
           loading={loading}
           onClick={() => cleanAll(false)}
           tooltip="Create Clean Dataset"
@@ -437,12 +424,8 @@ const SimpleCleaningToolsDB = ({ lastEdit, data, columns, currentCollection, ref
         </h4>
         <div style={{ display: "flex", justifyContent: "space-between" }}>
           <Button className="p-button-danger" label="Overwrite" style={{ margin: "5px", fontSize: "0.8rem", padding: "6px 10px" }} onClick={() => cleanRowsOrColumns(true)} />
-          <div className="p-inputgroup w-full md:w-30rem" style={{ margin: "5px", fontSize: "0.8rem" }} >
-            <InputText 
-              value={newCollectionName} 
-              onChange={(e) => setNewCollectionName(e.target.value)} 
-              placeholder="New collection name"
-            />
+          <div className="p-inputgroup w-full md:w-30rem" style={{ margin: "5px", fontSize: "0.8rem" }}>
+            <InputText value={newCollectionName} onChange={(e) => setNewCollectionName(e.target.value)} placeholder="New collection name" />
             <span className="p-inputgroup-addon">.csv</span>
           </div>
           <Button label="Create New" loading={loading} style={{ margin: "5px", fontSize: "0.8rem", padding: "6px 10px" }} onClick={() => cleanRowsOrColumns(false)} />

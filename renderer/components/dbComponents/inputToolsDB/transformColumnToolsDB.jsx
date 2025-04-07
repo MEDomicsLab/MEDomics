@@ -1,14 +1,14 @@
 /* eslint-disable no-unused-vars */
-import React, { useEffect, useState } from "react"
+import React, { useContext, useEffect, useState } from "react"
 import { MultiSelect } from "primereact/multiselect"
 import { SplitButton } from "primereact/splitbutton"
 import { Button } from "primereact/button"
 import { Message } from "primereact/message"
 import { toast } from "react-toastify"
 import { saveAs } from "file-saver"
-import { getCollectionData } from "../utils"
-import { connectToMongoDB } from "../../mongoDB/mongoDBUtils"
-import Papa from "papaparse"
+import { getCollectionColumns } from "../../mongoDB/mongoDBUtils"
+import { ServerConnectionContext } from "../../serverConnection/connectionContext"
+import { requestBackend } from "../../../utilities/requests"
 
 /**
  * @description
@@ -17,11 +17,14 @@ import Papa from "papaparse"
  * @param {string} props.currentCollection - Current collection
  * @param {Function} props.refreshData - Function to refresh the data
  */
-const TransformColumnToolsDB = ({ currentCollection, refreshData }) => {
+const TransformColumnToolsDB = ({ currentCollection }) => {
   const [isHovered, setIsHovered] = useState(false)
   const [selectedColumns, setSelectedColumns] = useState([])
   const [columns, setColumns] = useState([])
   const [fileName, setFileName] = useState("Choose File")
+  const [loading, setLoading] = useState(false)
+  const [loadingDelButton, setLoadingDelButton] = useState(false)
+  const { port } = useContext(ServerConnectionContext)
   const customFileUpload = {
     padding: "6px 12px",
     cursor: "pointer",
@@ -31,115 +34,70 @@ const TransformColumnToolsDB = ({ currentCollection, refreshData }) => {
     borderRadius: "4px"
   }
 
+  // Fetch columns without fetching the whole collection
   useEffect(() => {
-    const fetchData = async () => {
-      const collectionData = await getCollectionData(currentCollection)
-      if (collectionData && collectionData.length > 0) {
-        setColumns(Object.keys(collectionData[0]))
-      }
+    const fetchColumns = async () => {
+      const columns = await getCollectionColumns(currentCollection)
+      const filteredColumns = columns.filter((col) => col !== "_id")
+      setColumns(filteredColumns)
     }
-    fetchData()
+    fetchColumns()
   }, [currentCollection])
-
-  const handleFileUploadUpdated = (event) => {
-    handleFileUpload(event)
-    if (event.target.files.length > 0) {
-      setFileName(event.target.files[0].name)
-    }
-  }
-
-  const transformData = async (type, currentCollection) => {
-    const data = await getCollectionData(currentCollection) // Await the async call
-    const newTransformedData = data.map((row) => {
-      let newRow = { ...row }
-      selectedColumns.forEach((column) => {
-        const cellValue = newRow[column]
-        if (type === "Binary") {
-          newRow[column] = cellValue && !isNaN(cellValue) ? 1 : 0
-        } else if (type === "Non-empty") {
-          newRow[column] = cellValue && !isNaN(cellValue) ? cellValue : 0
-        }
-      })
-      return newRow
-    })
-
-    const db = await connectToMongoDB()
-    const collection = db.collection(currentCollection)
-    await collection.deleteMany({})
-    await collection.insertMany(newTransformedData)
-    toast.success("Data transformed to " + type + " successfully")
-  }
 
   // Handle exporting selected columns
   const handleExportColumns = async () => {
-    if (selectedColumns.length > 0) {
-      let csvString = selectedColumns.join(",")
-      const db = await connectToMongoDB()
-      const collection = db.collection(currentCollection)
-      const data = await collection.find({}).toArray()
-      data.forEach((row) => {
-        csvString += "\n" + selectedColumns.map((col) => row[col]).join(",")
-      })
-      const blob = new Blob([csvString], { type: "text/csv;charset=utf-8" })
-      saveAs(blob, "selected_columns.csv")
-      toast.success("Columns exported successfully")
-    } else {
+    if (selectedColumns.length === 0) {
       toast.warn("No columns selected for export")
+      return
     }
+    const blob = new Blob([selectedColumns.join(",")], { type: "text/csv;charset=utf-8" })
+    saveAs(blob, "columns.csv")
   }
 
   // Handle deleting selected columns
   const handleDeleteColumns = async () => {
-    if (selectedColumns.length > 0) {
-      const db = await connectToMongoDB()
-      const collection = db.collection(currentCollection)
-      const data = await collection.find({}).toArray()
-      const newTransformedData = data.map((row) => {
-        let newRow = { ...row }
-        selectedColumns.forEach((column) => {
-          delete newRow[column]
-        })
-        return newRow
-      })
-      await collection.deleteMany({})
-      await collection.insertMany(newTransformedData)
-      setColumns(Object.keys(newTransformedData[0]))
-      setSelectedColumns([])
-      toast.success("Columns deleted successfully")
-    }
+    let jsonToSend = {}
+    jsonToSend["collection"] = currentCollection
+    jsonToSend["columns"] = selectedColumns
+
+    setLoadingDelButton(true)
+    const response = await requestBackend(
+      port,
+      "/input/delete_columns/",
+      jsonToSend,
+      async (response) => {
+        setLoadingDelButton(false)
+        toast.success("Columns deleted successfully")
+        setSelectedColumns([])
+      },
+      (error) => {
+        setLoadingDelButton(false)
+        console.error("Failed to delete columns:", error)
+      }
+    )
   }
 
-  // Handle file upload
-  const handleFileUpload = (event) => {
-    const file = event.target.files[0]
-    if (!file) {
-      toast.warn("No file selected")
-      return
-    }
+  const transformData = async (type, collection) => {
+    let jsonToSend = {}
+    jsonToSend["collection"] = collection
+    jsonToSend["columns"] = selectedColumns
+    jsonToSend["type"] = type
 
-    if (file.type !== "text/csv") {
-      toast.warn("File must be a CSV")
-      return
-    }
+    setLoading(true)
 
-    Papa.parse(file, {
-      complete: (result) => {
-        const uploadedColumns = result.data[0] // Assuming the first row contains column names
-        if (result.data.length !== 1) {
-          toast.warn("CSV file must contain only one line with column names")
-          return
-        }
-
-        const missingColumns = uploadedColumns.filter((col) => !columns.includes(col))
-        if (missingColumns.length > 0) {
-          toast.warn("Missing columns: " + missingColumns.join(", "))
-        } else {
-          setSelectedColumns(uploadedColumns)
-        }
+    const response = await requestBackend(
+      port,
+      "/input/transform_columns/",
+      jsonToSend,
+      async (response) => {
+        setLoading(false)
+        toast.success("Columns transformed successfully")
       },
-      skipEmptyLines: true,
-      header: false
-    })
+      (error) => {
+        setLoading(false)
+        console.error("Failed to transform columns:", error)
+      }
+    )
   }
 
   return (
@@ -161,11 +119,12 @@ const TransformColumnToolsDB = ({ currentCollection, refreshData }) => {
       >
         <MultiSelect
           value={selectedColumns}
-          options={columns.filter((col) => col !== "_id")}
+          options={columns}
           display="chip"
           onChange={(e) => {
             setSelectedColumns(e.value)
           }}
+          filter
           placeholder="Select Columns"
           style={{ marginRight: "5px", width: "200px" }}
         />
@@ -193,6 +152,7 @@ const TransformColumnToolsDB = ({ currentCollection, refreshData }) => {
               }
             }
           ]}
+          loading={loading}
           className="p-button-success"
           style={{
             width: "auto",
@@ -220,13 +180,10 @@ const TransformColumnToolsDB = ({ currentCollection, refreshData }) => {
             width: "50px",
             marginRight: "2px"
           }}
+          loading={loadingDelButton}
           tooltip="Delete selected columns"
           tooltipOptions={{ position: "top" }}
         />
-        <label htmlFor="fileUpload" style={customFileUpload} onMouseEnter={() => setIsHovered(true)} onMouseLeave={() => setIsHovered(false)}>
-          {fileName}
-        </label>
-        <input id="fileUpload" type="file" accept=".csv" onChange={handleFileUploadUpdated} style={{ display: "none" }} />
       </div>
     </>
   )

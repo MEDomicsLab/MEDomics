@@ -61,7 +61,7 @@ jobs:
           VERSION: ${{ steps.get-tag.outputs.VERSION }}
 
       - name: Archive Linux
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: linux-built-ubuntu
           path: ./build/dist/MEDomicsLab-${{ env.VERSION }}-ubuntu.deb
@@ -77,7 +77,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Download Linux Ubuntu
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: linux-built-ubuntu
 

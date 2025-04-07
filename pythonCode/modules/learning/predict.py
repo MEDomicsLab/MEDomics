@@ -1,15 +1,21 @@
 import json
-import pandas as pd
-import sys
 import os
+import sys
 import uuid
 from pathlib import Path
+
+import pandas as pd
+
 sys.path.append(
     str(Path(os.path.dirname(os.path.abspath(__file__))).parent.parent))
-from med_libs.server_utils import go_print
 from med_libs.GoExecutionScript import GoExecutionScript, parse_arguments
-from med_libs.mongodb_utils import connect_to_mongo, get_child_id_by_name, get_dataset_as_pd_df, get_pickled_model_from_collection, insert_med_data_object_if_not_exists, overwrite_med_data_object_content
 from med_libs.MEDDataObject import MEDDataObject
+from med_libs.mongodb_utils import (connect_to_mongo, get_child_id_by_name,
+                                    get_dataset_as_pd_df,
+                                    get_pickled_model_from_collection,
+                                    insert_med_data_object_if_not_exists,
+                                    overwrite_med_data_object_content)
+from med_libs.server_utils import go_print
 
 json_params_dict, id_ = parse_arguments()
 go_print("running script.py:" + id_)

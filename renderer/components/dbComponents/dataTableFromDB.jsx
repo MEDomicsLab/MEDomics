@@ -10,12 +10,9 @@ import { Dialog } from "primereact/dialog"
 import { InputText } from "primereact/inputtext"
 import { Message } from "primereact/message"
 import { Skeleton } from "primereact/skeleton"
-import React, { useContext, useEffect, useState } from "react"
+import React, { useEffect, useState } from "react"
 import { toast } from "react-toastify"
-import { requestBackend } from "../../utilities/requests"
-import { LayoutModelContext } from "../layout/layoutContext"
 import { connectToMongoDB, getCollectionTags, insertMEDDataObjectIfNotExists } from "../mongoDB/mongoDBUtils"
-import { ServerConnectionContext } from "../serverConnection/connectionContext"
 import { MEDDataObject } from "../workspace/NewMedDataObject"
 import InputToolsComponent from "./InputToolsComponent"
 import { collectionExists, getCollectionData } from "./utils"
@@ -31,11 +28,24 @@ import { collectionExists, getCollectionData } from "./utils"
 const DataTableFromDB = ({ data, tablePropsData, tablePropsColumn, isReadOnly }) => {
   const [innerData, setInnerData] = useState([])
   const [columns, setColumns] = useState([])
+  const [collectionSize, setCollectionSize] = useState(0)
   const [hoveredButton, setHoveredButton] = useState(null)
   const [hoveredTag, setHoveredTag] = useState({ field: null, index: null })
   const [lastEdit, setLastEdit] = useState(Date.now())
-  const { dispatchLayout } = useContext(LayoutModelContext)
-  const { port } = useContext(ServerConnectionContext)
+  const [viewData, setViewData] = useState([])
+  const [viewMode, setViewMode] = useState(false)
+  const [viewName, setViewName] = useState("")
+  const [viewCount, setViewCount] = useState(0)
+  const [userSetViewName, setUserSetViewName] = useState("")
+  const [rowToDelete, setRowToDelete] = useState(null)
+  const [columnToDelete, setColumnToDelete] = useState(null)
+  const [rowTags, setRowTags] = useState([])
+  const [lastPipeline, setLastPipeline] = useState([])
+  const [loadingData, setLoadingData] = useState(true)
+  const [lazyParams, setLazyParams] = useState({ first: 0, rows: 10 })
+  const [viewLazyParams, setViewLazyParams] = useState({ first: 0, rows: 10 })
+  const items = Array.from({ length: 7 }, (v, i) => i) //  Fake items for the skeleton upload
+  const forbiddenCharacters = /[\\."$*<>:|?]/
   const exportOptions = [
     {
       label: "CSV",
@@ -50,17 +60,6 @@ const DataTableFromDB = ({ data, tablePropsData, tablePropsColumn, isReadOnly })
       }
     }
   ]
-
-  const [viewData, setViewData] = useState([])
-  const [viewMode, setViewMode] = useState(false)
-  const [viewName, setViewName] = useState("")
-  const [userSetViewName, setUserSetViewName] = useState("")
-  const [rowToDelete, setRowToDelete] = useState(null)
-  const [columnToDelete, setColumnToDelete] = useState(null)
-  const [lastPipeline, setLastPipeline] = useState([])
-  const [loadingData, setLoadingData] = useState(true)
-  const items = Array.from({ length: 7 }, (v, i) => i) //  Fake items for the skeleton upload
-  const forbiddenCharacters = /[\\."$*<>:|?]/
   const buttonStyle = (id) => ({
     borderRadius: "10px",
     backgroundColor: hoveredButton === id ? "#d32f2f" : "#cccccc",
@@ -76,12 +75,29 @@ const DataTableFromDB = ({ data, tablePropsData, tablePropsColumn, isReadOnly })
     overflow: "auto"
   }
 
+  const fetchRowTags = async () => {
+    const db = await connectToMongoDB();
+    const tags = await db.collection('row_tags').find({}).toArray();
+    setRowTags(tags);
+    console.log(tags)
+  };
+
+  // Fetch the row tags when the component mounts
+  useEffect(() => {
+    fetchRowTags();
+  }, []);
+
   // Fetch data from MongoDB on component mount
   useEffect(() => {
-    if (data && data.id) {
+    const getData = async () => {
+      // Get total count of documents in the collection
+      const db = await connectToMongoDB()
+      const collection = db.collection(data.id)
+      const count = await collection.countDocuments()
+      setCollectionSize(count)
       console.log("Fetching data with:", data)
       let collectionName = data.extension === "view" ? data.name : data.id
-      getCollectionData(collectionName)
+      getCollectionData(collectionName, lazyParams.first, lazyParams.rows)
         .then((fetchedData) => {
           console.log("Fetched data:", fetchedData)
           let collData = fetchedData.map((item) => {
@@ -89,7 +105,7 @@ const DataTableFromDB = ({ data, tablePropsData, tablePropsColumn, isReadOnly })
             let values = Object.values(item)
             let dataObject = {}
             for (let i = 0; i < keys.length; i++) {
-              dataObject[keys[i]] = keys[i] === "_id" ? item[keys[i]].toString() : values[i]
+              dataObject[keys[i]] = keys[i] === "_id" ? item[keys[i]].toString() : values[i];
             }
             return dataObject
           })
@@ -102,10 +118,14 @@ const DataTableFromDB = ({ data, tablePropsData, tablePropsColumn, isReadOnly })
           // Set loading to false after data has been fetched (whether successful or failed)
           setLoadingData(false)
         })
-    } else {
-      console.warn("Invalid data prop:", data)
     }
-  }, [data])
+    if (data && data.id) {
+      getData()
+    } else {
+      console.warn("Invalid data prop:", data);
+    }
+  }, [data, lazyParams])
+
 
   // Update columns when innerData changes
   useEffect(() => {
@@ -140,6 +160,7 @@ const DataTableFromDB = ({ data, tablePropsData, tablePropsColumn, isReadOnly })
     console.log("columns updated:", columns)
   }, [columns])
 
+  // Get columns from data
   const getColumnsFromData = (data) => {
     if (data.length > 0) {
       return Object.keys(data[0])
@@ -150,7 +171,7 @@ const DataTableFromDB = ({ data, tablePropsData, tablePropsColumn, isReadOnly })
   }
 
   // Update data in MongoDB
-  const updateDatabaseData = async (dbname, collectionName, id, field, newValue) => {
+  const updateDatabaseData = async (collectionName, id, field, newValue) => {
     try {
       setLoadingData(true)
       const db = await connectToMongoDB()
@@ -169,7 +190,7 @@ const DataTableFromDB = ({ data, tablePropsData, tablePropsColumn, isReadOnly })
   }
 
   // Delete data from MongoDB
-  const deleteDatabaseData = async (dbname, collectionName, id) => {
+  const deleteDatabaseData = async (collectionName, id) => {
     try {
       setLoadingData(true)
       const db = await connectToMongoDB()
@@ -190,7 +211,7 @@ const DataTableFromDB = ({ data, tablePropsData, tablePropsColumn, isReadOnly })
   }
 
   // Insert data into MongoDB
-  const insertDatabaseData = async (dbname, collectionName, data) => {
+  const insertDatabaseData = async (collectionName, data) => {
     try {
       setLoadingData(true)
       const db = await connectToMongoDB()
@@ -302,10 +323,10 @@ const DataTableFromDB = ({ data, tablePropsData, tablePropsColumn, isReadOnly })
   }
 
   // Refresh data from MongoDB
-  const refreshData = () => {
+  const refreshData = async () => {
     if (data && data.id) {
       setLoadingData(true)
-      getCollectionData(data.id)
+      getCollectionData(data.id, lazyParams.first, lazyParams.rows)
         .then((fetchedData) => {
           let collData = fetchedData.map((item) => {
             let keys = Object.keys(item)
@@ -325,6 +346,10 @@ const DataTableFromDB = ({ data, tablePropsData, tablePropsColumn, isReadOnly })
     } else {
       console.warn("Invalid data prop:", data)
     }
+    // Refresh row tags
+    const db = await connectToMongoDB()
+    const tags = await db.collection('row_tags').find({}).toArray()
+    setRowTags(tags)
   }
 
   // Export data to CSV or JSON
@@ -354,20 +379,6 @@ const DataTableFromDB = ({ data, tablePropsData, tablePropsColumn, isReadOnly })
     setLoadingData(false)
   }
 
-  // Open Input Tools dialog
-  const handleDialogClick = () => {
-    console.log("Opening Input Tools")
-    let newProps = {
-      data: { ...data },
-      exportOptions: exportOptions,
-      refreshData: refreshData,
-      columns: columns,
-      innerData: { ...innerData },
-      lastEdit: { ...lastEdit }
-    }
-    dispatchLayout({ type: "openInputToolsDB", payload: { data: newProps } })
-  }
-
   // Function to generate a random UUID
   const usePersistentUUID = () => {
     const [id, setId] = useState("")
@@ -387,6 +398,7 @@ const DataTableFromDB = ({ data, tablePropsData, tablePropsColumn, isReadOnly })
 
   useEffect(() => {
     setColumnNameToTagsMap({})
+
     async function fetchData() {
       console.log("tagId", tagId)
       const exists = await collectionExists(tagId)
@@ -397,6 +409,7 @@ const DataTableFromDB = ({ data, tablePropsData, tablePropsColumn, isReadOnly })
         setColumnNameToTagsMap(map)
       }
     }
+
     fetchData()
   }, [tagId])
 
@@ -417,24 +430,34 @@ const DataTableFromDB = ({ data, tablePropsData, tablePropsColumn, isReadOnly })
 
   // Backend to delete a tag from a column
   const DeleteTagFromColumn = async (tag) => {
-    let jsonToSend = {}
-    jsonToSend = {
-      tagToDelete: tag,
-      columnName: hoveredTag.field,
-      tagCollection: tagId,
-      databaseName: "data"
+    // Connect to db
+    const db = await connectToMongoDB()
+    const tagsCollection = await db.collection(tagId)
+    const listTags = await tagsCollection.find({"column_name": hoveredTag.field, "collection_id": data.id}).toArray()
+    const tagToDelete = listTags.find((item) => item.tags.includes(tag))
+    if (!tagToDelete) {
+      console.error("Tag not found in column")
+      toast.error("Failed to delete tag.")
+      return
     }
-    console.log("id", tagId)
-    requestBackend(port, "/input/delete_tag_from_column/", jsonToSend, (jsonResponse) => {
-      console.log("jsonResponse", jsonResponse)
-    })
-    // Delete the tag from the column in the frontend
-    const updatedMap = { ...columnNameToTagsMap }
-    const tags = updatedMap[hoveredTag.field]
-    const updatedTags = tags.split(", ").filter((t) => t !== tag)
-    updatedMap[hoveredTag.field] = updatedTags.join(", ")
-    setColumnNameToTagsMap(updatedMap)
-    toast.success("Tag deleted successfully.")
+
+    const result = await tagsCollection.updateOne(
+      { "column_name": hoveredTag.field, "collection_id": data.id },
+      { $pull: { tags: tag } }
+    )
+    if (result.modifiedCount === 0) {
+      console.error("No documents were updated")
+      toast.error("Failed to delete row tag.")
+    } else {
+      console.log("Row tag deleted successfully")
+      toast.success("Row tag deleted successfully.")
+      const updatedMap = { ...columnNameToTagsMap }
+      const tags = updatedMap[hoveredTag.field]
+      const updatedTags = tags.split(", ").filter((t) => t !== tag)
+      updatedMap[hoveredTag.field] = updatedTags.join(", ")
+      setColumnNameToTagsMap(updatedMap)
+    }
+    return
   }
 
   const [tagColorMap, setTagColorMap] = useState(() => {
@@ -492,14 +515,27 @@ const DataTableFromDB = ({ data, tablePropsData, tablePropsColumn, isReadOnly })
     setLastPipeline(pipeline) // Save the pipeline for future use
 
     // Fetch the data from the view
-    const newcollection = db.collection(view)
-    let fetchedData = await newcollection.find({}).toArray()
+    getCollectionData(view, viewLazyParams.first, viewLazyParams.rows)
+      .then((fetchedData) => {
+        let collData = fetchedData.map((item) => {
+          let keys = Object.keys(item)
+          let values = Object.values(item)
+          let dataObject = {}
+          for (let i = 0; i < keys.length; i++) {
+            dataObject[keys[i]] = keys[i] === "_id" ? item[keys[i]].toString() : values[i]
+          }
+          return dataObject
+        })
+        setViewData(collData)
+      })
+      .catch((error) => {
+        console.error("Failed to fetch data:", error)
+      })
 
     // Set the state to display the updated preview data
     setViewName(view)
     setRowToDelete(rowData)
     setColumnToDelete(null)
-    setViewData(fetchedData)
     setViewMode(true)
   }
 
@@ -533,16 +569,56 @@ const DataTableFromDB = ({ data, tablePropsData, tablePropsColumn, isReadOnly })
     setLastPipeline(pepeline) // Save the pipeline for future use
 
     // Fetch the data from the view
-    const newcollection = db.collection(view)
-    let fetchedData = await newcollection.find({}).toArray()
+    getCollectionData(view, viewLazyParams.first, viewLazyParams.rows)
+      .then((fetchedData) => {
+        let collData = fetchedData.map((item) => {
+          let keys = Object.keys(item)
+          let values = Object.values(item)
+          let dataObject = {}
+          for (let i = 0; i < keys.length; i++) {
+            dataObject[keys[i]] = keys[i] === "_id" ? item[keys[i]].toString() : values[i]
+          }
+          return dataObject
+        })
+        setViewData(collData)
+      })
+      .catch((error) => {
+        console.error("Failed to fetch data:", error)
+      })
 
     // Update view information
     setViewName(view)
     setRowToDelete(null)
     setColumnToDelete(colName)
-    setViewData(fetchedData)
     setViewMode(true)
+    setViewCount(collectionSize - 1)
   }
+
+  // track changes of view
+  useEffect(() => {
+    if (viewName){
+      console.log("View name is:", viewName)
+
+      // Fetch new data
+      getCollectionData(viewName, viewLazyParams.first, viewLazyParams.rows)
+        .then((fetchedData) => {
+          let collData = fetchedData.map((item) => {
+            let keys = Object.keys(item)
+            let values = Object.values(item)
+            let dataObject = {}
+            for (let i = 0; i < keys.length; i++) {
+              dataObject[keys[i]] = keys[i] === "_id" ? item[keys[i]].toString() : values[i]
+            }
+            return dataObject
+          })
+          setViewData(collData)
+        })
+        .catch((error) => {
+          console.error("Failed to fetch data:", error)
+        })
+    }
+  }
+  , [viewLazyParams])
 
   /**
    * @description Function to confirm the deletion of a row or column
@@ -645,9 +721,14 @@ const DataTableFromDB = ({ data, tablePropsData, tablePropsColumn, isReadOnly })
    * @description Function to cancel the changes made to the data
    */
   const onCancelChanges = async () => {
-    // Hide the panel
+    // Hide the panel and reset the state
     setViewMode(false)
     setUserSetViewName("")
+    setViewData([])
+    setViewName("")
+    setRowToDelete(null)
+    setColumnToDelete(null)
+    setViewCount(0)
     // Delete the view
     const db = await connectToMongoDB()
     await db.command({ drop: viewName }).catch(() => {
@@ -660,23 +741,140 @@ const DataTableFromDB = ({ data, tablePropsData, tablePropsColumn, isReadOnly })
     localStorage.setItem("tagColorMap", JSON.stringify(tagColorMap))
   }, [tagColorMap])
 
+  async function DeleteTagFromRow(group, id) {
+    console.log("Deleting tag from row:", group)
+    console.log("Row ID:", id)
+    console.log("data", data)
+
+    // Connect to db and delete the tag
+    const db = await connectToMongoDB()
+    const tagsCollection = await db.collection("row_tags")
+    const result = await tagsCollection.updateOne(
+        { "data._id": new ObjectId(id) },
+        { $pull: { "data.$.groupNames": group } }
+    )
+    if (result.modifiedCount === 0) {
+      console.error("No documents were updated")
+      toast.error("Failed to delete row tag.")
+    } else {
+      console.log("Row tag deleted successfully")
+      toast.success("Row tag deleted successfully.")
+      refreshData()
+    }
+    return
+  }
+
+  const renderDeleteIconRowTags = (rowData) => {
+    let groupNames = new Set(); // Use a Set to ensure uniqueness
+
+    // Loop through each tag to find the group names for the current rowData
+    try{
+      rowTags.forEach(tag => {
+        tag.data.forEach(item => {
+          if (item?._id?.toString() === rowData?._id?.toString()) { 
+            item.groupNames.forEach(groupName => groupNames.add(groupName)); 
+          }
+        });
+      });
+    } catch (error) {
+      console.error("Error fetching row tags:", error, " Try creating a new workspace.");
+    }
+
+    // Convert the Set back to an array
+    const uniqueGroupNames = Array.from(groupNames);
+
+    return (
+        <div style={{display: "flex", flexDirection: "row", gap: "5px", alignItems: "center"}}>
+          <Button
+              icon="pi pi-trash"
+              style={buttonStyle(rowData._id)}
+              onClick={() => viewRowDeletion(rowData)}
+              onMouseEnter={() => setHoveredButton(rowData._id)}
+              onMouseLeave={() => setHoveredButton(null)}
+          />
+          {uniqueGroupNames.length > 0 && (
+              <div style={{
+                width: "2px",
+                height: "24px",
+                backgroundColor: "lightgrey",
+                margin: "0 10px",
+                borderRadius: "2px"
+              }}></div>
+          )}
+          {uniqueGroupNames.map((group, index) => (
+              <div
+                  key={index}
+                  onMouseEnter={() => setHoveredTag({field: rowData._id, index})}
+                  onMouseLeave={() => setHoveredTag({field: null, index: null})}
+                  style={{position: "relative", display: "inline-block"}}
+              >
+                <div
+                    style={{
+                      position: "absolute",
+                      top: "0",
+                      right: "0",
+                      background: "rgba(255, 0, 0, 1)",
+                      borderRadius: "50%",
+                      width: "16px",
+                      height: "16px",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      cursor: "pointer",
+                      opacity: hoveredTag.field === rowData._id && hoveredTag.index === index ? 1 : 0,
+                      transition: "opacity 0.2s, transform 0.2s",
+                      transform: hoveredTag.field === rowData._id && hoveredTag.index === index ? "scale(1.2)" : "scale(1)",
+                      color: "black"
+                    }}
+                    onClick={() => DeleteTagFromRow(group, rowData._id)}
+                >
+                  x
+                </div>
+                <Chip
+                    label={group}
+                    style={{
+                      backgroundColor: getColorForTag(group),
+                      fontSize: "0.75rem",
+                      padding: "0px 8px",
+                      margin: "2px",
+                      border: "0.5px solid black"
+                    }}
+                />
+              </div>
+          ))}
+        </div>
+    );
+  };
+
   return (
-    <>
-      <Dialog visible={viewMode} header="Preview changes" style={{ width: "80%", height: "80%" }} modal={true} onHide={() => onCancelChanges()}>
+      <>
+        <Dialog visible={viewMode} header="Preview changes" style={{ width: "80%", height: "80%" }} modal={true} onHide={() => onCancelChanges()}>
         <DataTable
           className="p-datatable-striped p-datatable-gridlines"
+          lazy
           value={viewData}
+          first={viewLazyParams.first}
+          totalRecords={viewCount}
+          onPage={(e) => setViewLazyParams({ first: e.first, rows: e.rows })}
           scrollable
           height={"100%"}
           width={"100%"}
           paginator
-          rows={20}
-          rowsPerPageOptions={[20, 40, 80, 100]}
-          emptyMessage="The view generated no data"
+          rows={viewLazyParams.rows ? viewLazyParams.rows : 10}
+          rowsPerPageOptions={[5, 10, 15, 20]}
+          emptyMessage="Loading content..."
           {...tablePropsData}
           /*Confirm & cancel buttons*/
           footer={
-            <div style={{ display: "flex", justifyContent: "center", alignItems: "center", height: "100%", gap: "40px" }}>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "center",
+                alignItems: "center",
+                height: "100%",
+                gap: "40px"
+              }}
+            >
               {/* First Column with Confirm and Cancel buttons */}
               <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
                 <Button label="Confirm changes" severity="success" rounded text raised icon="pi pi-check" onClick={onConfirmDeletion} />
@@ -721,37 +919,25 @@ const DataTableFromDB = ({ data, tablePropsData, tablePropsColumn, isReadOnly })
         <div style={dataTableStyle}>
           <DataTable
             className="p-datatable-striped p-datatable-gridlines"
+            lazy
+            first={lazyParams.first}
             value={innerData}
+            totalRecords={collectionSize}
             editMode={!isReadOnly ? "cell" : undefined}
             size="small"
             scrollable
             height={"100%"}
             width={"100%"}
             paginator
-            rows={20}
-            rowsPerPageOptions={[20, 40, 80, 100]}
+            rowsPerPageOptions={[5, 10, 15, 20]}
+            rows={lazyParams.rows ? lazyParams.rows : 10}
+            onPage={(e) => setLazyParams({ first: e.first, rows: e.rows })}
             {...tablePropsData}
-            footer={
-              !isReadOnly && (
-                <div style={{ display: "flex", justifyContent: "center", alignItems: "center", height: "100%" }}>
-                  <Button icon="pi pi-file-edit" onClick={handleDialogClick} tooltip="Open Input Tools" tooltipOptions={{ position: "bottom" }} />
-                </div>
-              )
-            }
           >
             {!isReadOnly && (
-              <Column
-                field="delete"
-                body={(rowData) => (
-                  <Button
-                    icon="pi pi-trash"
-                    style={buttonStyle(rowData._id)}
-                    onClick={() => viewRowDeletion(rowData)}
-                    onMouseEnter={() => setHoveredButton(rowData._id)}
-                    onMouseLeave={() => setHoveredButton(null)}
-                  />
-                )}
-              />
+                <Column
+                    body={renderDeleteIconRowTags}
+                />
             )}
             {columns.length > 0
               ? columns.map((col) => (
@@ -769,15 +955,39 @@ const DataTableFromDB = ({ data, tablePropsData, tablePropsColumn, isReadOnly })
                             onMouseLeave={() => setHoveredButton(null)}
                           />
                         )}
-                        <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
+                        <div
+                          style={{
+                            display: "flex",
+                            flexDirection: "column",
+                            alignItems: "center"
+                          }}
+                        >
                           <span>{col.header}</span>
-                          <div style={{ fontSize: "0.75rem", color: "#777", display: "flex", flexWrap: "wrap", gap: "4px" }}>
+                          <div
+                            style={{
+                              fontSize: "0.75rem",
+                              color: "#777",
+                              display: "flex",
+                              flexWrap: "wrap",
+                              gap: "4px"
+                            }}
+                          >
                             {Array.isArray(getColumnTags(col.field))
                               ? getColumnTags(col.field).map((tag, index) => (
                                   <div
                                     key={index}
-                                    onMouseEnter={() => setHoveredTag({ field: col.field, index })}
-                                    onMouseLeave={() => setHoveredTag({ field: null, index: null })}
+                                    onMouseEnter={() =>
+                                      setHoveredTag({
+                                        field: col.field,
+                                        index
+                                      })
+                                    }
+                                    onMouseLeave={() =>
+                                      setHoveredTag({
+                                        field: null,
+                                        index: null
+                                      })
+                                    }
                                     style={{ position: "relative", display: "inline-block" }}
                                   >
                                     <div

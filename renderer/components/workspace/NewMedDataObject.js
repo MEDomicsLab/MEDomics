@@ -4,7 +4,7 @@ import fs from "fs"
 import path from "path"
 import { toast } from "react-toastify"
 import { getPathSeparator } from "../../utilities/fileManagementUtils"
-import { deleteMEDDataObject, downloadCollectionToFile, insertMEDDataObjectIfNotExists, overwriteMEDDataObjectProperties, updateMEDDataObjectName } from "../mongoDB/mongoDBUtils"
+import { deleteMEDDataObject, downloadCollectionToFile, insertMEDDataObjectIfNotExists, overwriteMEDDataObjectProperties, updateMEDDataObjectName, updateMEDDataObjectPath } from "../mongoDB/mongoDBUtils"
 
 /**
  * @description class definition of a MEDDataObject
@@ -410,6 +410,13 @@ export class MEDDataObject {
       const oldPath = this.getFullPath(dict, id, workspacePath)
       object.name = uniqueName
       const newPath = this.getFullPath(dict, id, workspacePath)
+      object.path = newPath
+      const success = await updateMEDDataObjectPath(id, newPath)
+      if (!success) {
+        console.error(`Failed to update path for MEDDataObject with id ${id}`)
+        toast.error(`Failed to rename ${object.name}`)
+        return
+      }
       fs.renameSync(oldPath, newPath)
       console.log(`Renamed ${oldPath} to ${newPath}`)
     }

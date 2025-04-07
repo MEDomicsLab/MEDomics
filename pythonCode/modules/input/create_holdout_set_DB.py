@@ -1,18 +1,18 @@
 import json
-import pandas as pd
-from sklearn.model_selection import train_test_split
-import numpy as np
+import os
 import sys
 from pathlib import Path
-import os
+
+import numpy as np
+import pandas as pd
+from sklearn.model_selection import train_test_split
+
 sys.path.append(
     str(Path(os.path.dirname(os.path.abspath(__file__))).parent.parent))
-from med_libs.input_utils.dataframe_utilities import load_data_file, save_dataframe, assert_no_nan_values_for_each_column, handle_tags_in_dataframe, clean_columns
 from med_libs.GoExecutionScript import GoExecutionScript, parse_arguments
+from med_libs.input_utils.dataframe_utilities import assert_no_nan_values_for_each_column, clean_columns
+from med_libs.mongodb_utils import connect_to_mongo
 from med_libs.server_utils import go_print
-
-# To deal with the DB
-from pymongo import MongoClient
 
 json_params_dict, id_ = parse_arguments()
 go_print("running script.py:" + id_)
@@ -50,12 +50,10 @@ class GoExecScriptCreateHoldoutSet(GoExecutionScript):
         nan_method = json_config["nanMethod"]
         final_name = json_config["name"]
         final_name2 = json_config["name2"]
-        database_name = json_config["databaseName"]
         collection_name = json_config["collectionName"]
 
         # Connect to MongoDB
-        client = MongoClient('localhost', 54017)
-        db = client[database_name]
+        db = connect_to_mongo()
         collection = db[collection_name]
 
         # Fetch data and convert to DataFrame 

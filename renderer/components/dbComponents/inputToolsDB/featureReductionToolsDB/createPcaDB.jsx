@@ -1,8 +1,6 @@
-/* eslint-disable no-unused-vars */
 import { useContext, useEffect, useState } from "react"
 import { Message } from "primereact/message"
 import { MultiSelect } from "primereact/multiselect"
-import { getCollectionData } from "../../utils"
 import { Button } from "primereact/button"
 import { requestBackend } from "../../../../utilities/requests"
 import { toast } from "react-toastify"
@@ -15,75 +13,74 @@ import { DataContext } from "../../../workspace/dataContext"
 import { randomUUID } from "crypto"
 import { MEDDataObject } from "../../../workspace/NewMedDataObject"
 import { insertMEDDataObjectIfNotExists } from "../../../mongoDB/mongoDBUtils"
+import { getCollectionColumns } from "../../../mongoDB/mongoDBUtils"
 
 /**
  * Component that renders the CreatePCA feature reduction tool
  */
-const CreatePCADB = ({ currentCollection, refreshData }) => {
+const CreatePCADB = ({ currentCollection }) => {
   const [columnPrefix, setColumnPrefix] = useState("pca")
   const [exportTransformation, setExportTransformation] = useState(false)
   const [keepUnselectedColumns, setKeepUnselectedColumns] = useState(false)
   const [selectedColumns, setSelectedColumns] = useState([])
   const [columns, setColumns] = useState([])
   const [selectedPCRow, setSelectedPCRow] = useState(null)
-  const explainedVarColumns = [
-    { field: "index", header: "Number of Principal Components" },
-    { field: "value", header: "Explained Variance" }
-  ]
   const [explainedVar, setExplainedVar] = useState([])
   const { port } = useContext(ServerConnectionContext)
   const [newCollectionName, setNewCollectionName] = useState("")
   const { globalData } = useContext(DataContext)
+  const [loadingEigen, setLoadingEigen] = useState(false)
+  const [loadingPCA, setloadingPCA] = useState(false)
+  const explainedVarColumns = [
+    { field: "index", header: "Number of Principal Components" },
+    { field: "value", header: "Explained Variance" }
+  ]
 
+  // Fetch the columns of the selected collection without fetching the whole data
   useEffect(() => {
     const fetchData = async () => {
-      const collectionData = await getCollectionData(currentCollection)
-      if (collectionData && collectionData.length > 0) {
-        setColumns(Object.keys(collectionData[0]))
+      const collectionColumns = await getCollectionColumns(currentCollection)
+      if (collectionColumns && collectionColumns.length > 0) {
+        setColumns(collectionColumns)
       }
     }
     fetchData()
   }, [currentCollection])
 
+  // Reset the selectedPCRow when the explainedVar changes
   useEffect(() => {
     setSelectedPCRow(null)
   }, [explainedVar])
 
+  // Console log the selectedPCRow
   useEffect(() => {
     console.log("selectedPCRow", selectedPCRow)
   }, [selectedPCRow])
 
-  /**
-   *
-   * @param {String} name
-   *
-   * @description
-   * Called when the user change the column prefix.
-   *
-   */
+  // set the column prefix when the user types in the input
   const handleColumnPrefixChange = (name) => {
     if (name.match("^[a-zA-Z0-9_]+$") != null) {
       setColumnPrefix(name)
     }
   }
 
-  /**
-   * @description
-   * Call the server to compute eigenvalues from the selected columns on
-   * the selected dataset
-   */
+  // Compute the eigenvalues of the selected columns in the backend
   const computeEigenvalues = () => {
+    setLoadingEigen(true)
+
     requestBackend(
       port,
       "/input/compute_eigenvaluesDB/",
       {
         columns: selectedColumns,
-        databaseName: "data",
-        collectionName: globalData[currentCollection].id
+        collectionName: currentCollection
       },
+
       (jsonResponse) => {
+        setLoadingEigen(false)
         console.log("received results:", jsonResponse)
         if (!jsonResponse.error) {
+          setLoadingEigen(false)
           let data = jsonResponse["explained_var"]
           console.log("data", data)
           if (data.length > 0) {
@@ -95,6 +92,7 @@ const CreatePCADB = ({ currentCollection, refreshData }) => {
           }
           toast.success("Eigenvalues computed successfully!")
         } else {
+          setLoadingEigen(false)
           toast.error(`Computation failed: ${jsonResponse.error.message}`)
           return
         }
@@ -106,11 +104,7 @@ const CreatePCADB = ({ currentCollection, refreshData }) => {
     )
   }
 
-  /**
-   * @description
-   * Call the server to compute pca
-   * @param {Boolean} overwrite - True if the dataset should be overwritten, false otherwise
-   */
+  // Apply PCA to the selected columns in the backend
   const applyPCA = async (overwrite) => {
     if (!selectedPCRow) {
       toast.error("Please select the number of principal components")
@@ -121,18 +115,18 @@ const CreatePCADB = ({ currentCollection, refreshData }) => {
 
     const object = new MEDDataObject({
       id: id,
-      name: newCollectionName,
+      name: newCollectionName + ".csv",
       type: "csv",
-      parentID: "ROOT",
+      parentID: globalData[currentCollection].parentID,
       childrenIDs: [],
       inWorkspace: false
     })
 
     const object2 = new MEDDataObject({
       id: id2,
-      name: "PCA_Transformations_" + newCollectionName,
+      name: "PCA_Transformations_" + newCollectionName + ".csv",
       type: "csv",
-      parentID: "ROOT",
+      parentID: globalData[currentCollection].parentID,
       childrenIDs: [],
       inWorkspace: false
     })
@@ -145,24 +139,28 @@ const CreatePCADB = ({ currentCollection, refreshData }) => {
       keepUnselectedColumns: keepUnselectedColumns,
       overwrite: overwrite,
       exportTransformation: exportTransformation,
-      collectionName: globalData[currentCollection].id,
-      databaseName: "data",
+      collectionName: currentCollection,
       newCollectionName: id,
       newPCATransformationName: id2
     }
-    
+
+    setloadingPCA(true)
+
     requestBackend(
       port,
       "/input/create_pcaDB/",
       jsonToSend,
       async (jsonResponse) => {
+        setloadingPCA(false)
         console.log("received results:", jsonResponse)
         if (!jsonResponse.error) {
+          setloadingPCA(false)
           if (exportTransformation) {
             // Creates 1 collection with the PCA transformations
             if (overwrite) {
               await insertMEDDataObjectIfNotExists(object2)
               MEDDataObject.updateWorkspaceDataObject()
+
               // Create 2 collections with the PCA transformations and the results with the PCA applied
             } else {
               await insertMEDDataObjectIfNotExists(object)
@@ -180,6 +178,7 @@ const CreatePCADB = ({ currentCollection, refreshData }) => {
           }
           toast.success("PCA applied successfully!")
         } else {
+          setloadingPCA(false)
           toast.error(`Computation failed: ${jsonResponse.error.message}`)
           return
         }
@@ -207,14 +206,12 @@ const CreatePCADB = ({ currentCollection, refreshData }) => {
             onChange={(e) => setSelectedColumns(e.value)}
             placeholder="Select columns"
             style={{ marginTop: "10px", maxWidth: "900px" }}
+            filter
           />
           <hr />
         </div>
         <div className="margin-top-15 center">
-          {/* Compute eigenvalues */}
-          <Button disabled={!selectedColumns} onClick={computeEigenvalues}>
-            Compute eigenvalues
-          </Button>
+          <Button label="Compute eigenvalues" disabled={!selectedColumns} onClick={computeEigenvalues} loading={loadingEigen}/>
         </div>
         <hr></hr>
         <div className="margin-top-15 center">
@@ -256,6 +253,7 @@ const CreatePCADB = ({ currentCollection, refreshData }) => {
             tooltip="Overwrite current collection with PCA results"
             tooltipOptions={{ position: "top" }}
             disabled={!selectedPCRow}
+            loading={loadingPCA}
           />
           <InputText
             value={newCollectionName}
@@ -271,6 +269,7 @@ const CreatePCADB = ({ currentCollection, refreshData }) => {
             tooltip="Create new collection with PCA results"
             tooltipOptions={{ position: "top" }}
             disabled={!selectedPCRow}
+            loading={loadingPCA}
           />
         </div>
       </div>

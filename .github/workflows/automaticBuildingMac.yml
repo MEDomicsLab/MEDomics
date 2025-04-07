@@ -113,7 +113,7 @@ jobs:
           echo "::set-output name=VERSION::${VERSION#m}"
 
       - name: Archive Mac
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: mac-built
           path: ./build/dist/MEDomicsLab-${{ env.VERSION }}-mac.dmg
@@ -129,7 +129,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Download Mac
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: mac-built
 

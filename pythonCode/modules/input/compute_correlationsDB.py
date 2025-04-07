@@ -1,16 +1,15 @@
 import json
-import sys
 import os
-import pandas as pd
+import sys
 from pathlib import Path
+
+import pandas as pd
+
 sys.path.append(
     str(Path(os.path.dirname(os.path.abspath(__file__))).parent.parent))
 from med_libs.GoExecutionScript import GoExecutionScript, parse_arguments
+from med_libs.mongodb_utils import connect_to_mongo
 from med_libs.server_utils import go_print
-
-# To deal with the DB
-from pymongo import MongoClient
-import math
 
 json_params_dict, id_ = parse_arguments()
 go_print("running script.py:" + id_)
@@ -42,15 +41,13 @@ class GoExecScriptComputeCorrelations(GoExecutionScript):
 
         # Set local variables
         collection_name = json_config["collection"]
-        database_name = json_config["databaseName"]
         columns = json_config["columns"]
         target = json_config["target"]
         if target in columns:
             columns.remove(target)
         
         # Connect to MongoDB
-        client = MongoClient('localhost', 54017)
-        db = client[database_name]
+        db = connect_to_mongo()
         collection = db[collection_name]
 
         # Fetch data and convert to DataFrame 

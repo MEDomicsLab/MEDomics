@@ -7,6 +7,8 @@ import { toast } from "react-toastify"
 import { connectToMongoDB } from "../../mongoDB/mongoDBUtils"
 import { DataContext } from "../../workspace/dataContext"
 import { Card } from "primereact/card"
+import { Skeleton } from "primereact/skeleton"
+import { ScrollPanel } from "primereact/scrollpanel"
 
 const DropDuplicatesToolsDB = ({ currentCollection }) => {
   const { globalData } = useContext(DataContext)
@@ -15,6 +17,7 @@ const DropDuplicatesToolsDB = ({ currentCollection }) => {
   const [duplicateColumns, setDuplicateColumns] = useState([])
   const [selectedColumn, setSelectedColumn] = useState(null)
   const [loadingData, setLoadingData] = useState(false)
+  const [loadingDuplicates, setLoadingDuplicates] = useState(false)
 
   const fetchData = async () => {
     setLoadingData(true)
@@ -25,7 +28,7 @@ const DropDuplicatesToolsDB = ({ currentCollection }) => {
 
     try {
       const db = await connectToMongoDB()
-      const collection = db.collection(globalData[currentCollection].id)
+      const collection = db.collection(currentCollection)
 
       const documents = await collection.find({}).limit(10).toArray()
       setData(documents)
@@ -50,6 +53,7 @@ const DropDuplicatesToolsDB = ({ currentCollection }) => {
   }
 
   const findDuplicateColumns = async (allKeys, collection) => {
+    setLoadingDuplicates(true)
     let duplicatePairs = []
     const documentCount = await collection.countDocuments()
 
@@ -74,7 +78,9 @@ const DropDuplicatesToolsDB = ({ currentCollection }) => {
       }
 
       setDuplicateColumns(duplicatePairs)
+      setLoadingDuplicates(false)
     } catch (error) {
+      setLoadingDuplicates(false)
       console.error("Error finding duplicate columns:", error)
       toast.error("An error occurred while finding duplicate columns.")
     }
@@ -104,6 +110,11 @@ const DropDuplicatesToolsDB = ({ currentCollection }) => {
   useEffect(() => {
     fetchData()
   }, [currentCollection])
+
+  useEffect(() => {
+    setDuplicateColumns([])
+    setSelectedColumn(null)
+  }, [])
 
   return (
     <div
@@ -135,33 +146,44 @@ const DropDuplicatesToolsDB = ({ currentCollection }) => {
           </DataTable>
         </Card>
       )}
+      {loadingDuplicates && 
+        <div className="w-full md:w-6 p-3" style={{ width: "900px" }}>
+          <h5>Finding duplicate columns...</h5>
+          <Skeleton className="mb-2" borderRadius="16px"></Skeleton>
+          <Skeleton width="10rem" className="mb-2" borderRadius="16px"></Skeleton>
+          <Skeleton width="5rem" borderRadius="16px" className="mb-2"></Skeleton>
+        </div>
+      }
       {duplicateColumns.length > 0 && (
-        <div style={{ marginTop: "20px" }}>
-          <h4>Duplicate Columns</h4>
-          <ul style={{ listStyleType: "none", padding: 0 }}>
+        <>
+        <h5 style={{ marginTop: "20px" }}>Duplicate Columns</h5>
+          <ScrollPanel style={{ width: '100%', height: '300px', marginTop: "20px" }}>
             {duplicateColumns.map((pair, index) => (
               <li key={index} style={{ marginBottom: "10px" }}>
                 {pair.column1} and {pair.column2}{" "}
                 <Button
+                  outlined
+                  size="small"
                   label={`Delete ${pair.column2}`}
                   className="p-button-danger"
                   onClick={() => setSelectedColumn(pair.column2)}
                   style={{
                     marginLeft: "10px",
                     marginTop: "5px",
-                    display: "inline-block"
+                    display: "inline-block",
+                    alignItems: "flex-end"
                   }}
                 />
               </li>
             ))}
-          </ul>
-        </div>
+        </ScrollPanel>
+        </>
       )}
 
       {selectedColumn && (
         <div style={{ marginTop: "20px", textAlign: "center" }}>
-          <h4>Selected Column: {selectedColumn}</h4>
-          <Button label="Confirm Delete" icon="pi pi-trash" className="p-button-danger" onClick={handleDeleteColumn} />
+          <h5>Selected Column: {selectedColumn}</h5>
+          <Button outlined size="small"label="Confirm Delete" icon="pi pi-trash" className="p-button-danger" onClick={handleDeleteColumn} />
         </div>
       )}
     </div>

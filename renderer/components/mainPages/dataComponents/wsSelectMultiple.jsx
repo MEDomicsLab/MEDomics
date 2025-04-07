@@ -122,6 +122,7 @@ const WsSelectMultiple = ({
           optionLabel="name"
           display="chip"
           style={customProps}
+          filter
         />
       ) : (
         whenEmpty

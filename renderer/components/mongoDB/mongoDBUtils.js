@@ -1,4 +1,4 @@
-const { MongoClient, GridFSBucket } = require("mongodb")
+const { MongoClient } = require("mongodb")
 const fs = require("fs")
 const Papa = require("papaparse")
 
@@ -28,6 +28,23 @@ export async function connectToMongoDB() {
 export async function updateMEDDataObjectName(id, newName) {
   const db = await connectToMongoDB()
   const result = await db.collection("medDataObjects").updateOne({ id: id }, { $set: { name: newName } })
+  return result.modifiedCount > 0
+}
+
+/**
+ * @description Update the type of a MEDDataObject specified by id in the DB
+ * @param {String} id Id of the MEDDataObject to update
+ * @param {String} newType New type for the MEDDataObject to update
+ * @returns bool true if succeed
+ */
+export async function updateMEDDataObjectType(id, newType) {
+  const db = await connectToMongoDB()
+  // Check if type has alphabetic characters only
+  if (newType.match(/[a-z]/)) {
+    console.error("Type can only contain alphabetic characters")
+    return false
+  }
+  const result = await db.collection("medDataObjects").updateOne({ id: id }, { $set: { type: newType } })
   return result.modifiedCount > 0
 }
 
@@ -178,22 +195,71 @@ async function insertPKLIntoCollection(filePath, collectionName) {
 
 /**
  * Uploads a large CSV file to MongoDB by storing it in chunks.
+ * Ensures only valid columns are inserted (based on first row).
+ *
  * @param {String} filePath - The path to the CSV file.
- * @param {String} collectionName - The name of the MongoDB collection to store the chunks.
+ * @param {String} collectionName - The name of the MongoDB collection.
  */
-let globalBucket = null
 async function insertBigCSVIntoCollection(filePath, collectionName) {
   const db = await connectToMongoDB()
-  const bucket = new GridFSBucket(db, { bucketName: collectionName })
-  globalBucket = bucket
-  fs.createReadStream(filePath)
-    .pipe(bucket.openUploadStream(filePath))
-    .on("error", function (error) {
-      console.error("Error uploading file to GridFS", error)
-    })
-    .on("finish", function () {
-      console.log("File upload to GridFS complete")
-    })
+  const collection = db.collection(collectionName)
+
+  let allowedColumns = null
+  const batchSize = 1000 // Represents the number of rows that will be inserted in the MongoDB every step.
+  let batch = []
+
+  Papa.parse(fs.createReadStream(filePath), {
+    header: true,
+    dynamicTyping: true,
+    skipEmptyLines: true,
+    step: (results, parser) => {
+      const row = results.data
+
+      // We look at the columns and then we know which ones we want (makes it so no new useless columns gets added)
+      if (!allowedColumns && Object.keys(row).length > 0) {
+        allowedColumns = Object.keys(row)
+      }
+
+      // Filter out any keys not in allowedColumns (usually not necessary since header:true)
+      const cleanedRow = Object.fromEntries(Object.entries(row).filter(([key]) => allowedColumns.includes(key)))
+      batch.push(cleanedRow)
+
+      // Once the batch size is reached (number of rows is reached), pause parsing and insert the batch.
+      if (batch.length >= batchSize) {
+        parser.pause()
+        collection
+          .insertMany(batch)
+          .then(() => {
+            // Clear the batch and resume parsing
+            batch = []
+            parser.resume()
+          })
+          .catch((error) => {
+            console.error("Error inserting batch:", error)
+            parser.abort()
+          })
+      }
+    },
+    complete: () => {
+      // When parsing is complete, check if any rows remain to be inserted.
+      if (batch.length > 0) {
+        collection
+          .insertMany(batch)
+          .then(() => {
+            console.log("Final batch inserted")
+            console.log("CSV parsing complete")
+          })
+          .catch((error) => {
+            console.error("Error inserting final batch:", error)
+          })
+      } else {
+        console.log("CSV parsing complete")
+      }
+    },
+    error: (error) => {
+      console.error("Error parsing CSV:", error)
+    }
+  })
 }
 
 /**
@@ -230,7 +296,7 @@ async function insertCSVIntoCollection(filePath, collectionName) {
       })
     })
   } else {
-    insertBigCSVIntoCollection(filePath, collectionName)
+    await insertBigCSVIntoCollection(filePath, collectionName)
   }
 }
 
@@ -377,35 +443,16 @@ export async function deleteMEDDataObject(id) {
  * @returns {Array} An array of column names
  */
 export async function getCollectionColumns(collectionId) {
-  const db = await connectToMongoDB()
-  const collection = db.collection(collectionId)
+  try {
+    const db = await connectToMongoDB()
+    const collection = db.collection(collectionId)
+    const document = await collection.findOne({}) // Fetch first document
 
-  // Use aggregation to get keys in the order they appear
-  const result = await collection
-    .aggregate([
-      { $project: { keys: { $objectToArray: "$$ROOT" } } },
-      { $unwind: "$keys" },
-      { $group: { _id: null, keys: { $push: "$keys.k" } } },
-      {
-        $project: {
-          _id: 0,
-          keys: {
-            $reduce: {
-              input: "$keys",
-              initialValue: [],
-              in: { $cond: [{ $in: ["$$this", "$$value"] }, "$$value", { $concatArrays: ["$$value", ["$$this"]] }] }
-            }
-          }
-        }
-      }
-    ])
-    .toArray()
-
-  if (result.length > 0) {
-    return result[0].keys.filter((key) => key !== "_id")
+    return document ? Object.keys(document) : [] // Return column names or empty array
+  } catch (error) {
+    console.error("Error fetching collection columns:", error)
+    return [] // Return empty array to avoid breaking UI
   }
-
-  return []
 }
 
 /**
@@ -417,7 +464,7 @@ export async function getCollectionTags(collectionId) {
   let tagsUUID = localStorage.getItem("tagsUUID") ? localStorage.getItem("tagsUUID") : "column_tags"
   const db = await connectToMongoDB()
   const collection = db.collection(tagsUUID)
-  
+
   // eslint-disable-next-line camelcase
   const result = await collection.find({ collection_id: collectionId })
 
@@ -531,48 +578,21 @@ export async function getPathFromMEDDataObject(id) {
 }
 
 /**
- * @description Convert the data of a collection stored use GridFS for viewing as a csv file
- * @param {*} globalData
- * @param {*} item
+ * @description Get the size of a collection specified by id
+ * @param {*} collectionId
  * @returns
  */
-export async function ConvertBinaryToOriginalData(globalData, item) {
-  if (!globalBucket) {
-    console.error("GridFSBucket not initialized")
-    return
-  }
+export async function getCollectionSize(collectionId) {
   const db = await connectToMongoDB()
-  const fileDocument = await db.collection(item.index + ".files").findOne({ filename: globalData[item.index].path })
-  console.log("fileDocument", fileDocument)
-  if (!fileDocument) {
-    console.error("File not found in GridFS")
-    return
-  }
-  const downloadStream = globalBucket.openDownloadStream(fileDocument._id)
-  let chunks = []
+  const stats = await db.command({ collStats: collectionId })
+  return stats.size
+}
 
-  downloadStream.on("data", (chunk) => {
-    chunks.push(chunk) // Collect chunks from the stream
-  })
-  downloadStream.on("end", () => {
-    db.collection(item.index).insertMany(
-      chunks.map((chunk, index) => ({
-        index,
-        data: Buffer.from(chunk, "base64").toString("utf-8") // Decode each chunk
-      })),
-      (error) => {
-        if (error) {
-          console.error("Failed to insert chunks:", error)
-        } else {
-          console.log("Inserted chunks into new MongoDB collection")
-        }
-        db.close()
-      }
-    )
-  })
-
-  downloadStream.on("error", (error) => {
-    console.error("Stream error:", error)
-  })
-  return
+/**
+ * @description Get all the collections in the database
+ * @returns
+ */
+export async function getAllCollections() {
+  const db = await connectToMongoDB()
+  return await db.listCollections().toArray()
 }

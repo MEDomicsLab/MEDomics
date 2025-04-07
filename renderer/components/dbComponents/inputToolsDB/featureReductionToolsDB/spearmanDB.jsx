@@ -2,7 +2,6 @@
 import React, { useEffect, useState, useContext } from "react"
 import { Message } from "primereact/message"
 import { MultiSelect } from "primereact/multiselect"
-import { getCollectionData } from "../../utils"
 import { Dropdown } from "primereact/dropdown"
 import { Button } from "primereact/button"
 import { DataTable } from "primereact/datatable"
@@ -15,12 +14,12 @@ import { InputText } from "primereact/inputtext"
 import { DataContext } from "../../../workspace/dataContext"
 import { randomUUID } from "crypto"
 import { MEDDataObject } from "../../../workspace/NewMedDataObject"
-import { insertMEDDataObjectIfNotExists } from "../../../mongoDB/mongoDBUtils"
+import { insertMEDDataObjectIfNotExists, getCollectionColumns } from "../../../mongoDB/mongoDBUtils"
 
 /**
  * Component that renders the Spearman feature reduction creation tool
  */
-const SpearmanDB = ({ currentCollection, refreshData }) => {
+const SpearmanDB = ({ currentCollection }) => {
   const [selectedColumns, setSelectedColumns] = useState([])
   const [columns, setColumns] = useState([])
   const [selectedTarget, setSelectedTarget] = useState("")
@@ -31,49 +30,54 @@ const SpearmanDB = ({ currentCollection, refreshData }) => {
   const { port } = useContext(ServerConnectionContext)
   const [newCollectionName, setNewCollectionName] = useState("")
   const { globalData } = useContext(DataContext)
+  const [loadingCompute, setLoadingCompute] = useState(false)
+  const [loading, setLoading] = useState(false)
   const correlationsColumns = [
     { field: "index", header: "Column Name" },
     { field: "value", header: "Correlation with target" }
   ]
 
+  // Fetch the columns of the current collection without fetching the whole dataset
   useEffect(() => {
     const fetchData = async () => {
-      const collectionData = await getCollectionData(currentCollection)
-      if (collectionData && collectionData.length > 0) {
-        setColumns(Object.keys(collectionData[0]))
+      const columns = await getCollectionColumns(currentCollection)
+      if (columns && columns.length > 0) {
+        setColumns(columns)
       }
     }
     fetchData()
   }, [currentCollection])
 
+  // Reset the correlations when the selected columns change
   useEffect(() => {
     setCorrelations([])
   }, [selectedColumns])
 
+  // Reset the selected spearman rows when the correlations change
   useEffect(() => {
     setSelectedSpearmanRows([])
   }, [correlations])
 
-  /**
-   * @description
-   * Call the server to compute eigenvalues from the selected columns on
-   * the selected dataset
-   */
+  // Call the server to compute eigenvalues from the selected columns on (backend)
   const computeCorrelations = () => {
     let jsonToSend = {}
     jsonToSend = {
       columns: selectedColumns,
       target: selectedTarget,
-      collection: globalData[currentCollection].id,
-      databaseName: "data"
+      collection: currentCollection,
     }
+
+    setLoadingCompute(true)
+
     requestBackend(
       port,
       "/input/compute_correlationsDB/",
       jsonToSend,
       (jsonResponse) => {
+        setLoadingCompute(false)
         console.log("received results:", jsonResponse)
         if (!jsonResponse.error) {
+          setLoadingCompute(false)
           let data = jsonResponse["correlations"]
           setCorrelations(
             Object.keys(data).map((key) => ({
@@ -87,25 +91,22 @@ const SpearmanDB = ({ currentCollection, refreshData }) => {
         }
       },
       function (err) {
+        setLoadingCompute(false)
         console.error(err)
         toast.error(`Computation failed: ${err}`)
       }
     )
   }
 
-  /**
-   * @description
-   * Call the server to compute Spearman
-   * @param {Boolean} overwrite - True if the dataset should be overwritten, false otherwise
-   */
+  // Call the server to compute the spearman correlation
   const computeSpearman = async (overwrite) => {
     const id = randomUUID()
 
     const object = new MEDDataObject({
       id: id,
-      name: newCollectionName + "_reduced_spearman",
+      name: newCollectionName + "_reduced_spearman" + ".csv",
       type: "csv",
-      parentID: "ROOT",
+      parentID: globalData[currentCollection].parentID,
       childrenIDs: [],
       inWorkspace: false
     })
@@ -125,20 +126,22 @@ const SpearmanDB = ({ currentCollection, refreshData }) => {
       selectedSpearmanRows: selectedSpearmanRows,
       keepUnselectedColumns: keepUnselectedColumns,
       keepTarget: keepTarget,
-      collection: globalData[currentCollection].id,
-      databaseName: "data",
+      collection: currentCollection,
       newCollectionName: id,
       overwrite: overwrite
     }
 
     // Send the request to the backend
+    setLoading(true)
     requestBackend(
       port,
       "/input/compute_spearmanDB/",
       jsonToSend,
       async (jsonResponse) => {
+        setLoading(false)
         console.log("received results:", jsonResponse)
         if (jsonResponse.error) {
+          setLoading(false)
           if (jsonResponse.error.message) {
             console.error(jsonResponse.error.message)
             toast.error(jsonResponse.error.message)
@@ -157,6 +160,7 @@ const SpearmanDB = ({ currentCollection, refreshData }) => {
         }
       },
       (error) => {
+        setLoading(false)
         console.log(error)
         toast.error("Error computing Spearman correlation" + error)
       }
@@ -180,6 +184,7 @@ const SpearmanDB = ({ currentCollection, refreshData }) => {
             placeholder="Select columns"
             style={{ marginTop: "10px", maxWidth: "900px" }}
             display="chip"
+            filter
           />
           <hr></hr>
         </div>
@@ -194,7 +199,7 @@ const SpearmanDB = ({ currentCollection, refreshData }) => {
           </div>
         </div>
         <div className="margin-top-15 center">
-          <Button disabled={selectedColumns.length < 1 || !selectedTarget} onClick={computeCorrelations}>
+          <Button disabled={selectedColumns.length < 1 || !selectedTarget} onClick={computeCorrelations} loading={loadingCompute}>
             Compute correlations
           </Button>
         </div>
@@ -202,15 +207,7 @@ const SpearmanDB = ({ currentCollection, refreshData }) => {
         <div className="margin-top-15 center">
           <b>Select columns to keep</b>
           <div className="margin-top-15 maxwidth-80 mx-auto">
-            <DataTable 
-              value={correlations} 
-              size={"small"} 
-              selectionMode="checkbox" 
-              selection={selectedSpearmanRows} 
-              onSelectionChange={(e) => setSelectedSpearmanRows(e.value)} 
-              paginator 
-              rows={6}
-            >
+            <DataTable value={correlations} size={"small"} selectionMode="checkbox" selection={selectedSpearmanRows} onSelectionChange={(e) => setSelectedSpearmanRows(e.value)} paginator rows={6}>
               <Column selectionMode="multiple"></Column>
               {correlationsColumns.map((col) => (
                 <Column key={col.field} field={col.field} header={col.header} />
@@ -241,6 +238,7 @@ const SpearmanDB = ({ currentCollection, refreshData }) => {
             onClick={() => computeSpearman(true)}
             tooltip="Overwrite current collection with spearman results"
             tooltipOptions={{ position: "top" }}
+            loading={loading}
           />
           <InputText value={newCollectionName} onChange={(e) => setNewCollectionName(e.target.value)} placeholder="New name" style={{ margin: "5px", fontSize: "1rem", width: "205px" }} />
           <Button
@@ -249,6 +247,7 @@ const SpearmanDB = ({ currentCollection, refreshData }) => {
             onClick={() => computeSpearman(false)}
             tooltip="Create new collection with spearman results"
             tooltipOptions={{ position: "top" }}
+            loading={loading}
           />
         </div>
       </div>

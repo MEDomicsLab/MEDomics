@@ -1300,6 +1300,7 @@ class MEDcohortFigureClass extends React.Component {
                   <div style={{ width: "100%" }} className="p-inputgroup ">
                     <MultiSelect
                       className="medcohort-drop"
+                      filter
                       value={selectedClassesToSetTimePoint}
                       options={this.getClassesOptions()}
                       onChange={(e) => this.setState({ selectedClassesToSetTimePoint: e.value })}

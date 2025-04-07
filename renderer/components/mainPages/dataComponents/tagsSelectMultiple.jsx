@@ -58,6 +58,7 @@ const TagsSelectMultiple = ({ key, onChange, selectedTags, selectedDatasets, dis
           options={tagsList}
           optionLabel="name"
           display="chip"
+          filter
         />
       }
     </>

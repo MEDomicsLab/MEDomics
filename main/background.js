@@ -172,27 +172,27 @@ if (isProd) {
   console.log("process.resourcesPath: ", process.resourcesPath)
   console.log(MEDconfig.runServerAutomatically ? "Server will start automatically here (in background of the application)" : "Server must be started manually")
   let bundledPythonPath = getBundledPythonEnvironment()
-    if (MEDconfig.runServerAutomatically && bundledPythonPath !== null) {
+  if (MEDconfig.runServerAutomatically && bundledPythonPath !== null) {
     // Find the bundled python environment
     if (bundledPythonPath !== null) {
       runServer(isProd, serverPort, serverProcess, serverState, bundledPythonPath)
-        .then((process) => {
-          serverProcess = process
-          console.log("Server process started: ", serverProcess)
-        })
-        .catch((err) => {
-          console.error("Failed to start server: ", err)
-        })
+          .then((process) => {
+            serverProcess = process
+            console.log("Server process started: ", serverProcess)
+          })
+          .catch((err) => {
+            console.error("Failed to start server: ", err)
+          })
     }
   } else {
     //**** NO SERVER ****//
     findAvailablePort(MEDconfig.defaultPort)
-      .then((port) => {
-        serverPort = port
-      })
-      .catch((err) => {
-        console.error(err)
-      })
+        .then((port) => {
+          serverPort = port
+        })
+        .catch((err) => {
+          console.error(err)
+        })
   }
   const menu = Menu.buildFromTemplate(menuTemplate)
   Menu.setApplicationMenu(menu)
@@ -226,18 +226,12 @@ if (isProd) {
         // Kill the process on the port
         // killProcessOnPort(serverPort)
       } else if (process.platform === "darwin") {
-        await new Promise((resolve, reject) => {
-          exec("pkill -f mongod", (error, stdout, stderr) => {
-            if (error) {
-              console.error(`exec error: ${error}`)
-              reject(error)
+        await new Promise((resolve) => {
+              exec("pkill -f mongod", (error, stdout, stderr) => {
+                resolve()
+              })
             }
-            console.log(`stdout: ${stdout}`)
-            console.error(`stderr: ${stderr}`)
-            resolve()
-          })
-        }
-      )
+        )
       } else {
         try {
           execSync("killall mongod")
@@ -363,16 +357,16 @@ if (isProd) {
     }
     if (MEDconfig.runServerAutomatically) {
       runServer(isProd, serverPort, serverProcess, serverState, condaPath)
-        .then((process) => {
-          serverProcess = process
-          console.log(`success: ${serverState.serverIsRunning}`)
-          return serverState.serverIsRunning
-        })
-        .catch((err) => {
-          console.error("Failed to start server: ", err)
-          serverState.serverIsRunning = false
-          return false
-        })
+          .then((process) => {
+            serverProcess = process
+            console.log(`success: ${serverState.serverIsRunning}`)
+            return serverState.serverIsRunning
+          })
+          .catch((err) => {
+            console.error("Failed to start server: ", err)
+            serverState.serverIsRunning = false
+            return false
+          })
     }
     return serverState.serverIsRunning
   })
@@ -576,7 +570,7 @@ function startMongoDB(workspacePath) {
       if (fs.existsSync(getMongoDBPath())) {
         mongoProcess = spawn(getMongoDBPath(), ["--config", mongoConfigPath])
       } else {
-      mongoProcess = spawn("/opt/homebrew/Cellar/mongodb-community/7.0.12/bin/mongod", ["--config", mongoConfigPath], { shell: true })
+        mongoProcess = spawn("/opt/homebrew/Cellar/mongodb-community/7.0.12/bin/mongod", ["--config", mongoConfigPath], { shell: true })
       }
     }
     mongoProcess.stdout.on("data", (data) => {
@@ -654,28 +648,28 @@ export function getMongoDBPath() {
     return null
   } else if (process.platform === "darwin") {
     // Check if it is installed in the .medomics directory    
-      const binPath = path.join(process.env.HOME, ".medomics", "mongodb", "bin", "mongod")
-      if (fs.existsSync(binPath)) {
-        console.log("mongod found in .medomics directory")
-        return binPath
-      }
-    if (process.env.NODE_ENV !== "production") {
-
-    // Check if mongod is in the process.env.PATH
-    const paths = process.env.PATH.split(path.delimiter)
-    for (let i = 0; i < paths.length; i++) {
-      const binPath = path.join(paths[i], "mongod")
-      if (fs.existsSync(binPath)) {
-        console.log("mongod found in PATH")
-        return binPath
-      }
-    }
-    // Check if mongod is in the default installation path on macOS - /usr/local/bin/mongod
-    const binPath = "/usr/local/bin/mongod"
+    const binPath = path.join(process.env.HOME, ".medomics", "mongodb", "bin", "mongod")
     if (fs.existsSync(binPath)) {
+      console.log("mongod found in .medomics directory")
       return binPath
     }
-  }
+    if (process.env.NODE_ENV !== "production") {
+
+      // Check if mongod is in the process.env.PATH
+      const paths = process.env.PATH.split(path.delimiter)
+      for (let i = 0; i < paths.length; i++) {
+        const binPath = path.join(paths[i], "mongod")
+        if (fs.existsSync(binPath)) {
+          console.log("mongod found in PATH")
+          return binPath
+        }
+      }
+      // Check if mongod is in the default installation path on macOS - /usr/local/bin/mongod
+      const binPath = "/usr/local/bin/mongod"
+      if (fs.existsSync(binPath)) {
+        return binPath
+      }
+    }
     console.error("mongod not found")
     return null
   } else if (process.platform === "linux") {
@@ -693,7 +687,7 @@ export function getMongoDBPath() {
       return "/usr/bin/mongod"
     }
     console.error("mongod not found in /usr/bin/mongod")
-    
+
     if (fs.existsSync("/home/"+process.env.USER+"/.medomics/mongodb/bin/mongod")) {
       return "/home/"+process.env.USER+"/.medomics/mongodb/bin/mongod"
     }
