@@ -141,6 +141,9 @@ const Input = ({ name, settingInfos, currentValue, onInputChange, disabled = fal
               <Form.Control
                 disabled={disabled}
                 type="number"
+                step={settingInfos.step || "1"}
+                min={settingInfos.min}
+                max={settingInfos.max}
                 defaultValue={currentValue}
                 onChange={(e) =>
                   setInputUpdate({
@@ -162,7 +165,9 @@ const Input = ({ name, settingInfos, currentValue, onInputChange, disabled = fal
               <Form.Control
                 disabled={disabled}
                 type="number"
-                step="0.1"
+                step={settingInfos.step || "0.05"}
+                min={settingInfos.min}
+                max={settingInfos.max}
                 defaultValue={currentValue}
                 onChange={(e) =>
                   setInputUpdate({

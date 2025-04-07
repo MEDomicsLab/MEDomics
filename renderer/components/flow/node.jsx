@@ -167,7 +167,7 @@ const NodeObject = ({ id, data, nodeSpecific, nodeBody, defaultSettings, onClick
       {!isGroupNode && data.internal.type != "group_models" && (
         <>
           {/* here is an overlay panel that is displayed when the user clicks on the node name. It contains the settings of the node*/}
-          <OverlayPanel className="options-overlayPanel" ref={op} onMouseLeave={(e) => op.current.hide(e)}>
+          <OverlayPanel className="options-overlayPanel" ref={op}>
             <Stack direction="vertical" gap={1} style={{ maxHeight: "25rem", overflowY: "auto" }}>
               <div className="header">
                 <div className="editable-node-name">

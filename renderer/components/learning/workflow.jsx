@@ -494,10 +494,31 @@ const Workflow = ({ setWorkflowType, workflowType }) => {
 
     let tempDefaultSettings = {}
     if (newNode.data.setupParam.possibleSettings) {
-      "default" in newNode.data.setupParam.possibleSettings &&
-        Object.entries(newNode.data.setupParam.possibleSettings.default).map(([settingName, setting]) => {
-          tempDefaultSettings[settingName] = defaultValueFromType[setting.type]
-        })
+      const settings = newNode.data.setupParam.possibleSettings.default || newNode.data.setupParam.possibleSettings
+      
+      Object.entries(settings).forEach(([settingName, setting]) => {
+        if (!setting) return
+        
+        if ("type" in setting) {
+          tempDefaultSettings[settingName] = setting.default_val ?? defaultValueFromType[setting.type] ?? null
+        } else if (typeof setting === "object") {
+          tempDefaultSettings[settingName] = tempDefaultSettings[settingName] || {}
+          
+          Object.entries(setting).forEach(([name, actualSetting]) => {
+            if (!actualSetting) return
+            
+            if ("type" in actualSetting) {
+              tempDefaultSettings[settingName][name] = actualSetting.default_val ?? defaultValueFromType[actualSetting.type] ?? null
+            } else if (typeof actualSetting === "object") {
+              tempDefaultSettings[settingName][name] = {}
+              
+              Object.entries(actualSetting).forEach(([name2, actualSetting2]) => {
+                tempDefaultSettings[settingName][name][name2] = actualSetting2?.default_val ?? null
+              })
+            }
+          })
+        }
+      })
     }
     newNode.data.internal.settings = tempDefaultSettings
 

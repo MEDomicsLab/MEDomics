@@ -1,102 +1,156 @@
 /* eslint-disable */
 const classificationSettings = {
   split: {
-    "default": {
-      "split_type": {
-        "type": "list",
-        "tooltip": "<p>Type of data division to perform.</p>",
-        "default_val": "random_sub_sampling",
-        "choices": {
-          "random_sub_sampling": "random_sub_sampling", 
-          "cross_validation": "cross_validation", 
-          "bootstrapping": "bootstrapping", 
-          "user_defined": "user_defined"
-        }
+    global: {
+      n_iterations: {
+        type: "int",
+        tooltip: "Number of repetitions for the whole experiment.",
+        default_val: 1,
+        min: 1,
+        max: 50
       },
-      "n_iterations": {
-        "type": "int",
-        "tooltip": "<p>Number of iterations or divisions to perform.</p>",
-        "default_val": "1"
+      shuffle: {
+        type: "bool",
+        tooltip: "Shuffle the dataset before splitting to avoid bias.",
+        default_val: "True"
       },
-      "shuffle": {
-        "type": "bool",
-        "tooltip": "<p>Option to shuffle data before division.</p>",
-        "default_val": "True"
-      },
-      "random_state": {
-        "type": "int",
-        "tooltip": "<p>Seed used by the random number generator for reproducibility.</p>",
-        "default_val": "42"
+      random_state: {
+        type: "int",
+        tooltip: "Seed used to ensure reproducibility of splits.",
+        default_val: 42,
+        min: 1
       }
     },
-    "options": {
-      // Options for Random Sub-Sampling
-      "random_sub_sampling": {
-        "test_size": {
-          "type": "float",
-          "tooltip": "<p>Fraction of data to use for the test set (between 0 and 1).</p>",
-          "default_val": "0.2"
-        }
-      },
-      
-      // Options for Cross-Validation
-      "cross_validation": {
-        "outer_cv": {
-          "num_outer_folds": {
-            "type": "int",
-            "tooltip": "<p>Number of folds for external validation.</p>",
-            "default_val": "5"
-          },
-          "type_outer_cv": {
-            "type": "select",
-            "tooltip": "<p>Type of external validation to use.</p>",
-            "default_val": "kfold",
-            "options": ["kfold", "stratified_kfold"]
-          }
+    outer_split_type: {
+      type: "list",
+      tooltip: "Select the method for the Outer Split.\nThis split is optional and serves for external validation (generalization assessment).",
+      default_val: "cross_validation",
+      choices: {
+        random_sub_sampling: "Random Sub-Sampling",
+        cross_validation: "Cross-Validation",
+        bootstrapping: "Bootstrapping",
+        user_defined: "User-Defined"
+      }
+    },
+    inner_split_type: {
+      type: "list",
+      tooltip: "Select the method for the Inner Split.\nThis split is optional and used mainly for model tuning (internal validation).\nIf left empty, PyCaret will automatically apply its default.",
+      default_val: "cross_validation",
+      choices: {
+        random_sub_sampling: "Random Sub-Sampling",
+        cross_validation: "Cross-Validation",
+        bootstrapping: "Bootstrapping",
+        user_defined: "User-Defined"
+      }
+    },
+    outer: {
+      random_sub_sampling: {
+        test_size: {
+          type: "float",
+          tooltip: "Proportion of data to allocate to the test set (e.g., 0.2 = 20%).",
+          default_val: 0.2,
+          min: 0.1,
+          max: 0.99
         },
-        "inner_cv": {
-          "num_inner_folds": {
-            "type": "int",
-            "tooltip": "<p>Number of folds for internal validation.</p>",
-            "default_val": "10"
-          },
-          "type_inner_cv": {
-            "type": "select",
-            "tooltip": "<p>Type of internal validation to use.</p>",
-            "default_val": "kfold",
-            "options": ["kfold", "stratified_kfold"]
+        stratification: {
+          type: "bool",
+          tooltip: "Preserve the distribution of classes during splitting.",
+          default_val: "False"
+        }
+      },
+      cross_validation: {
+        num_folds: {
+          type: "int",
+          tooltip: "Number of folds for Outer cross-validation.",
+          default_val: 5,
+          min: 2,
+          max: 20
+        },
+        type_cv: {
+          type: "list",
+          tooltip: "Choose the type of cross-validation for the Outer Split.",
+          default_val: "kfold",
+          choices: {
+            kfold: "K-Fold",
+            stratified_kfold: "Stratified K-Fold"
           }
         }
       },
-      
-      // Options for Bootstrapping
-      "bootstrapping": {
-        "sample_size": {
-          "type": "float",
-          "tooltip": "<p>Size of the samples generated for each iteration (fraction of data between 0 and 1).</p>",
-          "default_val": "0.8"
+      bootstrapping: {
+        sample_size: {
+          type: "float",
+          tooltip: "Fraction of data to sample with replacement (strictly > 0 and ≤ 1).",
+          default_val: 0.8,
+          min: 0.1,
+          max: 1
         }
       },
-      
-      // Options for User-Defined
-      "user_defined": {
-        "train_indices": {
-          "type": "json",
-          "tooltip": "<p>List or array containing the indices of training data.</p>",
-          "default_val": "[]"
+      user_defined: {
+        train_indices: {
+          type: "json",
+          tooltip: "Custom list of training indices (array of integers).",
+          default_val: "[]"
         },
-        "test_indices": {
-          "type": "json",
-          "tooltip": "<p>List or array containing the indices of test data.</p>",
-          "default_val": "[]"
+        test_indices: {
+          type: "json",
+          tooltip: "Custom list of testing indices (array of integers).",
+          default_val: "[]"
+        }
+      }
+    },
+    inner: {
+      random_sub_sampling: {
+        test_size: {
+          type: "float",
+          tooltip: "Proportion of data to allocate to the Inner test set.",
+          default_val: 0.2,
+          min: 0.1,
+          max: 0.99
+        },
+        stratification: {
+          type: "bool",
+          tooltip: "Preserve the distribution of classes during Inner splitting.",
+          default_val: "False"
         }
       },
-      
-      // Common options for stratification
-      "stratification": {
-        "type": "bool",
-        "tooltip": "<p>Allows maintaining the distribution of classes or groups during division.</p>",
-        "default_val": "False"
+      cross_validation: {
+        num_folds: {
+          type: "int",
+          tooltip: "Number of folds for Inner cross-validation.",
+          default_val: 5,
+          min: 2,
+          max: 20
+        },
+        type_cv: {
+          type: "list",
+          tooltip: "Choose the type of Inner cross-validation.\nIf not specified, PyCaret will use its default.",
+          default_val: "kfold",
+          choices: {
+            kfold: "K-Fold",
+            stratified_kfold: "Stratified K-Fold"
+          }
+        }
+      },
+      bootstrapping: {
+        sample_size: {
+          type: "float",
+          tooltip: "Fraction of data to sample with replacement for Inner Split.",
+          default_val: 0.8,
+          min: 0.1,
+          max: 0.9
+        }
+      },
+      user_defined: {
+        train_indices: {
+          type: "json",
+          tooltip: "Custom list of training indices (array of integers).",
+          default_val: "[]"
+        },
+        test_indices: {
+          type: "json",
+          tooltip: "Custom list of testing indices (array of integers).",
+          default_val: "[]"
+        }
       }
     }
   },
@@ -121,7 +175,9 @@ const classificationSettings = {
       iterative_imputation_iters: {
         type: "int",
         tooltip: "<p>Number of iterations. Ignored when imputation_type=simple.</p>\n",
-        default_val: "5"
+        default_val: "5",
+        min: 1,
+        max: 100
       },
       categorical_imputation: {
         type: "string",
@@ -188,7 +244,9 @@ const classificationSettings = {
       outliers_threshold: {
         type: "float",
         tooltip: "<p>The percentage of outliers to be removed from the dataset. Ignored\nwhen remove_outliers=False.</p>\n",
-        default_val: "0.05"
+        default_val: "0.05",
+        "min": 0.0,
+        "max": 1.0
       },
       remove_multicollinearity: {
         type: "bool",
@@ -199,7 +257,9 @@ const classificationSettings = {
       multicollinearity_threshold: {
         type: "float",
         tooltip: "<p>Minimum absolute Pearson correlation to identify correlated\nfeatures. The default value removes equal columns. Ignored when\nremove_multicollinearity is not True.</p>\n",
-        default_val: "0.9"
+        default_val: "0.9",
+        min: 0.0,
+        max: 1.0 
       },
       polynomial_features: {
         type: "bool",
@@ -210,7 +270,9 @@ const classificationSettings = {
         type: "int",
         tooltip:
           "<p>Degree of polynomial features. For example, if an input sample is two dimensional\nand of the form [a, b], the polynomial features with degree = 2 are:\n[1, a, b, a^2, ab, b^2]. Ignored when polynomial_features is not True.</p>\n",
-        default_val: "2"
+        default_val: "2",
+        min: 1,
+        max: 5
       },
       feature_selection: {
         type: "bool",
@@ -233,7 +295,9 @@ const classificationSettings = {
         type: "float",
         tooltip:
           "<p>The maximum number of features to select with feature_selection. If &lt;1,\nit\u2019s the fraction of starting features. Note that this parameter doesn\u2019t\ntake features in ignore_features or keep_features into account\nwhen counting.</p>\n",
-        default_val: "0.2"
+        default_val: "0.2",
+        min: 0.0,
+        max: 1.0
       }
     },
     code: ""
@@ -255,7 +319,9 @@ const classificationSettings = {
       train_size: {
         type: "float",
         tooltip: "<p>Proportion of the dataset to be used for training and validation. Should be\nbetween 0.0 and 1.0.</p>\n",
-        default_val: "0.7"
+        default_val: "0.7",
+        "min": 0.1,
+        "max": 0.99
       },
       test_data: {
         type: "dataframe",
@@ -595,12 +661,16 @@ const classificationSettings = {
         type: "int",
         tooltip:
           "<p>Controls cross-validation. If None, the CV generator in the fold_strategy\nparameter of the setup function is used. When an integer is passed,\nit is interpreted as the \u2018n_splits\u2019 parameter of the CV generator in the\nsetup function.</p>\n",
-        default_val: "None"
+        default_val: "None",
+        min: 2,
+        max: 20
       },
       round: {
         type: "int",
         tooltip: "<p>Number of decimal places the metrics in the score grid will be rounded to.</p>\n",
-        default_val: "4"
+        default_val: "4",
+        min: 0,
+        max: 6
       },
       cross_validation: {
         type: "bool",
@@ -615,7 +685,9 @@ const classificationSettings = {
       n_select: {
         type: "int",
         tooltip: "<p>Number of top_n models to return. For example, to select top 3 models use\nn_select = 3.</p>\n",
-        default_val: "1"
+        default_val: "1",
+        min: 1,
+        max: 20
       },
       budget_time: {
         type: "float",
@@ -674,12 +746,16 @@ const classificationSettings = {
         type: "int",
         tooltip:
           "<p>Controls cross-validation. If None, the CV generator in the fold_strategy\nparameter of the setup function is used. When an integer is passed,\nit is interpreted as the \u2018n_splits\u2019 parameter of the CV generator in the\nsetup function.</p>\n",
-        default_val: "None"
+        default_val: "None",
+        min: 2,
+        max: 20
       },
       round: {
         type: "int",
         tooltip: "<p>Number of decimal places the metrics in the score grid will be rounded to.</p>\n",
-        default_val: "4"
+        default_val: "4",
+        min: 0,
+        max: 6
       },
       cross_validation: {
         type: "bool",
@@ -923,17 +999,23 @@ const classificationSettings = {
         type: "int",
         tooltip:
           "<p>Controls cross-validation. If None, the CV generator in the fold_strategy\nparameter of the setup function is used. When an integer is passed,\nit is interpreted as the \u2018n_splits\u2019 parameter of the CV generator in the\nsetup function.</p>\n",
-        default_val: "None"
+        default_val: "None",
+        min: 2,
+        max: 20
       },
       round: {
         type: "int",
         tooltip: "<p>Number of decimal places the metrics in the score grid will be rounded to.</p>\n",
-        default_val: "4"
+        default_val: "4",
+        min: 0,
+        max: 6
       },
       n_iter: {
         type: "int",
         tooltip: "<p>Number of iterations in the grid search. Increasing \u2018n_iter\u2019 may improve\nmodel performance but also increases the training time.</p>\n",
-        default_val: "10"
+        default_val: "10",
+        min: 1,
+        max: 200
       },
       custom_grid: {
         type: "dict",
@@ -973,7 +1055,9 @@ const classificationSettings = {
       early_stopping_max_iters: {
         type: "int",
         tooltip: "<p>Maximum number of epochs to run for each sampled configuration.\nIgnored if early_stopping is False or None.</p>\n",
-        default_val: "10"
+        default_val: "10",
+        min: 1,
+        max: 200
       },
       choose_better: {
         type: "bool",
@@ -1004,7 +1088,9 @@ const classificationSettings = {
       tuner_verbose: {
         type: "int",
         tooltip: "<p>If True or above 0, will print messages from the tuner. Higher values\nprint more messages. Ignored when verbose param is False.</p>\n",
-        default_val: 0
+        default_val: 0,
+        min: 0,
+        max: 3
       },
       return_train_score: {
         type: "bool",
@@ -1028,17 +1114,23 @@ const classificationSettings = {
         type: "int",
         tooltip:
           "<p>Controls cross-validation. If None, the CV generator in the fold_strategy\nparameter of the setup function is used. When an integer is passed,\nit is interpreted as the \u2018n_splits\u2019 parameter of the CV generator in the\nsetup function.</p>\n",
-        default_val: "None"
+        default_val: "None",
+        min: 2,
+        max: 20
       },
       n_estimators: {
         type: "int",
         tooltip: "<p>The number of base estimators in the ensemble. In case of perfect fit, the\nlearning procedure is stopped early.</p>\n",
-        default_val: "10"
+        default_val: "10",
+        min: 1,
+        max: 200
       },
       round: {
         type: "int",
         tooltip: "<p>Number of decimal places the metrics in the score grid will be rounded to.</p>\n",
-        default_val: "4"
+        default_val: "4",
+        min: 0,
+        max: 6
       },
       choose_better: {
         type: "bool",
@@ -1089,12 +1181,16 @@ const classificationSettings = {
         type: "int",
         tooltip:
           "<p>Controls cross-validation. If None, the CV generator in the fold_strategy\nparameter of the setup function is used. When an integer is passed,\nit is interpreted as the \u2018n_splits\u2019 parameter of the CV generator in the\nsetup function.</p>\n",
-        default_val: "None"
+        default_val: "None",
+        min: 2,
+        max: 20
       },
       round: {
         type: "int",
         tooltip: "<p>Number of decimal places the metrics in the score grid will be rounded to.</p>\n",
-        default_val: "4"
+        default_val: "4",
+        min: 0,
+        max: 6
       },
       choose_better: {
         type: "bool",
@@ -1182,18 +1278,24 @@ const classificationSettings = {
         type: "int",
         tooltip:
           "<p>Controls internal cross-validation. Can be an integer or a scikit-learn\nCV generator. If set to an integer, will use (Stratifed)KFold CV with\nthat many folds. See scikit-learn documentation on Stacking for\nmore details.</p>\n",
-        default_val: "5"
+        default_val: "5",
+        min: 2,
+        max: 20
       },
       fold: {
         type: "int",
         tooltip:
           "<p>Controls cross-validation. If None, the CV generator in the fold_strategy\nparameter of the setup function is used. When an integer is passed,\nit is interpreted as the \u2018n_splits\u2019 parameter of the CV generator in the\nsetup function.</p>\n",
-        default_val: "None"
+        default_val: "None",
+        min: 2,
+        max: 20
       },
       round: {
         type: "int",
         tooltip: "<p>Number of decimal places the metrics in the score grid will be rounded to.</p>\n",
-        default_val: "4"
+        default_val: "4",
+        min: 0,
+        max: 6
       },
       method: {
         type: "string",
@@ -1260,18 +1362,24 @@ const classificationSettings = {
         type: "int",
         tooltip:
           "<p>Controls internal cross-validation. Can be an integer or a scikit-learn\nCV generator. If set to an integer, will use (Stratifed)KFold CV with\nthat many folds. See scikit-learn documentation on Stacking for\nmore details.</p>\n",
-        default_val: "5"
+        default_val: "5",
+        min: 2,
+        max: 20
       },
       fold: {
         type: "int",
         tooltip:
           "<p>Controls cross-validation. If None, the CV generator in the fold_strategy\nparameter of the setup function is used. When an integer is passed,\nit is interpreted as the \u2018n_splits\u2019 parameter of the CV generator in the\nsetup function.</p>\n",
-        default_val: "None"
+        default_val: "None",
+        min: 2,
+        max: 20
       },
       round: {
         type: "int",
         tooltip: "<p>Number of decimal places the metrics in the score grid will be rounded to.</p>\n",
-        default_val: "4"
+        default_val: "4",
+        min: 0,
+        max: 6
       },
       fit_kwargs: {
         type: "dict",
