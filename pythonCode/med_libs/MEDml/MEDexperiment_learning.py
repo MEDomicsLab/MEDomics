@@ -56,6 +56,9 @@ class MEDexperimentLearning(MEDexperiment):
         if node_type == "dataset":
             from med_libs.MEDml.nodes.Dataset import Dataset
             return Dataset(node_config['id'], self.global_json_config)
+        elif node_type == "split":
+            from med_libs.MEDml.nodes.Split import Split
+            return Split(node_config['id'], self.global_json_config)
         elif node_type == "clean":
             from med_libs.MEDml.nodes.Clean import Clean
             return Clean(node_config['id'], self.global_json_config)
