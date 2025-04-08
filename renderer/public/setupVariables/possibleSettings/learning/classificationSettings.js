@@ -11,7 +11,7 @@ const classificationSettings = {
       },
       shuffle: {
         type: "bool",
-        tooltip: "Shuffle the dataset before splitting to avoid bias.",
+        tooltip: "Whether to shuffle each class's samples before splitting into batches. Note that the samples within each split will not be shuffled.",
         default_val: "True"
       },
       random_state: {
@@ -84,12 +84,12 @@ const classificationSettings = {
       user_defined: {
         train_indices: {
           type: "string",
-          tooltip: "Custom list of training indices (array of integers).",
+          tooltip: "Custom list of training indices (comma seperated integers: [1, 2, 3, ...]).",
           default_val: "[]"
         },
         test_indices: {
           type: "string",
-          tooltip: "Custom list of testing indices (array of integers).",
+          tooltip: "Custom list of testing indices (comma seperated integers: [101, 102, 103, ...]).",
           default_val: "[]"
         }
       }
@@ -135,12 +135,12 @@ const classificationSettings = {
       user_defined: {
         train_indices: {
           type: "json",
-          tooltip: "Custom list of training indices (array of integers).",
+          tooltip: "Custom list of training indices (comma seperated integers: [1, 2, 3, ...]).",
           default_val: "[]"
         },
         test_indices: {
           type: "json",
-          tooltip: "Custom list of testing indices (array of integers).",
+          tooltip: "Custom list of testing indices (comma seperated integers: [101, 102, 103, ...]).",
           default_val: "[]"
         }
       }
