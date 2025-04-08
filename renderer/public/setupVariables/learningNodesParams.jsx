@@ -31,7 +31,7 @@ const nodesParams = {
     nbInput: 1,
     nbOutput: 1,
     input: ["dataset"],
-    output: [],
+    output: ["split"],
     img: "split.png",
     title: "Split",
     possibleSettings: { classification: classificationSettings["split"], regression: regressionSettings["analyze"] }
@@ -41,7 +41,7 @@ const nodesParams = {
     classes: "action clean run",
     nbInput: 1,
     nbOutput: 1,
-    input: ["dataset"],
+    input: ["dataset", "split"],
     output: ["dataset"],
     img: "clean.png",
     title: "Clean",
