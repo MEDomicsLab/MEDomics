@@ -77,12 +77,17 @@ const classificationSettings = {
         }
       },
       bootstrapping: {
-        sample_size: {
-          type: "float",
-          tooltip: "Fraction of data to sample with replacement (strictly > 0 and ≤ 1).",
-          default_val: 0.8,
-          min: 0.1,
-          max: 1
+        "use_bootstrap_632": {
+          "type": "bool",
+          "tooltip": "When enabled, applies the 0.632 correction to combine in-bag and out-of-bag error estimates.",
+          "default_val": false
+        },
+        "train_size": {
+          "type": "float",
+          "tooltip": "Proportion of the dataset to sample with replacement. Ignored if 0.632 is selected.",
+          "default_val": 0.8,
+          "min": 0.1,
+          "max": 0.99,
         }
       },
       user_defined: {
@@ -132,12 +137,17 @@ const classificationSettings = {
         }
       },
       bootstrapping: {
-        sample_size: {
-          type: "float",
-          tooltip: "Fraction of data to sample with replacement for Inner Split.",
-          default_val: 0.8,
-          min: 0.1,
-          max: 0.9
+          "use_bootstrap_632": {
+          "type": "bool",
+          "tooltip": "When enabled, applies the 0.632 correction to combine in-bag and out-of-bag error estimates.",
+          "default_val": false
+        },
+        "train_size": {
+          "type": "float",
+          "tooltip": "Proportion of the dataset to sample with replacement. Ignored if 0.632 is selected.",
+          "default_val": 0.8,
+          "min": 0.1,
+          "max": 0.99,
         }
       },
       user_defined: {

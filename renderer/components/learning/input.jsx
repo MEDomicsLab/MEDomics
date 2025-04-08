@@ -550,6 +550,31 @@ const Input = ({ name, settingInfos, currentValue, onInputChange, disabled = fal
             {createTooltip(settingInfos.tooltip, name)}
           </>
         )
+
+        case "float-bool":
+  return (
+    <>
+      <FloatingLabel controlId={name} label={name} className=" input-hov">
+        <Form.Control
+          disabled={settingInfos.disabled || disabled || settingInfos.forceBootstrap632}
+          type="number"
+          step={settingInfos.step || "0.05"}
+          min={settingInfos.min}
+          max={settingInfos.max}
+          value={settingInfos.forceBootstrap632 ? 0.632 : currentValue}
+          onChange={(e) =>
+            setInputUpdate({
+              name: name,
+              value: parseFloat(e.target.value),
+              type: "float"
+            })
+          }
+        />
+      </FloatingLabel>
+      {createTooltip(settingInfos.tooltip, name)}
+    </>
+  )
+
       // for all the other types of input (basically a string input for now)
       default:
         return (
