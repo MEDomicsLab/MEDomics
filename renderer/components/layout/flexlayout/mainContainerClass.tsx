@@ -1002,7 +1002,7 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
         case "py":
           return <Icons.FiletypePy />
         case "ipynb":
-          return <Icons.FiletypePy />
+          return <Icons.JournalCode />
         case "html":
           return <Icons.FiletypeHtml />
         case "xlsx":
