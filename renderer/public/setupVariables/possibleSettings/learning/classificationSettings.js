@@ -73,17 +73,17 @@ const classificationSettings = {
         }
       },
       bootstrapping: {
-        "use_bootstrap_632": {
-          "type": "bool",
-          "tooltip": "When enabled, applies the 0.632 correction to combine in-bag and out-of-bag error estimates.",
-          "default_val": false
+        use_bootstrap_63: {
+          type: "bool",
+          tooltip: "When enabled, applies the 0.632 correction to combine in-bag and out-of-bag error estimates.",
+          default_val: "False"
         },
-        "train_size": {
-          "type": "float",
-          "tooltip": "Proportion of the dataset to sample with replacement. Ignored if 0.632 is selected.",
-          "default_val": 0.8,
-          "min": 0.1,
-          "max": 0.99,
+        train_size: {
+          type: "float",
+          tooltip: "Proportion of the dataset to sample with replacement. Ignored if 0.632 is selected.",
+          default_val: 0.8,
+          min: 0.1,
+          max: 0.99,
         }
       },
       user_defined: {
@@ -129,17 +129,17 @@ const classificationSettings = {
         }
       },
       bootstrapping: {
-          "use_bootstrap_632": {
-          "type": "bool",
-          "tooltip": "When enabled, applies the 0.632 correction to combine in-bag and out-of-bag error estimates.",
-          "default_val": false
+        use_bootstrap_63: {
+          type: "bool",
+          tooltip: "When enabled, applies the 0.632 correction to combine in-bag and out-of-bag error estimates.",
+          default_val: "False"
         },
-        "train_size": {
-          "type": "float",
-          "tooltip": "Proportion of the dataset to sample with replacement. Ignored if 0.632 is selected.",
-          "default_val": 0.8,
-          "min": 0.1,
-          "max": 0.99,
+        train_size: {
+          type: "float",
+          tooltip: "Proportion of the dataset to sample with replacement. Ignored if 0.632 is selected.",
+          default_val: 0.8,
+          min: 0.1,
+          max: 0.99,
         }
       },
       user_defined: {

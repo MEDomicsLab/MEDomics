@@ -825,8 +825,6 @@ const Workflow = ({ setWorkflowType, workflowType }) => {
       newJson.nbNodes2Run = nbNodes2Run + 1 // +1 because the results generation is a time consuming task
       let success = await overwriteMEDDataObjectContent(backendMetadataFileID, [newJson])
 
-      console.log("Debug flow sent newJson", newJson)
-
       return { success: success, isValid: isValidDefault }
     },
     [reactFlowInstance, MLType, nodes, edges, intersections, treeData]
