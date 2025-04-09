@@ -146,10 +146,33 @@ class Split(Node):
                 iteration_result['test_indices'] = test_idx.tolist()
         
             # Bootstrap split
-            elif split_type.lower() == "bootstrap":
-                # Todo: Implement bootstrap split logic
-                raise NotImplementedError("Bootstrap split is not implemented yet.")
-            
+            elif split_type.lower() == "bootstrapping":
+                n_samples = len(dataset)
+                bootstrap_settings = self.settings['outer']['bootstrapping']
+
+                # Whether to apply the 0.632 bootstrap correction
+                use_632 = bool(bootstrap_settings.get('use_bootstrap_632', True))
+
+                # Set train_size depending on use_632
+                train_size = 0.632 if use_632 else float(bootstrap_settings.get('train_size', 1.0))
+
+                # Determine the number of training samples
+                n_train = int(n_samples * train_size)
+
+                # Initialize random generator with seed
+                rng = np.random.default_rng(current_random_state)
+
+                # Generate bootstrap training indices (with replacement)
+                train_idx = rng.choice(n_samples, size=n_train, replace=True)
+
+                # Testing indices are those not selected in training (out-of-bag)
+                test_idx = np.setdiff1d(np.arange(n_samples), np.unique(train_idx))
+
+                # Store result
+                iteration_result['type'] = 'bootstrap_0.632' if use_632 else 'bootstrapping'
+                iteration_result['train_indices'] = train_idx.tolist()
+                iteration_result['test_indices'] = test_idx.tolist()
+        
             # User defined split
             elif split_type.lower() == "user_defined" and i == 0:
                 # Validate user indices are within range
