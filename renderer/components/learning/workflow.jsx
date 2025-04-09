@@ -493,7 +493,13 @@ const Workflow = ({ setWorkflowType, workflowType }) => {
     newNode.className = setupParams.classes
 
     let tempDefaultSettings = {}
-    if (newNode.data.setupParam.possibleSettings) {
+    if (newNode.data.setupParam.possibleSettings && newNode.type !== "splitNode") {
+      "default" in newNode.data.setupParam.possibleSettings &&
+        Object.entries(newNode.data.setupParam.possibleSettings.default).map(([settingName, setting]) => {
+          tempDefaultSettings[settingName] = defaultValueFromType[setting.type]
+        })
+    }
+    else if (newNode.data.setupParam.possibleSettings && newNode.type == "splitNode") {
       const settings = newNode.data.setupParam.possibleSettings.default || newNode.data.setupParam.possibleSettings
       
       Object.entries(settings).forEach(([settingName, setting]) => {
