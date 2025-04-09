@@ -34,6 +34,77 @@ class Split(Node):
         # Initialize base Node class with ID and global config
         super().__init__(id_, global_config_json)
 
+    def _apply_inner_split(self, result_dict, dataset, target, outer_train_idx, random_state):
+        """Apply inner split strategy on the outer training set."""
+        inner_split_type = self.settings.get('inner_split_type', None)
+        if not inner_split_type:
+            return result_dict
+
+        # Import necessary module
+        from sklearn.model_selection import KFold, StratifiedKFold, train_test_split
+        inner_settings = self.settings.get('inner', {}).get(inner_split_type, {})
+
+        inner_splits = []
+        train_data = dataset.iloc[outer_train_idx]
+        n_inner = len(train_data)
+
+        # Handle different split types
+        if inner_split_type == "cross_validation":
+            folds = inner_settings.get("num_folds", 5)
+            stratify = inner_settings.get("stratify", False)
+            y_inner = train_data[target].values if stratify and isinstance(target, str) else target if stratify else None
+
+            splitter = StratifiedKFold(n_splits=folds, shuffle=True, random_state=random_state) if stratify else KFold(n_splits=folds, shuffle=True, random_state=random_state)
+            for fold_idx, (i_train, i_val) in enumerate(splitter.split(train_data if not stratify else np.zeros(n_inner), y_inner)):
+                inner_splits.append({
+                    "fold": fold_idx + 1,
+                    "inner_train_indices": i_train.tolist(),
+                    "inner_validation_indices": i_val.tolist()
+                })
+
+        elif inner_split_type == "random_sub_sampling":
+            test_size = float(json.loads(inner_settings.get("test_size", 0.2)))
+            y_inner = train_data[target].values if inner_settings.get("stratify", False) and isinstance(target, str) else None
+            inner_train, inner_val = train_test_split(
+                np.arange(n_inner),
+                test_size=test_size,
+                shuffle=True,
+                stratify=y_inner,
+                random_state=random_state
+            )
+            inner_splits.append({
+                "inner_train_indices": inner_train.tolist(),
+                "inner_validation_indices": inner_val.tolist()
+            })
+
+        elif inner_split_type == "bootstrapping":
+            train_size = float(inner_settings.get("train_size", 1.0))
+            use_632 = bool(inner_settings.get("use_bootstrap_632", True))
+            if use_632:
+                train_size = 0.632
+            n_train_inner = int(n_inner * train_size)
+            rng = np.random.default_rng(random_state)
+            inner_train = rng.choice(n_inner, size=n_train_inner, replace=True)
+            inner_val = np.setdiff1d(np.arange(n_inner), np.unique(inner_train))
+            inner_splits.append({
+                "inner_train_indices": inner_train.tolist(),
+                "inner_validation_indices": inner_val.tolist()
+            })
+
+        elif inner_split_type == "user_defined":
+            train_idx = inner_settings.get("train_indices", [])
+            val_idx = inner_settings.get("test_indices", [])
+            if not train_idx or not val_idx:
+                raise ValueError("User-defined inner split requires both 'train_indices' and 'test_indices'.")
+            inner_splits.append({
+                "inner_train_indices": train_idx,
+                "inner_validation_indices": val_idx
+            })
+
+        result_dict["inner_splits"] = inner_splits
+        
+        return result_dict
+    
     def _execute(self, experiment: dict = None, **kwargs) -> json:
         """
         Executes the split node logic.
@@ -219,73 +290,4 @@ class Split(Node):
             "table": "dataset",
             "paths": ["path"],
         }
-
-    def _apply_inner_split(self, result_dict, dataset, target, outer_train_idx, random_state):
-        """Apply inner split strategy on the outer training set."""
-        inner_split_type = self.settings.get('inner_split_type', None)
-        if not inner_split_type:
-            return result_dict
-
-        # Import necessary module
-        from sklearn.model_selection import KFold, StratifiedKFold, train_test_split
-        inner_settings = self.settings.get('inner', {}).get(inner_split_type, {})
-
-        inner_splits = []
-        train_data = dataset.iloc[outer_train_idx]
-        n_inner = len(train_data)
-
-        # Handle different split types
-        if inner_split_type == "cross_validation":
-            folds = inner_settings.get("num_folds", 5)
-            stratify = inner_settings.get("stratify", False)
-            y_inner = train_data[target].values if stratify and isinstance(target, str) else target if stratify else None
-
-            splitter = StratifiedKFold(n_splits=folds, shuffle=True, random_state=random_state) if stratify else KFold(n_splits=folds, shuffle=True, random_state=random_state)
-            for fold_idx, (i_train, i_val) in enumerate(splitter.split(train_data if not stratify else np.zeros(n_inner), y_inner)):
-                inner_splits.append({
-                    "fold": fold_idx + 1,
-                    "inner_train_indices": i_train.tolist(),
-                    "inner_validation_indices": i_val.tolist()
-                })
-
-        elif inner_split_type == "random_sub_sampling":
-            test_size = float(json.loads(inner_settings.get("test_size", 0.2)))
-            y_inner = train_data[target].values if inner_settings.get("stratify", False) and isinstance(target, str) else None
-            inner_train, inner_val = train_test_split(
-                np.arange(n_inner),
-                test_size=test_size,
-                shuffle=True,
-                stratify=y_inner,
-                random_state=random_state
-            )
-            inner_splits.append({
-                "inner_train_indices": inner_train.tolist(),
-                "inner_validation_indices": inner_val.tolist()
-            })
-
-        elif inner_split_type == "bootstrapping":
-            train_size = float(inner_settings.get("train_size", 1.0))
-            use_632 = bool(inner_settings.get("use_bootstrap_632", True))
-            if use_632:
-                train_size = 0.632
-            n_train_inner = int(n_inner * train_size)
-            rng = np.random.default_rng(random_state)
-            inner_train = rng.choice(n_inner, size=n_train_inner, replace=True)
-            inner_val = np.setdiff1d(np.arange(n_inner), np.unique(inner_train))
-            inner_splits.append({
-                "inner_train_indices": inner_train.tolist(),
-                "inner_validation_indices": inner_val.tolist()
-            })
-
-        elif inner_split_type == "user_defined":
-            train_idx = inner_settings.get("train_indices", [])
-            val_idx = inner_settings.get("test_indices", [])
-            if not train_idx or not val_idx:
-                raise ValueError("User-defined inner split requires both 'train_indices' and 'test_indices'.")
-            inner_splits.append({
-                "inner_train_indices": train_idx,
-                "inner_validation_indices": val_idx
-            })
-
-        result_dict["inner_splits"] = inner_splits
-        return result_dict
+    
