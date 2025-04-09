@@ -493,7 +493,13 @@ const Workflow = ({ setWorkflowType, workflowType }) => {
     newNode.className = setupParams.classes
 
     let tempDefaultSettings = {}
-    if (newNode.data.setupParam.possibleSettings) {
+    if (newNode.data.setupParam.possibleSettings && newNode.type !== "splitNode") {
+      "default" in newNode.data.setupParam.possibleSettings &&
+        Object.entries(newNode.data.setupParam.possibleSettings.default).map(([settingName, setting]) => {
+          tempDefaultSettings[settingName] = defaultValueFromType[setting.type]
+        })
+    }
+    else if (newNode.data.setupParam.possibleSettings && newNode.type == "splitNode") {
       const settings = newNode.data.setupParam.possibleSettings.default || newNode.data.setupParam.possibleSettings
       
       Object.entries(settings).forEach(([settingName, setting]) => {
@@ -824,8 +830,6 @@ const Workflow = ({ setWorkflowType, workflowType }) => {
       newJson.identifiers["plots"] = plotDirectoryID
       newJson.nbNodes2Run = nbNodes2Run + 1 // +1 because the results generation is a time consuming task
       let success = await overwriteMEDDataObjectContent(backendMetadataFileID, [newJson])
-
-      console.log("Debug flow sent newJson", newJson)
 
       return { success: success, isValid: isValidDefault }
     },
