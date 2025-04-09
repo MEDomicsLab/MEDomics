@@ -73,17 +73,17 @@ const classificationSettings = {
         }
       },
       bootstrapping: {
-        "use_bootstrap_632": {
-          "type": "bool",
-          "tooltip": "When enabled, applies the 0.632 correction to combine in-bag and out-of-bag error estimates.",
-          "default_val": false
+        use_bootstrap_632: {
+          type: "bool",
+          tooltip: "When enabled, applies the 0.632 correction to combine in-bag and out-of-bag error estimates.",
+          default_val: "True"
         },
-        "train_size": {
-          "type": "float",
-          "tooltip": "Proportion of the dataset to sample with replacement. Ignored if 0.632 is selected.",
-          "default_val": 0.8,
-          "min": 0.1,
-          "max": 0.99,
+        train_size: {
+          type: "float",
+          tooltip: "Proportion of the dataset to sample with replacement. Ignored if 0.632 is selected.",
+          default_val: 0.632,
+          min: 0.1,
+          max: 0.99,
         }
       },
       user_defined: {
@@ -129,17 +129,17 @@ const classificationSettings = {
         }
       },
       bootstrapping: {
-          "use_bootstrap_632": {
-          "type": "bool",
-          "tooltip": "When enabled, applies the 0.632 correction to combine in-bag and out-of-bag error estimates.",
-          "default_val": false
+          use_bootstrap_632: {
+          type: "bool",
+          tooltip: "When enabled, applies the 0.632 correction to combine in-bag and out-of-bag error estimates.",
+          default_val: "True"
         },
-        "train_size": {
-          "type": "float",
-          "tooltip": "Proportion of the dataset to sample with replacement. Ignored if 0.632 is selected.",
-          "default_val": 0.8,
-          "min": 0.1,
-          "max": 0.99,
+        train_size: {
+          type: "float",
+          tooltip: "Proportion of the dataset to sample with replacement. Ignored if 0.632 is selected.",
+          default_val: 0.632,
+          min: 0.1,
+          max: 0.99,
         }
       },
       user_defined: {
@@ -247,8 +247,8 @@ const classificationSettings = {
         type: "float",
         tooltip: "<p>The percentage of outliers to be removed from the dataset. Ignored\nwhen remove_outliers=False.</p>\n",
         default_val: "0.05",
-        "min": 0.0,
-        "max": 1.0
+        min: 0.0,
+        max: 1.0
       },
       remove_multicollinearity: {
         type: "bool",
