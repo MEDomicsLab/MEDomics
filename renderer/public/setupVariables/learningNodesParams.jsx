@@ -74,7 +74,7 @@ const nodesParams = {
     classes: "action compare_models run",
     nbInput: 1,
     nbOutput: 1,
-    input: ["dataset"],
+    input: ["dataset", "split"],
     output: ["model"],
     img: "compare_models.png",
     title: "Compare models",
