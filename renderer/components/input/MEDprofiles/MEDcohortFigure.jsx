@@ -1,7 +1,7 @@
 /* eslint-disable camelcase */
 import { randomUUID } from "crypto"
 import * as d3 from "d3"
-import * as dfd from "danfojs-node"
+import * as dfd from "../../../utilities/danfo.js"
 import * as echarts from "echarts"
 import ReactECharts from "echarts-for-react"
 import { Button } from "primereact/button"
@@ -1140,8 +1140,8 @@ class MEDcohortFigureClass extends React.Component {
    * @returns {void}
    */
   timePointToCsv = async (timePoint, timePointData) => {
-    // eslint-disable-next-line no-undef
-    const dfd = require("danfojs-node")
+    // Use our custom implementation instead of requiring danfojs-node
+    const dfd = require("../../../utilities/danfo.js")
     if (timePointData === undefined) return
     if (Object.keys(timePointData).length >= 1) {
       // If there is at least one attribute

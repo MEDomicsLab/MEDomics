@@ -93,8 +93,6 @@
     "csv": "^6.3.3",
     "csv-parser": "^3.0.0",
     "d3": "^7.8.5",
-    "danfojs": "^1.1.2",
-    "danfojs-node": "^1.1.2",
     "decompress": "^4.2.1",
     "directory-tree": "^3.5.1",
     "echarts": "^5.4.3",
