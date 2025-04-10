@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react'
 import { ipcRenderer } from 'electron'
 import { ProgressBar } from 'primereact/progressbar'
 import { Card } from 'primereact/card'
-import { Button } from 'primereact/button'
 import { Dialog } from 'primereact/dialog'
 import { toast } from 'react-toastify'
 

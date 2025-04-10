@@ -1,6 +1,6 @@
 import React, { useContext, useState, useEffect } from "react"
 import { DataContext } from "../../workspace/dataContext"
-import { DataTableComponent } from "../../dataTypeVisualisation/dataTableMainBPClass"
+import { DataTableWrapper } from "./dataTableWrapper"
 import * as dfd from "../../../utilities/danfo.js"
 import { toast } from "react-toastify"
 import fs from "fs"
