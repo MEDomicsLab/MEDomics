@@ -68,38 +68,95 @@ console.log = function () {
 
 function sendStatusToWindow(text) {
   if (mainWindow && mainWindow.webContents) {
-    mainWindow.showMessage(text)
+        mainWindow.showMessage(text)
   }
 }
+
 autoUpdater.on("checking-for-update", () => {
-  console.log("DEBUG: checking for update")
+console.log("DEBUG: checking for update")
   sendStatusToWindow("Checking for update...")
 })
+
 autoUpdater.on("update-available", (info) => {
-  info = JSON.stringify(info)
-  console.log("DEBUG: update available")
-  sendStatusToWindow(`Update available. ${info}`)
-  let pth = autoUpdater.downloadUpdate()
-  console.log("DEBUG: pth:" + pth)
-  sendStatusToWindow(`Downloading update... ${pth}`)
+  log.info("Update available:", info)
+  
+  // Show a dialog to ask the user if they want to download the update
+  const dialogOpts = {
+    type: 'info',
+    buttons: ['Download', 'Later'],
+    title: 'Application Update',
+    message: 'A new version is available',
+    detail: `MEDomicsLab ${info.version} is available. You have ${app.getVersion()}. Would you like to download it now?`
+  }
+
+  dialog.showMessageBox(mainWindow, dialogOpts).then((returnValue) => {
+    if (returnValue.response === 0) { // If the user clicked "Download"
+      sendStatusToWindow("Downloading update...")
+      autoUpdater.downloadUpdate()
+    }
+  })
 })
+
 autoUpdater.on("update-not-available", (info) => {
   info = JSON.stringify(info)
   sendStatusToWindow(`Update not available. ${info}`)
   sendStatusToWindow(`Current version: ${app.getVersion()}`)
 })
+
 autoUpdater.on("error", (err) => {
-  sendStatusToWindow("Error in auto-updater. " + err)
+    sendStatusToWindow("Error in auto-updater. " + err)
 })
+
 autoUpdater.on("download-progress", (progressObj) => {
-  let log_message = "Download speed: " + progressObj.bytesPerSecond
-  log_message = log_message + " - Downloaded " + progressObj.percent + "%"
-  log_message = log_message + " (" + progressObj.transferred + "/" + progressObj.total + ")"
+  let log_message = `Download speed: ${progressObj.bytesPerSecond} - `
+  log_message += `Downloaded ${progressObj.percent.toFixed(2)}% `
+  log_message += `(${progressObj.transferred}/${progressObj.total})`
+  log.info(log_message)
   sendStatusToWindow(log_message)
+  mainWindow.webContents.send('update-download-progress', progressObj)
 })
+
 autoUpdater.on("update-downloaded", (info) => {
-  sendStatusToWindow("Update downloaded")
-  autoUpdater.quitAndInstall()
+  log.info("Update downloaded:", info)
+  
+  let dialogOpts = {
+    type: 'info',
+    buttons: ['Restart', 'Later'],
+    title: 'Application Update',
+    message: 'Update Downloaded',
+    detail: `MEDomicsLab ${info.version} has been downloaded. Restart the application to apply the updates.`
+  }
+  
+  // For Linux, provide additional instructions
+  if (process.platform === 'linux') {
+    dialogOpts = {
+      type: 'info',
+      buttons: ['Copy Command & Restart', 'Copy Command', 'Later'],
+      title: 'Application Update',
+      message: 'Update Downloaded',
+      detail: `MEDomicsLab ${info.version} has been downloaded. On Linux, you may need to run the installer with sudo:\n\nsudo dpkg -i [path-to-deb-file]\n\nClick 'Copy Command & Restart' to copy this command to your clipboard and restart the application, or 'Copy Command' to just copy it.`
+    }
+  }
+  
+  dialog.showMessageBox(mainWindow, dialogOpts).then((returnValue) => {
+    if (process.platform === 'linux') {
+      if (returnValue.response === 0 || returnValue.response === 1) {
+        // Get the location of the downloaded file
+        const downloadPath = path.dirname(app.getPath('exe'))
+        const debFile = `MEDomicsLab-${info.version}-*.deb`
+        const command = `sudo dpkg -i "${path.join(downloadPath, debFile)}"`
+        
+        // Copy to clipboard
+        require('electron').clipboard.writeText(command)
+        
+        if (returnValue.response === 0) {
+          autoUpdater.quitAndInstall()
+        }
+      }
+    } else if (returnValue.response === 0) {
+      autoUpdater.quitAndInstall()
+    }
+  })
 })
 
 if (isProd) {

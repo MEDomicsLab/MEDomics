@@ -14,6 +14,7 @@ import { MEDDataObject } from "../components/workspace/NewMedDataObject"
 import { WorkspaceProvider } from "../components/workspace/workspaceContext"
 import { loadMEDDataObjects, updateGlobalData } from "../utilities/appUtils/globalDataUtils"
 import { NotificationContextProvider } from "../components/generalPurpose/notificationContext"
+import UpdateNotification from "../components/updateNotification/UpdateNotification"
 
 // CSS
 import "bootstrap/dist/css/bootstrap.min.css"
@@ -288,6 +289,7 @@ function App() {
           pauseOnHover
           theme="light"
         />
+        <UpdateNotification />
       </div>
     </>
   )
