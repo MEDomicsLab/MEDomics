@@ -208,8 +208,8 @@ class Split(Node):
 
                 # Total number of samples and other parameters
                 n_samples = len(dataset)
-                test_size = float(json.loads(self.settings['outer']['random_sub_sampling']['test_size']))
-                stratify = json.loads(self.settings['outer']['random_sub_sampling']['stratify'])
+                test_size = float(self.settings['outer']['random_sub_sampling']['test_size'])
+                stratify = bool(self.settings['outer']['random_sub_sampling']['stratify'])
 
                 # Validate test size
                 if not (0 < test_size < 1):
@@ -276,6 +276,7 @@ class Split(Node):
 
         # Prepare information for next node in the pipeline
         self._info_for_next_node = {
+            "splitted": True,
             "setup_settings": kwargs["setup_settings"],
             "split_indices": split_indices_all_iterations,
             "shuffle": shuffle,
