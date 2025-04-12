@@ -30,6 +30,7 @@ func AddHandleFunc() {
 	Utils.CreateHandleFunc(prePath+"/overwrite_encoded_data", handleOverwriteEncodedData)
 	Utils.CreateHandleFunc(prePath+"/append_encoded_data", handleAppendEncodedData)
 	Utils.CreateHandleFunc(prePath+"/create_group_DB/", handleCreateGroupDB)
+	Utils.CreateHandleFunc(prePath+"/find_duplicate_columns_DB", handleFindDuplicateColumnsDB)
 }
 
 // handleMerge handles the request to merge the datasets for the DB
@@ -280,5 +281,25 @@ func handleCreateGroupDB(jsonConfig string, id string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	return response, nil
+}
+
+// handleFindDuplicateColumnsDB to identify duplicate columns from a CSV
+// It returns the response from the python script
+func handleFindDuplicateColumnsDB(jsonConfig string, id string) (string, error) {
+
+	log.Println(">> [DEBUG] route /input/find_duplicate_columns_DB hit", id)
+	log.Println("Finding duplicate columns...", id)
+
+	// Appelle le script Python
+	response, err := Utils.StartPythonScripts(jsonConfig, "../pythonCode/modules/input/find_duplicate_columnsDB.py", id)
+	log.Println(">>> PYTHON RESPONSE:\n", response)
+	Utils.RemoveIdFromScripts(id)
+
+	if err != nil {
+		log.Println("Error executing Python script:", err)
+		return "", err
+	}
+
 	return response, nil
 }
