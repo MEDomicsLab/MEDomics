@@ -5,11 +5,14 @@ import pandas as pd
 from pymongo import MongoClient
 import xxhash 
 
+
 MAX_ROWS = 5000
 
 def hash_column(column):
+    # Round floats to accelerate the processus
     if pd.api.types.is_float_dtype(column):
         column = column.round(5)
+    # Return a non cryptographic hash
     return xxhash.xxh64(column.to_string(index=False)).hexdigest()
 
 def main():
@@ -39,6 +42,7 @@ def main():
             print(json.dumps({"duplicates": []}))
             return
 
+         # Transform into dataFrame
         df = pd.DataFrame(docs).drop(columns=["_id"], errors="ignore")
 
         column_hashes = {}

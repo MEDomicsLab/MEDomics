@@ -9,7 +9,6 @@ import { DataContext } from "../../workspace/dataContext"
 import { Card } from "primereact/card"
 import { Skeleton } from "primereact/skeleton"
 import { ScrollPanel } from "primereact/scrollpanel"
-import { all } from "axios"
 import { requestBackend } from "../../../utilities/requests"
 import { ServerConnectionContext } from "../../serverConnection/connectionContext"
 
@@ -56,40 +55,8 @@ const DropDuplicatesToolsDB = ({ currentCollection }) => {
     }
   }
 
-  // const findDuplicateColumns = async (allKeys, collection) => {
-  //   setLoadingDuplicates(true)
-  //   let duplicatePairs = []
-  //   const documentCount = await collection.countDocuments()
-
-  //   if (documentCount <= 1) {
-  //     setDuplicateColumns(duplicatePairs)
-  //     return
-  //   }
-
-  //   try {
-  //     for (let i = 0; i < allKeys.length; i++) {
-  //       for (let j = i + 1; j < allKeys.length; j++) {
-  //         const column1 = allKeys[i]
-  //         const column2 = allKeys[j]
-
-  //         const pipeline = [{ $project: { areEqual: { $eq: [`$${column1}`, `$${column2}`] } } }, { $match: { areEqual: false } }, { $count: "mismatchedDocuments" }]
-
-  //         const result = await collection.aggregate(pipeline).toArray()
-  //         if (result.length === 0 || (result[0]?.mismatchedDocuments || 0) === 0) {
-  //           duplicatePairs.push({ column1, column2 })
-  //         }
-  //       }
-  //     }
-
-  //     setDuplicateColumns(duplicatePairs)
-  //     setLoadingDuplicates(false)
-  //   } catch (error) {
-  //     setLoadingDuplicates(false)
-  //     console.error("Error finding duplicate columns:", error)
-  //     toast.error("An error occurred while finding duplicate columns.")
-  //   }
-  // }
-
+  // Calls the python backend to detect duplicated columns.
+  // Returns duplicated columns for deletion
   const findDuplicateColumns = async () => {
     setLoadingDuplicates(true)
 
@@ -106,6 +73,7 @@ const DropDuplicatesToolsDB = ({ currentCollection }) => {
           console.log(" Réponse backend :", response)
 
           if (response?.duplicates) {
+            // Store duplicated columns into a state for future deletion
             setDuplicateColumns(
               response.duplicates.map(([c1, c2]) => ({
                 column1: c1,
@@ -132,6 +100,7 @@ const DropDuplicatesToolsDB = ({ currentCollection }) => {
     }
   }
 
+  // Delete selected columns then refresh data to display up to date data form MongoDB
   const handleDeleteColumn = async () => {
     if (!selectedColumn) {
       toast.warn("Please select a column to delete.")
