@@ -57,6 +57,7 @@ class Clean(Node):
                 "code", f"pycaret_exp.setup(data=temp_df, {self.CodeHandler.convert_dict_to_params(setup_settings)})")
         self.CodeHandler.add_line(
             "code", f"dataset = pycaret_exp.get_config('X').join(pycaret_exp.get_config('y'))")
+        self._info_for_next_node = kwargs
         return {
             "experiment": {
             'pycaret_exp': pycaret_exp,

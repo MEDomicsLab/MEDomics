@@ -131,6 +131,7 @@ class Dataset(Node):
             self.df = self.combine_df_timepoint_tags(df_list, self.settings['tags'], self.settings['variables'])
 
         self._info_for_next_node['target'] = self.settings['target']
+        self._info_for_next_node['splitted'] = False
         return {}
 
     def combine_df_timepoint_tags(self, df_list, tags_list, vars_list) -> pd.DataFrame:
