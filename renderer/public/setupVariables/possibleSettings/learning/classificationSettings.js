@@ -2,13 +2,6 @@
 const classificationSettings = {
   split: {
     global: {
-      n_iterations: {
-        type: "int",
-        tooltip: "Number of repetitions for the whole experiment.",
-        default_val: 1,
-        min: 1,
-        max: 50
-      },
       shuffle: {
         type: "bool",
         tooltip: "Whether to shuffle each class's samples before splitting into batches. Note that the samples within each split will not be shuffled.",
@@ -56,6 +49,13 @@ const classificationSettings = {
           type: "bool",
           tooltip: "Preserve the distribution of classes during splitting.",
           default_val: "False"
+        },
+        n_iterations: {
+          type: "int",
+          tooltip: "Number of repetitions for the splits.",
+          default_val: 1,
+          min: 1,
+          max: 50
         }
       },
       cross_validation: {
@@ -84,6 +84,13 @@ const classificationSettings = {
           default_val: 0.632,
           min: 0.1,
           max: 0.99,
+        },
+        n_iterations: {
+          type: "int",
+          tooltip: "Number of repetitions for the splits.",
+          default_val: 1,
+          min: 1,
+          max: 50
         }
       },
       user_defined: {
@@ -112,6 +119,13 @@ const classificationSettings = {
           type: "bool",
           tooltip: "Preserve the distribution of classes during Inner splitting.",
           default_val: "False"
+        },
+        n_iterations: {
+          type: "int",
+          tooltip: "Number of repetitions for the splits.",
+          default_val: 1,
+          min: 1,
+          max: 50
         }
       },
       cross_validation: {
@@ -140,6 +154,13 @@ const classificationSettings = {
           default_val: 0.632,
           min: 0.1,
           max: 0.99,
+        },
+        n_iterations: {
+          type: "int",
+          tooltip: "Number of repetitions for the splits.",
+          default_val: 1,
+          min: 1,
+          max: 50
         }
       },
       user_defined: {
