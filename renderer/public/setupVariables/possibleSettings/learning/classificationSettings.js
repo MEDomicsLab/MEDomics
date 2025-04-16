@@ -2,9 +2,9 @@
 const classificationSettings = {
   split: {
     global: {
-      shuffle: {
+      stratify: {
         type: "bool",
-        tooltip: "Whether to shuffle each class's samples before splitting into batches. Note that the samples within each split will not be shuffled.",
+        tooltip: "Preserve the percentage of samples for each class or group in the train and test sets.",
         default_val: "True"
       },
       random_state: {
@@ -45,17 +45,12 @@ const classificationSettings = {
           min: 0.1,
           max: 0.99
         },
-        stratify: {
-          type: "bool",
-          tooltip: "Preserve the distribution of classes during splitting.",
-          default_val: "False"
-        },
         n_iterations: {
           type: "int",
           tooltip: "Number of repetitions for the splits.",
-          default_val: 1,
+          default_val: 10,
           min: 1,
-          max: 50
+          max: 100
         }
       },
       cross_validation: {
@@ -66,31 +61,21 @@ const classificationSettings = {
           min: 2,
           max: 20
         },
-        stratify: {
-          type: "bool",
-          tooltip: "Preserve the distribution of classes during Inner splitting.",
-          default_val: "False"
-        }
       },
       bootstrapping: {
-        use_bootstrap_632: {
-          type: "bool",
-          tooltip: "When enabled, applies the 0.632 correction to combine in-bag and out-of-bag error estimates.",
-          default_val: "True"
-        },
-        train_size: {
+        bootstrap_train_sample_size: {
           type: "float",
-          tooltip: "Proportion of the dataset to sample with replacement. Ignored if 0.632 is selected.",
-          default_val: 0.632,
+          tooltip: "Proportion of the dataset to sample with replacement",
+          default_val: 1,
           min: 0.1,
-          max: 0.99,
+          max: 1,
         },
         n_iterations: {
           type: "int",
-          tooltip: "Number of repetitions for the splits.",
-          default_val: 1,
+          tooltip: "Number of bootstrapping iterations.",
+          default_val: 100,
           min: 1,
-          max: 50
+          max: 1000
         }
       },
       user_defined: {
@@ -115,17 +100,12 @@ const classificationSettings = {
           min: 0.1,
           max: 0.99
         },
-        stratify: {
-          type: "bool",
-          tooltip: "Preserve the distribution of classes during Inner splitting.",
-          default_val: "False"
-        },
         n_iterations: {
           type: "int",
           tooltip: "Number of repetitions for the splits.",
-          default_val: 1,
+          default_val: 10,
           min: 1,
-          max: 50
+          max: 100
         }
       },
       cross_validation: {
@@ -136,24 +116,14 @@ const classificationSettings = {
           min: 2,
           max: 20
         },
-        stratify: {
-          type: "bool",
-          tooltip: "Preserve the distribution of classes during Inner splitting.",
-          default_val: "False"
-        }
       },
       bootstrapping: {
-          use_bootstrap_632: {
-          type: "bool",
-          tooltip: "When enabled, applies the 0.632 correction to combine in-bag and out-of-bag error estimates.",
-          default_val: "True"
-        },
-        train_size: {
+        bootstrap_train_sample_size: {
           type: "float",
           tooltip: "Proportion of the dataset to sample with replacement. Ignored if 0.632 is selected.",
-          default_val: 0.632,
+          default_val: 1,
           min: 0.1,
-          max: 0.99,
+          max: 1,
         },
         n_iterations: {
           type: "int",
@@ -847,6 +817,11 @@ const classificationSettings = {
           tooltip:
             "<p>Controls cross-validation. If None, the CV generator in the fold_strategy\nparameter of the setup function is used. When an integer is passed,\nit is interpreted as the \u2018n_splits\u2019 parameter of the CV generator in the\nsetup function.</p>\n",
           default_val: "None"
+        },
+        use_bootstrap_632: {
+          type: "bool",
+          tooltip: "When enabled, applies the 0.632 correction to combine in-bag and out-of-bag error estimates. Only use if the model was trained using Bootstrapping.",
+          default_val: "True"
         },
         fit_kwargs: {
           type: "dict",
