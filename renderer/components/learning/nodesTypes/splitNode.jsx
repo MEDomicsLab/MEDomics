@@ -59,16 +59,6 @@ const SplitNode = ({ id, data }) => {
     })
   }
 
-  // Handler for input changes for inner splits
-  const onInnerInputChange = (inputUpdate) => {
-    let splitType = data.internal.settings.inner_split_type
-    data.internal.settings.inner[splitType][inputUpdate.name] = inputUpdate.value
-    updateNode({
-      id: id,
-      updatedData: data.internal,
-    })
-  }
-
   // Handler for warnings
   const handleWarning = (hasWarning) => {
     data.internal.hasWarning = hasWarning
@@ -78,7 +68,7 @@ const SplitNode = ({ id, data }) => {
     })
   }
 
-  // Dynamic parameter renderer for Outer or Inner splits
+  // Dynamic parameter renderer for Outer splits
   const renderParams = (level, method) => {
     if (!method) return null
     return Object.entries(data.setupParam?.possibleSettings?.[level]?.[method] || {}).map(
@@ -88,7 +78,7 @@ const SplitNode = ({ id, data }) => {
             name={param}
             settingInfos={infos}
             currentValue={data.internal.settings[level][method][param]}
-            onInputChange={level === "outer" ? onOuterInputChange : onInnerInputChange}
+            onInputChange={level === "outer" && onOuterInputChange}
           />
         </React.Fragment>
       )
@@ -158,29 +148,32 @@ const SplitNode = ({ id, data }) => {
                     setUseUserDefinedSettings(false)
                   }
                   setUsePycaretDefaultParams(e.value)
+                  data.internal.settings.use_pycarets_default = e.value
                 }}
               />
             </div>
           </div>
 
           {/* -------- Global Parameters -------- */}
-          <div className="p-3 mb-3" style={{ border: "1px solid #ccc", borderRadius: "8px" }}>
-            <h6>General Parameters</h6>
-            <Stack direction="vertical" gap={1}>
-              {data.internal.settings.global && Object.entries(data.internal.settings.global).filter(
-                ([nameParam]) => usePycaretDefaultParams ? nameParam !== "stratify" : true
-              ).map(([nameParam, index]) => (
-                <React.Fragment key={nameParam}>
-                  <Input
-                    name={nameParam}
-                    settingInfos={data.setupParam?.possibleSettings?.global[nameParam]}
-                    currentValue={data.internal.settings.global[nameParam]}
-                    onInputChange={onGlobalInputChange}
-                  />
-                </React.Fragment>
-              ))}
-            </Stack>
-          </div>
+          {!useUserDefinedSettings && (
+            <div className="p-3 mb-3" style={{ border: "1px solid #ccc", borderRadius: "8px" }}>
+              <h6>General Parameters</h6>
+              <Stack direction="vertical" gap={1}>
+                {data.internal.settings.global && Object.entries(data.internal.settings.global).filter(
+                  ([nameParam]) => usePycaretDefaultParams ? nameParam !== "stratify" : true
+                ).map(([nameParam, index]) => (
+                  <React.Fragment key={nameParam}>
+                    <Input
+                      name={nameParam}
+                      settingInfos={data.setupParam?.possibleSettings?.global[nameParam]}
+                      currentValue={data.internal.settings.global[nameParam]}
+                      onInputChange={onGlobalInputChange}
+                    />
+                  </React.Fragment>
+                ))}
+              </Stack>
+            </div>
+          )}
       
           {/* -------- Outer Split -------- */}
           {(!useUserDefinedSettings && !usePycaretDefaultParams) && (

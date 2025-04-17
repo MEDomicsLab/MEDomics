@@ -1,6 +1,11 @@
 /* eslint-disable */
 const classificationSettings = {
   split: {
+    use_pycarets_default: {
+      type: "bool",
+      tooltip: "Use PyCaret's default parameters for the split.",
+      default_val: "False"
+    },
     global: {
       stratify: {
         type: "bool",
@@ -72,7 +77,7 @@ const classificationSettings = {
         },
         n_iterations: {
           type: "int",
-          tooltip: "Number of bootstrapping iterations.",
+          tooltip: "Number of bootstrap iterations.",
           default_val: 100,
           min: 1,
           max: 1000
