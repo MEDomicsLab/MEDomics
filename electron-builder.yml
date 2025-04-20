@@ -1,12 +1,56 @@
 appId: com.medomicslab.medapp
-productName: MEDapp
+productName: MEDomicsLab # Changed from MEDapp to MEDomicsLab to match package.json
+artifactName: "${productName}-${version}-${os}.${ext}" # Added from package.json
 copyright: Copyright © 2023 MEDomicsLab Team
 directories:
-  output: dist
+  output: build/dist # Changed from dist to build/dist to match package.json
   buildResources: resources
 files:
-  - from: .
-    filter:
-      - package.json
-      - app
+  - app/**/*
+  - node_modules/**/*
+  - resources/**/*
+
+extraResources:
+  - "./pythonCode/**/*"
+  - "./baseFiles/**/*"
+  - "./go_executables/**/*"
+  - "./pythonEnv/**/*"
+  - "!**/__pycache__/**/*"
+  - "!**/__pycache__/"
+  - "!./pythonCode/venv/**/*"
+  - "!./pythonCode/.idea/**/*"
+  - "!*.git/**/*"
+
+asarUnpack:
+  - "./pythonCode/**/*"
+  - "./baseFiles/**/*"
+  - "./go_executables/**/*"
+extends: null # Added from package.json
+mac: # Added from package.json
+  hardenedRuntime: true
+  gatekeeperAssess: false
+  entitlements: "build/entitlements.mac.plist"
+  entitlementsInherit: "build/entitlements.mac.plist"
+  category: "public.app-category.developer-tools"
+  target:
+    - dmg
+    - zip
+    - pkg
+  notarize: true
+  binaries:
+    - "Contents/Resources/go_executables/server_go_mac"
+pkg: # Added from package.json
+  isRelocatable: false
+win: # Added from package.json
+  target: nsis
+  icon: "app/assets/icon.ico"
+nsis: {} # Added from package.json
+linux: # Added from package.json
+  target: deb
+  icon: "resources/icons"
+  maintainer: "medomicslab.udes@gmail.com"
+deb: # Added from package.json
+  afterInstall: "build/after-install.sh"
+# afterPack: "build/afterPack.js" # Added from package.json
+afterAllArtifactBuild: "build/afterAllArtifactBuild.js" # Added from package.json
 publish: null

@@ -92,23 +92,18 @@ class MEDcohortFigureClass extends React.Component {
    * @returns {void}
    */
   async componentDidMount() {
-    // Connect to mongDB
+    if (typeof window === "undefined") {
+      console.error("ECharts cannot be initialized in a non-browser environment.")
+      return
+    }
+
+    // Connect to MongoDB
     const db = await connectToMongoDB()
 
     // Load the JSON data from GridFS
     const { GridFSBucket } = require("mongodb")
     const gridFSBucket = new GridFSBucket(db)
 
-    // Find the file in GridFS and get its _id
-    const filesCursor = gridFSBucket.find({ filename: "MEDprofiles.json" })
-    const file = await filesCursor.next() // Get the first matching file (if it exists)
-
-    if (!file) {
-      console.error("File 'MEDprofiles.json' not found in GridFS")
-      return
-    }
-
-    // Open a readable stream to retrieve the JSON data
     const stream = gridFSBucket.openDownloadStreamByName("MEDprofiles.json")
 
     let jsonData = ""
@@ -127,7 +122,6 @@ class MEDcohortFigureClass extends React.Component {
         // Update the state with the loaded JSON data
         this.setState({ jsonData: parsedData }, () => {
           this.generateEchartsOptions() // Call the chart generation method
-          this.props.setJsonDataIsLoaded(true) // Notify that the data is loaded
         })
       } catch (error) {
         console.error("Error parsing JSON data from GridFS:", error)
@@ -138,13 +132,9 @@ class MEDcohortFigureClass extends React.Component {
       console.error("Error loading data from GridFS:", err)
     })
 
-    this.setState({ darkMode: window.matchMedia("(prefers-color-scheme)").matches ? "dark" : "light" }) // Set the initial theme type
+    this.setState({ darkMode: window.matchMedia("(prefers-color-scheme: dark)").matches })
     window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", (e) => {
-      if (e.matches) {
-        this.setState({ darkMode: true })
-      } else {
-        this.setState({ darkMode: false })
-      }
+      this.setState({ darkMode: e.matches })
     })
   }
 

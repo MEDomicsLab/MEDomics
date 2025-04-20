@@ -6,65 +6,6 @@
   "author": "MEDomicsLab Team",
   "main": "app/background.js",
   "repository": "https://github.com/MEDomics-UdeS/MEDomicsLab",
-  "build": {
-    "appId": "com.medomicslab.medapp",
-    "productName": "MEDomicsLab",
-    "artifactName": "${productName}-${version}-${os}.${ext}",
-    "directories": {
-      "output": "build/dist"
-    },
-    "files": [
-      "app/**/*",
-      "node_modules/**/*",
-      "resources/**/*"
-    ],
-    "extraResources": [
-      "./pythonCode/**/*",
-      "./baseFiles/**/*",
-      "./go_executables/**/*",
-      "./pythonEnv/**/*",
-      "!./pythonCode/venv/**/*",
-      "!./pythonCode/.idea/**/*",
-      "!*.git/**/*"
-    ],
-    "asarUnpack": [
-      "./pythonCode/**/*",
-      "./baseFiles/**/*",
-      "./go_executables/**/*"
-    ],
-    "extends": null,
-    "mac": {
-      "hardenedRuntime": true,
-      "gatekeeperAssess": false,
-      "entitlements": "build/entitlements.mac.plist",
-      "entitlementsInherit": "build/entitlements.mac.plist",
-      "category": "public.app-category.developer-tools",
-      "target": [
-        "dmg",
-        "zip",
-        "pkg"
-      ],
-      "notarize": true
-    },
-    "pkg": {
-      "isRelocatable": false
-    },
-    "win": {
-      "target": "nsis",
-      "icon": "app/assets/icon.ico"
-    },
-    "nsis": {},
-    "linux": {
-      "target": "deb",
-      "icon": "resources/icons",
-      "maintainer": "medomicslab.udes@gmail.com"
-    },
-    "deb": {
-      "afterInstall": "build/after-install.sh"
-    },
-    "afterPack": "build/afterPack.js",
-    "afterAllArtifactBuild": "build/afterAllArtifactBuild.js"
-  },
   "scripts": {
     "dev": "nextron",
     "build": "nextron build",
