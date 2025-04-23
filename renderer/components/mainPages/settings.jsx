@@ -3,7 +3,6 @@ import React, { useEffect, useState, useContext } from "react"
 import { connectToMongoDB } from "../mongoDB/mongoDBUtils"
 var path = require("path")
 import fs from "fs"
-const { spawn } = require("child_process")
 import { ipcRenderer } from "electron"
 import ModulePage from "./moduleBasics/modulePage"
 import { Button } from "primereact/button"
@@ -155,27 +154,15 @@ const SettingsPage = (pageId = "settings") => {
       return 
     }
     let workspacePath = workspace.workingDirectory.path
-    const mongoConfigPath = path.join(workspacePath, ".medomics", "mongod.conf")
-    let mongod = getMongoDBPath()
-    let mongoResult = spawn(mongod, ["--config", mongoConfigPath])
-
-    mongoResult.stdout.on("data", (data) => {
-      console.log(`MongoDB stdout: ${data}`)
+    ipcRenderer.invoke("start-mongo", workspacePath).then((started) => {
+      if (started) {
+        setMongoServerIsRunning(true)
+        console.log("MongoDB started from main process")
+      } else {
+        setMongoServerIsRunning(false)
+        console.error("Failed to start MongoDB from main process")
+      }
     })
-
-    mongoResult.stderr.on("data", (data) => {
-      console.error(`MongoDB stderr: ${data}`)
-    })
-
-    mongoResult.on("close", (code) => {
-      console.log(`MongoDB process exited with code ${code}`)
-    })
-
-    mongoResult.on("error", (err) => {
-      console.error("Failed to start MongoDB: ", err)
-      // reject(err)
-    })
-    console.log("Mongo result from start ", mongoResult)
   }
 
   const installMongoDB = () => {
@@ -337,6 +324,18 @@ const SettingsPage = (pageId = "settings") => {
                     }}
                     style={{ backgroundColor: mongoServerIsRunning ? "grey" : "#54a559", borderColor: mongoServerIsRunning ? "grey" : "#54a559", marginRight: "1rem" }}
                     disabled={mongoServerIsRunning}
+                  />
+                  <Button
+                    label="Stop MongoDB"
+                    className="p-button-danger"
+                    onClick={() => {
+                      ipcRenderer.invoke("kill-mongo").then(() => {
+                        setMongoServerIsRunning(false)
+                        console.log("MongoDB was stopped")
+                      })
+                    }}
+                    style={{ backgroundColor: mongoServerIsRunning ? "#d55757" : "grey", borderColor: mongoServerIsRunning ? "#d55757" : "grey", marginLeft: "1rem" }}
+                    disabled={!mongoServerIsRunning}
                   />
                   {process.env.NODE_ENV === "development" && (
                     <>

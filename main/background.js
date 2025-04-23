@@ -64,7 +64,16 @@ console.log = function () {
     originalConsoleLog(...arguments)
     log.log(...arguments)
     if (mainWindow !== undefined) {
-      mainWindow.webContents.send("log", ...arguments)
+      // Safely serialize all arguments to a string
+      const msg = Array.from(arguments).map(arg => {
+        if (typeof arg === 'string') return arg
+        try {
+          return JSON.stringify(arg)
+        } catch {
+          return util.inspect(arg, { depth: 2 })
+        }
+      }).join(' ')
+      mainWindow.webContents.send("log", msg)
     }
   } catch (error) {
     console.error(error)
@@ -844,3 +853,15 @@ export function getMongoDBPath() {
     return "mongod"
   }
 }
+
+ipcMain.handle("kill-mongo", async () => {
+  await stopMongoDB(mongoProcess)
+  mongoProcess = null
+  return true
+})
+
+ipcMain.handle("start-mongo", async (_event, workspacePath) => {
+  console.log("Starting MongoDB with config: " + workspacePath)
+  startMongoDB(workspacePath)
+  return true
+})

@@ -8,6 +8,7 @@ directories:
 files:
   - app/**/*
   - resources/**/*
+  - node_modules/**/* # Added from package.json
 extraResources: # Add this section if it doesn't exist, or add the line to it
   - from: ./go_executables # Source directory
     to: go_executables # Destination directory inside Contents/Resources
