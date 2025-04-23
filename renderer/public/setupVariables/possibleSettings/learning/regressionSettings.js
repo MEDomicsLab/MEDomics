@@ -329,7 +329,7 @@ const regressionSettings = {
             "session_id": {
                 "type": "int",
                 "tooltip": "<p>Controls the randomness of experiment. It is equivalent to \u2018random_state\u2019 in\nscikit-learn. When None, a pseudo random number is generated. This can be used\nfor later reproducibility of the entire experiment.</p>\n",
-                "default_val": "None"
+                "default_val": "42"
             },
             "experiment_name": {
                 "type": "string",
