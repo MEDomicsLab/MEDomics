@@ -73,8 +73,22 @@ class Split(Node):
                 "paths": ["path"],
             }
 
+        # Redefine setup
+        pycaret_exp = experiment['pycaret_exp']
+        medml_logger = experiment['medml_logger']
+        cleaning_settings = kwargs["settings"] if 'settings' in kwargs else {}
+        pycaret_exp.setup(
+            data=experiment['df'] if 'df' in experiment else dataset,
+            **kwargs["setup_settings"],
+            log_experiment=medml_logger,
+            data_split_stratify=stratify,
+            log_plots=True,
+            log_data=True,
+            session_id=random_state,
+            **cleaning_settings
+        )
+
         # Initialize results list for all iterations
-        split_indices_all_iterations: List[Dict[str, Any]] = []
         iteration_result = {}
 
         # Handle different split types
@@ -89,6 +103,20 @@ class Split(Node):
 
             # Number of folds
             cv_folds = self.settings['outer']['cross_validation']['num_folds']
+
+            # Update setup
+            pycaret_exp.setup(
+                data=experiment['df'],
+                **kwargs["setup_settings"],
+                log_experiment=medml_logger,
+                data_split_stratify=stratify,
+                fold_strategy="stratifiedkfold" if stratify else "kfold",
+                fold=cv_folds,
+                log_plots=True,
+                log_data=True,
+                session_id=random_state,
+                **self.settings
+            )
 
             # Validate number of folds
             if cv_folds < 2 or cv_folds > n_samples:
@@ -120,7 +148,7 @@ class Split(Node):
 
             # Import necessary module
             from sklearn.model_selection import train_test_split
-            
+
             # Total number of samples and other parameters
             n_samples = len(dataset)
             test_size = float(self.settings['outer']['random_sub_sampling']['test_size'])
@@ -224,15 +252,16 @@ class Split(Node):
         # Prepare information for next node in the pipeline
         self._info_for_next_node = {
             "splitted": True,
+            "random_state": random_state,
             "setup_settings": kwargs["setup_settings"],
-            "split_indices": split_indices_all_iterations,
+            "split_indices": iteration_result,
             "table": "dataset",
             "paths": ["path"],
         }
 
         return {
             "experiment": experiment,
-            "split_indices": split_indices_all_iterations,
+            "split_indices": iteration_result,
             "table": "dataset",
             "paths": ["path"],
         }

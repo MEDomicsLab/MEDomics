@@ -31,7 +31,6 @@ class Clean(Node):
         """
         This function is used to execute the node.
         """
-        print()
         print(Fore.BLUE + "=== cleaning === " +
               Fore.YELLOW + f"({self.username})" + f"({self.settings})" + Fore.RESET)
 
@@ -58,6 +57,7 @@ class Clean(Node):
         self.CodeHandler.add_line(
             "code", f"dataset = pycaret_exp.get_config('X').join(pycaret_exp.get_config('y'))")
         self._info_for_next_node = kwargs
+        self._info_for_next_node["settings"] = self.settings
         return {
             "experiment": {
             'pycaret_exp': pycaret_exp,
