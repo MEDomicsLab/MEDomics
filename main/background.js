@@ -328,7 +328,7 @@ if (isProd) {
 
   ipcMain.handle("setWorkingDirectory", async (event, data) => {
     app.setPath("sessionData", data)
-    createWorkingDirectory() // Create DATA & EXPERIMENTS directories
+    createWorkingDirectory(data) // Create DATA & EXPERIMENTS directories under the selected workspace
     console.log(`setWorkingDirectory : ${data}`)
     createMedomicsDirectory(data)
     hasBeenSet = true
@@ -360,7 +360,7 @@ if (isProd) {
       // Start MongoDB with the new configuration
       startMongoDB(data, mongoProcess)
       return {
-        workingDirectory: dirTree(app.getPath("sessionData")),
+        workingDirectory: dirTree(data),
         hasBeenSet: hasBeenSet,
         newPort: serverPort
       }
@@ -561,7 +561,7 @@ if (isProd) {
   splashScreen.destroy()
   mainWindow.maximize()
   mainWindow.show()
-})()
+})();
 
 ipcMain.handle("request", async (_, axios_request) => {
   const result = await axios(axios_request)

@@ -13,6 +13,17 @@ extraResources: # Add this section if it doesn't exist, or add the line to it
     to: go_executables # Destination directory inside Contents/Resources
     filter:
       - server_go_mac
+  - from: ./pythonCode # Source directory
+    to: pythonCode # Destination directory inside Contents/Resources
+    # Exclude pycache and other unnecessary files
+    filter:
+      - "**/*"
+      - "!**/__pycache__/**"
+      - "!**/*.pyc"
+      - "!**/*.pyo"
+  - from: ./pythonEnv # Source directory
+    to: pythonEnv # Destination directory inside Contents/Resources
+
 extends: null # Added from package.json
 mac: # Added from package.json
   hardenedRuntime: true
@@ -24,9 +35,13 @@ mac: # Added from package.json
     - dmg
     - zip
     - pkg
-  notarize: true
+  notarize: false
   binaries:
     - "Contents/Resources/go_executables/server_go_mac"
+    - "Contents/Resources/pythonEnv/create_conda_env_linux.sh"
+    - "Contents/Resources/pythonEnv/create_conda_env_mac.sh"
+    - "Contents/Resources/pythonEnv/create_conda_env_mac_yml.sh"
+    - "Contents/Resources/pythonEnv/create_conda_env_win.bat"
   #   # - "Contents/Resources/go_executables/server_go_linux"
   #   # - "Contents/Resources/go_executables/server_go_win32.exe"
   #   - "Contents/MacOS/MEDomicsLab"

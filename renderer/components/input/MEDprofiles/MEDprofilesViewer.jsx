@@ -1,10 +1,13 @@
 import React, { useState, useEffect, useContext } from "react"
+import { randomUUID } from "crypto"
 import { Panel } from "react-resizable-panels"
 import dynamic from 'next/dynamic'; // Import next/dynamic
 import { WorkspaceContext } from "../../workspace/workspaceContext"
 import { toast } from "react-toastify"
 import { requestBackend } from "../../../utilities/requests"
 import resizable from "../../../styles/resizable.module.css"
+import { connectToMongoDB, insertMEDDataObjectIfNotExists } from "../../mongoDB/mongoDBUtils"
+import { MEDDataObject } from "../../workspace/NewMedDataObject"
 // import MEDcohortFigure from "./MEDcohortFigure" // Comment out or remove static import
 
 // Dynamically import MEDcohortFigure with SSR disabled
@@ -31,6 +34,7 @@ const DynamicMEDcohortFigure = dynamic(() => import('./MEDcohortFigure'), {
 const MEDprofilesViewer = ({ pageId, MEDclassesFolder, MEDprofilesBinaryFile }) => {
   const [jsonID, setJsonID] = useState(null)
   const { port } = useContext(WorkspaceContext) // we get the port for server connexion
+  // eslint-disable-next-line no-unused-vars
   const [jsonDataIsLoaded, setJsonDataIsLoaded] = useState(false)
 
   /**

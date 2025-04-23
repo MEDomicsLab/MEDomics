@@ -166,16 +166,15 @@ export function getRecentWorkspacesOptions(event, mainWindow, hasBeenSet, server
 }
 
 // Function to create the working directory
-export function createWorkingDirectory() {
-  // See the workspace menuTemplate in the repository
-  createFolder("DATA")
-  createFolder("EXPERIMENTS")
+export function createWorkingDirectory(basePath) {
+  // Create DATA and EXPERIMENTS directories under the given workspace path
+  createFolder(basePath, "DATA")
+  createFolder(basePath, "EXPERIMENTS")
 }
 
-// Function to create a folder from a given path
-function createFolder(folderString) {
-  // Creates a folder in the working directory
-  const folderPath = path.join(app.getPath("sessionData"), folderString)
+// Function to create a folder under the given base path
+function createFolder(basePath, folderString) {
+  const folderPath = path.join(basePath, folderString)
   // Check if the folder already exists
   if (!fs.existsSync(folderPath)) {
     fs.mkdir(folderPath, { recursive: true }, (err) => {
