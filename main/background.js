@@ -28,10 +28,7 @@ const isProd = process.env.NODE_ENV === "production"
 let splashScreen // The splash screen is the window that is displayed while the application is loading
 export var mainWindow // The main window is the window of the application
 
-import Sudoer from 'electron-sudo';
- 
-let options = {name: 'electron sudo application'},
-    sudoer = new Sudoer(options);
+
  
 
 //**** AUTO UPDATER ****//
