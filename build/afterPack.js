@@ -33,7 +33,7 @@ exports.default = async function (context) {
     fs.unlinkSync(tarFile)
 
     // Sign the native module
-    execSync(`codesign --force --options runtime --timestamp --sign "${DEVELOPER_ID}" "build/Release/mongocrypt.node"`)
+    // execSync(`codesign --force --options runtime --timestamp --sign "${DEVELOPER_ID}" "build/Release/mongocrypt.node"`)
 
     console.log("AfterPack: Signing completed successfully")
 

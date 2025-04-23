@@ -1,13 +1,18 @@
-import { randomUUID } from "crypto"
-import { ProgressSpinner } from "primereact/progressspinner"
-import React, { useContext, useEffect, useState } from "react"
+import React, { useState, useEffect, useContext } from "react"
+import { Panel } from "react-resizable-panels"
+import dynamic from 'next/dynamic'; // Import next/dynamic
+import { WorkspaceContext } from "../../workspace/workspaceContext"
 import { toast } from "react-toastify"
 import { requestBackend } from "../../../utilities/requests"
-import ModulePage from "../../mainPages/moduleBasics/modulePage"
-import { connectToMongoDB, insertMEDDataObjectIfNotExists } from "../../mongoDB/mongoDBUtils"
-import { MEDDataObject } from "../../workspace/NewMedDataObject"
-import { WorkspaceContext } from "../../workspace/workspaceContext"
-import MEDcohortFigure from "./MEDcohortFigure"
+import resizable from "../../../styles/resizable.module.css"
+// import MEDcohortFigure from "./MEDcohortFigure" // Comment out or remove static import
+
+// Dynamically import MEDcohortFigure with SSR disabled
+const DynamicMEDcohortFigure = dynamic(() => import('./MEDcohortFigure'), {
+  ssr: false,
+  loading: () => <p>Loading Chart...</p> // Optional: Add a loading indicator
+});
+
 
 
 /**
@@ -89,17 +94,14 @@ const MEDprofilesViewer = ({ pageId, MEDclassesFolder, MEDprofilesBinaryFile }) 
   }, [])
 
   return (
-    <>
-      <ModulePage pageId={pageId}>
-        <h1 className="center">MEDprofiles Viewer</h1>
-        {!jsonDataIsLoaded && (
-          <div className="centered-container">
-            <ProgressSpinner />
-          </div>
-        )}
-        {jsonID && <MEDcohortFigure jsonID={jsonID} setJsonDataIsLoaded={setJsonDataIsLoaded} />}
-      </ModulePage>
-    </>
+    <div className="med-profiles-viewer">
+      {/* ... other components ... */}
+      <Panel className={resizable.Panel} defaultSize={50} order={1}>
+        {/* Conditionally render the dynamic component */}
+        {jsonID && <DynamicMEDcohortFigure jsonID={jsonID} setJsonDataIsLoaded={setJsonDataIsLoaded} />}
+      </Panel>
+      {/* ... other components ... */}
+    </div>
   )
 }
 

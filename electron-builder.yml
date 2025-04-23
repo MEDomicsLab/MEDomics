@@ -7,24 +7,12 @@ directories:
   buildResources: resources
 files:
   - app/**/*
-  - node_modules/**/*
   - resources/**/*
-
-extraResources:
-  - "./pythonCode/**/*"
-  - "./baseFiles/**/*"
-  - "./go_executables/**/*"
-  - "./pythonEnv/**/*"
-  - "!**/__pycache__/**/*"
-  - "!**/__pycache__/"
-  - "!./pythonCode/venv/**/*"
-  - "!./pythonCode/.idea/**/*"
-  - "!*.git/**/*"
-
-asarUnpack:
-  - "./pythonCode/**/*"
-  - "./baseFiles/**/*"
-  - "./go_executables/**/*"
+extraResources: # Add this section if it doesn't exist, or add the line to it
+  - from: ./go_executables # Source directory
+    to: go_executables # Destination directory inside Contents/Resources
+    filter:
+      - server_go_mac
 extends: null # Added from package.json
 mac: # Added from package.json
   hardenedRuntime: true
@@ -39,6 +27,9 @@ mac: # Added from package.json
   notarize: true
   binaries:
     - "Contents/Resources/go_executables/server_go_mac"
+  #   # - "Contents/Resources/go_executables/server_go_linux"
+  #   # - "Contents/Resources/go_executables/server_go_win32.exe"
+  #   - "Contents/MacOS/MEDomicsLab"
 pkg: # Added from package.json
   isRelocatable: false
 win: # Added from package.json
@@ -51,6 +42,6 @@ linux: # Added from package.json
   maintainer: "medomicslab.udes@gmail.com"
 deb: # Added from package.json
   afterInstall: "build/after-install.sh"
-# afterPack: "build/afterPack.js" # Added from package.json
-afterAllArtifactBuild: "build/afterAllArtifactBuild.js" # Added from package.json
+afterPack: "build/afterPack.js" # Added from package.json
+# afterAllArtifactBuild: "build/afterAllArtifactBuild.js" # Added from package.json
 publish: null

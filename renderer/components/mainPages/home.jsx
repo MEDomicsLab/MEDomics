@@ -12,7 +12,6 @@ import FirstSetupModal from "../generalPurpose/installation/firstSetupModal"
  */
 const HomePage = () => {
   const { workspace, setWorkspace, recentWorkspaces } = useContext(WorkspaceContext)
-  const [hasBeenSet, setHasBeenSet] = useState(workspace.hasBeenSet)
   const [appVersion, setAppVersion] = useState("")
 
   const [requirementsMet, setRequirementsMet] = useState(true)
@@ -36,15 +35,6 @@ const HomePage = () => {
     })
   }, [])
 
-  // We set the workspace hasBeenSet state
-  useEffect(() => {
-    if (workspace.hasBeenSet == false) {
-      setHasBeenSet(true)
-    } else {
-      setHasBeenSet(false)
-    }
-  }, [workspace])
-
   // We set the recent workspaces -> We send a message to the main process to get the recent workspaces, the workspace context will be updated by the main process in _app.js
   useEffect(() => {
     ipcRenderer.send("messageFromNext", "getRecentWorkspaces")
@@ -61,7 +51,7 @@ const HomePage = () => {
 
             <Image src={myimage} alt="" style={{ height: "175px", width: "175px" }} />
           </Stack>
-          {hasBeenSet ? (
+          {!workspace.hasBeenSet ? (
             <>
               <h5>Set up your workspace to get started</h5>
               <Button onClick={handleWorkspaceChange} style={{ margin: "1rem" }}>
@@ -91,7 +81,7 @@ const HomePage = () => {
               </Stack>
             </>
           ) : (
-            <h5>Workspace is set to {workspace.workingDirectory.path}</h5>
+            <h5>Workspace is set to {workspace.workingDirectory?.path || "Loading..."}</h5>
           )}
         </Stack>
       </div>

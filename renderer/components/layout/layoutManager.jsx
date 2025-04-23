@@ -2,6 +2,7 @@ import React, { useEffect, useState, useCallback, useRef, useContext } from "rea
 import { ipcRenderer } from "electron"
 import { PanelGroup, Panel, PanelResizeHandle } from "react-resizable-panels"
 import Image from "next/image"
+import dynamic from 'next/dynamic' // Import next/dynamic
 import resizable from "../../styles/resizable.module.css"
 import IconSidebar from "../layout/iconSidebar"
 import Home from "../mainPages/home"
@@ -11,7 +12,6 @@ import ExtractionImagePage from "../mainPages/extractionImage"
 import ExtractionTextPage from "../mainPages/extractionText"
 import MEDprofilesViewer from "../input/MEDprofiles/MEDprofilesViewer"
 import ExtractionTSPage from "../mainPages/extractionTS"
-import ExploratoryPage from "../mainPages/exploratory"
 import ResultsPage from "../mainPages/results"
 import ApplicationPage from "../mainPages/application"
 import HomeSidebar from "./sidebarTools/pageSidebar/homeSidebar"
@@ -28,6 +28,11 @@ import { toast } from "react-toastify"
 import NotificationOverlay from "../generalPurpose/notificationOverlay"
 
 import os from "os"
+
+const DynamicExploratoryPage = dynamic(() => import('../mainPages/exploratory'), {
+  ssr: false,
+  // loading: () => <p>Loading chart...</p> // Optional loading indicator
+})
 
 const LayoutManager = (props) => {
   const [activeSidebarItem, setActiveSidebarItem] = useState("home") // State to keep track of active nav item
@@ -134,7 +139,8 @@ const LayoutManager = (props) => {
         case "MEDprofilesViewer":
           return <MEDprofilesViewer pageId="72" />
         case "exploratory":
-          return <ExploratoryPage />
+          // Use the dynamically imported component
+          return <DynamicExploratoryPage />
         case "results":
           return <ResultsPage />
         case "evaluation":
