@@ -78,9 +78,9 @@ const classificationSettings = {
         n_iterations: {
           type: "int",
           tooltip: "Number of bootstrap iterations.",
-          default_val: 100,
+          default_val: 10,
           min: 1,
-          max: 1000
+          max: 100
         }
       },
       user_defined: {
