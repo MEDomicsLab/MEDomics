@@ -104,7 +104,10 @@ class Split(Node):
             # Number of folds
             cv_folds = self.settings['outer']['cross_validation']['num_folds']
 
-            # Update setup
+            # Clean self.settings before use
+            excluded_keys = ["use_pycarets_default", "outer_split_type", "inner_split_type", "outer", "inner", "global"]
+            filtered_settings = {k: v for k, v in self.settings.items() if k not in excluded_keys}
+
             pycaret_exp.setup(
                 data=experiment['df'],
                 **kwargs["setup_settings"],
@@ -115,7 +118,7 @@ class Split(Node):
                 log_plots=True,
                 log_data=True,
                 session_id=random_state,
-                **self.settings
+                **filtered_settings  
             )
 
             # Validate number of folds
