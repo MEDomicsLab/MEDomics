@@ -5,57 +5,7 @@
   "version": "1.5.0",
   "author": "MEDomicsLab Team",
   "main": "app/background.js",
-  "build": {
-    "appId": "com.medomicslab.medapp",
-    "productName": "MEDomicsLab",
-    "artifactName": "${productName}-${version}-${os}.${ext}",
-    "directories": {
-      "output": "build/dist"
-    },
-    "files": [
-      "app/**/*",
-      "node_modules/**/*",
-      "resources/**/*"
-    ],
-    "extraResources": [
-      "./pythonCode/**/*",
-      "./baseFiles/**/*",
-      "./go_executables/**/*",
-      "./pythonEnv/**/*",
-      "!./pythonCode/venv/**/*",
-      "!./pythonCode/.idea/**/*",
-      "!*.git/**/*"
-    ],
-    "asarUnpack": [
-      "./pythonCode/**/*",
-      "./baseFiles/**/*",
-      "./go_executables/**/*"
-    ],
-    "extends": null,
-    "mac": {
-      "hardenedRuntime": true,
-      "gatekeeperAssess": false,
-      "category": "public.app-category.developer-tools",
-      "target": "pkg"
-    },
-    "pkg": {
-      "isRelocatable": false
-    },
-    "win": {
-      "target": "nsis",
-      "icon": "app/assets/icon.ico"
-    },
-    "nsis": {},
-    "linux": {
-      "target": "deb",
-      "icon": "resources/icons",
-      "maintainer": "medomicslab.udes@gmail.com"
-    },
-    "deb": {
-      "afterInstall": "build/after-install.sh"
-    },
-    "publish": null
-  },
+  "repository": "https://github.com/MEDomics-UdeS/MEDomicsLab",
   "scripts": {
     "dev": "nextron",
     "dev:linux": "bash ./utilScripts/go_build.sh && nextron ",
@@ -90,8 +40,10 @@
     "echarts-for-react": "^3.0.2",
     "electron-extension-installer": "^1.2.0",
     "electron-loading": "^0.3.0",
+    "electron-log": "^5.3.0",
     "electron-serve": "^1.1.0",
     "electron-store": "^8.1.0",
+    "electron-updater": "^6.3.9",
     "eslint-config-next": "^13.5.3",
     "eslint-config-prettier": "^8.10.0",
     "eslint-plugin-prettier": "^5.2.3",
@@ -144,11 +96,14 @@
   },
   "devDependencies": {
     "@babel/eslint-parser": "^7.23.3",
+    "@electron/notarize": "^2.5.0",
+    "@electron/osx-sign": "^2.0.0",
     "@next/eslint-plugin-next": "^14.0.2",
     "bootstrap": "^5.2.3",
     "bootswatch": "^5.2.3",
+    "dotenv": "^16.4.7",
     "electron": "^21.4.4",
-    "electron-builder": "^23.6.0",
+    "electron-builder": "^25.1.8",
     "eslint": "^8.44.0",
     "eslint-plugin-react": "^7.32.2",
     "next": "^13.5.3",

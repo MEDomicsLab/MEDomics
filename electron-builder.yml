@@ -1,12 +1,63 @@
 appId: com.medomicslab.medapp
-productName: MEDapp
+productName: MEDomicsLab # Changed from MEDapp to MEDomicsLab to match package.json
+artifactName: "${productName}-${version}-${os}.${ext}" # Added from package.json
 copyright: Copyright © 2023 MEDomicsLab Team
 directories:
-  output: dist
+  output: build/dist # Changed from dist to build/dist to match package.json
   buildResources: resources
 files:
-  - from: .
+  - app/**/*
+  - resources/**/*
+  - node_modules/**/* # Added from package.json
+extraResources: # Add this section if it doesn't exist, or add the line to it
+  - from: ./go_executables # Source directory
+    to: go_executables # Destination directory inside Contents/Resources
     filter:
-      - package.json
-      - app
+      - server_go_mac
+  - from: ./pythonCode # Source directory
+    to: pythonCode # Destination directory inside Contents/Resources
+    # Exclude pycache and other unnecessary files
+    filter:
+      - "**/*"
+      - "!**/__pycache__/**"
+      - "!**/*.pyc"
+      - "!**/*.pyo"
+  - from: ./pythonEnv # Source directory
+    to: pythonEnv # Destination directory inside Contents/Resources
+
+extends: null # Added from package.json
+mac: # Added from package.json
+  hardenedRuntime: true
+  gatekeeperAssess: false
+  entitlements: "build/entitlements.mac.plist"
+  entitlementsInherit: "build/entitlements.mac.plist"
+  category: "public.app-category.developer-tools"
+  target:
+    - dmg
+    - zip
+    - pkg
+  notarize: false
+  binaries:
+    - "Contents/Resources/go_executables/server_go_mac"
+    - "Contents/Resources/pythonEnv/create_conda_env_linux.sh"
+    - "Contents/Resources/pythonEnv/create_conda_env_mac.sh"
+    - "Contents/Resources/pythonEnv/create_conda_env_mac_yml.sh"
+    - "Contents/Resources/pythonEnv/create_conda_env_win.bat"
+  #   # - "Contents/Resources/go_executables/server_go_linux"
+  #   # - "Contents/Resources/go_executables/server_go_win32.exe"
+  #   - "Contents/MacOS/MEDomicsLab"
+pkg: # Added from package.json
+  isRelocatable: false
+win: # Added from package.json
+  target: nsis
+  icon: "app/assets/icon.ico"
+nsis: {} # Added from package.json
+linux: # Added from package.json
+  target: deb
+  icon: "resources/icons"
+  maintainer: "medomicslab.udes@gmail.com"
+deb: # Added from package.json
+  afterInstall: "build/after-install.sh"
+afterPack: "build/afterPack.js" # Added from package.json
+# afterAllArtifactBuild: "build/afterAllArtifactBuild.js" # Added from package.json
 publish: null
