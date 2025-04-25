@@ -36,7 +36,7 @@ mac: # Added from package.json
     - dmg
     - zip
     - pkg
-  notarize: false
+  notarize: true
   binaries:
     - "Contents/Resources/go_executables/server_go_mac"
     - "Contents/Resources/pythonEnv/create_conda_env_linux.sh"
