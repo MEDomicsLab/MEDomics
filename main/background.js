@@ -28,8 +28,6 @@ const isProd = process.env.NODE_ENV === "production"
 let splashScreen // The splash screen is the window that is displayed while the application is loading
 export var mainWindow // The main window is the window of the application
 
- 
-
 //**** AUTO UPDATER ****//
 const { autoUpdater } = require("electron-updater")
 const log = require("electron-log")
@@ -38,7 +36,6 @@ autoUpdater.logger = log
 autoUpdater.logger.transports.file.level = "info"
 autoUpdater.autoDownload = false
 autoUpdater.autoInstallOnAppQuit = true
-
 
 //*********** LOG **************// This is used to send the console.log messages to the main window
 //**** ELECTRON-LOG ****//
@@ -61,14 +58,16 @@ console.log = function () {
     log.log(...arguments)
     if (mainWindow !== undefined) {
       // Safely serialize all arguments to a string
-      const msg = Array.from(arguments).map(arg => {
-        if (typeof arg === 'string') return arg
-        try {
-          return JSON.stringify(arg)
-        } catch {
-          return util.inspect(arg, { depth: 2 })
-        }
-      }).join(' ')
+      const msg = Array.from(arguments)
+        .map((arg) => {
+          if (typeof arg === "string") return arg
+          try {
+            return JSON.stringify(arg)
+          } catch {
+            return util.inspect(arg, { depth: 2 })
+          }
+        })
+        .join(" ")
       mainWindow.webContents.send("log", msg)
     }
   } catch (error) {
@@ -80,29 +79,30 @@ console.log = function () {
 
 function sendStatusToWindow(text) {
   if (mainWindow && mainWindow.webContents) {
-        mainWindow.showMessage(text)
+    mainWindow.showMessage(text)
   }
 }
 
 autoUpdater.on("checking-for-update", () => {
-console.log("DEBUG: checking for update")
+  console.log("DEBUG: checking for update")
   sendStatusToWindow("Checking for update...")
 })
 
 autoUpdater.on("update-available", (info) => {
   log.info("Update available:", info)
-  
+
   // Show a dialog to ask the user if they want to download the update
   const dialogOpts = {
-    type: 'info',
-    buttons: ['Download', 'Later'],
-    title: 'Application Update',
-    message: 'A new version is available',
+    type: "info",
+    buttons: ["Download", "Later"],
+    title: "Application Update",
+    message: "A new version is available",
     detail: `MEDomicsLab ${info.version} is available. You have ${app.getVersion()}. Would you like to download it now?`
   }
 
   dialog.showMessageBox(mainWindow, dialogOpts).then((returnValue) => {
-    if (returnValue.response === 0) { // If the user clicked "Download"
+    if (returnValue.response === 0) {
+      // If the user clicked "Download"
       sendStatusToWindow("Downloading update...")
       autoUpdater.downloadUpdate()
     }
@@ -116,7 +116,7 @@ autoUpdater.on("update-not-available", (info) => {
 })
 
 autoUpdater.on("error", (err) => {
-    sendStatusToWindow("Error in auto-updater. " + err)
+  sendStatusToWindow("Error in auto-updater. " + err)
 })
 
 autoUpdater.on("download-progress", (progressObj) => {
@@ -125,50 +125,42 @@ autoUpdater.on("download-progress", (progressObj) => {
   log_message += `(${progressObj.transferred}/${progressObj.total})`
   log.info(log_message)
   sendStatusToWindow(log_message)
-  mainWindow.webContents.send('update-download-progress', progressObj)
+  mainWindow.webContents.send("update-download-progress", progressObj)
 })
 
 autoUpdater.on("update-downloaded", (info) => {
   log.info("Update downloaded:", info)
-  
-  const downloadPath = path.dirname(app.getPath('exe'))
-  const debFile = `MEDomicsLab-${info.version}-*.deb`
-  // Find the deb file in the download path
-  const files = fs.readdirSync(downloadPath)
-  const debFilePath = files.find(file => file.startsWith(`MEDomicsLab-${info.version}-`) && file.endsWith('.deb'))
-  if (!debFilePath) {
-    console.error("Deb file not found in download path")
-    return
-  }
-  
+  let downloadPath, debFilePath
   let dialogOpts = {
-    type: 'info',
-    buttons: ['Restart', 'Later'],
-    title: 'Application Update',
-    message: 'Update Downloaded',
+    type: "info",
+    buttons: ["Restart", "Later"],
+    title: "Application Update",
+    message: "Update Downloaded",
     detail: `MEDomicsLab ${info.version} has been downloaded. Restart the application to apply the updates.`
   }
-  
+
   // For Linux, provide additional instructions
-  if (process.platform === 'linux') {
+  if (process.platform === "linux") {
+    downloadPath = path.join(process.env.HOME, ".cache", "medomicslab-application-updater", "pending")
+    debFilePath = info.files[0].url.split("/").pop()
     dialogOpts = {
-      type: 'info',
-      buttons: ['Copy Command & Quit', 'Copy Command', 'Later'],
-      title: 'Application Update',
-      message: 'Update Downloaded',
+      type: "info",
+      buttons: ["Copy Command & Quit", "Copy Command", "Later"],
+      title: "Application Update",
+      message: "Update Downloaded",
       detail: `MEDomicsLab ${info.version} has been downloaded. On Linux, you may need to run the installer with sudo:\n\nsudo dpkg -i ${path.join(downloadPath, debFilePath)} \n\nClick 'Copy Command & Restart' to copy this command to your clipboard and restart the application, or 'Copy Command' to just copy it.`
     }
   }
-  
+
   dialog.showMessageBox(mainWindow, dialogOpts).then((returnValue) => {
-    if (process.platform === 'linux') {
+    if (process.platform === "linux") {
       if (returnValue.response === 0 || returnValue.response === 1) {
         // Construct the command to install the deb file
         const command = `sudo dpkg -i "${path.join(downloadPath, debFilePath)}"`
-        
+
         // Copy to clipboard
-        require('electron').clipboard.writeText(command)
-        
+        require("electron").clipboard.writeText(command)
+
         if (returnValue.response === 0) {
           autoUpdater.quitAndInstall()
         }
@@ -178,7 +170,6 @@ autoUpdater.on("update-downloaded", (info) => {
     }
   })
 })
-
 
 if (isProd) {
   serve({ directory: "app" })
@@ -310,23 +301,23 @@ if (isProd) {
     // Find the bundled python environment
     if (bundledPythonPath !== null) {
       runServer(isProd, serverPort, serverProcess, serverState, bundledPythonPath)
-          .then((process) => {
-            serverProcess = process
-            console.log("Server process started: ", serverProcess)
-          })
-          .catch((err) => {
-            console.error("Failed to start server: ", err)
-          })
+        .then((process) => {
+          serverProcess = process
+          console.log("Server process started: ", serverProcess)
+        })
+        .catch((err) => {
+          console.error("Failed to start server: ", err)
+        })
     }
   } else {
     //**** NO SERVER ****//
     findAvailablePort(MEDconfig.defaultPort)
-        .then((port) => {
-          serverPort = port
-        })
-        .catch((err) => {
-          console.error(err)
-        })
+      .then((port) => {
+        serverPort = port
+      })
+      .catch((err) => {
+        console.error(err)
+      })
   }
   const menu = Menu.buildFromTemplate(menuTemplate)
   Menu.setApplicationMenu(menu)
@@ -361,11 +352,10 @@ if (isProd) {
         // killProcessOnPort(serverPort)
       } else if (process.platform === "darwin") {
         await new Promise((resolve) => {
-              exec("pkill -f mongod", (error, stdout, stderr) => {
-                resolve()
-              })
-            }
-        )
+          exec("pkill -f mongod", (error, stdout, stderr) => {
+            resolve()
+          })
+        })
       } else {
         try {
           execSync("killall mongod")
@@ -499,16 +489,16 @@ if (isProd) {
     }
     if (MEDconfig.runServerAutomatically) {
       runServer(isProd, serverPort, serverProcess, serverState, condaPath)
-          .then((process) => {
-            serverProcess = process
-            console.log(`success: ${serverState.serverIsRunning}`)
-            return serverState.serverIsRunning
-          })
-          .catch((err) => {
-            console.error("Failed to start server: ", err)
-            serverState.serverIsRunning = false
-            return false
-          })
+        .then((process) => {
+          serverProcess = process
+          console.log(`success: ${serverState.serverIsRunning}`)
+          return serverState.serverIsRunning
+        })
+        .catch((err) => {
+          console.error("Failed to start server: ", err)
+          serverState.serverIsRunning = false
+          return false
+        })
     }
     return serverState.serverIsRunning
   })
@@ -671,12 +661,12 @@ app.on("window-all-closed", () => {
 
 app.on("ready", async () => {
   if (MEDconfig.useReactDevTools) {
-      await installExtension(REACT_DEVELOPER_TOOLS, {
-        loadExtensionOptions: {
-          allowFileAccess: true
-        }
-      })
-    }
+    await installExtension(REACT_DEVELOPER_TOOLS, {
+      loadExtensionOptions: {
+        allowFileAccess: true
+      }
+    })
+  }
   autoUpdater.checkForUpdatesAndNotify()
 })
 
@@ -790,14 +780,13 @@ export function getMongoDBPath() {
     console.error("mongod not found")
     return null
   } else if (process.platform === "darwin") {
-    // Check if it is installed in the .medomics directory    
+    // Check if it is installed in the .medomics directory
     const binPath = path.join(process.env.HOME, ".medomics", "mongodb", "bin", "mongod")
     if (fs.existsSync(binPath)) {
       console.log("mongod found in .medomics directory")
       return binPath
     }
     if (process.env.NODE_ENV !== "production") {
-
       // Check if mongod is in the process.env.PATH
       const paths = process.env.PATH.split(path.delimiter)
       for (let i = 0; i < paths.length; i++) {
@@ -824,18 +813,17 @@ export function getMongoDBPath() {
         return binPath
       }
     }
-    console.error("mongod not found in PATH"+paths)
+    console.error("mongod not found in PATH" + paths)
     // Check if mongod is in the default installation path on Linux - /usr/bin/mongod
     if (fs.existsSync("/usr/bin/mongod")) {
       return "/usr/bin/mongod"
     }
     console.error("mongod not found in /usr/bin/mongod")
 
-    if (fs.existsSync("/home/"+process.env.USER+"/.medomics/mongodb/bin/mongod")) {
-      return "/home/"+process.env.USER+"/.medomics/mongodb/bin/mongod"
+    if (fs.existsSync("/home/" + process.env.USER + "/.medomics/mongodb/bin/mongod")) {
+      return "/home/" + process.env.USER + "/.medomics/mongodb/bin/mongod"
     }
     return null
-
   } else {
     return "mongod"
   }
