@@ -388,6 +388,14 @@ if (isProd) {
   })
 
   /**
+   * @description Returns the version of the app
+   * @returns {Promise<String>} The version of the app
+   */
+  ipcMain.handle("getAppVersion", async () => {
+    return app.getVersion()
+  })
+
+  /**
    * @description Copies the source file to the destination file set by the user in the dialog
    * @param {String} source The source file to copy
    * @param {String} defaultPath The default path to set in the dialog - If null, the default path will be the user's home directory
@@ -654,15 +662,16 @@ app.on("window-all-closed", () => {
   app.quit()
 })
 
-if (MEDconfig.useReactDevTools) {
-  app.on("ready", async () => {
-    await installExtension(REACT_DEVELOPER_TOOLS, {
-      loadExtensionOptions: {
-        allowFileAccess: true
-      }
-    })
-  })
-}
+app.on("ready", async () => {
+  if (MEDconfig.useReactDevTools) {
+      await installExtension(REACT_DEVELOPER_TOOLS, {
+        loadExtensionOptions: {
+          allowFileAccess: true
+        }
+      })
+    }
+  autoUpdater.checkForUpdatesAndNotify()
+})
 
 /**
  * @description Open a new window from an URL
