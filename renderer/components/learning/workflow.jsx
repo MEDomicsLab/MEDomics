@@ -169,7 +169,68 @@ const Workflow = ({ setWorkflowType, workflowType }) => {
   // executed when the nodes array and edges array are changed
   useEffect(() => {
     setTreeData(createTreeFromNodes())
+    updateTrainModelNode(nodes, edges)
   }, [nodes, edges])
+
+  const updateTrainModelNode = (nodes) => {
+    const trainModelNode = nodes.find((node) => node.type == "trainModelNode" && node.data.internal.subflowId == groupNodeId.id)
+    if (trainModelNode){
+      let tuneModel = trainModelNode.data.internal.hasOwnProperty("isTuningEnabled") ? trainModelNode.data.internal.isTuningEnabled : false
+      const modelSelectionNode = nodes.find((node) => node.type == "selectionNode" && node.data.internal.subflowId == groupNodeId.id)
+      let newModelSelectionNode = deepCopy(trainModelNode)
+      // Check if any params are set in the modelSelectionNode
+      if (Object.keys(modelSelectionNode.data.internal.settings).length > 0) {
+        newModelSelectionNode.data.internal.tuningSettings = newModelSelectionNode.data.internal.tuningSettings || {}
+        let selectedModel = modelSelectionNode.data.internal.selection
+        if (selectedModel) {
+          let alreadyUpdated = true
+          Object.keys(modelSelectionNode.data.internal.settings).forEach((setting) => {
+            if (newModelSelectionNode.data.internal.tuningSettings.hasOwnProperty(setting)) {
+              if (newModelSelectionNode.data.internal.tuningSettings.hasOwnProperty("options")) {
+                if (!newModelSelectionNode.data.internal.tuningSettings.options.hasOwnProperty(setting)) {
+                  alreadyUpdated = false
+                  return
+                }
+              } else {
+                newModelSelectionNode.data.internal.tuningSettings = {
+                  ...newModelSelectionNode.data.internal.tuningSettings,
+                  ...modelSelectionNode.data.internal.settings
+                }
+                alreadyUpdated = false
+                return
+              }
+            } else {
+              newModelSelectionNode.data.internal.tuningSettings = {
+                ...newModelSelectionNode.data.internal.tuningSettings,
+                ...modelSelectionNode.data.internal.settings
+              }
+              alreadyUpdated = false
+              return
+            }
+          })
+          if (!alreadyUpdated) {
+            newModelSelectionNode.data.internal.tuningSettings = {
+              ...newModelSelectionNode.data.internal.tuningSettings,
+              ...{options: modelSelectionNode.data.setupParam.possibleSettings[selectedModel].options}
+            }
+
+            setNodes((nds) =>
+              nds.map((node) => {
+                if (node.id == trainModelNode.id) {
+                  node.data.internal.tuningSettings = newModelSelectionNode.data.internal.tuningSettings
+                  node.data.internal.isTuningEnabled = tuneModel
+                }
+                return node
+              })
+            )
+           
+          } else {
+            return
+          }
+        }
+      }
+    }
+  }
 
   // execute this when groupNodeId change. I put it in useEffect because it assures groupNodeId is updated
   useEffect(() => {

@@ -1,12 +1,12 @@
-import React, { useState, useContext, useEffect } from "react"
-import Node from "../../flow/node"
-import Input from "../input"
-import { Button } from "react-bootstrap"
-import ModalSettingsChooser from "../modalSettingsChooser"
+import { Checkbox } from "primereact/checkbox"
+import React, { useContext, useEffect, useState } from "react"
+import { Button, Stack } from "react-bootstrap"
 import * as Icon from "react-bootstrap-icons"
 import { FlowFunctionsContext } from "../../flow/context/flowFunctionsContext"
-import { Stack } from "react-bootstrap"
-import { Checkbox } from "primereact/checkbox"
+import Node from "../../flow/node"
+import HyperParameterInput from "../HyperParameterInput"
+import Input from "../input"
+import ModalSettingsChooser from "../modalSettingsChooser"
 
 /**
  *
@@ -23,8 +23,7 @@ import { Checkbox } from "primereact/checkbox"
 const TrainModelNode = ({ id, data }) => {
   const [modalShow, setModalShow] = useState(false) // state of the modal
   const { updateNode } = useContext(FlowFunctionsContext)
-  const [IntegrateTuning, setIntegrateTuning] = useState(data.internal.isTuningEnabled ?? false)
-  const [modalTuningBody, setModalTuningBody] = useState(null)
+  const [IntegrateTuning, setIntegrateTuning] = useState(data.internal.isTuningEnabled ?? true)
 
   // Check if isTuningEnabled exists in data.internal, if not initialize it
   useEffect(() => {
@@ -161,6 +160,23 @@ const TrainModelNode = ({ id, data }) => {
                 />
               )
             })}
+            
+            {data.internal.isTuningEnabled && data.internal.tuningSettings && Object.keys(data.internal.tuningSettings.options).length > 0 && (
+              <>
+                <hr />
+                <div style={{ fontWeight: "bold", margin: "10px 0" }}>Custom Tuning Grid</div>
+                {Object.keys(data.internal.tuningSettings.options).filter((setting => data.internal.tuningSettings.hasOwnProperty(setting))).map((setting) => {
+                  return (
+                    <HyperParameterInput
+                      name={setting}
+                      paramInfo={data.internal.tuningSettings.options[setting]}
+                      currentValue={data.internal.tuningSettings.options[setting].default_val}
+                      onParamChange={onInputChangeTuning}
+                    />
+                  )
+                })}
+              </>
+            )}
             {data.internal.isTuningEnabled && data.internal.checkedOptionsTuning && data.internal.checkedOptionsTuning.length > 0 && (
               <>
                 <hr />

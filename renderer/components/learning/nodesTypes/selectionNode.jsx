@@ -109,6 +109,11 @@ const SelectionNode = ({ id, data, type }) => {
               data={data}
               id={id}
             />
+            {(data.internal.name === "Model" && data.internal.checkedOptions.length > 0) && (
+              <p className="text-muted" style={{ fontSize: "0.85em" }}>
+                You can enable fine-tuning for the settings listed below in the Train Model node.
+              </p>
+            )}
             {/* the inputs of the selected options (this reset when the selection changes)*/}
             {data.internal.checkedOptions.map((optionName) => {
               return <Input key={optionName} name={optionName} settingInfos={data.setupParam.possibleSettings[data.internal.selection].options[optionName]} currentValue={data.internal.settings[optionName]} onInputChange={onInputChange} />
