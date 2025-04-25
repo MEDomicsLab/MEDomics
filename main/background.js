@@ -28,7 +28,28 @@ const isProd = process.env.NODE_ENV === "production"
 let splashScreen // The splash screen is the window that is displayed while the application is loading
 export var mainWindow // The main window is the window of the application
 
-//**** LOG ****// This is used to send the console.log messages to the main window
+
+ 
+
+//**** AUTO UPDATER ****//
+const { autoUpdater } = require("electron-updater")
+const log = require("electron-log")
+
+autoUpdater.logger = log
+autoUpdater.logger.transports.file.level = "info"
+autoUpdater.autoDownload = true
+autoUpdater.autoInstallOnAppQuit = false
+
+
+//*********** LOG **************// This is used to send the console.log messages to the main window
+//**** ELECTRON-LOG ****//
+// Electron log path
+// By default, it writes logs to the following locations:
+// on Linux: ~/.config/{app name}/logs/main.log
+// on macOS: ~/Library/Logs/{app name}/main.log
+// on Windows: %USERPROFILE%\AppData\Roaming\{app name}\logs\main.log
+const APP_NAME = isProd ? "medomicslab-application" : "medomicslab-application (development)"
+
 const originalConsoleLog = console.log
 /**
  * @description Sends the console.log messages to the main window
@@ -38,13 +59,119 @@ const originalConsoleLog = console.log
 console.log = function () {
   try {
     originalConsoleLog(...arguments)
+    log.log(...arguments)
     if (mainWindow !== undefined) {
-      mainWindow.webContents.send("log", ...arguments)
+      // Safely serialize all arguments to a string
+      const msg = Array.from(arguments).map(arg => {
+        if (typeof arg === 'string') return arg
+        try {
+          return JSON.stringify(arg)
+        } catch {
+          return util.inspect(arg, { depth: 2 })
+        }
+      }).join(' ')
+      mainWindow.webContents.send("log", msg)
     }
   } catch (error) {
     console.error(error)
   }
 }
+
+//**** AUTO-UPDATER ****//
+
+function sendStatusToWindow(text) {
+  if (mainWindow && mainWindow.webContents) {
+        mainWindow.showMessage(text)
+  }
+}
+
+autoUpdater.on("checking-for-update", () => {
+console.log("DEBUG: checking for update")
+  sendStatusToWindow("Checking for update...")
+})
+
+autoUpdater.on("update-available", (info) => {
+  log.info("Update available:", info)
+  
+  // Show a dialog to ask the user if they want to download the update
+  const dialogOpts = {
+    type: 'info',
+    buttons: ['Download', 'Later'],
+    title: 'Application Update',
+    message: 'A new version is available',
+    detail: `MEDomicsLab ${info.version} is available. You have ${app.getVersion()}. Would you like to download it now?`
+  }
+
+  dialog.showMessageBox(mainWindow, dialogOpts).then((returnValue) => {
+    if (returnValue.response === 0) { // If the user clicked "Download"
+      sendStatusToWindow("Downloading update...")
+      autoUpdater.downloadUpdate()
+    }
+  })
+})
+
+autoUpdater.on("update-not-available", (info) => {
+  info = JSON.stringify(info)
+  sendStatusToWindow(`Update not available. ${info}`)
+  sendStatusToWindow(`Current version: ${app.getVersion()}`)
+})
+
+autoUpdater.on("error", (err) => {
+    sendStatusToWindow("Error in auto-updater. " + err)
+})
+
+autoUpdater.on("download-progress", (progressObj) => {
+  let log_message = `Download speed: ${progressObj.bytesPerSecond} - `
+  log_message += `Downloaded ${progressObj.percent.toFixed(2)}% `
+  log_message += `(${progressObj.transferred}/${progressObj.total})`
+  log.info(log_message)
+  sendStatusToWindow(log_message)
+  mainWindow.webContents.send('update-download-progress', progressObj)
+})
+
+autoUpdater.on("update-downloaded", (info) => {
+  log.info("Update downloaded:", info)
+  
+  let dialogOpts = {
+    type: 'info',
+    buttons: ['Restart', 'Later'],
+    title: 'Application Update',
+    message: 'Update Downloaded',
+    detail: `MEDomicsLab ${info.version} has been downloaded. Restart the application to apply the updates.`
+  }
+  
+  // For Linux, provide additional instructions
+  if (process.platform === 'linux') {
+    dialogOpts = {
+      type: 'info',
+      buttons: ['Copy Command & Restart', 'Copy Command', 'Later'],
+      title: 'Application Update',
+      message: 'Update Downloaded',
+      detail: `MEDomicsLab ${info.version} has been downloaded. On Linux, you may need to run the installer with sudo:\n\nsudo dpkg -i [path-to-deb-file]\n\nClick 'Copy Command & Restart' to copy this command to your clipboard and restart the application, or 'Copy Command' to just copy it.`
+    }
+  }
+  
+  dialog.showMessageBox(mainWindow, dialogOpts).then((returnValue) => {
+    if (process.platform === 'linux') {
+      if (returnValue.response === 0 || returnValue.response === 1) {
+        // Get the location of the downloaded file
+        const downloadPath = path.dirname(app.getPath('exe'))
+        const debFile = `MEDomicsLab-${info.version}-*.deb`
+        const command = `sudo dpkg -i "${path.join(downloadPath, debFile)}"`
+        
+        // Copy to clipboard
+        require('electron').clipboard.writeText(command)
+        
+        if (returnValue.response === 0) {
+          autoUpdater.quitAndInstall()
+        }
+      }
+    } else if (returnValue.response === 0) {
+      autoUpdater.quitAndInstall()
+    }
+  })
+})
+
 
 if (isProd) {
   serve({ directory: "app" })
