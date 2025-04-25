@@ -28,7 +28,6 @@ const isProd = process.env.NODE_ENV === "production"
 let splashScreen // The splash screen is the window that is displayed while the application is loading
 export var mainWindow // The main window is the window of the application
 
-
  
 
 //**** AUTO UPDATER ****//
@@ -37,8 +36,8 @@ const log = require("electron-log")
 
 autoUpdater.logger = log
 autoUpdater.logger.transports.file.level = "info"
-autoUpdater.autoDownload = true
-autoUpdater.autoInstallOnAppQuit = false
+autoUpdater.autoDownload = false
+autoUpdater.autoInstallOnAppQuit = true
 
 
 //*********** LOG **************// This is used to send the console.log messages to the main window
@@ -132,6 +131,16 @@ autoUpdater.on("download-progress", (progressObj) => {
 autoUpdater.on("update-downloaded", (info) => {
   log.info("Update downloaded:", info)
   
+  const downloadPath = path.dirname(app.getPath('exe'))
+  const debFile = `MEDomicsLab-${info.version}-*.deb`
+  // Find the deb file in the download path
+  const files = fs.readdirSync(downloadPath)
+  const debFilePath = files.find(file => file.startsWith(`MEDomicsLab-${info.version}-`) && file.endsWith('.deb'))
+  if (!debFilePath) {
+    console.error("Deb file not found in download path")
+    return
+  }
+  
   let dialogOpts = {
     type: 'info',
     buttons: ['Restart', 'Later'],
@@ -144,20 +153,18 @@ autoUpdater.on("update-downloaded", (info) => {
   if (process.platform === 'linux') {
     dialogOpts = {
       type: 'info',
-      buttons: ['Copy Command & Restart', 'Copy Command', 'Later'],
+      buttons: ['Copy Command & Quit', 'Copy Command', 'Later'],
       title: 'Application Update',
       message: 'Update Downloaded',
-      detail: `MEDomicsLab ${info.version} has been downloaded. On Linux, you may need to run the installer with sudo:\n\nsudo dpkg -i [path-to-deb-file]\n\nClick 'Copy Command & Restart' to copy this command to your clipboard and restart the application, or 'Copy Command' to just copy it.`
+      detail: `MEDomicsLab ${info.version} has been downloaded. On Linux, you may need to run the installer with sudo:\n\nsudo dpkg -i ${path.join(downloadPath, debFilePath)} \n\nClick 'Copy Command & Restart' to copy this command to your clipboard and restart the application, or 'Copy Command' to just copy it.`
     }
   }
   
   dialog.showMessageBox(mainWindow, dialogOpts).then((returnValue) => {
     if (process.platform === 'linux') {
       if (returnValue.response === 0 || returnValue.response === 1) {
-        // Get the location of the downloaded file
-        const downloadPath = path.dirname(app.getPath('exe'))
-        const debFile = `MEDomicsLab-${info.version}-*.deb`
-        const command = `sudo dpkg -i "${path.join(downloadPath, debFile)}"`
+        // Construct the command to install the deb file
+        const command = `sudo dpkg -i "${path.join(downloadPath, debFilePath)}"`
         
         // Copy to clipboard
         require('electron').clipboard.writeText(command)
