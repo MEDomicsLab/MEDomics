@@ -158,16 +158,15 @@ jobs:
           CSC_INSTALLER_LINK: ${{ secrets.CSC_INSTALLER_LINK }}
           CSC_INSTALLER_KEY_PASSWORD: ${{ secrets.CSC_INSTALLER_KEY_PASSWORD }}
         run: |
-          npm run build
+          npm run build:mac
 
-      - name: notarize
+      - name: Notarize Mac .pkg
+        id: notarize-pkg
+        continue-on-error: true
         env:
           VERSION: ${{ steps.get-tag.outputs.VERSION }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
-          xcrun notarytool submit build/dist/MEDomicsLab-${{ env.VERSION }}-mac-installer.pkg --keychain-profile "notarytool-password"  --wait
+          xcrun notarytool submit build/dist/MEDomicsLab-${{ env.VERSION }}-mac.pkg --keychain-profile "notarytool-password" --wait
 
       - name: staple
         continue-on-error: true
@@ -177,7 +176,7 @@ jobs:
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
-          xcrun stapler staple build/dist/MEDomicsLab-${{ env.VERSION }}-mac-installer.pkg
+          xcrun stapler staple build/dist/MEDomicsLab-${{ env.VERSION }}-mac.pkg
 
       - name: Archive Mac
         uses: actions/upload-artifact@v4
@@ -192,7 +191,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: mac-built-pkg
-          path: ./build/dist/MEDomicsLab-${{ env.VERSION }}-mac-installer.pkg
+          path: ./build/dist/MEDomicsLab-${{ env.VERSION }}-mac.pkg
           compression-level: 0
         env:
           VERSION: ${{ steps.get-tag.outputs.VERSION }}
@@ -265,7 +264,7 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           files: |
-            ./MEDomicsLab-${{ env.VERSION }}-mac-installer.pkg
+            ./MEDomicsLab-${{ env.VERSION }}-mac.pkg
             ./MEDomicsLab-${{ env.VERSION }}-mac.dmg
             ./MEDomicsLab-${{ env.VERSION }}-mac.zip
           name: MEDomicsLab-${{ env.VERSION }}
