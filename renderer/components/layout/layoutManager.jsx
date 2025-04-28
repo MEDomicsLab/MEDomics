@@ -99,7 +99,7 @@ const LayoutManager = (props) => {
           })
         }
       )
-    }, 2000) // Retry after 5 seconds
+    }, 2000) // Retry after 2 seconds
   }
 
   // This is a callback that will be called when the user presses a key
