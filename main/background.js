@@ -479,16 +479,17 @@ if (isProd) {
   /**
    * @description Starts the server
    * @param {*} event The event
-   * @param {*} condaPath The path to the python executable (optional) - If null, the default python executable will be used (see environment variables MED_ENV)
+   * @param {*} pythonPath The path to the python executable (optional) - If null, the default python executable will be used (see environment variables MED_ENV)
    * @returns {Boolean} True if the server is running, false otherwise
    */
-  ipcMain.handle("start-server", async (_event, condaPath = null) => {
+  ipcMain.handle("start-server", async (_event, pythonPath = null) => {
     if (serverProcess) {
       // kill the server if it is already running
       serverProcess.kill()
     }
+    console.log("Received Python path: ", pythonPath)
     if (MEDconfig.runServerAutomatically) {
-      runServer(isProd, serverPort, serverProcess, serverState, condaPath)
+      runServer(isProd, serverPort, serverProcess, serverState, pythonPath)
         .then((process) => {
           serverProcess = process
           console.log(`success: ${serverState.serverIsRunning}`)

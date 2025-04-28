@@ -2,6 +2,12 @@ appId: com.medomicslab.medapp
 productName: MEDomicsLab # Changed from MEDapp to MEDomicsLab to match package.json
 artifactName: "${productName}-${version}-${os}.${ext}" # Added from package.json
 copyright: Copyright © 2023 MEDomicsLab Team
+# Fix for building on Windows when node-gyp is throwing errors on mongodb-client-encryption module
+####
+nodeGypRebuild: false 
+npmRebuild: false
+npmArgs: "--build-from-source=false"
+####
 directories:
   output: build/dist # Changed from dist to build/dist to match package.json
   buildResources: resources
@@ -14,6 +20,7 @@ extraResources: # Add this section if it doesn't exist, or add the line to it
     to: go_executables # Destination directory inside Contents/Resources
     filter:
       - server_go
+      - server_go_win32.exe
   - from: ./pythonCode # Source directory
     to: pythonCode # Destination directory inside Contents/Resources
     # Exclude pycache and other unnecessary files
