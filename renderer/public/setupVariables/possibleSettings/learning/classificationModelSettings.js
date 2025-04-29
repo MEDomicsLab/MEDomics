@@ -289,6 +289,8 @@ const classificationModelSettings = {
             "validation_fraction": {
                 "type": "float",
                 "default_val": "0.1",
+                "max": "1.0",
+                "min": "0.0",
                 "tooltip": "float, default=0.1. The proportion of training data to set aside as validation set for early stopping. Must be between 0 and 1. Only used if early_stopping is True. Values must be in the range (0.0, 1.0)."
             },
             "n_iter_no_change": {
@@ -567,6 +569,8 @@ const classificationModelSettings = {
             "validation_fraction": {
                 "type": "float",
                 "default_val": "0.1",
+                "max": "1.0",
+                "min": "0.0",
                 "tooltip": "float, default=0.1. The proportion of training data to set aside as validation set for early stopping. Must be between 0 and 1. Only used if early_stopping is True. Values must be in the range (0.0, 1.0)."
             },
             "beta_1": {
@@ -922,6 +926,8 @@ const classificationModelSettings = {
             "validation_fraction": {
                 "type": "float",
                 "default_val": "0.1",
+                "max": "1.0",
+                "min": "0.0",
                 "tooltip": "float, default=0.1. The proportion of training data to set aside as validation set for early stopping. Must be between 0 and 1. Only used if early_stopping is True. Values must be in the range (0.0, 1.0)."
             },
             "n_iter_no_change": {
