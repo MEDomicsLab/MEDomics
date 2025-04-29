@@ -178,14 +178,25 @@ const Workflow = ({ setWorkflowType, workflowType }) => {
       let tuneModel = trainModelNode.data.internal.hasOwnProperty("isTuningEnabled") ? trainModelNode.data.internal.isTuningEnabled : false
       const modelSelectionNode = nodes.find((node) => node.type == "selectionNode" && node.data.internal.subflowId == groupNodeId.id)
       let newModelSelectionNode = deepCopy(trainModelNode)
-      // Check if any params are set in the modelSelectionNode
       if (Object.keys(modelSelectionNode.data.internal.settings).length > 0) {
-        newModelSelectionNode.data.internal.tuningSettings = newModelSelectionNode.data.internal.tuningSettings || {}
+        let filled = newModelSelectionNode.data.internal.tuningSettings ? Object.keys(newModelSelectionNode.data.internal.tuningSettings).length > 0 : false
+        newModelSelectionNode.data.internal.tuningSettings = filled ? deepCopy(newModelSelectionNode.data.internal.tuningSettings) : {}
         let selectedModel = modelSelectionNode.data.internal.selection
         if (selectedModel) {
           let alreadyUpdated = true
+          if (modelSelectionNode.data.internal.checkedOptions.length === 0){
+            newModelSelectionNode.data.internal.tuningSettings = {}
+            newModelSelectionNode.data.internal.tuningSettings["options"] = modelSelectionNode.data.setupParam.possibleSettings[selectedModel].options
+            alreadyUpdated = false
+            return
+          }
           Object.keys(modelSelectionNode.data.internal.settings).forEach((setting) => {
             if (newModelSelectionNode.data.internal.tuningSettings.hasOwnProperty(setting)) {
+              if (!modelSelectionNode.data.internal.checkedOptions.includes(setting)) {
+                delete newModelSelectionNode.data.internal.tuningSettings[setting]
+                alreadyUpdated = false
+                return
+              }
               if (newModelSelectionNode.data.internal.tuningSettings.hasOwnProperty("options")) {
                 if (!newModelSelectionNode.data.internal.tuningSettings.options.hasOwnProperty(setting)) {
                   alreadyUpdated = false
@@ -208,6 +219,12 @@ const Workflow = ({ setWorkflowType, workflowType }) => {
               return
             }
           })
+          Object.keys(newModelSelectionNode.data.internal.tuningSettings).forEach((setting) => {
+            if (setting !== "options" && !modelSelectionNode.data.internal.checkedOptions.includes(setting)) {
+              delete newModelSelectionNode.data.internal.tuningSettings[setting]
+              alreadyUpdated = false
+            }
+          })
           if (!alreadyUpdated) {
             newModelSelectionNode.data.internal.tuningSettings = {
               ...newModelSelectionNode.data.internal.tuningSettings,
@@ -228,6 +245,41 @@ const Workflow = ({ setWorkflowType, workflowType }) => {
             return
           }
         }
+        // Custom grid params
+        let updatedGrid = false
+        if (newModelSelectionNode.data.internal.settings.custom_grid && Object.keys(newModelSelectionNode.data.internal.settings.custom_grid).length > 0){
+          Object.keys(newModelSelectionNode.data.internal.settings.custom_grid).forEach((setting) => {
+            if (!modelSelectionNode.data.internal.checkedOptions.includes(setting)) {
+              delete newModelSelectionNode.data.internal.settings.custom_grid[setting]
+              updatedGrid = true
+            }
+          })
+        }
+        if (updatedGrid){
+          setNodes((nds) =>
+            nds.map((node) => {
+              if (node.id == trainModelNode.id) {
+                node.data.internal.settings.custom_grid = newModelSelectionNode.data.internal.settings.custom_grid
+              }
+            return node
+          })
+        )}
+      } else if (newModelSelectionNode.data.internal.tuningSettings && Object.keys(newModelSelectionNode.data.internal.tuningSettings).filter(e => e !== "options").length > 0){
+        newModelSelectionNode.data.internal.tuningSettings = newModelSelectionNode.data.internal.tuningSettings.options ? {
+          ...{options: newModelSelectionNode.data.internal.tuningSettings.options}
+        } : {}
+        setNodes((nds) =>
+          nds.map((node) => {
+            if (node.id == trainModelNode.id) {
+              node.data.internal.tuningSettings = newModelSelectionNode.data.internal.tuningSettings
+              node.data.internal.isTuningEnabled = tuneModel
+              if (node.data.internal.settings && node.data.internal.settings.custom_grid) {
+                node.data.internal.settings.custom_grid = {}
+              }
+            }
+            return node
+          })
+        )
       }
     }
   }

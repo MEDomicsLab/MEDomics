@@ -26,6 +26,7 @@ const HyperParameterInput = ({
   name, 
   paramInfo, 
   currentValue, 
+  currentGridValues,
   onParamChange, 
   disabled = false, 
   setHasWarning = () => {} 
@@ -38,20 +39,21 @@ const HyperParameterInput = ({
 
   const [inputValue, setInputValue] = useState(null)
   const [inputMode, setInputMode] = useState('discrete')
-  const [discreteValues, setDiscreteValues] = useState([])
+  const [discreteValues, setDiscreteValues] = useState(currentGridValues || [])
   const [rangeStart, setRangeStart] = useState(null)
   const [rangeEnd, setRangeEnd] = useState(null)
   const [rangeStep, setRangeStep] = useState(null)
-  const [gridValues, setGridValues] = useState([])
+  const [gridValues, setGridValues] = useState(currentGridValues || [])
   const [hasError, setHasError] = useState(false)
   const [errorMessage, setErrorMessage] = useState("")
 
   // Initialize component state based on currentValue prop
   useEffect(() => {
     if (currentValue) {
+      currentValue = Array.isArray(currentValue) ? currentValue : parseInputValue(currentValue)
       if (Array.isArray(currentValue)) {
         setInputMode('discrete')
-        setDiscreteValues(currentValue)
+        setDiscreteValues(currentGridValues || currentValue)
       } else if (typeof currentValue === 'object' && currentValue.start && currentValue.end) {
         setInputMode('range')
         setRangeStart(currentValue.start)
@@ -59,11 +61,11 @@ const HyperParameterInput = ({
         setRangeStep(currentValue.step || getDefaultStep(paramInfo.type))
       } else {
         setInputMode('discrete')
-        setDiscreteValues([currentValue])
+        setDiscreteValues(currentGridValues || [currentValue])
       }
     } else {
       // Default initialization
-      setDiscreteValues([])
+      setDiscreteValues(currentGridValues || [])
       setRangeStart(paramInfo.min || 0)
       setRangeEnd(paramInfo.max || 10)
       setRangeStep(getDefaultStep(paramInfo.type))
@@ -85,93 +87,112 @@ const HyperParameterInput = ({
   // Validate inputs and generate grid values based on current settings
   const generateGridValues = () => {
     if (inputMode === 'discrete') {
-      return discreteValues
-    } else if (inputMode === 'range') {
-      if (rangeStart === null || rangeEnd === null || rangeStep === null) {
-        setGridValues([])
-        setHasError(true)
-        setErrorMessage("Range values cannot be empty")
-        return []
-      }
+      throw new Error("Discrete mode must be range mode")
+    }
+    let newGridValues = []
+    if (rangeStart === null || rangeEnd === null || rangeStep === null) {
+      setGridValues(currentGridValues || [])
+      !currentGridValues && setHasError(true)
+      !currentGridValues && setErrorMessage("Range values cannot be empty")
+      newGridValues = currentGridValues || []
+    }
 
-      if (rangeStep <= 0) {
-        setGridValues([])
-        setHasError(true)
-        setErrorMessage("Step must be greater than 0")
-        return []
-      }
+    if (rangeStep <= 0) {
+      setGridValues(currentGridValues || [])
+      setHasError(true)
+      setErrorMessage("Step must be greater than 0")
+      newGridValues = currentGridValues || []
+    }
 
-      if (rangeStart > rangeEnd) {
-        setGridValues([])
-        setHasError(true)
-        setErrorMessage("Start value must be less than end value")
-        return []
-      }
-      
-      // Clear previous error state
-      setHasError(false)
-      setErrorMessage("")
+    if (rangeStart > rangeEnd) {
+      setGridValues(currentGridValues || [])
+      setHasError(true)
+      setErrorMessage("Start value must be less than end value")
+      newGridValues = currentGridValues || []
+    }
 
-      // Generate values within range
-      const values = []
-      let current = rangeStart
-      
-      while (current <= rangeEnd) {
-        if (paramInfo.type === 'int') {
-          values.push(Math.round(current))
-        } else {
-          values.push(Number(current.toFixed(5))) // Limit float precision
-        }
-        current += rangeStep
-      }
-      
-      setGridValues(values)
-      return values
+    if (newGridValues.length > 0) {
+      onParamChange({
+        name: name,
+        value: newGridValues,
+        type: paramInfo.type,
+        mode: inputMode
+      })
+      return
     }
     
-    setGridValues([])
-    return []
+    // Clear previous error state
+    setHasError(false)
+    setErrorMessage("")
+
+    // Generate values within range
+    const values = []
+    let current = rangeStart
+    
+    while (current <= rangeEnd) {
+      if (paramInfo.type === 'int') {
+        values.push(Math.round(current))
+      } else {
+        values.push(Number(current.toFixed(5))) // Limit float precision
+      }
+      current += rangeStep
+    }
+    setGridValues(values)
+    
+    // Update parent component with new grid values
+    onParamChange({
+      name: name,
+      value: values,
+      type: paramInfo.type,
+      mode: inputMode
+    })
   }
 
   // Update parent component when values change
   useEffect(() => {
-    generateGridValues()
-    setHasWarning(hasError)
-    
-    if (!hasError && gridValues.length > 0) {
-      onParamChange({
-        name: name,
-        value: inputMode === 'range' 
-          ? { start: rangeStart, end: rangeEnd, step: rangeStep, values: gridValues } 
-          : gridValues,
-        type: paramInfo.type,
-        mode: inputMode
-      })
+    if (inputMode === 'range'){
+      generateGridValues()
+    } else if (inputMode === 'discrete') {
+      if (!hasError &&  discreteValues.length > 0) {
+        onParamChange({
+          name: name,
+          value: discreteValues,
+          type: paramInfo.type,
+          mode: inputMode
+        })
+      }
     }
+    setHasWarning(hasError)
   }, [inputMode, discreteValues, rangeStart, rangeEnd, rangeStep])
 
-  // Handle adding a discrete value based on parameter type
-  const handleAddDiscreteValue = (value) => {
-    if (value === null || value === undefined || value === '') return
-    
-    // Validate based on type
-    let validatedValue = value
+  // Parse input value to handle different types
+  const parseInputValue = (value) => {
     if (paramInfo.type === 'int') {
       if (!/^-?\d+$/.test(String(value))) {
         toast.warn("Value must be an integer", { position: "bottom-right" })
-        validatedValue = Math.round(Number(value))
+        value = Math.round(Number(value))
       } else {
-        validatedValue = parseInt(value)
+        value = parseInt(value)
       }
     } else if (paramInfo.type === 'float') {
       if (isNaN(Number(value))) {
         toast.warn("Value must be a number", { position: "bottom-right" })
         return
       }
-      validatedValue = parseFloat(value)
+      value = parseFloat(value)
     } else if (paramInfo.type === 'bool') {
-      validatedValue = value === 'True' || value === true
+      value = value === 'True' || value === true
     }
+    return value
+  }
+
+  // Handle adding a discrete value based on parameter type
+  const handleAddDiscreteValue = (value) => {
+    if (value === null || value === undefined || value === '') return
+    
+    // Validate based on type
+    let validatedValue = parseInputValue(value)
+    if (!validatedValue) return
 
     // Check if value already exists
     if (!discreteValues.includes(validatedValue)) {
@@ -239,7 +260,7 @@ const HyperParameterInput = ({
               {discreteValues.map((val, idx) => (
                 <Chip
                   key={idx}
-                  label={val}
+                  label={val.toString()}
                   removable
                   onRemove={() => handleRemoveDiscreteValue(idx)}
                 />
@@ -279,7 +300,7 @@ const HyperParameterInput = ({
               {discreteValues.map((val, idx) => (
                 <Chip
                   key={idx}
-                  label={val}
+                  label={val.toString()}
                   removable
                   onRemove={() => handleRemoveDiscreteValue(idx)}
                 />
@@ -305,7 +326,7 @@ const HyperParameterInput = ({
                 }}
                 disabled={disabled}
               />
-              <span className="ml-2">True</span>
+              <span style={{marginLeft: "4px"}}>True</span>
             </div>
             <div className="mb-3 d-flex align-items-center">
               <InputSwitch
@@ -321,7 +342,7 @@ const HyperParameterInput = ({
                 }}
                 disabled={disabled}
               />
-              <span className="ml-2">False</span>
+              <span style={{marginLeft: "4px"}}>False</span>
             </div>
           </div>
         )
@@ -420,7 +441,7 @@ const HyperParameterInput = ({
       <div className="p-3 mb-3" style={{ border: "1px solid #ccc", borderRadius: "8px" }}>
         <div className="flex align-items-center" style={{ marginBottom: '1rem' }}>
           <h6 className="flex align-center">{name}</h6>
-          {paramInfo.type!== 'bool' && (
+          {(paramInfo.type === 'int' || paramInfo.type === 'float') && (
             <SelectButton 
               className="flex align-center"
               value={inputMode} 

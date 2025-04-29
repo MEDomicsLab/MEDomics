@@ -34,7 +34,6 @@ const TrainModelNode = ({ id, data }) => {
         updatedData: data.internal
       })
     }
-    console.log(data.internal)
   }, [])
 
   /**
@@ -59,6 +58,21 @@ const TrainModelNode = ({ id, data }) => {
    */
   const onInputChangeTuning = (inputUpdate) => {
     data.internal.settingsTuning[inputUpdate.name] = inputUpdate.value
+    updateNode({
+      id: id,
+      updatedData: data.internal
+    })
+  }
+
+  /**
+   * @param {Object} inputUpdate the object containing the name and the value of the input
+   * @description This function is used to update the tuning settings of the node
+   * */
+  const onTuningParamChange = (inputUpdate) => {
+    if (!Object.keys(data.internal.settings).includes("custom_grid")) {
+      data.internal.settings.custom_grid = {}
+    }
+    data.internal.settings.custom_grid[inputUpdate.name] = inputUpdate.value
     updateNode({
       id: id,
       updatedData: data.internal
@@ -161,7 +175,7 @@ const TrainModelNode = ({ id, data }) => {
               )
             })}
             
-            {data.internal.isTuningEnabled && data.internal.tuningSettings && Object.keys(data.internal.tuningSettings.options).length > 0 && (
+            {data.internal.isTuningEnabled && data.internal.tuningSettings && Object.keys(data.internal.tuningSettings).filter((e) => e !== "options").length > 0 && Object.keys(data.internal.tuningSettings.options).length > 0 && (
               <>
                 <hr />
                 <div style={{ fontWeight: "bold", margin: "10px 0" }}>Custom Tuning Grid</div>
@@ -171,7 +185,8 @@ const TrainModelNode = ({ id, data }) => {
                       name={setting}
                       paramInfo={data.internal.tuningSettings.options[setting]}
                       currentValue={data.internal.tuningSettings.options[setting].default_val}
-                      onParamChange={onInputChangeTuning}
+                      currentGridValues={data.internal.settings.custom_grid ? data.internal.settings.custom_grid[setting] : null}
+                      onParamChange={onTuningParamChange}
                     />
                   )
                 })}
@@ -182,7 +197,6 @@ const TrainModelNode = ({ id, data }) => {
                 <hr />
                 <div style={{ fontWeight: "bold", margin: "10px 0" }}>Tune Model Options</div>
                 {data.internal.checkedOptionsTuning.map((optionName) => {
-                  console.log(data)
                   return (
                     <Input
                       key={optionName}
