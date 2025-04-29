@@ -34,7 +34,8 @@ const DatasetNode = ({ id, data }) => {
       localStorage.setItem("myUUID", uuid)
       setTagId(uuid)
     }
-    data.internal.hasWarning = { state: true, tooltip: <p>Some default fields are missing</p> }
+    data.internal.hasWarning = (data.internal.settings.target && Object.keys(data.internal.settings.files).length > 0) ? 
+      {state : false} : { state: true, tooltip: <p>Some default fields are missing</p> }
   }, [])
 
   // update the node internal data when the selection changes
