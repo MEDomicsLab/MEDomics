@@ -8,12 +8,58 @@ permissions:
 jobs:
   build-mac:
     runs-on: macos-latest
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
           submodules: recursive
+          fetch-depth: 0 # Fetch full history for branches
+
+      - name: Keys and certificates
+        env:
+          APPLE_CERT_DATA: ${{ secrets.CSC_INSTALLER_LINK }}
+          APPLE_CERT_PASSWORD: ${{ secrets.CSC_INSTALLER_KEY_PASSWORD }}
+          DEVELOPER_APP_CER: ${{ secrets.CSC_LINK}}
+          DEVELOPER_APP_KEY: ${{ secrets.CSC_KEY_PASSWORD }}
+
+        run: |
+          CERTIFICATE_PATH=$RUNNER_TEMP/build_certificate.p12
+          echo -n "$APPLE_CERT_DATA" | base64 --decode -o certificate_installer.p12
+          echo -n "$DEVELOPER_APP_CER" | base64 --decode -o certificate_application.p12
+
+          KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
+          security create-keychain -p "${{ secrets.CSC_KEY_PASSWORD }}" $KEYCHAIN_PATH
+          security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
+          security unlock-keychain -p "${{ secrets.CSC_KEY_PASSWORD }}" $KEYCHAIN_PATH
+
+          security import certificate_installer.p12 -P "${{ secrets.CSC_KEY_PASSWORD }}" -A -t cert -f pkcs12 -k $KEYCHAIN_PATH
+          security import certificate_application.p12 -P "${{ secrets.CSC_KEY_PASSWORD }}" -A -t cert -f pkcs12 -k $KEYCHAIN_PATH
+          security list-keychain -d user -s $KEYCHAIN_PATH
+          # Store as a keychain profile (for signing)
+
+      - name: keychain profile
+        env:
+          APPLE_NOTARY_USER: ${{ secrets.APPLE_ID }}
+          APPLE_NOTARY_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          xcrun notarytool store-credentials "notarytool-password" --apple-id "$APPLE_NOTARY_USER" --team-id "$APPLE_TEAM_ID" --password "$APPLE_NOTARY_PASSWORD"
+
+      - name: Checking out the correct branches for submodules
+        run: |
+          git submodule foreach '
+          if [ "$name" = "pythonCode/submodules/MEDimage" ]; then
+            git fetch origin && git checkout -B dev_lab origin/dev_lab && git pull origin dev_lab
+          elif [ "$name" = "pythonCode/submodules/MEDprofiles" ]; then
+            git fetch origin && git checkout -B fusion_MEDomicsLab origin/fusion_MEDomicsLab && git pull origin fusion_MEDomicsLab
+          else
+            echo "No branch specified for $name"
+          fi
+          '
+
       - name: Setup Go
         uses: actions/setup-go@v4
         with:
@@ -37,18 +83,8 @@ jobs:
         uses: actions/setup-python@v2
         with:
           python-version: 3.9
-      - name: Bash python 1st try
-        run: |
-          echo $PATH
-          python --version
-          which python
-      - name: Bash python 2nd try
-        run: |
-          echo $PATH
-          python --version
-          which python
-        shell: bash {0}
-      - name: Bash python 3rd try
+
+      - name: Bash python version
         run: |
           echo $PATH
           python --version
@@ -66,8 +102,6 @@ jobs:
 
       - name: Install dependencies
         run: npm install
-
-      - uses: actions/checkout@v4
 
       - name: Cache node modules
         id: cache-npm
@@ -103,20 +137,80 @@ jobs:
       - name: Allocate more memory
         run: export NODE_OPTIONS=--max-old-space-size=8192
 
-      - name: Build for Mac
-        run: npm run build:mac
-
       - name: Get tag name
         id: get-tag
         run: |
           VERSION=${GITHUB_REF/refs\/tags\//}
-          echo "::set-output name=VERSION::${VERSION#m}"
+          echo "VERSION=${VERSION#v}" >> "$GITHUB_OUTPUT"
+
+      - name: dotenv file
+        run: |
+          echo "DEVELOPER_ID_APP='${{ secrets.DEVELOPER_ID_APP }}'" >> .env
+          echo "DEVELOPER_ID_INSTALLER='${{ secrets.DEVELOPER_ID_INSTALLER }}'" >> .env
+
+      - name: Build for Mac
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          CSC_INSTALLER_LINK: ${{ secrets.CSC_INSTALLER_LINK }}
+          CSC_INSTALLER_KEY_PASSWORD: ${{ secrets.CSC_INSTALLER_KEY_PASSWORD }}
+        run: |
+          npm run build:mac
+
+      - name: Notarize Mac .pkg
+        id: notarize-pkg
+        continue-on-error: true
+        env:
+          VERSION: ${{ steps.get-tag.outputs.VERSION }}
+        run: |
+          xcrun notarytool submit build/dist/MEDomicsLab-${{ env.VERSION }}-mac.pkg --keychain-profile "notarytool-password" --wait
+
+      - name: staple
+        continue-on-error: true
+        env:
+          VERSION: ${{ steps.get-tag.outputs.VERSION }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          xcrun stapler staple build/dist/MEDomicsLab-${{ env.VERSION }}-mac.pkg
 
       - name: Archive Mac
         uses: actions/upload-artifact@v4
         with:
           name: mac-built
+          path: ./build/dist/MEDomicsLab-${{ env.VERSION }}-mac.pkg
+          compression-level: 0
+        env:
+          VERSION: ${{ steps.get-tag.outputs.VERSION }}
+
+      - name: Archive Mac
+        uses: actions/upload-artifact@v4
+        with:
+          name: mac-built-pkg
+          path: ./build/dist/MEDomicsLab-${{ env.VERSION }}-mac.pkg
+          compression-level: 0
+        env:
+          VERSION: ${{ steps.get-tag.outputs.VERSION }}
+
+      - name: Archive Mac DMG
+        uses: actions/upload-artifact@v4
+        with:
+          name: mac-built-dmg
           path: ./build/dist/MEDomicsLab-${{ env.VERSION }}-mac.dmg
+          compression-level: 0
+        env:
+          VERSION: ${{ steps.get-tag.outputs.VERSION }}
+
+      - name: Archive Mac DMG
+        uses: actions/upload-artifact@v4
+        with:
+          name: mac-built-zip
+          path: ./build/dist/MEDomicsLab-${{ env.VERSION }}-mac.zip
+          compression-level: 0
         env:
           VERSION: ${{ steps.get-tag.outputs.VERSION }}
 
@@ -128,10 +222,20 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Download Mac
+      - name: Download Mac PKG
         uses: actions/download-artifact@v4
         with:
-          name: mac-built
+          name: mac-built-pkg
+
+      - name: Download Mac DMG
+        uses: actions/download-artifact@v4
+        with:
+          name: mac-built-dmg
+
+      - name: Download Mac ZIP
+        uses: actions/download-artifact@v4
+        with:
+          name: mac-built-zip
 
       - name: Install zip
         run: sudo apt-get install zip
@@ -149,18 +253,20 @@ jobs:
 
       - name: zip Mac
         run: zip -r MEDomicsLab-PythonEnv-mac.zip ./create_conda_env_mac.sh ./requirements_mac.txt
+
       - name: Get tag name
         id: get-tag
         run: |
           VERSION=${GITHUB_REF/refs\/tags\//}
-          echo "::set-output name=VERSION::${VERSION#m}"
+          echo "VERSION=${VERSION#v}" >> "$GITHUB_OUTPUT"
 
       - name: Publish to GitHub
         uses: softprops/action-gh-release@v1
         with:
           files: |
+            ./MEDomicsLab-${{ env.VERSION }}-mac.pkg
             ./MEDomicsLab-${{ env.VERSION }}-mac.dmg
-            ./MEDomicsLab-PythonEnv-mac.zip
+            ./MEDomicsLab-${{ env.VERSION }}-mac.zip
           name: MEDomicsLab-${{ env.VERSION }}
           body: |
             MEDomicsLab-${{ env.VERSION }}
@@ -171,4 +277,6 @@ jobs:
           prerelease: false
           token: ${{ secrets.GITHUB_TOKEN }}
         env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VERSION: ${{ steps.get-tag.outputs.VERSION }}

@@ -1,5 +1,5 @@
 import { randomUUID } from "crypto"
-import { DataFrame } from "danfojs"
+import { DataFrame } from "../../../utilities/danfo.js"
 import { Button } from 'primereact/button'
 import { DataView } from "primereact/dataview"
 import { Dropdown } from "primereact/dropdown"

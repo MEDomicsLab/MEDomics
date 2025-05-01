@@ -53,18 +53,14 @@ jobs:
         id: get-tag
         run: |
           VERSION=${GITHUB_REF/refs\/tags\//}
-          echo "::set-output name=VERSION::${VERSION#u}"
-
-      - name: Rename Linux
-        run: mv ./build/dist/MEDomicsLab-${{ env.VERSION }}-linux.deb ./build/dist/MEDomicsLab-${{ env.VERSION }}-ubuntu.deb
-        env:
-          VERSION: ${{ steps.get-tag.outputs.VERSION }}
+          echo "VERSION=${VERSION#v}" >> "$GITHUB_OUTPUT"
 
       - name: Archive Linux
         uses: actions/upload-artifact@v4
         with:
           name: linux-built-ubuntu
-          path: ./build/dist/MEDomicsLab-${{ env.VERSION }}-ubuntu.deb
+          path: ./build/dist/MEDomicsLab-${{ env.VERSION }}-linux.deb
+          compression-level: 0
         env:
           VERSION: ${{ steps.get-tag.outputs.VERSION }}
 
@@ -102,13 +98,13 @@ jobs:
         id: get-tag
         run: |
           VERSION=${GITHUB_REF/refs\/tags\//}
-          echo "::set-output name=VERSION::${VERSION#u}"
+          echo "VERSION=${VERSION#v}" >> "$GITHUB_OUTPUT"
 
       - name: Publish to GitHub
         uses: softprops/action-gh-release@v1
         with:
           files: |
-            ./MEDomicsLab-${{ env.VERSION }}-ubuntu.deb
+            ./MEDomicsLab-${{ env.VERSION }}-linux.deb
             ./MEDomicsLab-PythonEnv-linux.zip
           name: MEDomicsLab-${{ env.VERSION }}
           body: |
@@ -120,4 +116,6 @@ jobs:
           prerelease: false
           token: ${{ secrets.GITHUB_TOKEN }}
         env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VERSION: ${{ steps.get-tag.outputs.VERSION }}

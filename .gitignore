@@ -7,6 +7,9 @@ __pycache__/*
 # C extensions
 *.so
 
+# Security
+*.env
+
 # Distribution / packaging
 libmongocrypt/
 .Python
@@ -145,10 +148,9 @@ dmypy.json
 pythonCode/submodules/MEDimage/*
 pythonCode/submodules/MEDprofiles/*
 
-# Go executables 
+# Go executables
 go_server/main
 go_server/main.exe
-
 # custom gitignore
 tmp
 test

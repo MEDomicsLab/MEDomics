@@ -4,8 +4,10 @@ import process from "process"
 const fs = require("fs")
 const Path = require("path")
 const { parse } = require("csv-parse")
-const dfd = require("danfojs")
-const dfdNode = require("danfojs-node")
+// Replace danfojs imports with local implementation
+const dfd = require("../utilities/danfo.js")
+// Using the same implementation for both browser and Node environments
+const dfdNode = require("../utilities/danfo.js")
 var Papa = require("papaparse")
 import { ipcRenderer } from "electron"
 
