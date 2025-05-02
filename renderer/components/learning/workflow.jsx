@@ -775,7 +775,6 @@ const Workflow = ({ setWorkflowType, workflowType }) => {
    * save the workflow as a json file
    */
   const onSave = useCallback(async () => {
-    console.log("savedTest")
     if (reactFlowInstance && metadataFileID) {
       const flow = deepCopy(reactFlowInstance.toObject())
       flow.MLType = MLType
