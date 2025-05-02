@@ -775,6 +775,7 @@ const Workflow = ({ setWorkflowType, workflowType }) => {
    * save the workflow as a json file
    */
   const onSave = useCallback(async () => {
+    console.log("savedTest")
     if (reactFlowInstance && metadataFileID) {
       const flow = deepCopy(reactFlowInstance.toObject())
       flow.MLType = MLType
@@ -790,6 +791,25 @@ const Workflow = ({ setWorkflowType, workflowType }) => {
       }
     }
   }, [reactFlowInstance, MLType, intersections])
+
+  /**
+   * Handle using CTRL+S to save
+   */
+    useEffect(() => {
+      const handleKeyDown = (event) => {
+        if ((event.ctrlKey || event.metaKey) && event.key === 's') {
+          event.preventDefault() // Prevent browser's save dialog
+          onSave()
+        }
+      }
+      window.addEventListener('keydown', handleKeyDown)
+      
+      // Cleanup function to remove event listener when component unmounts
+      return () => {
+        window.removeEventListener('keydown', handleKeyDown)
+      }
+    }, [onSave])
+
 
   /**
    * Clear the canvas if the user confirms
