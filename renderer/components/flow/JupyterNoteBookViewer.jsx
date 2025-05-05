@@ -1,3 +1,4 @@
+/* eslint-disable camelcase */ // cell_type comes from Jupyter Notebook's structure and Linter doesn't like it
 import React, { useEffect, useState, useRef } from "react"
 import { toast } from "react-toastify"
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter"
@@ -7,8 +8,10 @@ import fs from "fs"
 import AceEditor from "react-ace"
 import "ace-builds/src-noconflict/mode-python"
 import "ace-builds/src-noconflict/theme-tomorrow"
-import { FaCopy, FaArrowUp, FaArrowDown, FaPlusCircle, FaPlusSquare, FaTrash } from "react-icons/fa"
+import { FaCopy, FaArrowUp, FaArrowDown, FaPlusCircle, FaPlusSquare, FaTrash, FaCode, FaMarkdown } from "react-icons/fa"
 import { Button } from "primereact/button"
+import { SelectButton } from "primereact/selectbutton"
+import { Tooltip } from "primereact/tooltip"
 
 /**
  * Jupyter Notebook viewer
@@ -71,6 +74,7 @@ const JupyterNotebookViewer = ({ path }) => {
     })
   }
 
+  // #TODO: Replace with global save event listener from MainContainer
   useEffect(() => {
     const handleKeyDown = (event) => {
       if (event.ctrlKey && event.key === "s") {
@@ -152,6 +156,20 @@ const JupyterNotebookViewer = ({ path }) => {
     saveNotebook(newCells)
   }
 
+  const setCellType = (index, newType) => {
+    if (!newType) return // Prevents setting type to null if clicking selected type button again
+    const newCells = [...notebookContent.cells]
+    const cell = newCells[index]
+    newCells[index] = {
+      ...cell,
+      cell_type: newType,
+      source: cell.source.length > 0 ? cell.source : [newType === "code" ? "# New code cell" : "New markdown cell"]
+    }
+    setNotebookContent({ ...notebookContent, cells: newCells })
+    saveNotebook(newCells)
+  }
+
+
   const renderCells = () => {
     if (!notebookContent || !notebookContent.cells) return null
 
@@ -162,13 +180,21 @@ const JupyterNotebookViewer = ({ path }) => {
       return (
         <div key={index} className="cell-container">
           <div className="cell-actions">
+            <SelectButton
+              value={cell.cell_type}
+              onChange={(e) => setCellType(index, e.value)}
+              options={[
+                { label: <FaCode />, value: "code" },
+                { label: <FaMarkdown />, value: "markdown" }
+              ]}
+            />
             <button title="Duplicate cell" onClick={() => duplicateCell(index)}>
               <FaCopy />
             </button>
-            <button title="Move cell up" onClick={() => moveCellUp(index)}>
+            <button title="Move cell up" onClick={() => moveCellUp(index)} disabled={index === 0}>
               <FaArrowUp />
             </button>
-            <button title="Move cell down" onClick={() => moveCellDown(index)}>
+            <button title="Move cell down" onClick={() => moveCellDown(index)} disabled={index === notebookContent.cells.length - 1}>
               <FaArrowDown />
             </button>
             <button title="Insert cell above" onClick={() => insertCellAbove(index)}>
@@ -177,7 +203,7 @@ const JupyterNotebookViewer = ({ path }) => {
             <button title="Insert cell below" onClick={() => insertCellBelow(index)}>
               <FaPlusSquare />
             </button>
-            <button title="Delete cell" onClick={() => deleteCell(index)}>
+            <button title="Delete cell" onClick={() => deleteCell(index)} className="danger">
               <FaTrash />
             </button>
           </div>
@@ -269,6 +295,15 @@ const JupyterNotebookViewer = ({ path }) => {
             z-index: 1;
           }
 
+          .p-button-label {
+            font-size: 20px;
+            display: flex;
+          }
+
+          .p-button.p-component {
+            padding: 4px 8px;
+          }
+
           .cell-actions button {
             background: none;
             border: none;
@@ -279,10 +314,24 @@ const JupyterNotebookViewer = ({ path }) => {
             transition: background 0.3s, transform 0.3s;
           }
 
-          .cell-actions button:hover {
+          .cell-actions button:disabled {
+            background: none;
+            border: none;
+            cursor: default;
+            color: #CCC;
+            padding: 0.25rem;
+            border-radius: 3px;
+            transition: background 0.3s, transform 0.3s;
+          }
+
+          .cell-actions button:hover:not(:disabled) {
             color: #333;
             background: #e0e0e0;
             transform: scale(1.05);
+          }
+
+          .cell-actions button.danger:hover {
+            color: #AA0000;
           }
 
           .cell {
