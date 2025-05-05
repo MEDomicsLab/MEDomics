@@ -7,6 +7,10 @@ module.exports = {
 		config.module.rules.push({
 			test: /\.node$/,
 			use: "node-loader"
+		}),
+		config.module.rules.push({
+			test: /\.html$/,
+			use: "html-loader"
 		})
 		
 		return config

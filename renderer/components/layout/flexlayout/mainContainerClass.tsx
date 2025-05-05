@@ -696,7 +696,7 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
     } else if (component === "dataTable") {
       const config = node.getConfig()
       if (node.getExtraData().data == null) {
-        const dfd = require("danfojs-node")
+        const dfd = require("../../../utilities/danfo.js")
         const whenDataLoaded = (data) => {
           const { globalData, setGlobalData } = this.props as DataContextType
           let globalDataCopy = globalData
@@ -927,7 +927,7 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
       if (node.getExtraData().data == null) {
         const config = node.getConfig()
         setIsEditorOpen(true)
-        return <CodeEditor id={config.uuid} path={config.path} updateSavedCode={this.updateSavedCode} />
+        return <CodeEditor id={config.uuid} path={config.path} updateSavedCode={this.updateSavedCode}  />
       }
     } else if (component === "jupyterNotebook") {
       if (node.getExtraData().data == null) {

@@ -13,6 +13,8 @@ import FirstSetupModal from "../generalPurpose/installation/firstSetupModal"
 const HomePage = () => {
   const { workspace, setWorkspace, recentWorkspaces } = useContext(WorkspaceContext)
   const [hasBeenSet, setHasBeenSet] = useState(workspace.hasBeenSet)
+  const [appVersion, setAppVersion] = useState("")
+
 
   const [requirementsMet, setRequirementsMet] = useState(true)
 
@@ -29,6 +31,9 @@ const HomePage = () => {
       } else {
         setRequirementsMet(false)
       }
+    })
+    ipcRenderer.invoke("getAppVersion").then((data) => {
+      setAppVersion(data)
     })
   }, [])
 
@@ -53,6 +58,7 @@ const HomePage = () => {
           <h2>Home page</h2>
           <Stack direction="horizontal" gap={0} style={{ padding: "0 0 0 0", alignContent: "center" }}>
             <h1 style={{ fontSize: "5rem" }}>MEDomicsLab </h1>
+            <h2 style={{ fontSize: "2rem", marginTop: "1.5rem" }}>v{appVersion}</h2>
 
             <Image src={myimage} alt="" style={{ height: "175px", width: "175px" }} />
           </Stack>
