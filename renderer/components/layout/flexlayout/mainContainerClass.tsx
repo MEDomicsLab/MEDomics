@@ -135,6 +135,16 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
     }
   }
 
+  handleSaveTab = (event) => {
+    if ((event.ctrlKey || event.metaKey) && event.key === 's') {
+      event.preventDefault() // Prevent browser's save dialog
+      const tabToSave = this.state.model?.getActiveTabset()?.getSelectedNode() as TabNode
+      if (tabToSave) {
+        document.body.dispatchEvent(new CustomEvent("saveFileEvent", { detail: { tabId: tabToSave.getId() } }))
+      }
+    }
+  }
+
   /**
    * Callback when the component is mounted
    * @returns nothing
@@ -143,6 +153,7 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
   componentDidMount() {
     this.loadLayout("default", false)
     document.body.addEventListener("touchmove", this.preventIOSScrollingWhenDragging, { passive: false })
+    document.body.addEventListener('keydown', this.handleSaveTab)
     const { layoutRequestQueue, setLayoutRequestQueue } = this.context as LayoutContextType
     if (layoutRequestQueue.length > 0) {
       layoutRequestQueue.forEach((action) => {
@@ -154,6 +165,15 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
       })
       setLayoutRequestQueue([])
     }
+  }
+
+  /**
+   * Callback when the component is unmounted
+   * @returns nothing
+   * @summary Removes the save shortcut event listener
+   */
+  componentWillUnmount(): void {
+    document.body.removeEventListener('keydown', this.handleSaveTab)
   }
 
   /**

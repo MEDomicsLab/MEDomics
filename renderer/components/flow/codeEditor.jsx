@@ -153,13 +153,13 @@ const CodeEditor = ({id, path, updateSavedCode}) => {
         else {
           setSaved(true)
           updateSavedCode(true, id)
-          toast.success("Saved file successfully")
+          toast.success("Saved " + globalData[id].name + " file successfully")
         }
       },
       (error) => {
         setLoadingSave(false)
         console.error("Error from backend:", error)
-        toast.error("Error saving file")
+        toast.error("Error saving file " + globalData[id].name)
       }
     )
   })
@@ -215,21 +215,20 @@ const CodeEditor = ({id, path, updateSavedCode}) => {
     fetchFile(id, path)
   }, [id, path])
 
-  // Add the key event listener
+  // Add CTRL+S event listener (fired in main container) to save changes
   useEffect(() => {
-    const handleKeyDown = (event) => {
-      if ((event.ctrlKey || event.metaKey) && event.key === 's') {
-        event.preventDefault() // Prevent browser's save dialog
-        saveChanges()
+      const handleSaveEvent = (event) => {
+        if (id === event.detail?.tabId ) {
+          saveChanges()
+        }
       }
-    }
-    window.addEventListener('keydown', handleKeyDown)
-    
-    // Cleanup function to remove event listener when component unmounts
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown)
-    }
-  }, [saveChanges])
+      document.body.addEventListener('saveFileEvent', handleSaveEvent)
+      
+      // Cleanup function to remove event listener when component unmounts
+      return () => {
+        document.body.removeEventListener('saveFileEvent', handleSaveEvent)
+      }
+    }, [saveChanges])
 
   return (
     <>
