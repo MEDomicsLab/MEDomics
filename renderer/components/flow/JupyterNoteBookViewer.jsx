@@ -8,10 +8,9 @@ import fs from "fs"
 import AceEditor from "react-ace"
 import "ace-builds/src-noconflict/mode-python"
 import "ace-builds/src-noconflict/theme-tomorrow"
-import { FaCopy, FaArrowUp, FaArrowDown, FaPlusCircle, FaPlusSquare, FaTrash, FaCode, FaMarkdown } from "react-icons/fa"
+import { FaCopy, FaArrowUp, FaArrowDown, FaPlusCircle, FaPlusSquare, FaTrash, FaCode, FaMarkdown, FaPlay } from "react-icons/fa"
 import { Button } from "primereact/button"
 import { SelectButton } from "primereact/selectbutton"
-import { Tooltip } from "primereact/tooltip"
 
 /**
  * Jupyter Notebook viewer
@@ -166,9 +165,18 @@ const JupyterNotebookViewer = ({ path }) => {
       source: cell.source.length > 0 ? cell.source : [newType === "code" ? "# New code cell" : "New markdown cell"]
     }
     setNotebookContent({ ...notebookContent, cells: newCells })
-    saveNotebook(newCells)
+    setSaved(false)
+    // saveNotebook(newCells)
   }
 
+  const runCell = (index) => {
+    const cell = notebookContent.cells[index]
+    if (cell.cell_type !== "code") {
+      toast.error("Only code cells can be run")
+      return
+    }
+    //const code = cell.source.join("\n")
+  }
 
   const renderCells = () => {
     if (!notebookContent || !notebookContent.cells) return null
@@ -180,6 +188,7 @@ const JupyterNotebookViewer = ({ path }) => {
       return (
         <div key={index} className="cell-container">
           <div className="cell-actions">
+            { cell.cell_type === "code" && <button title="Run cell" onClick={() => runCell(index)}><FaPlay /></button> }
             <SelectButton
               value={cell.cell_type}
               onChange={(e) => setCellType(index, e.value)}
@@ -254,6 +263,45 @@ const JupyterNotebookViewer = ({ path }) => {
               </div>
             )}
           </div>
+            { isCodeCell && cell.execution_count !== null && 
+              cell.outputs.map((output, outputindex) => {
+                switch (output.output_type) {
+                  case "stream":
+                    return (<pre className="output stream">{output.text.join("")}</pre>)
+                  case "execute_result":
+                    return (<div className="output execute-result">{output.data["text/plain"]}</div>)
+                  case "error":
+                    return (<div className="output error">{output.evalue}</div>)
+                  case "display_data":
+                    if (output.data["image/png"]) {
+                      let output_metadata = output['metadata'];
+                        let size = output_metadata && output_metadata['image/png'];
+                        return (
+                          <div
+                            className="cell-content output-display"
+                          >
+                            <img
+                              className="display-data-image"
+                              src={`data:image/png;base64,${output.data['image/png']}`}
+                              width={size ? size['width'] : 'auto'}
+                              height={size ? size['height'] : 'auto'}
+                              alt=""
+                            />
+                          </div>
+                        )
+                    }
+                    else if (output.data["text/html"]) {
+                      if (output.data["text/html"].length === 0) return
+                      return (<div className="output display-data-html" dangerouslySetInnerHTML={{__html: output.data["text/html"].join('')}}/>)
+                    }
+                    else if (output.data["text/plain"]) {
+                      return (<div className="output display-data-plain">{output.data["text/plain"]}</div>)
+                    }
+                    break
+                  default:
+                    return null
+              }
+            })}
         </div>
       )
     })
@@ -363,6 +411,21 @@ const JupyterNotebookViewer = ({ path }) => {
             border-radius: 5px;
             padding: 0.5rem;
             resize: vertical;
+          }
+
+          .output {
+            width: 100%;
+            min-height: 100px;
+            margin-top: 0.5rem;
+            font-family: monospace;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            padding: 0.5rem;
+            resize: vertical;
+          }
+
+          .display-data-image {
+            margin-top: 10px;
           }
 
           .markdown-render {
