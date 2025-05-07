@@ -527,11 +527,6 @@ const classificationSettings = {
         tooltip: "<p>Name of the experiment for logging. Ignored when log_experiment is False.</p>\n",
         default_val: "None"
       },
-      experiment_custom_tags: {
-        type: "dict",
-        tooltip: "<p>Dictionary of tag_name: String -&gt; value: (String, but will be string-ified\nif not) passed to the mlflow.set_tags to add new custom tags for the experiment.</p>\n",
-        default_val: "None"
-      },
       log_plots: {
         type: "bool",
         tooltip:
@@ -553,11 +548,6 @@ const classificationSettings = {
         tooltip:
           "<p>The execution engines to use for the models in the form of a dict\nof <cite>model_id: engine</cite> - e.g. for Logistic Regression (\u201clr\u201d, users can\nswitch between \u201csklearn\u201d and \u201csklearnex\u201d by specifying\n<cite>engine={\u201clr\u201d: \u201csklearnex\u201d}</cite></p>\n",
         default_val: ""
-      },
-      verbose: {
-        type: "bool",
-        tooltip: "<p>When set to False, Information grid is not printed.</p>\n",
-        default_val: "True"
       },
       memory: {
         type: "str, bool or Memory",
@@ -713,11 +703,6 @@ const classificationSettings = {
           "<p>Optional group labels when \u2018GroupKFold\u2019 is used for the cross validation.\nIt takes an array with shape (n_samples, ) where n_samples is the number\nof rows in the training dataset. When string is passed, it is interpreted\nas the column name in the dataset containing group labels.</p>\n",
         default_val: "None"
       },
-      experiment_custom_tags: {
-        type: "dict",
-        tooltip: "<p>Dictionary of tag_name: String -&gt; value: (String, but will be string-ified\nif not) passed to the mlflow.set_tags to add new custom tags for the experiment.</p>\n",
-        default_val: "None"
-      },
       probability_threshold: {
         type: "float",
         tooltip:
@@ -729,11 +714,6 @@ const classificationSettings = {
         tooltip:
           "<p>The execution engines to use for the models in the form of a dict\nof <cite>model_id: engine</cite> - e.g. for Logistic Regression (\u201clr\u201d, users can\nswitch between \u201csklearn\u201d and \u201csklearnex\u201d by specifying\n<cite>engine={\u201clr\u201d: \u201csklearnex\u201d}</cite></p>\n",
         default_val: ""
-      },
-      verbose: {
-        type: "bool",
-        tooltip: "<p>Score grid is not printed when verbose is set to False.</p>\n",
-        default_val: "True"
       }
     },
     code: " "
@@ -777,27 +757,11 @@ const classificationSettings = {
           "<p>Threshold for converting predicted probability to class label.\nIt defaults to 0.5 for all classifiers unless explicitly defined\nin this parameter. Only applicable for binary classification.</p>\n",
         default_val: "None"
       },
-      experiment_custom_tags: {
-        type: "dict",
-        tooltip: "<p>Dictionary of tag_name: String -&gt; value: (String, but will be string-ified\nif not) passed to the mlflow.set_tags to add new custom tags for the experiment.</p>\n",
-        default_val: "None"
-      },
       engine: {
         type: "Optional[str] = None",
         tooltip:
           "<p>The execution engine to use for the model, e.g. for Logistic Regression (\u201clr\u201d), users can\nswitch between \u201csklearn\u201d and \u201csklearnex\u201d by specifying\n<cite>engine=\u201dsklearnex\u201d</cite>.</p>\n",
         default_val: ""
-      },
-      verbose: {
-        type: "bool",
-        tooltip: "<p>Score grid is not printed when verbose is set to False.</p>\n",
-        default_val: "True"
-      },
-      return_train_score: {
-        type: "bool",
-        tooltip:
-          "<p>If False, returns the CV Validation scores only.\nIf True, returns the CV training scores along with the CV validation scores.\nThis is useful when the user wants to do bias-variance tradeoff. A high CV\ntraining score with a low corresponding CV validation score indicates overfitting.</p>\n",
-        default_val: "False"
       }
     },
     code: "",
@@ -843,11 +807,6 @@ const classificationSettings = {
           tooltip:
             "<p>Optional group labels when GroupKFold is used for the cross validation.\nIt takes an array with shape (n_samples, ) where n_samples is the number\nof rows in training dataset. When string is passed, it is interpreted as\nthe column name in the dataset containing group labels.</p>\n",
           default_val: "None"
-        },
-        verbose: {
-          type: "bool",
-          tooltip: "<p>When set to False, backend's progress bar is not displayed.</p>\n",
-          default_val: "True"
         },
         display_format: {
           type: "string",
@@ -938,11 +897,6 @@ const classificationSettings = {
         type: "bool",
         tooltip: "<p>Whether to return the complete fitted pipeline or only the fitted model.</p>\n",
         default_val: "False"
-      },
-      experiment_custom_tags: {
-        type: "dict",
-        tooltip: "<p>Dictionary of tag_name: String -&gt; value: (String, but will be string-ified\nif not) passed to the mlflow.set_tags to add new custom tags for the experiment.</p>\n",
-        default_val: "None"
       }
     },
     code: "",
@@ -959,11 +913,6 @@ const classificationSettings = {
         type: "bool",
         tooltip: "<p>When set to True, only trained model object is saved instead of the\nentire pipeline.</p>\n",
         default_val: "False"
-      },
-      verbose: {
-        type: "bool",
-        tooltip: "<p>Success message is not printed when verbose is set to False.</p>\n",
-        default_val: "True"
       }
     },
     code: "",
@@ -981,11 +930,6 @@ const classificationSettings = {
         tooltip:
           "<p>dictionary of applicable authentication tokens.</p>\n<p>when platform = \u2018aws\u2019:\n{\u2018bucket\u2019 : \u2018Name of Bucket on S3\u2019, \u2018path\u2019: (optional) folder name under the bucket}</p>\n<p>when platform = \u2018gcp\u2019:\n{\u2018project\u2019: \u2018gcp-project-name\u2019, \u2018bucket\u2019 : \u2018gcp-bucket-name\u2019}</p>\n<p>when platform = \u2018azure\u2019:\n{\u2018container\u2019: \u2018azure-container-name\u2019}</p>\n",
         default_val: "None"
-      },
-      verbose: {
-        type: "bool",
-        tooltip: "<p>Success message is not printed when verbose is set to False.</p>\n",
-        default_val: "True"
       }
     },
     code: "",
@@ -1077,29 +1021,6 @@ const classificationSettings = {
         tooltip:
           "<p>Optional group labels when GroupKFold is used for the cross validation.\nIt takes an array with shape (n_samples, ) where n_samples is the number\nof rows in training dataset. When string is passed, it is interpreted as\nthe column name in the dataset containing group labels.</p>\n",
         default_val: "None"
-      },
-      return_tuner: {
-        type: "bool",
-        tooltip: "<p>When set to True, will return a tuple of (model, tuner_object).</p>\n",
-        default_val: "False"
-      },
-      verbose: {
-        type: "bool",
-        tooltip: "<p>Score grid is not printed when verbose is set to False.</p>\n",
-        default_val: "True"
-      },
-      tuner_verbose: {
-        type: "int",
-        tooltip: "<p>If True or above 0, will print messages from the tuner. Higher values\nprint more messages. Ignored when verbose param is False.</p>\n",
-        default_val: 0,
-        min: 0,
-        max: 3
-      },
-      return_train_score: {
-        type: "bool",
-        tooltip:
-          "<p>If False, returns the CV Validation scores only.\nIf True, returns the CV training scores along with the CV validation scores.\nThis is useful when the user wants to do bias-variance tradeoff. A high CV\ntraining score with a low corresponding CV validation score indicates overfitting.</p>\n",
-        default_val: "False"
       }
     },
     ml_types: "classification regression survival_analysis",
@@ -1161,17 +1082,6 @@ const classificationSettings = {
         tooltip:
           "<p>Threshold for converting predicted probability to class label.\nIt defaults to 0.5 for all classifiers unless explicitly defined\nin this parameter. Only applicable for binary classification.</p>\n",
         default_val: "None"
-      },
-      verbose: {
-        type: "bool",
-        tooltip: "<p>Score grid is not printed when verbose is set to False.</p>\n",
-        default_val: "True"
-      },
-      return_train_score: {
-        type: "bool",
-        tooltip:
-          "<p>If False, returns the CV Validation scores only.\nIf True, returns the CV training scores along with the CV validation scores.\nThis is useful when the user wants to do bias-variance tradeoff. A high CV\ntraining score with a low corresponding CV validation score indicates overfitting.</p>\n",
-        default_val: "False"
       }
     },
     ml_types: "classification regression",
@@ -1233,17 +1143,6 @@ const classificationSettings = {
         tooltip:
           "<p>Threshold for converting predicted probability to class label.\nIt defaults to 0.5 for all classifiers unless explicitly defined\nin this parameter. Only applicable for binary classification.</p>\n",
         default_val: "None"
-      },
-      verbose: {
-        type: "bool",
-        tooltip: "<p>Score grid is not printed when verbose is set to False.</p>\n",
-        default_val: "True"
-      },
-      return_train_score: {
-        type: "bool",
-        tooltip:
-          "<p>If False, returns the CV Validation scores only.\nIf True, returns the CV training scores along with the CV validation scores.\nThis is useful when the user wants to do bias-variance tradeoff. A high CV\ntraining score with a low corresponding CV validation score indicates overfitting.</p>\n",
-        default_val: "False"
       }
     },
     ml_types: "classification regression",
@@ -1337,17 +1236,6 @@ const classificationSettings = {
         tooltip:
           "<p>Threshold for converting predicted probability to class label.\nIt defaults to 0.5 for all classifiers unless explicitly defined\nin this parameter. Only applicable for binary classification.</p>\n",
         default_val: "None"
-      },
-      verbose: {
-        type: "bool",
-        tooltip: "<p>Score grid is not printed when verbose is set to False.</p>\n",
-        default_val: "True"
-      },
-      return_train_score: {
-        type: "bool",
-        tooltip:
-          "<p>If False, returns the CV Validation scores only.\nIf True, returns the CV training scores along with the CV validation scores.\nThis is useful when the user wants to do bias-variance tradeoff. A high CV\ntraining score with a low corresponding CV validation score indicates overfitting.</p>\n",
-        default_val: "False"
       }
     },
     ml_types: "classification regression",
@@ -1394,17 +1282,6 @@ const classificationSettings = {
         tooltip:
           "<p>Optional group labels when GroupKFold is used for the cross validation.\nIt takes an array with shape (n_samples, ) where n_samples is the number\nof rows in training dataset. When string is passed, it is interpreted as\nthe column name in the dataset containing group labels.</p>\n",
         default_val: "None"
-      },
-      verbose: {
-        type: "bool",
-        tooltip: "<p>Score grid is not printed when verbose is set to False.</p>\n",
-        default_val: "True"
-      },
-      return_train_score: {
-        type: "bool",
-        tooltip:
-          "<p>If False, returns the CV Validation scores only.\nIf True, returns the CV training scores along with the CV validation scores.\nThis is useful when the user wants to do bias-variance tradeoff. A high CV\ntraining score with a low corresponding CV validation score indicates overfitting.</p>\n",
-        default_val: "False"
       }
     },
     ml_types: "classification",
