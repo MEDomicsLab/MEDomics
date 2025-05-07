@@ -22,14 +22,21 @@ const ModalSettingsChooser = ({ show, onHide, options, id, data, optionsTuning =
   const [checkedUpdate, setCheckedUpdate] = useState(null)
   const [checkedUpdateTuning, setCheckedUpdateTuning] = useState(null)
   const { updateNode } = useContext(FlowFunctionsContext)
+  const settings = data.setupParam?.possibleSettings?.[data.internal.selection]?.options
+  const option = settings?.[checkedUpdate.optionName]
 
   // update the node when a setting is checked or unchecked from the modal
   useEffect(() => {
     if (checkedUpdate != null) {
       if (checkedUpdate.checked) {
         !data.internal.checkedOptions.includes(checkedUpdate.optionName) && data.internal.checkedOptions.push(checkedUpdate.optionName)
-        if (data.internal.checkedOptions.includes(checkedUpdate.optionName) && "default_val" in data.setupParam.possibleSettings[data.internal.selection].options[checkedUpdate.optionName] && data.internal.settings[checkedUpdate.optionName] !== data.setupParam.possibleSettings[data.internal.selection].options[checkedUpdate.optionName].default_val) {
-          data.internal.settings[checkedUpdate.optionName] = data.setupParam.possibleSettings[data.internal.selection].options[checkedUpdate.optionName].default_val
+        if (
+          data.internal.checkedOptions.includes(checkedUpdate.optionName) &&
+          option &&
+          "default_val" in option &&
+          data.internal.settings[checkedUpdate.optionName] !== option.default_val
+        ) {
+          data.internal.settings[checkedUpdate.optionName] = option.default_val
         }
       } else {
         data.internal.checkedOptions = data.internal.checkedOptions.filter((optionName) => optionName != checkedUpdate.optionName)
