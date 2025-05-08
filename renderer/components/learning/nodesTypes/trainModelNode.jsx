@@ -28,6 +28,12 @@ const TrainModelNode = ({ id, data }) => {
 
   // Check if isTuningEnabled exists in data.internal, if not initialize it
   useEffect(() => {
+    if (data.internal.tuningGrid && Object.keys(data.internal.tuningGrid).length > 0) {
+      Object.keys(data.internal.tuningGrid).map((model) => {
+        data.internal[model] = {}
+        data.internal[model].custom_grid = {}
+      })
+    }
     if (!("isTuningEnabled" in data.internal)) {
       data.internal.isTuningEnabled = false
       updateNode({

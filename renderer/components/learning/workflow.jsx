@@ -210,34 +210,23 @@ const Workflow = ({ setWorkflowType, workflowType }) => {
     const allModelsNeedRemoval = modelsToRemove.length === Object.keys(tuningGrid).length
     if (modelsToRemove.length === 0 && !allModelsNeedRemoval) return
     
-    // Create updated tuning grid by filtering out unused models
-    const updatedTuningGrid = { ...tuningGrid }
-    modelsToRemove.forEach(model => {
-      delete updatedTuningGrid[model]
-    })
-    
     // If no valid model selections remain, remove the tuningGrid completely
     // Otherwise, update it with the filtered version
     setNodes((nds) =>
       nds.map((node) => {
         if (node.id === trainModelNode.id) {
           const updatedInternal = { ...node.data.internal }
-          
-          if (Object.keys(updatedTuningGrid).length === 0 || modelSelectionNodes.length === 0) {
+          if (modelsToRemove.length > 0) {
+            modelsToRemove.forEach(model => {
+              delete updatedInternal.tuningGrid[model]
+              delete updatedInternal[model]
+            })
+          }
+          else if (modelSelectionNodes.length === 0) {
             // Remove tuningGrid key completely when no models remain
             delete updatedInternal.tuningGrid
-          } else {
-            // Update with filtered tuning grid
-            updatedInternal.tuningGrid = updatedTuningGrid
           }
-          
-          return {
-            ...node,
-            data: {
-              ...node.data,
-              internal: updatedInternal
-            }
-          }
+          node.data.internal = updatedInternal
         }
         return node
       })
