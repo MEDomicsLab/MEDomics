@@ -28,9 +28,6 @@ const ModalSettingsChooser = ({ show, onHide, options, id, data, optionsTuning =
     if (checkedUpdate != null) {
       if (checkedUpdate.checked) {
         !data.internal.checkedOptions.includes(checkedUpdate.optionName) && data.internal.checkedOptions.push(checkedUpdate.optionName)
-        if (data.internal.checkedOptions.includes(checkedUpdate.optionName) && "default_val" in data.setupParam.possibleSettings[data.internal.selection].options[checkedUpdate.optionName] && data.internal.settings[checkedUpdate.optionName] !== data.setupParam.possibleSettings[data.internal.selection].options[checkedUpdate.optionName].default_val) {
-          data.internal.settings[checkedUpdate.optionName] = data.setupParam.possibleSettings[data.internal.selection].options[checkedUpdate.optionName].default_val
-        }
       } else {
         data.internal.checkedOptions = data.internal.checkedOptions.filter((optionName) => optionName != checkedUpdate.optionName)
         delete data.internal.settings[checkedUpdate.optionName]

@@ -170,116 +170,149 @@ const Workflow = ({ setWorkflowType, workflowType }) => {
   useEffect(() => {
     setTreeData(createTreeFromNodes())
     updateTrainModelNode(nodes, edges)
+    cleanTrainModelNode(nodes)
   }, [nodes, edges])
+
+  const cleanTrainModelNode = (nodes) => {
+    // Find the relevant train model node
+    const trainModelNode = nodes.find(
+      (node) => node.type === "trainModelNode" && node.data.internal.subflowId === groupNodeId.id
+    )
+    
+    // If no train model node found, exit early
+    if (!trainModelNode) return
+    
+    // Find all model selection nodes in the same subflow
+    const modelSelectionNodes = nodes.filter(
+      (node) => 
+        node.type === "selectionNode" && 
+        node.data.internal.subflowId === groupNodeId.id && 
+        node.data.internal.type === "model"
+    )
+    
+    // Get the tuning grid from the train model node
+    const { tuningGrid } = trainModelNode.data.internal
+    
+    // If no tuning grid or empty tuning grid, exit early
+    if (!tuningGrid || Object.keys(tuningGrid).length === 0) return
+    
+    // Create a set of existing model selections for faster lookups
+    const existingModelSelections = new Set(
+      modelSelectionNodes.filter((node) => node.data.internal.checkedOptions.length > 0).map(node => node.data.internal.selection.toString())
+      )
+    
+    // Get models to remove (those without corresponding selection nodes)
+    const modelsToRemove = Object.keys(tuningGrid).filter(
+      model => !existingModelSelections.has(model)
+    )
+    
+    // If all models need to be removed or no models to remove, handle accordingly
+    const allModelsNeedRemoval = modelsToRemove.length === Object.keys(tuningGrid).length
+    if (modelsToRemove.length === 0 && !allModelsNeedRemoval) return
+    
+    // Create updated tuning grid by filtering out unused models
+    const updatedTuningGrid = { ...tuningGrid }
+    modelsToRemove.forEach(model => {
+      delete updatedTuningGrid[model]
+    })
+    
+    // If no valid model selections remain, remove the tuningGrid completely
+    // Otherwise, update it with the filtered version
+    setNodes((nds) =>
+      nds.map((node) => {
+        if (node.id === trainModelNode.id) {
+          const updatedInternal = { ...node.data.internal }
+          
+          if (Object.keys(updatedTuningGrid).length === 0 || modelSelectionNodes.length === 0) {
+            // Remove tuningGrid key completely when no models remain
+            delete updatedInternal.tuningGrid
+          } else {
+            // Update with filtered tuning grid
+            updatedInternal.tuningGrid = updatedTuningGrid
+          }
+          
+          return {
+            ...node,
+            data: {
+              ...node.data,
+              internal: updatedInternal
+            }
+          }
+        }
+        return node
+      })
+    )
+  }
 
   const updateTrainModelNode = (nodes) => {
     const trainModelNode = nodes.find((node) => node.type == "trainModelNode" && node.data.internal.subflowId == groupNodeId.id)
     if (trainModelNode){
       let tuneModel = trainModelNode.data.internal.hasOwnProperty("isTuningEnabled") ? trainModelNode.data.internal.isTuningEnabled : false
-      const modelSelectionNode = nodes.find((node) => node.type == "selectionNode" && node.data.internal.subflowId == groupNodeId.id)
-      let newModelSelectionNode = deepCopy(trainModelNode)
-      if (Object.keys(modelSelectionNode.data.internal.settings).length > 0) {
-        let filled = newModelSelectionNode.data.internal.tuningSettings ? Object.keys(newModelSelectionNode.data.internal.tuningSettings).length > 0 : false
-        newModelSelectionNode.data.internal.tuningSettings = filled ? deepCopy(newModelSelectionNode.data.internal.tuningSettings) : {}
-        let selectedModel = modelSelectionNode.data.internal.selection
-        if (selectedModel) {
-          let alreadyUpdated = true
-          if (modelSelectionNode.data.internal.checkedOptions.length === 0){
-            newModelSelectionNode.data.internal.tuningSettings = {}
-            newModelSelectionNode.data.internal.tuningSettings["options"] = modelSelectionNode.data.setupParam.possibleSettings[selectedModel].options
-            alreadyUpdated = false
-            return
-          }
-          Object.keys(modelSelectionNode.data.internal.settings).forEach((setting) => {
-            if (newModelSelectionNode.data.internal.tuningSettings.hasOwnProperty(setting)) {
-              if (!modelSelectionNode.data.internal.checkedOptions.includes(setting)) {
-                delete newModelSelectionNode.data.internal.tuningSettings[setting]
-                alreadyUpdated = false
-                return
-              }
-              if (newModelSelectionNode.data.internal.tuningSettings.hasOwnProperty("options")) {
-                if (!newModelSelectionNode.data.internal.tuningSettings.options.hasOwnProperty(setting)) {
+      const listModelSelectionNode = nodes.filter((node) => node.type == "selectionNode" && node.data.internal.subflowId == groupNodeId.id&& node.data.internal.type == "model")
+      for (const modelSelectionNode of listModelSelectionNode) {
+        let newTrainModelNode = deepCopy(trainModelNode)
+        let selectedModel = modelSelectionNode.data.internal.selection.toString()
+        if (Object.keys(modelSelectionNode.data.internal.settings).length > 0) {
+          let filled = newTrainModelNode.data.internal.tuningGrid ? Object.keys(newTrainModelNode.data.internal.tuningGrid).length > 0 : false
+          newTrainModelNode.data.internal.tuningGrid = filled ? deepCopy(newTrainModelNode.data.internal.tuningGrid) : {}
+          if (selectedModel) {
+            newTrainModelNode.data.internal.tuningGrid[selectedModel] = newTrainModelNode.data.internal.tuningGrid[selectedModel] ? deepCopy(newTrainModelNode.data.internal.tuningGrid[selectedModel]) : {}
+            let alreadyUpdated = true
+            Object.keys(modelSelectionNode.data.internal.settings).forEach((setting) => {
+              if (newTrainModelNode.data.internal.tuningGrid[selectedModel] && newTrainModelNode.data.internal.tuningGrid[selectedModel].hasOwnProperty(setting)) {
+                if (!modelSelectionNode.data.internal.checkedOptions.includes(setting)) {
+                  delete newTrainModelNode.data.internal.tuningGrid[selectedModel][setting]
+                  alreadyUpdated = false
+                  return
+                }
+                if (newTrainModelNode.data.internal.tuningGrid[selectedModel].hasOwnProperty("options")) {
+                  if (!newTrainModelNode.data.internal.tuningGrid[selectedModel].options.hasOwnProperty(setting)) {
+                    alreadyUpdated = false
+                    return
+                  }
+                } else {
+                  newTrainModelNode.data.internal.tuningGrid[selectedModel] = {
+                    ...newTrainModelNode.data.internal.tuningGrid[selectedModel],
+                    ...modelSelectionNode.data.internal.settings
+                  }
                   alreadyUpdated = false
                   return
                 }
               } else {
-                newModelSelectionNode.data.internal.tuningSettings = {
-                  ...newModelSelectionNode.data.internal.tuningSettings,
+                newTrainModelNode.data.internal.tuningGrid[selectedModel] = {
+                  ...newTrainModelNode.data.internal.tuningGrid[selectedModel],
                   ...modelSelectionNode.data.internal.settings
                 }
                 alreadyUpdated = false
                 return
               }
-            } else {
-              newModelSelectionNode.data.internal.tuningSettings = {
-                ...newModelSelectionNode.data.internal.tuningSettings,
-                ...modelSelectionNode.data.internal.settings
+            })
+            newTrainModelNode.data.internal.tuningGrid[selectedModel] && (Object.keys(newTrainModelNode.data.internal.tuningGrid[selectedModel]).forEach((setting) => {
+              if (setting !== "options" && !modelSelectionNode.data.internal.checkedOptions.includes(setting)) {
+                delete newTrainModelNode.data.internal.tuningGrid[selectedModel][setting]
+                alreadyUpdated = false
               }
-              alreadyUpdated = false
-              return
-            }
-          })
-          Object.keys(newModelSelectionNode.data.internal.tuningSettings).forEach((setting) => {
-            if (setting !== "options" && !modelSelectionNode.data.internal.checkedOptions.includes(setting)) {
-              delete newModelSelectionNode.data.internal.tuningSettings[setting]
-              alreadyUpdated = false
-            }
-          })
-          if (!alreadyUpdated) {
-            newModelSelectionNode.data.internal.tuningSettings = {
-              ...newModelSelectionNode.data.internal.tuningSettings,
-              ...{options: modelSelectionNode.data.setupParam.possibleSettings[selectedModel].options}
-            }
+            }))
+            if (!alreadyUpdated) {
+              newTrainModelNode.data.internal.tuningGrid[selectedModel] = {
+                ...newTrainModelNode.data.internal.tuningGrid[selectedModel],
+                ...{options: modelSelectionNode.data.setupParam.possibleSettings[selectedModel].options}
+              }
 
-            setNodes((nds) =>
-              nds.map((node) => {
-                if (node.id == trainModelNode.id) {
-                  node.data.internal.tuningSettings = newModelSelectionNode.data.internal.tuningSettings
-                  node.data.internal.isTuningEnabled = tuneModel
-                }
-                return node
-              })
-            )
-           
-          } else {
-            return
+              setNodes((nds) =>
+                nds.map((node) => {
+                  if (node.id == trainModelNode.id) {
+                    node.data.internal = newTrainModelNode.data.internal
+                    node.data.internal.isTuningEnabled = tuneModel
+                  }
+                  return node
+                })
+              )
+            } else {
+              continue
+            }
           }
         }
-        // Custom grid params
-        let updatedGrid = false
-        if (newModelSelectionNode.data.internal.settings.custom_grid && Object.keys(newModelSelectionNode.data.internal.settings.custom_grid).length > 0){
-          Object.keys(newModelSelectionNode.data.internal.settings.custom_grid).forEach((setting) => {
-            if (!modelSelectionNode.data.internal.checkedOptions.includes(setting)) {
-              delete newModelSelectionNode.data.internal.settings.custom_grid[setting]
-              updatedGrid = true
-            }
-          })
-        }
-        if (updatedGrid){
-          setNodes((nds) =>
-            nds.map((node) => {
-              if (node.id == trainModelNode.id) {
-                node.data.internal.settings.custom_grid = newModelSelectionNode.data.internal.settings.custom_grid
-              }
-            return node
-          })
-        )}
-      } else if (newModelSelectionNode.data.internal.tuningSettings && Object.keys(newModelSelectionNode.data.internal.tuningSettings).filter(e => e !== "options").length > 0){
-        newModelSelectionNode.data.internal.tuningSettings = newModelSelectionNode.data.internal.tuningSettings.options ? {
-          ...{options: newModelSelectionNode.data.internal.tuningSettings.options}
-        } : {}
-        setNodes((nds) =>
-          nds.map((node) => {
-            if (node.id == trainModelNode.id) {
-              node.data.internal.tuningSettings = newModelSelectionNode.data.internal.tuningSettings
-              node.data.internal.isTuningEnabled = tuneModel
-              if (node.data.internal.settings && node.data.internal.settings.custom_grid) {
-                node.data.internal.settings.custom_grid = {}
-              }
-            }
-            return node
-          })
-        )
       }
     }
   }
