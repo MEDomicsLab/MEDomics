@@ -1,16 +1,19 @@
 /* eslint-disable camelcase */ // cell_type comes from Jupyter Notebook's structure and Linter doesn't like it
-import React, { useEffect, useState, useRef } from "react"
-import { toast } from "react-toastify"
-import { Prism as SyntaxHighlighter } from "react-syntax-highlighter"
-import { coy } from "react-syntax-highlighter/dist/cjs/styles/prism"
-import ReactMarkdown from "react-markdown"
+import React, { useEffect, useState } from "react"
+// import { toast } from "react-toastify"
+// import { Prism as SyntaxHighlighter } from "react-syntax-highlighter"
+// import { coy } from "react-syntax-highlighter/dist/cjs/styles/prism"
+// import ReactMarkdown from "react-markdown"
 import fs from "fs"
-import AceEditor from "react-ace"
-import "ace-builds/src-noconflict/mode-python"
-import "ace-builds/src-noconflict/theme-tomorrow"
-import { FaCopy, FaArrowUp, FaArrowDown, FaPlusCircle, FaPlusSquare, FaTrash, FaCode, FaMarkdown, FaPlay } from "react-icons/fa"
-import { Button } from "primereact/button"
-import { SelectButton } from "primereact/selectbutton"
+// import AceEditor from "react-ace"
+// import "ace-builds/src-noconflict/mode-python"
+// import "ace-builds/src-noconflict/theme-tomorrow"
+// import { FaCopy, FaArrowUp, FaArrowDown, FaPlusCircle, FaPlusSquare, FaTrash, FaCode, FaMarkdown, FaPlay } from "react-icons/fa"
+// import { Button } from "primereact/button"
+// import { SelectButton } from "primereact/selectbutton"
+import Iframe from "react-iframe"
+const util = require("util")
+const exec = util.promisify(require("child_process").exec)
 
 /**
  * Jupyter Notebook viewer
@@ -18,8 +21,8 @@ import { SelectButton } from "primereact/selectbutton"
  * @returns {JSX.Element} - A Jupyter Notebook viewer
  */
 const JupyterNotebookViewer = ({ path }) => {
+  /** 
   const [notebookContent, setNotebookContent] = useState(null)
-  const [error, setError] = useState(null)
   const [editMode, setEditMode] = useState({})
   const editorRefs = useRef({})
   const [loadingSave, setLoadingSave] = useState(false)
@@ -469,11 +472,108 @@ const JupyterNotebookViewer = ({ path }) => {
       {error && <p className="error-message">{error}</p>}
       {notebookContent ? <div className="notebook-content">{renderCells()}</div> : <p className="loading-message">Loading Jupyter Notebook...</p>}
     </div>
+  ) 
+*/
+  const [error, setError] = useState(null)
+
+  const defaultPort = 8900
+  const fileName = path.split("\\").pop() // Get the file name from the path
+  const [jupyterLoaded, setJupyterLoaded] = useState(false) // Flag to check if Jupyter Notebook is loaded
+
+  const setJupyterConfig = async () => {
+    await exec('jupyter --paths').then((result) => {
+      const configPath = result.stdout.split("\n").find(line => line.includes(".jupyter"))
+      if (configPath) {
+        // Read the last line of the jupyter_notebook_config.py file
+        const configFilePath = configPath.trim() + "/jupyter_notebook_config.py"
+        // Get last line of configfilepath
+        const lastLine = fs.readFileSync(configFilePath, "utf8").split("\n").slice(-1)[0]
+        if (!lastLine.includes("c.NotebookApp.tornado_settings")) {
+          // Append the line to the file
+          fs.appendFileSync(configFilePath, `\nc.NotebookApp.tornado_settings={'headers': {'Content-Security-Policy': "frame-ancestors 'self' http://localhost:8888;"}}`)
+        }
+      }
+    })
+  }
+
+
+  const startJupyter = async () => {
+    await setJupyterConfig()
+
+    exec('jupyter notebook "' + path + '" --no-browser --port ' + defaultPort)
+    await new Promise((resolve) => setTimeout(resolve, 2000)) // Wait for Jupyter to start
+    document.getElementById("iframe-" + fileName).src = "http://localhost:" + defaultPort + "/notebooks/" + fileName
+    setJupyterLoaded(true)
+  }
+
+  const checkJupyterRunning = async () => {
+    setJupyterLoaded(false)
+    await exec('jupyter notebook list')
+      .then((result) => {
+        const runningInstances = result.stdout.split("\n")
+        if (runningInstances.length < 3) { // Split returns 2 lines by default + however many instances are running
+          startJupyter()
+        } else {
+          // console.log("token :", runningInstances[1].split(" ")[0]) // might not need the token after all
+          document.getElementById("iframe-" + fileName).src = "http://localhost:" + defaultPort + "/notebooks/" + fileName
+          setJupyterLoaded(true)
+        }
+      })
+      .catch((err) => {
+        console.error("Error parsing notebook:", err)
+        setError("Failed to parse the notebook. Please check the file.")
+        setJupyterLoaded(true)
+      })
+    return
+  }
+
+  useEffect( () => {
+    if (!path) return
+    checkJupyterRunning()
+  }, [path])
+
+  return (
+    <div className="jupyter-notebook-viewer">
+      {error && <p className="error-message">{error}</p>}
+      {!jupyterLoaded && <p id="loading-message">Loading Jupyter Notebook...</p>}
+      <Iframe id={"iframe-" + fileName} visible={jupyterLoaded} className="jupyter-notebook-frame" src=''></Iframe>
+      <style>
+        {`
+          .jupyter-notebook-frame {
+            width: 100%;
+            height: 99%;
+            border: none;
+          }
+
+          .jupyter-notebook-viewer {
+            padding: 0.5rem;
+            overflow: auto;
+            height: 100%;
+            font-family: 'Arial', sans-serif;
+            background: linear-gradient(180deg, #f5f5f5 0%, #e0e0e0 100%);
+          }
+
+          .error-message {
+            color: #d9534f;
+            font-weight: bold;
+            padding: 1rem;
+            border: 1px solid #d9534f;
+            border-radius: 5px;
+            background-color: rgba(217, 83, 79, 0.1);
+          }
+          
+          #loading-message {
+            text-align: center;
+          }
+          
+        `}
+      </style>
+    </div>
   )
 }
 
-function deepCopy(obj) {
-  return JSON.parse(JSON.stringify(obj))
-}
+// function deepCopy(obj) {
+//   return JSON.parse(JSON.stringify(obj))
+// }
 
 export default JupyterNotebookViewer
