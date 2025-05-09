@@ -22,8 +22,6 @@ const ModalSettingsChooser = ({ show, onHide, options, id, data, optionsTuning =
   const [checkedUpdate, setCheckedUpdate] = useState(null)
   const [checkedUpdateTuning, setCheckedUpdateTuning] = useState(null)
   const { updateNode } = useContext(FlowFunctionsContext)
-  const settings = data.setupParam?.possibleSettings?.[data.internal.selection]?.options
-  const option = settings?.[checkedUpdate.optionName]
 
   // update the node when a setting is checked or unchecked from the modal
   useEffect(() => {
