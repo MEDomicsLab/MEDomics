@@ -24,6 +24,7 @@ import { toast } from "react-toastify"
  */
 const HyperParameterInput = ({ 
   name, 
+  model,
   paramInfo, 
   currentValue, 
   currentGridValues,
@@ -112,7 +113,7 @@ const HyperParameterInput = ({
     }
 
     if (newGridValues.length > 0) {
-      onParamChange({
+      onParamChange(model, {
         name: name,
         value: newGridValues,
         type: paramInfo.type,
@@ -140,7 +141,7 @@ const HyperParameterInput = ({
     setGridValues(values)
     
     // Update parent component with new grid values
-    onParamChange({
+    onParamChange(model, {
       name: name,
       value: values,
       type: paramInfo.type,
@@ -154,7 +155,7 @@ const HyperParameterInput = ({
       generateGridValues()
     } else if (inputMode === 'discrete') {
       if (!hasError &&  discreteValues.length > 0) {
-        onParamChange({
+        onParamChange(model, {
           name: name,
           value: discreteValues,
           type: paramInfo.type,
@@ -259,7 +260,7 @@ const HyperParameterInput = ({
             <div className="flex flex-wrap gap-2 mt-2">
               {discreteValues.map((val, idx) => (
                 <Chip
-                  key={idx}
+                  key={`chip-${idx}-${val}`}
                   label={val.toString()}
                   removable
                   onRemove={() => handleRemoveDiscreteValue(idx)}
@@ -299,7 +300,7 @@ const HyperParameterInput = ({
             <div className="flex flex-wrap gap-2 mt-2">
               {discreteValues.map((val, idx) => (
                 <Chip
-                  key={idx}
+                  key={`chip-${idx}-${val}`}
                   label={val.toString()}
                   removable
                   onRemove={() => handleRemoveDiscreteValue(idx)}

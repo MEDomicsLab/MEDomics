@@ -1,4 +1,5 @@
 import { Checkbox } from "primereact/checkbox"
+import { Panel } from "primereact/panel"
 import React, { useContext, useEffect, useState } from "react"
 import { Button, Stack } from "react-bootstrap"
 import * as Icon from "react-bootstrap-icons"
@@ -27,6 +28,12 @@ const TrainModelNode = ({ id, data }) => {
 
   // Check if isTuningEnabled exists in data.internal, if not initialize it
   useEffect(() => {
+    if (data.internal.tuningGrid && Object.keys(data.internal.tuningGrid).length > 0) {
+      Object.keys(data.internal.tuningGrid).map((model) => {
+        data.internal[model] = {}
+        data.internal[model].custom_grid = {}
+      })
+    }
     if (!("isTuningEnabled" in data.internal)) {
       data.internal.isTuningEnabled = false
       updateNode({
@@ -68,11 +75,12 @@ const TrainModelNode = ({ id, data }) => {
    * @param {Object} inputUpdate the object containing the name and the value of the input
    * @description This function is used to update the tuning settings of the node
    * */
-  const onTuningParamChange = (inputUpdate) => {
-    if (!Object.keys(data.internal.settings).includes("custom_grid")) {
-      data.internal.settings.custom_grid = {}
+  const onTuningParamChange = (model, inputUpdate) => {
+    if (!Object.keys(data.internal).includes(model)) {
+      data.internal[model] = {}
+      data.internal[model].custom_grid = {}
     }
-    data.internal.settings.custom_grid[inputUpdate.name] = inputUpdate.value
+    data.internal[model].custom_grid[inputUpdate.name] = inputUpdate.value
     updateNode({
       id: id,
       updatedData: data.internal
@@ -130,7 +138,7 @@ const TrainModelNode = ({ id, data }) => {
                         key={settingName}
                         name={settingName}
                         settingInfos={setting}
-                        currentValue={data.internal.settings[settingName]}
+                        currentValue={data.internal[settingName]}
                         onInputChange={onInputChange}
                       />
                     )
@@ -175,21 +183,32 @@ const TrainModelNode = ({ id, data }) => {
               )
             })}
             
-            {data.internal.isTuningEnabled && data.internal.tuningSettings && Object.keys(data.internal.tuningSettings).filter((e) => e !== "options").length > 0 && Object.keys(data.internal.tuningSettings.options).length > 0 && (
+            {data.internal.isTuningEnabled && (
               <>
+              {data.internal.tuningGrid && Object.keys(data.internal.tuningGrid).length > 0 && (
+                <>
                 <hr />
                 <div style={{ fontWeight: "bold", margin: "10px 0" }}>Custom Tuning Grid</div>
-                {Object.keys(data.internal.tuningSettings.options).filter((setting => data.internal.tuningSettings.hasOwnProperty(setting))).map((setting) => {
+                {Object.keys(data.internal.tuningGrid).map((model) => {
                   return (
-                    <HyperParameterInput
-                      name={setting}
-                      paramInfo={data.internal.tuningSettings.options[setting]}
-                      currentValue={data.internal.tuningSettings.options[setting].default_val}
-                      currentGridValues={data.internal.settings.custom_grid ? data.internal.settings.custom_grid[setting] : null}
-                      onParamChange={onTuningParamChange}
-                    />
+                    <Panel header={model} key={model} collapsed toggleable>
+                        {Object.keys(data.internal.tuningGrid[model].options).filter((setting => data.internal.tuningGrid[model].hasOwnProperty(setting))).map((setting) => {
+                        return (
+                          <HyperParameterInput
+                            name={setting}
+                            model={model}
+                            paramInfo={data.internal.tuningGrid[model].options[setting]}
+                            currentValue={data.internal.tuningGrid[model].options[setting].default_val}
+                            currentGridValues={data.internal[model] ? data.internal[model]?.custom_grid[setting] : null}
+                            onParamChange={onTuningParamChange}
+                          />
+                        )
+                      })}
+                    </Panel>
                   )
                 })}
+                </>
+              )}
               </>
             )}
             {data.internal.isTuningEnabled && data.internal.checkedOptionsTuning && data.internal.checkedOptionsTuning.length > 0 && (

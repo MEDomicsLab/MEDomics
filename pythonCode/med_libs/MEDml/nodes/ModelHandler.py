@@ -116,6 +116,10 @@ class ModelHandler(Node):
                     if 'optimize' in self.settingsTuning and self.settingsTuning['optimize']:
                         optimization_metric = self.settingsTuning['optimize']
                     
+                    # Check if a custom grid is provided
+                    if model_id in list(self.config_json['data']['internal'].keys()) and 'custom_grid' in list(self.config_json['data']['internal'][model_id].keys()):
+                        self.settingsTuning['custom_grid'] = self.config_json['data']['internal'][model_id]['custom_grid']
+                    
                     # Tune the model
                     model = pycaret_exp.tune_model(model, **self.settingsTuning)
             except Exception as e:
