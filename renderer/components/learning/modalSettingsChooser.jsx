@@ -27,27 +27,34 @@ const ModalSettingsChooser = ({ show, onHide, options, id, data, optionsTuning =
 
   // update the node when a setting is checked or unchecked from the modal
   useEffect(() => {
-    if (checkedUpdate != null) {
-      if (checkedUpdate.checked) {
-        !data.internal.checkedOptions.includes(checkedUpdate.optionName) && data.internal.checkedOptions.push(checkedUpdate.optionName)
-        if (
-          data.internal.checkedOptions.includes(checkedUpdate.optionName) &&
-          option &&
-          "default_val" in option &&
-          data.internal.settings[checkedUpdate.optionName] !== option.default_val
-        ) {
-          data.internal.settings[checkedUpdate.optionName] = option.default_val
-        }
-      } else {
-        data.internal.checkedOptions = data.internal.checkedOptions.filter((optionName) => optionName != checkedUpdate.optionName)
-        delete data.internal.settings[checkedUpdate.optionName]
+    if (!checkedUpdate) return;
+  
+    const settings = data.setupParam?.possibleSettings?.[data.internal.selection]?.options;
+    const option = settings?.[checkedUpdate.optionName];
+  
+    if (checkedUpdate.checked) {
+      if (!data.internal.checkedOptions.includes(checkedUpdate.optionName)) {
+        data.internal.checkedOptions.push(checkedUpdate.optionName);
       }
-      updateNode({
-        id: id,
-        updatedData: data.internal
-      })
+  
+      if (
+        option &&
+        "default_val" in option &&
+        data.internal.settings[checkedUpdate.optionName] !== option.default_val
+      ) {
+        data.internal.settings[checkedUpdate.optionName] = option.default_val;
+      }
+    } else {
+      data.internal.checkedOptions = data.internal.checkedOptions.filter((name) => name !== checkedUpdate.optionName);
+      delete data.internal.settings[checkedUpdate.optionName];
     }
-  }, [checkedUpdate])
+  
+    updateNode({
+      id,
+      updatedData: data.internal,
+    });
+  }, [checkedUpdate]);
+  
 
   // update the node when a setting is checked or unchecked from the modal
   useEffect(() => {
