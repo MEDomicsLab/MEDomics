@@ -50,9 +50,27 @@ class Split(Node):
         dataset = kwargs.get("dataset", None)
         target = kwargs.get("target", None)
         random_state = int(self.settings['global']['random_state'])
-        stratify = bool(self.settings['global']['stratify'])
+        #stratify = bool(self.settings['global']['stratify'])
         split_type = self.settings['outer_split_type']
         use_pycarets_default = bool(self.settings['use_pycarets_default'])
+        
+        # columns for stratification
+        stratify_columns = kwargs.get("stratify_columns", [])
+
+        # val default is target (equivalent to stratify= True)
+        if not stratify_columns and target:
+            stratify_columns = [target]
+
+        if not isinstance(stratify_columns, list):
+            raise ValueError("stratify_columns must be a list.")
+        missing_cols = [col for col in stratify_columns if col not in dataset.columns]
+        if missing_cols:
+            raise ValueError(f"Stratify columns not found in dataset: {missing_cols}")
+
+        # For fold_strategy (stratifiedkfold ou kfold)
+        use_stratification = bool(stratify_columns)
+
+
 
         # Check if input dataset is valid
         if dataset is None:
@@ -81,7 +99,8 @@ class Split(Node):
             data=experiment['df'] if 'df' in experiment else dataset,
             **kwargs["setup_settings"],
             log_experiment=medml_logger,
-            data_split_stratify=stratify,
+            data_split_stratify=stratify_columns,
+            fold_strategy="stratifiedkfold" if use_stratification else "kfold",
             log_plots=True,
             log_data=True,
             session_id=random_state,
@@ -112,8 +131,8 @@ class Split(Node):
                 data=experiment['df'],
                 **kwargs["setup_settings"],
                 log_experiment=medml_logger,
-                data_split_stratify=stratify,
-                fold_strategy="stratifiedkfold" if stratify else "kfold",
+                data_split_stratify=stratify_columns,
+                fold_strategy="stratifiedkfold" if use_stratification else "kfold",
                 fold=cv_folds,
                 log_plots=True,
                 log_data=True,
@@ -260,6 +279,7 @@ class Split(Node):
             "split_indices": iteration_result,
             "table": "dataset",
             "paths": ["path"],
+            "stratify_columns": stratify_columns,
         }
 
         return {
@@ -267,5 +287,6 @@ class Split(Node):
             "split_indices": iteration_result,
             "table": "dataset",
             "paths": ["path"],
+            "stratify_columns": stratify_columns
         }
     
