@@ -316,7 +316,7 @@ const Input = ({ name, settingInfos, currentValue, onInputChange, disabled = fal
                 type: settingInfos.type,
               });
             }}
-            options={Object.entries(settingInfos.choices).map(([option, label]) => ({
+            options={Object.entries(settingInfos?.choices || {}).map(([option, label]) => ({
               label,
               value: option,
             }))}

@@ -109,6 +109,12 @@ const DatasetNode = ({ id, data }) => {
       steps && (data.internal.settings.steps = steps)
       data.internal.settings.columns = columnsObject
       data.internal.settings.target = columnsArray[columnsArray.length - 1]
+      data.outputs = {
+        dataset: {                     
+          files  : inputUpdate.value,  
+          columns: columnsObject    
+        }
+      };
     } else {
       delete data.internal.settings.target
       delete data.internal.settings.columns

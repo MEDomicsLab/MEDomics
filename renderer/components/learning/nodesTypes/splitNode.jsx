@@ -6,14 +6,13 @@ import { Stack } from "react-bootstrap"
 import { FlowFunctionsContext } from "../../flow/context/flowFunctionsContext"
 import Node from "../../flow/node"
 import Input from "../input"
-import { getCollectionColumns } from "../../mongoDB/mongoDBUtils"
 
 const SplitNode = ({ id, data }) => {
   const { updateNode } = useContext(FlowFunctionsContext)
   const [usePycaretDefaultParams, setUsePycaretDefaultParams] = React.useState(false)
   const [useUserDefinedSettings, setUseUserDefinedSettings] = React.useState(false)
-
-  
+  // Columns forwarded through the edge “dataset”
+  const incomingCols = data.inputs?.dataset?.columns || [];
 
   // Update available options when split type changes
   useEffect(() => {
@@ -88,6 +87,30 @@ const SplitNode = ({ id, data }) => {
     )
   }
 
+  useEffect(() => {
+    if (incomingCols.length === 0) return;              // rien reçu
+  
+    const choices = incomingCols.reduce((o, c) => ({ ...o, [c]: c }), {});
+  
+    updateNode({
+      id,
+      updatedData: {
+        ...data.internal,
+        settings: {
+          ...data.internal.settings,
+          columns: choices,
+          global: {
+            ...data.internal.settings.global,
+            stratify_columns:
+              (data.internal.settings.global?.stratify_columns || [])
+                .filter((c) => c in choices),
+          },
+        },
+      },
+    });
+  }, [incomingCols]);           // se relance dès que DatasetNode change
+  
+
   // Render the user-defined settings
   const renderUserDefinedSettings = (params) => {
     return Object.entries(data.setupParam?.possibleSettings?.outer?.user_defined || {}).map(
@@ -103,24 +126,6 @@ const SplitNode = ({ id, data }) => {
       )
     )
   }
-  useEffect(() => {
-    const fetchColumns = async () => {
-      if (!data.internal.settings.files?.id) return;
-  
-      try {
-        const arr = await getCollectionColumns(data.internal.settings.files.id);
-        data.internal.settings.columns = arr.reduce(
-          (o, c) => ({ ...o, [c]: c }),   // { age:"age", sex:"sex", ... }
-          {}
-        );
-        updateNode({ id, updatedData: data.internal });
-      } catch (err) {
-        console.error("Could not load dataset columns:", err);
-      }
-    };
-  
-    fetchColumns();
-  }, [data.internal.settings.files?.id]);
   
 
   return (
@@ -198,11 +203,11 @@ const SplitNode = ({ id, data }) => {
                       };
 
                       // Swap the dummy columns for the real dataset columns
-                      if (
-                        (nameParam === "stratify_columns" || nameParam === "stratify") &&
-                        data.internal.settings.columns &&
-                        Object.keys(data.internal.settings.columns).length > 0
-                      ) {
+                      if (nameParam === "stratify_columns"
+                        && data.internal.settings.columns) {
+                      infos.choices = data.internal.settings.columns; // ← injecte à l’Input
+                    }
+                     {
                         infos.choices = data.internal.settings.columns;
                       }
 
