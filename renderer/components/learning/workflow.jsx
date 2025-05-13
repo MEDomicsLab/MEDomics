@@ -910,13 +910,14 @@ const Workflow = ({ setWorkflowType, workflowType }) => {
           if (node[key].nodes != {}) {
             // if this is a create model node, we need to add n pipelines
             if (hasModels) {
-              let allEdgesSourceIds = edgesCopy.map((edge) => edge.source).join(".")
-              let id = key + "*" + allEdgesSourceIds
-              if (key != up2Id) {
-                children[id] = cleanTreeDataRec(node[key].nodes)
-              } else {
-                children[id] = {}
-              }
+              edgesCopy.forEach((edge) => {
+                let id = key + "*" + edge.source
+                if (key != up2Id) {
+                  children[id] = cleanTreeDataRec(node[key].nodes)
+                } else {
+                  children[id] = {}
+                }
+              })
               // if this is not a create model node, we continue normally
             } else {
               if (key != up2Id) {
