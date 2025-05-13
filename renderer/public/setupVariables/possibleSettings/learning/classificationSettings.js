@@ -7,10 +7,11 @@ const classificationSettings = {
       default_val: "False"
     },
     global: {
-      stratify: {
-        type: "bool",
-        tooltip: "Preserve the percentage of samples for each class or group in the train and test sets.",
-        default_val: "True"
+      "stratify": {
+        "type": "multi_select",
+        "tooltip": "Select one or more columns to stratify on. Useful to preserve distribution across splits.",
+        "default_val": [],
+        "options": "__COLUMNS__"
       },
       random_state: {
         type: "int",
