@@ -7,12 +7,13 @@ const classificationSettings = {
       default_val: "False"
     },
     global: {
-      "stratify": {
-        "type": "multi_select",
-        "tooltip": "Select one or more columns to stratify on. Useful to preserve distribution across splits.",
-        "default_val": [],
-        "options": "__COLUMNS__"
-      },
+      
+      stratify: {
+        type: "list-multiple",
+        tooltip: "<p>Select stratification variables. These will be used to stratify the data during splitting.</p>",
+        default_val: "None",
+        choices: {}
+      },      
       random_state: {
         type: "int",
         tooltip: "Seed used to ensure reproducibility of splits.",

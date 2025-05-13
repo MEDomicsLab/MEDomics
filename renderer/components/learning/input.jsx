@@ -295,36 +295,40 @@ const Input = ({ name, settingInfos, currentValue, onInputChange, disabled = fal
         )
       // for list input (form select of all the options, multiple selection possible)
       case "list-multiple":
-        return (
-          <>
-            <MultiSelect
-              key={name}
-              disabled={disabled}
-              value={currentValue ? currentValue : []}
-              filter
-              onChange={(newValue) => {
-                setInputUpdate({
-                  name: name,
-                  value: newValue.value,
-                  type: settingInfos.type
-                })
-                currentValue = { name: newValue.value[0] }
-              }}
-              options={Object.entries(settingInfos.choices).map(([option]) => {
-                return {
-                  name: settingInfos.choices[option],
-                  label: settingInfos.choices[option],
-                  value: option
-                }
-              })}
-              optionLabel="name"
-              display="chip"
-              className="w-full md:w-20rem"
-            />
+      const safeValue = Array.isArray(currentValue) ? currentValue : (currentValue ? [currentValue] : []);
 
-            {createTooltip(settingInfos.tooltip, name)}
-          </>
-        )
+      return (
+        <>
+          <label htmlFor={name} className="block mb-2 text-sm font-medium text-gray-700">
+            {settingInfos.label || name}
+          </label>
+
+          <MultiSelect
+            key={name}
+            id={name}
+            disabled={disabled}
+            value={safeValue}
+            filter
+            onChange={(e) => {
+              setInputUpdate({
+                name,
+                value: e.value,
+                type: settingInfos.type,
+              });
+            }}
+            options={Object.entries(settingInfos.choices).map(([option, label]) => ({
+              label,
+              value: option,
+            }))}
+            optionLabel="label"
+            display="chip"
+            className="w-full md:w-20rem"
+          />
+
+          {createTooltip(settingInfos.tooltip, name)}
+        </>
+      );
+
       // for range input
       case "range":
         return (

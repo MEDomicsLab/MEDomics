@@ -6,11 +6,14 @@ import { Stack } from "react-bootstrap"
 import { FlowFunctionsContext } from "../../flow/context/flowFunctionsContext"
 import Node from "../../flow/node"
 import Input from "../input"
+import { getCollectionColumns } from "../../mongoDB/mongoDBUtils"
 
 const SplitNode = ({ id, data }) => {
   const { updateNode } = useContext(FlowFunctionsContext)
   const [usePycaretDefaultParams, setUsePycaretDefaultParams] = React.useState(false)
   const [useUserDefinedSettings, setUseUserDefinedSettings] = React.useState(false)
+
+  
 
   // Update available options when split type changes
   useEffect(() => {
@@ -100,6 +103,25 @@ const SplitNode = ({ id, data }) => {
       )
     )
   }
+  useEffect(() => {
+    const fetchColumns = async () => {
+      if (!data.internal.settings.files?.id) return;
+  
+      try {
+        const arr = await getCollectionColumns(data.internal.settings.files.id);
+        data.internal.settings.columns = arr.reduce(
+          (o, c) => ({ ...o, [c]: c }),   // { age:"age", sex:"sex", ... }
+          {}
+        );
+        updateNode({ id, updatedData: data.internal });
+      } catch (err) {
+        console.error("Could not load dataset columns:", err);
+      }
+    };
+  
+    fetchColumns();
+  }, [data.internal.settings.files?.id]);
+  
 
   return (
     <Node
@@ -154,23 +176,47 @@ const SplitNode = ({ id, data }) => {
             </div>
           </div>
 
-          {/* -------- Global Parameters -------- */}
+          {/* -------- General Parameters -------- */}
           {!useUserDefinedSettings && (
-            <div className="p-3 mb-3" style={{ border: "1px solid #ccc", borderRadius: "8px" }}>
+            <div
+              className="p-3 mb-3"
+              style={{ border: "1px solid #ccc", borderRadius: "8px" }}
+            >
               <h6>General Parameters</h6>
+
               <Stack direction="vertical" gap={1}>
-                {data.internal.settings.global && Object.entries(data.internal.settings.global).filter(
-                  ([nameParam]) => usePycaretDefaultParams ? nameParam !== "stratify" : true
-                ).map(([nameParam, index]) => (
-                  <React.Fragment key={nameParam}>
-                    <Input
-                      name={nameParam}
-                      settingInfos={data.setupParam?.possibleSettings?.global[nameParam]}
-                      currentValue={data.internal.settings.global[nameParam]}
-                      onInputChange={onGlobalInputChange}
-                    />
-                  </React.Fragment>
-                ))}
+                {data.internal.settings.global &&
+                  Object.entries(data.internal.settings.global)
+                    // Hide stratify option only when the "use PyCaret default" switch is ON
+                    .filter(([nameParam]) =>
+                      usePycaretDefaultParams ? nameParam !== "stratify_columns" : true
+                    )
+                    .map(([nameParam]) => {
+                      /* -------- dynamic override for STRATIFY columns -------- */
+                      const infos = {
+                        ...data.setupParam?.possibleSettings?.global[nameParam],
+                      };
+
+                      // Swap the dummy columns for the real dataset columns
+                      if (
+                        (nameParam === "stratify_columns" || nameParam === "stratify") &&
+                        data.internal.settings.columns &&
+                        Object.keys(data.internal.settings.columns).length > 0
+                      ) {
+                        infos.choices = data.internal.settings.columns;
+                      }
+
+                      return (
+                        <React.Fragment key={nameParam}>
+                          <Input
+                            name={nameParam}
+                            settingInfos={infos}                
+                            currentValue={data.internal.settings.global[nameParam]}
+                            onInputChange={onGlobalInputChange}
+                          />
+                        </React.Fragment>
+                      );
+                    })}
               </Stack>
             </div>
           )}
