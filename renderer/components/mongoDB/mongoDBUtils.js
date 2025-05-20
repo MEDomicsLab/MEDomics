@@ -472,6 +472,21 @@ export async function getCollectionTags(collectionId) {
 }
 
 /**
+ * @description Get the row tags of a collection specified by id
+ * @param {String} collectionId Id of the collection to retrieve row tags from
+ * @returns {Array} An array of row tags
+ */
+export async function getCollectionRowTags(collectionId) {
+  const db = await connectToMongoDB()
+  const tags = await db.collection('row_tags').find({ collectionName: collectionId }).toArray()
+  if (tags.length === 0) {
+    console.error(`No tags found for collection ${collectionId}`)
+    return []
+  }
+  return tags
+}
+
+/**
  * @description Download the content of a MongoDB collection to a file.
  * @param {String} collectionId The ID of the collection.
  * @param {String} filePath The path where the file should be saved.
