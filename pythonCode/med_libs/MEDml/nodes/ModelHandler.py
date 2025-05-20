@@ -30,6 +30,7 @@ class ModelHandler(Node):
             self.isTuningEnabled = self.config_json['data']['internal']['isTuningEnabled']
             if self.isTuningEnabled:
                 self.settingsTuning = self.config_json['data']['internal']['settingsTuning']
+                self.useTuningGrid = self.config_json['data']['internal']['settings']['useTuningGrid']
             self.model_id = self.config_json['associated_id']
             model_obj = self.global_config_json['nodes'][self.model_id]
             self.config_json['data']['estimator'] = {
@@ -117,7 +118,7 @@ class ModelHandler(Node):
                         optimization_metric = self.settingsTuning['optimize']
                     
                     # Check if a custom grid is provided
-                    if model_id in list(self.config_json['data']['internal'].keys()) and 'custom_grid' in list(self.config_json['data']['internal'][model_id].keys()):
+                    if self.useTuningGrid and model_id in list(self.config_json['data']['internal'].keys()) and 'custom_grid' in list(self.config_json['data']['internal'][model_id].keys()):
                         self.settingsTuning['custom_grid'] = self.config_json['data']['internal'][model_id]['custom_grid']
                     
                     # Tune the model
