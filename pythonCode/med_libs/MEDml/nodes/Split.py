@@ -104,7 +104,7 @@ class Split(Node):
                                  if k not in excluded}
 
             pycaret_exp.setup(
-                data=experiment['df'],
+                data = experiment.get('df', dataset)
                 **kwargs["setup_settings"],
                 log_experiment=medml_logger,
                 data_split_stratify=stratify_columns,
