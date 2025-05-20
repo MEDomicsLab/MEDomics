@@ -88,9 +88,10 @@ const SplitNode = ({ id, data }) => {
   }
 
   useEffect(() => {
-    if (incomingCols.length === 0) return;              // rien reçu
-  
-    const choices = incomingCols.reduce((o, c) => ({ ...o, [c]: c }), {});
+    if (!data.internal.settings.columns || data.internal.settings.columns.length === 0) return
+
+    const columnsArray = Object.keys(data.internal.settings.columns)
+    data.setupParam.possibleSettings.global.stratify.default_val = columnsArray[columnsArray.length - 1]
   
     updateNode({
       id,
@@ -98,18 +99,17 @@ const SplitNode = ({ id, data }) => {
         ...data.internal,
         settings: {
           ...data.internal.settings,
-          columns: choices,
           global: {
             ...data.internal.settings.global,
+            stratify: columnsArray[columnsArray.length - 1],
             stratify_columns:
               (data.internal.settings.global?.stratify_columns || [])
-                .filter((c) => c in choices),
+                .filter((c) => c in data.internal.settings.columns),
           },
         },
       },
-    });
-  }, [incomingCols]);           // se relance dès que DatasetNode change
-  
+    })
+  }, [data.internal.settings.columns])
 
   // Render the user-defined settings
   const renderUserDefinedSettings = (params) => {
