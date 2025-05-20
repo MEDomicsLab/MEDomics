@@ -289,7 +289,7 @@ const DatasetNode = ({ id, data }) => {
 
                         <Input
                           key={"tags"}
-                          name="tags"
+                          name="Column tags"
                           settingInfos={{
                             type: "tags-input-multiple",
                             tooltip: "<p>Specify a data file (xlsx, csv, json)</p>",

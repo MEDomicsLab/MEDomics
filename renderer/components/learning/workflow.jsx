@@ -179,7 +179,7 @@ const Workflow = ({ setWorkflowType, workflowType }) => {
     const splitNodes = nodes.filter((node) => node.type === "splitNode")
     const datasetNodes = nodes.filter((node) => node.type === "datasetNode")
     // Link split nodes to dataset nodes
-    const dataSplitCouples = {}
+    let dataSplitCouples = {}
     edges.forEach((edge) => {
       datasetNodes.forEach((datasetNode) => {
         splitNodes.forEach((splitNode) => {
@@ -192,13 +192,27 @@ const Workflow = ({ setWorkflowType, workflowType }) => {
         })
       })
     })
+    let needsUpdate = false
+    Object.keys(dataSplitCouples).length > 0 && Object.keys(dataSplitCouples).forEach((datasetNodeId) => {
+      const splitNodeId = dataSplitCouples[datasetNodeId]
+      const datasetNode = nodes.find((node) => node.id === datasetNodeId)
+      const splitNode = nodes.find((node) => node.id === splitNodeId)
+      if (!splitNode.data.internal.settings.columns) needsUpdate = true
+      if (datasetNode.data.internal.settings.columns && splitNode.data.internal.settings.columns && datasetNode.data.internal.settings.columns !== splitNode.data.internal.settings.columns) needsUpdate = true
+    })
+    if (!needsUpdate) return
     Object.keys(dataSplitCouples).length > 0 && Object.keys(dataSplitCouples).forEach((datasetNodeId) => {
       const splitNodeId = dataSplitCouples[datasetNodeId]
       const datasetNode = nodes.find((node) => node.id === datasetNodeId)
       const splitNode = nodes.find((node) => node.id === splitNodeId)
       if (datasetNode.data.internal.settings.columns && splitNode.data.internal.settings.columns && datasetNode.data.internal.settings.columns === splitNode.data.internal.settings.columns) return
+      splitNode.data.internal.datasetId = datasetNodeId
       if (datasetNode && splitNode && datasetNode.data.internal.settings.columns) {
         splitNode.data.internal.settings.columns = datasetNode.data.internal.settings.columns
+        if (datasetNode.data.internal.settings.files) {
+          splitNode.data.internal.settings.files = datasetNode.data.internal.settings.files
+        }
+        splitNode.data.internal.settings.useTags = false
         setNodes((nds) =>
           nds.map((node) => {
             if (node.id === splitNodeId) {
@@ -210,6 +224,7 @@ const Workflow = ({ setWorkflowType, workflowType }) => {
       }
     })
   }
+
 
   const cleanTrainModelNode = (nodes) => {
     // Find the relevant train model node
