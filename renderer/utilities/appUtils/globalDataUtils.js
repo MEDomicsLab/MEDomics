@@ -39,12 +39,12 @@ export async function loadMEDDataObjects() {
     const db = await connectToMongoDB()
     const collection = db.collection("medDataObjects")
     const medDataObjectsArray = await collection.find().toArray()
-
+    // console.log("medDataObjectsArray", medDataObjectsArray)
     // Format data
     medDataObjectsArray.forEach((data) => {
       const medDataObject = new MEDDataObject(data)
-
       // Check if local objects still exist
+      console.log("medDataObject", medDataObject)
       if (medDataObject.inWorkspace && medDataObject.path) {
         try {
           fs.accessSync(medDataObject.path)

@@ -36,23 +36,25 @@ function reorderArrayOfFoldersAndFiles(array, dataContextObject) {
  */
 export function fromJSONtoTree(data) {
   let tree = {}
-  const namesYouCantRename = ["DATA", "EXPERIMENTS"] // These names cannot be renamed
+  const namesYouCantRename = ["DATA", "EXPERIMENTS", "ROOT"] // These names cannot be renamed
   Object.keys(data).forEach((key) => {
     let element = data[key]
-    if (element.name != ".medomics" && element.name != ".ipynb_checkpoints" && element.name != ".DS_Store") {
+    // if (element.name != ".medomics" && element.name != ".ipynb_checkpoints" && element.name != ".DS_Store") {
       let ableToRename = !namesYouCantRename.includes(element.name)
+      let isRoot = element.parentID == null
       tree[element.id] = {
         index: element.id,
-        canMove: ableToRename,
-        isFolder: element.type == "directory",
+        canMove: ableToRename && !isRoot,
+        isFolder: element.type === "directory",
         children: element.childrenIDs ? reorderArrayOfFoldersAndFiles(element.childrenIDs, data) : [],
         data: element.name,
-        canRename: ableToRename,
+        canRename: ableToRename && !isRoot,
         type: element.type,
         isLocked: element.isLocked,
-        usedIn: element.usedIn
+        usedIn: element.usedIn,
+        path: element.path,
       }
-    }
+    // }
   })
   return tree
 }
@@ -242,9 +244,10 @@ export async function createFolder(globalData, selectedItems, workspacePath) {
  * @returns {void}
  * @note - This function is called when the user drops an item in the directory tree.
  */
-export const onDrop = async (items, target) => {
+export const onDrop = async (items, target, tree, globalData, setGlobalData) => {
   console.log("HERE", items, target)
-  /* const currentItems = tree.current.treeEnvironmentContext.items
+
+   const currentItems = tree.treeEnvironmentContext.items
     for (const item of items) {
       const parent = Object.values(currentItems).find((potentialParent) => potentialParent.children?.includes(item.index))
 
@@ -261,11 +264,14 @@ export const onDrop = async (items, target) => {
           // NO Operation
         } else {
           let dataObject = globalData[item.index]
+          console.log("dataobject", dataObject)
           if (dataObject.type == "directory") {
-            MedDataObject.move(dataObject, globalData[target.targetItem], globalData, setGlobalData)
+            await MEDDataObject.move(globalData, dataObject)
+            // MedDataObject.move(dataObject, globalData[target.targetItem], globalData, setGlobalData)
             //MedDataObject.updateWorkspaceDataObject()
           } else {
-            MedDataObject.move(dataObject, globalData[target.targetItem], globalData, setGlobalData)
+            await MEDDataObject.move(dataObject, globalData[target.targetItem], globalData, setGlobalData)
+            // MedDataObject.move(dataObject, globalData[target.targetItem], globalData, setGlobalData)
             //MedDataObject.updateWorkspaceDataObject()
           }
         }
@@ -278,11 +284,11 @@ export const onDrop = async (items, target) => {
         if (target.parentItem === dataObject.parentID) {
           // NO Operation
         } else {
-          MedDataObject.move(dataObject, globalData[target.parentItem], globalData, setGlobalData)
-          //MedDataObject.updateWorkspaceDataObject()
+          await MEDDataObject.move(dataObject, globalData[target.parentItem], globalData, setGlobalData)
+          // await MEDDataObject.updateWorkspaceDataObject()
         }
       }
-    } */
+    } 
 }
 
 /**

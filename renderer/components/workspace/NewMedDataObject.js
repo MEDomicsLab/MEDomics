@@ -512,6 +512,58 @@ export class MEDDataObject {
   }
 
   /**
+   * @description Move a MEDDataObject to a new parent directory
+   * @param {Dictionary} dict - dictionary of all MEDDataObjects
+   * @param {String} id - the id of the MEDDataObject to move
+   * @param {String} newParentID - the id of the new parent directory
+   * @param {String} workspacePath - the root path of the workspace
+   * @returns {void}
+   */
+  static async move(dict, id, newParentID, workspacePath) {
+    const dataObject = dict[id]
+    if (!dataObject) {
+      console.log(`MEDDataObject with id ${id} not found`)
+      return
+    }
+    const newParent = dict[newParentID]
+    if (!newParent) {
+      console.log(`New parent MEDDataObject with id ${newParentID} not found`)
+      return
+    }
+    // Move the data object in the working directory if it is in the workspace
+    if (dataObject.inWorkspace) {
+      const oldPath = this.getFullPath(dict, id, workspacePath)
+      const newPath = this.getFullPath(dict, newParentID, workspacePath)
+      fs.renameSync(oldPath, newPath)
+    } else {
+      console.log(`MEDDataObject with id ${id} is not in the workspace`)
+    }
+    // Update the parent ID of the data object
+    const oldParentID = dataObject.parentID
+    dataObject.parentID = newParentID
+    // Remove the data object from the old parent's children IDs
+    const oldParent = dict[oldParentID]
+    if (oldParent) {
+      oldParent.childrenIDs = oldParent.childrenIDs.filter(id => id !== dataObject.id)
+    }
+    // Add the data object to the new parent's children IDs
+    newParent.childrenIDs.push(dataObject.id)
+    // Update the dictionary with the new parent ID
+    dict[dataObject.id] = dataObject
+    // Update the database with the new parent ID
+    const success = await overwriteMEDDataObjectProperties(dataObject.id, { parentID: newParentID })
+    if (success) {
+      console.log(`Moved MEDDataObject with id ${id} to new parent with id ${newParentID}`)
+    } else {
+      console.error(`Failed to move MEDDataObject with id ${id} to new parent with id ${newParentID}`)
+    }
+    // Notify the system to update the workspace
+    this.updateWorkspaceDataObject() 
+
+
+  }
+
+  /**
    * @description Updates the workspace data object.
    */
   static updateWorkspaceDataObject() {

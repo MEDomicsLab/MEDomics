@@ -11,7 +11,7 @@ import { useContextMenu, Menu, Item, Submenu } from "react-contexify"
 import renderItem from "./renderItem"
 import { Tooltip } from "primereact/tooltip"
 import { WorkspaceContext } from "../../../workspace/workspaceContext"
-import { rename, onPaste, onDeleteSequentially, createFolder, onDrop, fromJSONtoTree, evaluateIfTargetIsAChild } from "./utils"
+import { rename, onPaste, onDeleteSequentially, onDrop, createFolder, fromJSONtoTree, evaluateIfTargetIsAChild } from "./utils"
 import { MEDDataObject } from "../../../workspace/NewMedDataObject"
 import { PiImage, PiNotebook, PiPen } from "react-icons/pi"
 
@@ -42,7 +42,7 @@ const SidebarDirectoryTreeControlled = ({ setExternalSelectedItems, setExternalD
   const [isDropping, setIsDropping] = useState(false) // Set if the item is getting dropped something in (for elements outside of the tree)
   const [isDirectoryTreeFocused, setIsDirectoryTreeFocused] = useState(false); // New state to track focus
 
-  const { globalData } = useContext(DataContext) // We get the global data from the context to retrieve the directory tree of the workspace, thus retrieving the data files
+  const { globalData, setGlobalData } = useContext(DataContext) // We get the global data from the context to retrieve the directory tree of the workspace, thus retrieving the data files
   const { dispatchLayout, developerMode, isEditorOpen } = useContext(LayoutModelContext)
   const { workspace } = useContext(WorkspaceContext)
 
@@ -55,6 +55,8 @@ const SidebarDirectoryTreeControlled = ({ setExternalSelectedItems, setExternalD
     if (globalData) {
       let newTree = fromJSONtoTree({ ...globalData })
       setDirTree(newTree)
+      console.log("NEW TREE", newTree)
+      console.log("REF", environment.current, tree.current)
     }
   }, [globalData, showHiddenFiles])
 
@@ -62,6 +64,7 @@ const SidebarDirectoryTreeControlled = ({ setExternalSelectedItems, setExternalD
     setExternalSelectedItems && setExternalSelectedItems(selectedItems)
   }, [selectedItems])
 
+  
   /**
    * This useEffect hook sets the external double click item when the double click item changes.
    */
@@ -409,13 +412,19 @@ const SidebarDirectoryTreeControlled = ({ setExternalSelectedItems, setExternalD
     })
   }
 
+  function handleDragStart(event) {
+    console.log("Drag started", event)
+  }
+
   /**
    * Add event listener to handle if the user clicks outside the directory tree and, if so, deselect the selected items.
    */
   useEffect(() => {
     document.addEventListener("click", handleSelectedItemsBlur)
+    document.addEventListener("onDragStart", handleDragStart)
     return () => {
       document.removeEventListener("click", handleSelectedItemsBlur)
+      document.removeEventListener("onDragStart", handleDragStart)
     }
   }, [])
 
@@ -501,13 +510,18 @@ const SidebarDirectoryTreeControlled = ({ setExternalSelectedItems, setExternalD
                 onFocusItem={(item) => setFocusedItem(item.index)}
                 onExpandItem={(item) => setExpandedItems([...expandedItems, item.index])}
                 onCollapseItem={(item) => setExpandedItems(expandedItems.filter((expandedItemIndex) => expandedItemIndex !== item.index))}
-                onSelectItems={(items) => setSelectedItems(items)}
+                onSelectItems={(items) => {
+                  console.log("onSelectItems", items)
+                  setSelectedItems(items)
+                }}
                 canReorderItems={true}
                 canDropOnFolder={true}
                 canRename={true}
-                canDragAndDrop={false}
+                canDragAndDrop={true}
                 onRenameItem={handleNameChange}
-                onDrop={onDrop}
+                onDrop={(items, target) => {
+                  onDrop(items, target, tree.current, globalData, setGlobalData)
+                }}
                 isHovering={isHovering}
               >
                 <Tree treeId="tree-2" rootItem="ROOT" treeLabel="Tree Example" ref={tree} />
