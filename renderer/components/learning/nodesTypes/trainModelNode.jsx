@@ -1,6 +1,6 @@
-import { Checkbox } from "primereact/checkbox"
+import { InputSwitch } from "primereact/inputswitch"
 import { Panel } from "primereact/panel"
-import React, { useContext, useEffect, useState } from "react"
+import { useContext, useEffect, useState } from "react"
 import { Button, Stack } from "react-bootstrap"
 import * as Icon from "react-bootstrap-icons"
 import { FlowFunctionsContext } from "../../flow/context/flowFunctionsContext"
@@ -23,6 +23,7 @@ import ModalSettingsChooser from "../modalSettingsChooser"
  */
 const TrainModelNode = ({ id, data }) => {
   const [modalShow, setModalShow] = useState(false) // state of the modal
+  const [usePycaretSearchSpace, setUsePycaretSearchSpace] = useState(false) // state of the checkbox
   const { updateNode } = useContext(FlowFunctionsContext)
   const [IntegrateTuning, setIntegrateTuning] = useState(data.internal.isTuningEnabled ?? true)
 
@@ -34,8 +35,15 @@ const TrainModelNode = ({ id, data }) => {
         data.internal[model].custom_grid = {}
       })
     }
-    if (!("isTuningEnabled" in data.internal)) {
+    if (!("isTuningEnabled" in Object.keys(data.internal))) {
       data.internal.isTuningEnabled = false
+      updateNode({
+        id: id,
+        updatedData: data.internal
+      })
+    }
+    if (!("useTuningGrid" in Object.keys(data.internal.settings))) {
+      data.internal.settings.useTuningGrid = false
       updateNode({
         id: id,
         updatedData: data.internal
@@ -108,8 +116,8 @@ const TrainModelNode = ({ id, data }) => {
    * This function is used to handle the checkbox for enabling the tuning
    */
   const handleIntegration = (e) => {
-    setIntegrateTuning(e.checked)
-    data.internal.isTuningEnabled = e.checked
+    setIntegrateTuning(e.value)
+    data.internal.isTuningEnabled = e.value
     updateNode({
       id: id,
       updatedData: data.internal
@@ -151,11 +159,15 @@ const TrainModelNode = ({ id, data }) => {
         // node specific is the body of the node, so optional settings
         nodeSpecific={
           <>
-            <div className="flex align-items-center">
-              <Checkbox inputId="integrateTuning" checked={IntegrateTuning} onChange={(e) => handleIntegration(e)} />
-              <label htmlFor="integrateTuning" className="ml-2" style={{ paddingLeft: "5px" }}>
-                Integrate Tuning
-              </label>
+            <div className="p-2 mb-3" style={{ border: "1px solid #ccc", borderRadius: "8px" }}>
+              <div className="mb-1 d-flex align-items-center justify-content-between">
+                <label htmlFor="integrateTuning" className="me-2">Integrate Tuning</label>
+                <InputSwitch
+                  className="integrateTuning"
+                  checked={IntegrateTuning}
+                  onChange={(e) => handleIntegration(e)}
+                />
+              </div>
             </div>
             {/* the button to open the modal (the plus sign)*/}
             <Button variant="light" className="width-100 btn-contour" onClick={() => setModalShow(true)}>
@@ -183,15 +195,40 @@ const TrainModelNode = ({ id, data }) => {
               )
             })}
             
-            {data.internal.isTuningEnabled && (
-              <>
-              {data.internal.tuningGrid && Object.keys(data.internal.tuningGrid).length > 0 && (
+            {data.internal.isTuningEnabled && data.internal.tuningGrid && Object.keys(data.internal.tuningGrid).length > 0 && (
                 <>
-                <hr />
-                <div style={{ fontWeight: "bold", margin: "10px 0" }}>Custom Tuning Grid</div>
-                {Object.keys(data.internal.tuningGrid).map((model) => {
-                  return (
-                    <Panel header={model} key={model} collapsed toggleable>
+                <div className="p-3 mb-3 mt-3" style={{ border: "1px solid #ccc", borderRadius: "8px" }}>
+                  <div className="mb-1 d-flex align-items-center" style={{ flexWrap: 'wrap' }}>
+                    <label 
+                      htmlFor="user-defined-switch" 
+                      className="me-2"
+                      style={{ 
+                        whiteSpace: 'normal',
+                        flex: '1 1 70%', // Allows wrapping and takes majority space
+                        minWidth: '200px' // Ensures reasonable minimum width
+                      }}
+                    >
+                      Use Pycaret's default hyperparameter search space
+                    </label>
+                    <div style={{ flex: '0 0 auto' }}>
+                      <InputSwitch
+                        className="user-defined-switch"
+                        checked={usePycaretSearchSpace}
+                        onChange={(e) => {
+                          data.internal.settings.useTuningGrid = !e.value
+                          setUsePycaretSearchSpace(e.value)
+                        }}
+                      />
+                    </div>
+                  </div>
+                </div>
+                {!usePycaretSearchSpace && (
+                  <>
+                  <hr />
+                  <div style={{ fontWeight: "bold", margin: "10px 0" }}>Custom Tuning Grid</div>
+                  {Object.keys(data.internal.tuningGrid).map((model) => {
+                    return (
+                      <Panel header={model} key={model} collapsed toggleable>
                         {Object.keys(data.internal.tuningGrid[model].options).filter((setting => data.internal.tuningGrid[model].hasOwnProperty(setting))).map((setting) => {
                         return (
                           <HyperParameterInput
@@ -206,9 +243,9 @@ const TrainModelNode = ({ id, data }) => {
                       })}
                     </Panel>
                   )
-                })}
-                </>
-              )}
+                  })}
+                  </>
+                )}
               </>
             )}
             {data.internal.isTuningEnabled && data.internal.checkedOptionsTuning && data.internal.checkedOptionsTuning.length > 0 && (
