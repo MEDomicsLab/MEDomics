@@ -98,14 +98,27 @@ const SplitNode = ({ id, data }) => {
   }
 
   useEffect(() => {
-    if (!data.internal.settings.columns || Object.keys(data.internal.settings.columns).length === 0) return
-
-    // Set the default value for stratification
-    const columnsArray = Object.keys(data.internal.settings.columns)
-    data.setupParam.possibleSettings.global.stratify_columns.default_val = columnsArray[columnsArray.length - 1]
-    data.setupParam.possibleSettings.global.stratify_columns.choices = columnsArray
+    if (
+      !data?.internal?.settings?.columns ||
+      Object.keys(data.internal.settings.columns).length === 0
+    ) {
+      return;
+    }
   
-    // Update the node
+    if (
+      !data?.setupParam?.possibleSettings?.global?.stratify_columns
+    ) {
+      return;
+    }
+  
+    const columnsArray = Object.keys(data.internal.settings.columns);
+  
+    data.setupParam.possibleSettings.global.stratify_columns.default_val =
+      columnsArray.at(-1);
+  
+    data.setupParam.possibleSettings.global.stratify_columns.choices =
+      columnsArray;
+  
     updateNode({
       id,
       updatedData: {
@@ -118,102 +131,75 @@ const SplitNode = ({ id, data }) => {
             columnsTags: data.internal.settings.columnsTags || [],
             rowsTagsMapped: data.internal.settings.rowsTagsMapped || {},
             rowsTags: data.internal.settings.rowsTags || [],
-            stratify_columns: (columnsArray.length - 1).toString(),
+            stratify_columns: columnsArray.length - 1 + "",   // toString()
           },
         },
       },
-    })
-  }, [data.internal.settings.columns])
+    });
+  }, [data.internal.settings.columns]);
+  
 
   useEffect(() => {
-    if (!data.internal.settings.files || data.internal.settings.files.length === 0) return
-
-    // Normalize files to array if needed
-    const files = Array.isArray(data.internal.settings.files) 
-      ? data.internal.settings.files 
-      : [data.internal.settings.files]
-    
-    // Initialize tags related properties
-    data.internal.settings.rowsTagsMapped = {}
-    data.internal.settings.columnsTagsMapped = {}
-    data.internal.settings.rowsTags = []
-    data.internal.settings.columnsTags = []
-    const newSettings = {
-      ...data.internal.settings,
-      columnsTagsMapped: {},
-      columnsTags: [],
-      rowsTagsMapped: {},
-      rowsTags: [],
-    }
-    let hasChanged = false
-
-    // Fetch collection tags for each file
+    if (!data.internal.settings.files || data.internal.settings.files.length === 0) return;
+  
+    const files = Array.isArray(data.internal.settings.files)
+      ? data.internal.settings.files
+      : [data.internal.settings.files];
+  
+    const newSettings = { ...data.internal.settings };
+    let hasChanged = false;
+  
     const fetchCollectionTags = async () => {
       for (const file of files) {
-        if (file.id) {
-          // Column tags
-          let columnTagsCollections = await getCollectionTags(file.id)
-          columnTagsCollections = await columnTagsCollections.toArray()
-          let columnsTagsMap = {}
-          let columnTags = []
-          columnTagsCollections.map((columnTagsCollection) => {
-            columnsTagsMap[columnTagsCollection.column_name] = columnTagsCollection.tags
-            columnTags = columnTags.concat(columnTagsCollection.tags)
-          })
-          newSettings.columnsTagsMapped = {
-            ...newSettings.columnsTagsMapped,
-            ...columnsTagsMap,
-          }
-          newSettings.columnsTags = [
-            ...(newSettings.columnsTags || []),
-            ...columnTags,
-          ]
-          // Row tags
-          let rowTagsCollections = await getCollectionRowTags(file.id)
-          let rowsTagsMap = {}
-          let rowsTags = []
-          rowTagsCollections.forEach(tag => {
+        if (!file.id) continue;
+  
+        /* ───────────── COLUMN TAGS ───────────── */
+        try {
+          const cursor = await getCollectionTags(file.id);
+          const columnTagsColl = await cursor.toArray();   // ← peut throw
+  
+          const map = {};
+          let tags  = [];
+          columnTagsColl.forEach(c => {
+            map[c.column_name] = c.tags;
+            tags = tags.concat(c.tags);
+          });
+  
+          newSettings.columnsTagsMapped = { ...newSettings.columnsTagsMapped, ...map };
+          newSettings.columnsTags       = [ ...(newSettings.columnsTags || []), ...tags ];
+        } catch (err) {
+          console.error("getCollectionTags:", err.message);
+          /* on laisse simplement columnsTags vides pour ce fichier */
+        }
+  
+        /* ───────────── ROW TAGS ─────────────── */
+        try {
+          const rowTagsColl = await getCollectionRowTags(file.id);      // ← peut throw
+          const rowsMap = {};
+          const rows    = new Set();
+  
+          rowTagsColl.forEach(tag => {
             tag.data.forEach(item => {
-              item.groupNames.forEach(groupName => {
-                rowsTags.push(groupName)
-                rowsTagsMap[item._id.toString()] = groupName
-              })
-            })
-          })
-          rowsTags = [...new Set(rowsTags)]
-          newSettings.rowsTags = [
-            ...(newSettings.rowsTags || []),
-            ...rowsTags,
-          ]
-          newSettings.rowsTagsMapped = {
-            ...newSettings.rowsTagsMapped,
-            ...rowsTagsMap,
-          }
+              item.groupNames.forEach(g => {
+                rows.add(g);
+                rowsMap[item._id.toString()] = g;
+              });
+            });
+          });
+  
+          newSettings.rowsTags       = [ ...(newSettings.rowsTags || []), ...rows ];
+          newSettings.rowsTagsMapped = { ...newSettings.rowsTagsMapped, ...rowsMap };
+        } catch (err) {
+          console.error("getCollectionRowTags:", err.message);
         }
       }
-      // Only update if something changed
-      if (JSON.stringify(data.internal.settings.columnsTagsMapped) !== JSON.stringify(newSettings.columnsTagsMapped)) {
-        newSettings.global.columnsTags = newSettings.columnsTags
-        newSettings.global.columnsTagsMapped = newSettings.columnsTagsMapped
-        hasChanged = true
-      }
-      if (JSON.stringify(data.internal.settings.rowsTagsMapped) !== JSON.stringify(newSettings.rowsTagsMapped)) {
-        newSettings.global.rowsTags = newSettings.rowsTags
-        newSettings.global.rowsTagsMapped = newSettings.rowsTagsMapped
-        hasChanged = true
-      }
-      if (hasChanged) {
-        updateNode({
-          id,
-          updatedData: {
-            ...data.internal,
-            settings: newSettings
-          }
-        })
-      }
-    }
-    fetchCollectionTags()
-  }, [data.internal.settings.files])
+  
+      updateNode({ id, updatedData: { ...data.internal, settings: newSettings } });
+    };
+  
+    fetchCollectionTags();
+  }, [data.internal.settings.files]);
+  
   
 
   // Render the user-defined settings
