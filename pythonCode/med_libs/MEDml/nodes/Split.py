@@ -1,5 +1,5 @@
 import json
-from typing import Union
+from typing import Union, Tuple
 
 import numpy as np
 import pandas as pd
@@ -19,6 +19,47 @@ class Split(Node):
     • Bootstrapping
     • User-defined indices
     """
+    
+        # ------------------------------------------------------------------
+    # Construit proprement les kwargs pour pycaret.setup()
+    # ------------------------------------------------------------------
+    def _build_setup_kwargs(
+        self,
+        base_kwargs: dict,
+        stratify_columns: List[str],
+        random_state: int,
+        medml_logger,
+        cleaning_settings: dict,
+    ) -> Tuple[dict, List[str]]:
+        """Strip every UI‑only key so setup() never crashes."""
+        skw = {
+            **base_kwargs,
+            "log_experiment": medml_logger,
+            "data_split_shuffle": True,
+            "session_id": random_state,
+            **cleaning_settings,
+        }
+
+        # All front‑end keys that pycaret.setup() does NOT understand
+        unsupported = (
+            "columns",      # placeholder list of columns from UI
+            "files",        # uploaded files info
+            "useTags",      # boolean switch
+            "columnsTags",  # list of column tags
+            "rowsTags", 
+            "columnsTagsMapped", 
+            "rowsTagsMapped" # list of row tags
+        )
+        for bad_key in unsupported:
+            skw.pop(bad_key, None)  # silent remove
+
+        # If user provided explicit stratification, keep it; otherwise no strat.
+        if stratify_columns:
+            skw["data_split_stratify"] = stratify_columns
+            skw["fold_strategy"] = "stratifiedkfold"
+        else:
+            skw["fold_strategy"] = "kfold"
+        return skw, stratify_columns
 
     def __init__(self, id_: int, global_config_json: json) -> None:
         super().__init__(id_, global_config_json)
@@ -37,8 +78,8 @@ class Split(Node):
         use_defaults  = bool(self.settings['use_pycarets_default'])
 
         # ---------- Stratification columns -----------------------------
-        stratify_columns = kwargs.get("stratify_columns", [])
-
+        stratify_columns: List[str] = kwargs.get("stratify_columns", [])
+    
         # Fallback: if no list provided, use the single target column
         if not stratify_columns and target:
             stratify_columns = [target]
@@ -70,21 +111,21 @@ class Split(Node):
             }
 
         # ---------- PyCaret setup (common) -----------------------------
-        pycaret_exp       = experiment['pycaret_exp']
-        medml_logger      = experiment['medml_logger']
+        # ---------------- Build kwargs for the first setup -------------
+        pycaret_exp = experiment["pycaret_exp"]
+        medml_logger = experiment["medml_logger"]
         cleaning_settings = kwargs.get("settings", {})
 
-        pycaret_exp.setup(
-            data=experiment.get('df', dataset),
-            **kwargs["setup_settings"],
-            log_experiment=medml_logger,
-            data_split_stratify=stratify_columns,
-            fold_strategy="stratifiedkfold" if use_stratification else "kfold",
-            log_plots=True,
-            log_data=True,
-            session_id=random_state,
-            **cleaning_settings
+        setup_kwargs, stratify_columns = self._build_setup_kwargs(
+            base_kwargs=kwargs["setup_settings"],
+            stratify_columns=stratify_columns,
+            random_state=random_state,
+            medml_logger=medml_logger,
+            cleaning_settings=cleaning_settings,
         )
+
+        # First (global) setup – no unsupported keys left
+        pycaret_exp.setup(data=experiment.get("df", dataset), **setup_kwargs)
 
         iteration_result = {}  # final output container
 
@@ -103,18 +144,15 @@ class Split(Node):
             filtered_settings = {k: v for k, v in self.settings.items()
                                  if k not in excluded}
 
-            pycaret_exp.setup(
-                data=experiment.get('df', dataset),
-                **kwargs["setup_settings"],
-                log_experiment=medml_logger,
-                data_split_stratify=stratify_columns,
-                fold_strategy="stratifiedkfold" if use_stratification else "kfold",
-                fold=cv_folds,
-                log_plots=True,
-                log_data=True,
-                session_id=random_state,
-                **filtered_settings
+            setup_kwargs_cv, stratify_columns = self._build_setup_kwargs(
+                base_kwargs=kwargs["setup_settings"],
+                stratify_columns=stratify_columns,
+                random_state=random_state,
+                medml_logger=medml_logger,
+                cleaning_settings=filtered_settings,
             )
+            setup_kwargs_cv["fold"] = cv_folds
+            pycaret_exp.setup(data=experiment.get("df", dataset), **setup_kwargs_cv)
 
             if cv_folds < 2 or cv_folds > n_samples:
                 raise ValueError(f"num_folds ({cv_folds}) must be between 2 and {n_samples}")
