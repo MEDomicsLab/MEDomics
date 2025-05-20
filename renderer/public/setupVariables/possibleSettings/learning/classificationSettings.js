@@ -7,7 +7,7 @@ const classificationSettings = {
       default_val: "False"
     },
     global: {
-      stratify: {
+      stratify_columns: {
         type: "list-multiple",
         tooltip: "<p>Select stratification variables. These will be used to stratify the data during splitting.</p>",
         default_val: "None",
