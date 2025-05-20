@@ -102,8 +102,8 @@ const SplitNode = ({ id, data }) => {
 
     // Set the default value for stratification
     const columnsArray = Object.keys(data.internal.settings.columns)
-    data.setupParam.possibleSettings.global.stratify.default_val = columnsArray[columnsArray.length - 1]
-    data.setupParam.possibleSettings.global.stratify.choices = columnsArray
+    data.setupParam.possibleSettings.global.stratify_columns.default_val = columnsArray[columnsArray.length - 1]
+    data.setupParam.possibleSettings.global.stratify_columns.choices = columnsArray
   
     // Update the node
     updateNode({
@@ -118,10 +118,7 @@ const SplitNode = ({ id, data }) => {
             columnsTags: data.internal.settings.columnsTags || [],
             rowsTagsMapped: data.internal.settings.rowsTagsMapped || {},
             rowsTags: data.internal.settings.rowsTags || [],
-            stratify: (columnsArray.length - 1).toString(),
-            stratify_columns:
-              (data.internal.settings.global?.stratify_columns || [])
-                .filter((c) => c in data.internal.settings.columns),
+            stratify_columns: (columnsArray.length - 1).toString(),
           },
         },
       },
@@ -327,9 +324,9 @@ const SplitNode = ({ id, data }) => {
                   <div className="mb-3">
                     <label htmlFor="Columns Tags" className="me-2">Column Tags</label>
                     <Tooltip target=".tags-tooltip" />
-                    <span className="tags-tooltip text-muted" data-pr-tooltip="A column tag is a label assigned to 
+                    <span className="tags-tooltip" data-pr-tooltip="A column tag is a label assigned to 
                       multiple columns in the dataset. 
-                      It can be used to group columns based on certain criteria. 
+                      It can be used to group columns based on certain criteria (e.g. gene expression data). 
                       Use tags to specify which columns to include in the stratification process without manually 
                       selecting each column.">
                       <i className="pi pi-info-circle" style={{ marginRight: "5px" }}/>
@@ -352,7 +349,11 @@ const SplitNode = ({ id, data }) => {
                   <div className="mb-3">
                     <label htmlFor="Row Tags" className="me-2">Row Tags</label>
                     <Tooltip target=".tags-tooltip" />
-                    <span className="tags-tooltip" data-pr-tooltip="Select the stratification groups using the row tags.">
+                    <span className="tags-tooltip" data-pr-tooltip="A row tag is a label assigned to
+                      multiple rows in the dataset.
+                      It can be used to group rows based on certain criteria (e.g. old vs young patients).
+                      Use tags to specify which rows to include in the stratification process without manually
+                      defining the group.">
                       <i className="pi pi-info-circle" style={{ marginRight: "5px" }}/>
                     </span>
                   <Input
@@ -397,9 +398,7 @@ const SplitNode = ({ id, data }) => {
                     // Swap the dummy columns for the real dataset columns
                     if (data.internal.settings.columns) {
                       const columnsArray = Object.keys(data.internal.settings.columns)
-                      if (nameParam === "stratify_columns") {
-                        infos.choices = data.internal.settings.columns
-                      } else if (nameParam === "stratify" && (data.internal.settings.global[nameParam] === "None" || parseInt(data.internal.settings.global[nameParam]) >= columnsArray.length)) {
+                      if (nameParam === "stratify_columns" && (data.internal.settings.global[nameParam] === "None" || parseInt(data.internal.settings.global[nameParam]) >= columnsArray.length)) {
                         data.internal.settings.global[nameParam] = (columnsArray.length - 1).toString()
                       }
                     }
