@@ -4,7 +4,14 @@ import fs from "fs-extra"
 import path from "path"
 import { toast } from "react-toastify"
 import { getPathSeparator } from "../../utilities/fileManagementUtils"
-import { deleteMEDDataObject, downloadCollectionToFile, insertMEDDataObjectIfNotExists, overwriteMEDDataObjectProperties, updateMEDDataObjectName, updateMEDDataObjectPath } from "../mongoDB/mongoDBUtils"
+import {
+  deleteMEDDataObject,
+  downloadCollectionToFile,
+  insertMEDDataObjectIfNotExists,
+  overwriteMEDDataObjectProperties,
+  updateMEDDataObjectName,
+  updateMEDDataObjectPath
+} from "../mongoDB/mongoDBUtils"
 
 /**
  * @description class definition of a MEDDataObject
@@ -154,7 +161,7 @@ export class MEDDataObject {
    * @description Creates an empty folder in the file system.
    * @param {string} name
    * @param {string} path
-  */
+   */
   static createFolderFSsync(path) {
     // eslint-disable-next-line no-undef
     let fs = require("fs")
@@ -328,7 +335,7 @@ export class MEDDataObject {
   /**
    * @description Lock a MEDDataObject to prevent it from being deleted
    * @param {String} id - the id of the MEDDataObject to lock
-   * 
+   *
    * @returns {void}
    */
   static async lockMedDataObject(id) {
@@ -344,7 +351,7 @@ export class MEDDataObject {
   /**
    * @description Unlock a MEDDataObject to allow it to be deleted
    * @param {String} id - the id of the MEDDataObject to unlock
-   * 
+   *
    * @returns {void}
    */
   static async unlockMedDataObject(id) {
@@ -356,11 +363,11 @@ export class MEDDataObject {
     }
     this.updateWorkspaceDataObject()
   }
-  
+
   /**
    * @description Verify locked objects in the workspace and unlock them if not linked to any other object
    * @param {Dictionary} dict - dictionary of all MEDDataObjects
-   * 
+   *
    * @returns {void}
    */
   static verifyLockedObjects(dict) {
@@ -567,15 +574,15 @@ export class MEDDataObject {
     // Move the data object in the working directory if it is in the workspace
     const oldPath = this.getFullPath(dict, id, workspacePath)
     const newParentPath = this.getFullPath(dict, newParentID, workspacePath)
-    let newPath = path.join(newParentPath, dataObject.name) 
+    let newPath = path.join(newParentPath, dataObject.name)
     if (dataObject.inWorkspace) {
-        if (fs.existsSync(newPath)) {
-          console.error(`Cannot move ${dataObject.name} to ${newParent.name} because a file with the same name already exists`)
-          toast.error(`Cannot move ${dataObject.name} to ${newParent.name} because a file with the same name already exists`)
-          return
-        } else {
-          fs.moveSync(oldPath, newPath, { overwrite: false, recursive: true })
-        }
+      if (fs.existsSync(newPath)) {
+        console.error(`Cannot move ${dataObject.name} to ${newParent.name} because a file with the same name already exists`)
+        toast.error(`Cannot move ${dataObject.name} to ${newParent.name} because a file with the same name already exists`)
+        return
+      } else {
+        fs.moveSync(oldPath, newPath, { overwrite: false, recursive: true })
+      }
     } else {
       console.log(`MEDDataObject with id ${id} is not in the workspace`)
     }
@@ -583,7 +590,7 @@ export class MEDDataObject {
     if (dataObject.type === "directory") {
       newPath = path.join(newParentPath, dataObject.name)
       this.updatePathRecursively(dict, id, newPath, workspacePath)
-    } 
+    }
     // Update the path of the data object in the dictionary
     dataObject.path = newPath
     dataObject.parentID = newParentID
@@ -592,7 +599,7 @@ export class MEDDataObject {
     // Update the parentID of the data object in the database
     const successParent = await overwriteMEDDataObjectProperties(id, { parentID: newParentID })
 
-    if (success && successParent ) {
+    if (success && successParent) {
       console.log(`Moved MEDDataObject with id ${id} to new parent with id ${newParentID}`)
     } else {
       console.error(`Failed to move MEDDataObject with id ${id} to new parent with id ${newParentID}, failed to update path or parentID`)
@@ -600,7 +607,7 @@ export class MEDDataObject {
     // Remove the data object from the old parent's children IDs
     const oldParent = dict[oldParentID]
     if (oldParent) {
-      oldParent.childrenIDs = oldParent.childrenIDs.filter(id => id !== dataObject.id)
+      oldParent.childrenIDs = oldParent.childrenIDs.filter((id) => id !== dataObject.id)
     }
     // Update the old parent ID in the DB
     const successOldParent = await overwriteMEDDataObjectProperties(oldParentID, { childrenIDs: oldParent.childrenIDs })
@@ -616,8 +623,7 @@ export class MEDDataObject {
       console.error(`Failed to update the children of new parent with id ${newParentID}`)
     }
     // Notify the system to update the workspace
-    this.updateWorkspaceDataObject() 
-
+    this.updateWorkspaceDataObject()
   }
 
   /**
