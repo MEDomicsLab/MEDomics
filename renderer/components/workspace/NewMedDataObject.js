@@ -305,11 +305,13 @@ export class MEDDataObject {
 
     const newId = randomUUID()
     const uniqueName = this.getUniqueNameForCopy(dict, copiedObject.name, placeToCopy.id)
+    const newPath = path.join(placeToCopy.path, uniqueName)
     const newObject = new MEDDataObject({
       id: newId,
       name: uniqueName,
       type: copiedObject.type,
       parentID: placeToCopy.id,
+      path: newPath,
       childrenIDs: [],
       inWorkspace: false
     })
@@ -479,6 +481,11 @@ export class MEDDataObject {
         await this.syncChildren(dict, medDataObject.childrenIDs, workspacePath, notify, syncedObjects)
       }
 
+      // If the object is a directory, create it in the workspace and sync its children
+      if (medDataObject.type === "directory") {
+        await this.syncChildren(dict, medDataObject.childrenIDs, workspacePath, notify, syncedObjects)
+      }
+
       // Update inWorkspace property to true after successful download
       if (!medDataObject.inWorkspace) {
         const updateData = { inWorkspace: true }
@@ -589,7 +596,7 @@ export class MEDDataObject {
 
     if (dataObject.type === "directory") {
       newPath = path.join(newParentPath, dataObject.name)
-      this.updatePathRecursively(dict, id, newPath, workspacePath)
+      await this.updatePathRecursively(dict, id, newPath, workspacePath)
     }
     // Update the path of the data object in the dictionary
     dataObject.path = newPath

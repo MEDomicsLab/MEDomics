@@ -274,10 +274,10 @@ export const onDrop = async (items, target, tree, globalData, setGlobalData, wor
     } else {
       if (target.parentItem === item.index) {
         // Trying to drop inside itself
-        console.log("Trying to drop inside itself2")
+        console.log("Trying to drop inside itself")
         return
       }
-      let dataObject = globalData[item.UUID]
+      let dataObject = globalData[item.index]
       console.log("dataobject", dataObject)
       // if (target.parentItem === dataObject.parentID) {
       //   // NO Operation

@@ -14,6 +14,7 @@ import { WorkspaceContext } from "../../../workspace/workspaceContext"
 import { rename, onPaste, onDeleteSequentially, onDrop, createFolder, fromJSONtoTree, evaluateIfTargetIsAChild } from "./utils"
 import { MEDDataObject } from "../../../workspace/NewMedDataObject"
 import { PiImage, PiNotebook, PiPen } from "react-icons/pi"
+const fs = require("fs")
 
 /**
  * @description - This component is the sidebar tools component that will be used in the sidebar component
@@ -252,7 +253,16 @@ const SidebarDirectoryTreeControlled = ({ setExternalSelectedItems, setExternalD
           if (globalData[props.index]) {
             if (globalData[props.index].path) {
               // eslint-disable-next-line no-undef
-              require("electron").shell.showItemInFolder(globalData[props.index].path)
+              if (fs.existsSync(globalData[props.index].path)) {
+                require("electron").shell.showItemInFolder(globalData[props.index].path)
+              } else {
+                if (fs.existsSync(globalData[globalData[props.index].parentID].path)) {
+                  require("electron").shell.showItemInFolder(globalData[globalData[props.index].parentID].path)
+                  toast.warn("Warning: The item is not saved locally, opening the folder in the workspace")
+                } else {
+                  toast.error("Error: No path found. The item is not saved locally")
+                }
+              }
             } else {
               toast.error("Error: No path found. The item is not saved locally")
             }
@@ -412,19 +422,14 @@ const SidebarDirectoryTreeControlled = ({ setExternalSelectedItems, setExternalD
     })
   }
 
-  function handleDragStart(event) {
-    console.log("Drag started", event)
-  }
 
   /**
    * Add event listener to handle if the user clicks outside the directory tree and, if so, deselect the selected items.
    */
   useEffect(() => {
     document.addEventListener("click", handleSelectedItemsBlur)
-    document.addEventListener("onDragStart", handleDragStart)
     return () => {
       document.removeEventListener("click", handleSelectedItemsBlur)
-      document.removeEventListener("onDragStart", handleDragStart)
     }
   }, [])
 
@@ -511,7 +516,6 @@ const SidebarDirectoryTreeControlled = ({ setExternalSelectedItems, setExternalD
                 onExpandItem={(item) => setExpandedItems([...expandedItems, item.index])}
                 onCollapseItem={(item) => setExpandedItems(expandedItems.filter((expandedItemIndex) => expandedItemIndex !== item.index))}
                 onSelectItems={(items) => {
-                  console.log("onSelectItems", items)
                   setSelectedItems(items)
                 }}
                 canReorderItems={false}
