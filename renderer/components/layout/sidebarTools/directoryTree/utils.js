@@ -33,7 +33,8 @@ function reorderArrayOfFoldersAndFiles(array, dataContextObject, showHiddenFiles
 
 /**
  * This function converts the data context object to a tree object that can be used by the directory tree component.
- * @param {Object} medDataContext - The data context object
+ * @param {Object} data - The data context object
+ * @param {boolean} showHiddenFiles - Whether to include hidden files in the tree
  * @returns {Object} - The tree object
  */
 export function fromJSONtoTree(data, showHiddenFiles) {
