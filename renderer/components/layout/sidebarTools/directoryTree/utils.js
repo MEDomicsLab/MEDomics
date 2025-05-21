@@ -244,7 +244,7 @@ export async function createFolder(globalData, selectedItems, workspacePath) {
  * @returns {void}
  * @note - This function is called when the user drops an item in the directory tree.
  */
-export const onDrop = async (items, target, tree, globalData, setGlobalData) => {
+export const onDrop = async (items, target, tree, globalData, setGlobalData, workspacePath) => {
   console.log("HERE", items, target)
 
    const currentItems = tree.treeEnvironmentContext.items
@@ -261,32 +261,28 @@ export const onDrop = async (items, target, tree, globalData, setGlobalData) => 
 
       if (target.targetType === "item" || target.targetType === "root") {
         if (target.targetItem === parent.index) {
+          console.log("Trying to drop inside itself")
           // NO Operation
         } else {
           let dataObject = globalData[item.index]
           console.log("dataobject", dataObject)
-          if (dataObject.type == "directory") {
-            await MEDDataObject.move(globalData, dataObject)
+          await MEDDataObject.move(globalData, item.index, target.targetItem, workspacePath)
             // MedDataObject.move(dataObject, globalData[target.targetItem], globalData, setGlobalData)
-            //MedDataObject.updateWorkspaceDataObject()
-          } else {
-            await MEDDataObject.move(dataObject, globalData[target.targetItem], globalData, setGlobalData)
-            // MedDataObject.move(dataObject, globalData[target.targetItem], globalData, setGlobalData)
-            //MedDataObject.updateWorkspaceDataObject()
-          }
         }
       } else {
         if (target.parentItem === item.index) {
           // Trying to drop inside itself
+          console.log("Trying to drop inside itself2")
           return
         }
         let dataObject = globalData[item.UUID]
-        if (target.parentItem === dataObject.parentID) {
-          // NO Operation
-        } else {
-          await MEDDataObject.move(dataObject, globalData[target.parentItem], globalData, setGlobalData)
+        console.log("dataobject", dataObject)
+        // if (target.parentItem === dataObject.parentID) {
+        //   // NO Operation
+        // } else {
+        await MEDDataObject.move(globalData, item.index, target.targetItem, workspacePath)
           // await MEDDataObject.updateWorkspaceDataObject()
-        }
+        // }
       }
     } 
 }

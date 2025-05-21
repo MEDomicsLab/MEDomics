@@ -514,13 +514,14 @@ const SidebarDirectoryTreeControlled = ({ setExternalSelectedItems, setExternalD
                   console.log("onSelectItems", items)
                   setSelectedItems(items)
                 }}
-                canReorderItems={true}
+                canReorderItems={false}
                 canDropOnFolder={true}
+                canDropOnNonFolder={false}
                 canRename={true}
                 canDragAndDrop={true}
                 onRenameItem={handleNameChange}
                 onDrop={(items, target) => {
-                  onDrop(items, target, tree.current, globalData, setGlobalData)
+                  onDrop(items, target, tree.current, globalData, setGlobalData, workspace.workingDirectory.path, setIsDropping)
                 }}
                 isHovering={isHovering}
               >

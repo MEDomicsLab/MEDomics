@@ -1,6 +1,6 @@
 import { randomUUID } from "crypto"
 import { ipcRenderer } from "electron"
-import fs from "fs"
+import fs from "fs-extra"
 import path from "path"
 import { toast } from "react-toastify"
 import { getPathSeparator } from "../../utilities/fileManagementUtils"
@@ -512,6 +512,38 @@ export class MEDDataObject {
   }
 
   /**
+   * @description Recursive function to update the children IDs of a MEDDataObject to a new path
+   * @param {Dictionary} dict - dictionary of all MEDDataObjects
+   * @param {String} id - the id of the MEDDataObject to update
+   * @param {String} newPath - the new path for the MEDDataObject
+   * @param {String} workspacePath - the root path of the workspace
+   * @returns {void}
+   */
+  static async updatePathRecursively(dict, id, newPath, workspacePath) {
+    // Get the object to update
+    const object = dict[id]
+    if (!object) {
+      console.log(`Object with id ${id} not found`)
+      return
+    }
+
+    // Update the path of the object in the dictionary
+    object.path = newPath
+    await updateMEDDataObjectPath(id, newPath)
+    console.log(`Updated path for MEDDataObject with id ${id} to ${newPath}`)
+    if (object.type === "directory") {
+      // Recursively update the path of the children
+      for (const childID of object.childrenIDs) {
+        const child = dict[childID]
+        if (child) {
+          const childNewPath = path.join(newPath, child.name)
+          await this.updatePathRecursively(dict, childID, childNewPath, workspacePath)
+        }
+      }
+    }
+  }
+
+  /**
    * @description Move a MEDDataObject to a new parent directory
    * @param {Dictionary} dict - dictionary of all MEDDataObjects
    * @param {String} id - the id of the MEDDataObject to move
@@ -521,6 +553,8 @@ export class MEDDataObject {
    */
   static async move(dict, id, newParentID, workspacePath) {
     const dataObject = dict[id]
+    const oldParentID = dataObject.parentID
+
     if (!dataObject) {
       console.log(`MEDDataObject with id ${id} not found`)
       return
@@ -531,35 +565,58 @@ export class MEDDataObject {
       return
     }
     // Move the data object in the working directory if it is in the workspace
+    const oldPath = this.getFullPath(dict, id, workspacePath)
+    const newParentPath = this.getFullPath(dict, newParentID, workspacePath)
+    let newPath = path.join(newParentPath, dataObject.name) 
     if (dataObject.inWorkspace) {
-      const oldPath = this.getFullPath(dict, id, workspacePath)
-      const newPath = this.getFullPath(dict, newParentID, workspacePath)
-      fs.renameSync(oldPath, newPath)
+        if (fs.existsSync(newPath)) {
+          console.error(`Cannot move ${dataObject.name} to ${newParent.name} because a file with the same name already exists`)
+          toast.error(`Cannot move ${dataObject.name} to ${newParent.name} because a file with the same name already exists`)
+          return
+        } else {
+          fs.moveSync(oldPath, newPath, { overwrite: false, recursive: true })
+        }
     } else {
       console.log(`MEDDataObject with id ${id} is not in the workspace`)
     }
-    // Update the parent ID of the data object
-    const oldParentID = dataObject.parentID
+
+    if (dataObject.type === "directory") {
+      newPath = path.join(newParentPath, dataObject.name)
+      this.updatePathRecursively(dict, id, newPath, workspacePath)
+    } 
+    // Update the path of the data object in the dictionary
+    dataObject.path = newPath
     dataObject.parentID = newParentID
+    // Update the path of the data object in the database
+    const success = await updateMEDDataObjectPath(id, newPath)
+    // Update the parentID of the data object in the database
+    const successParent = await overwriteMEDDataObjectProperties(id, { parentID: newParentID })
+
+    if (success && successParent ) {
+      console.log(`Moved MEDDataObject with id ${id} to new parent with id ${newParentID}`)
+    } else {
+      console.error(`Failed to move MEDDataObject with id ${id} to new parent with id ${newParentID}, failed to update path or parentID`)
+    }
     // Remove the data object from the old parent's children IDs
     const oldParent = dict[oldParentID]
     if (oldParent) {
       oldParent.childrenIDs = oldParent.childrenIDs.filter(id => id !== dataObject.id)
     }
+    // Update the old parent ID in the DB
+    const successOldParent = await overwriteMEDDataObjectProperties(oldParentID, { childrenIDs: oldParent.childrenIDs })
+    if (!successOldParent) {
+      console.error(`Failed to update old parent with id ${oldParentID}`)
+    }
+
     // Add the data object to the new parent's children IDs
     newParent.childrenIDs.push(dataObject.id)
-    // Update the dictionary with the new parent ID
-    dict[dataObject.id] = dataObject
-    // Update the database with the new parent ID
-    const success = await overwriteMEDDataObjectProperties(dataObject.id, { parentID: newParentID })
-    if (success) {
-      console.log(`Moved MEDDataObject with id ${id} to new parent with id ${newParentID}`)
-    } else {
-      console.error(`Failed to move MEDDataObject with id ${id} to new parent with id ${newParentID}`)
+    // Update the new parent ID in the DB
+    const successNewParent = await overwriteMEDDataObjectProperties(newParentID, { childrenIDs: newParent.childrenIDs })
+    if (!successNewParent) {
+      console.error(`Failed to update the children of new parent with id ${newParentID}`)
     }
     // Notify the system to update the workspace
     this.updateWorkspaceDataObject() 
-
 
   }
 
