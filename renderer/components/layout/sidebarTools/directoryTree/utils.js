@@ -14,16 +14,18 @@ const untouchableIDs = ["ROOT", "DATA", "EXPERIMENTS"]
  * @param {Object} dataContextObject - The data context object
  * @returns {Array} - The reordered array of folders and files
  */
-function reorderArrayOfFoldersAndFiles(array, dataContextObject) {
+function reorderArrayOfFoldersAndFiles(array, dataContextObject, showHiddenFiles) {
   let folders = []
   let files = []
   array.forEach((item) => {
     if (dataContextObject[item] !== undefined) {
+      if (!dataContextObject[item].name.startsWith(".") || showHiddenFiles) {
       if (dataContextObject[item].type == "directory") {
         folders.push(item)
       } else {
         files.push(item)
       }
+    } 
     }
   })
   return folders.concat(files)
@@ -34,7 +36,7 @@ function reorderArrayOfFoldersAndFiles(array, dataContextObject) {
  * @param {Object} medDataContext - The data context object
  * @returns {Object} - The tree object
  */
-export function fromJSONtoTree(data) {
+export function fromJSONtoTree(data, showHiddenFiles) {
   let tree = {}
   const namesYouCantRename = ["DATA", "EXPERIMENTS", "ROOT"] // These names cannot be renamed
   Object.keys(data).forEach((key) => {
@@ -46,7 +48,7 @@ export function fromJSONtoTree(data) {
         index: element.id,
         canMove: ableToRename && !isRoot,
         isFolder: element.type === "directory",
-        children: element.childrenIDs ? reorderArrayOfFoldersAndFiles(element.childrenIDs, data) : [],
+        children: element.childrenIDs ? reorderArrayOfFoldersAndFiles(element.childrenIDs, data, showHiddenFiles) : [],
         data: element.name,
         canRename: ableToRename && !isRoot,
         type: element.type,

@@ -53,7 +53,7 @@ const SidebarDirectoryTreeControlled = ({ setExternalSelectedItems, setExternalD
    */
   useEffect(() => {
     if (globalData) {
-      let newTree = fromJSONtoTree({ ...globalData })
+      let newTree = fromJSONtoTree({ ...globalData }, showHiddenFiles)
       setDirTree(newTree)
       console.log("NEW TREE", newTree)
       console.log("REF", environment.current, tree.current)
