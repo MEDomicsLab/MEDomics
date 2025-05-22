@@ -1,4 +1,4 @@
-import { app, ipcMain, Menu, dialog, BrowserWindow, protocol, shell } from "electron"
+import { app, ipcMain, Menu, dialog, BrowserWindow, protocol, shell, nativeTheme } from "electron"
 import axios from "axios"
 import serve from "electron-serve"
 import { createWindow } from "./helpers"
@@ -669,6 +669,29 @@ app.on("ready", async () => {
     })
   }
   autoUpdater.checkForUpdatesAndNotify()
+})
+
+// Handle theme toggle
+ipcMain.handle("toggle-theme", (event, theme) => {
+  if (theme === "dark") {
+    nativeTheme.themeSource = "dark"
+  } else if (theme === "light") {
+    nativeTheme.themeSource = "light"
+  } else {
+    nativeTheme.themeSource = "system"
+  }
+  return nativeTheme.shouldUseDarkColors
+})
+
+ipcMain.handle("get-theme", () => {
+  return nativeTheme.themeSource // Return the themeSource instead of shouldUseDarkColors
+})
+
+// Forward nativeTheme updated event to renderer
+nativeTheme.on("updated", () => {
+  if (mainWindow && mainWindow.webContents) {
+    mainWindow.webContents.send("theme-updated")
+  }
 })
 
 /**

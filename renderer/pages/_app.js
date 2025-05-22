@@ -63,26 +63,36 @@ import "../styles/workspaceSidebar.css"
  * It is the parent of the LayoutContextProvider, which provides the layout model to all components.
  * @constructor
  */
-function App() {
-  /* TODO: Add a dark mode toggle button  
-  const [isDarkMode, setIsDarkMode] = useState(false)
-  const [theme, setTheme] = useState("light-mode")
-  const darkMode = useDarkMode(false)
+function App({ Component, pageProps }) {
+  const [currentTheme, setCurrentTheme] = useState("light") // Manages "light" or "dark"
 
   useEffect(() => {
-    console.log("isDarkMode", isDarkMode)
-    if (isDarkMode) {
-      darkMode.enable
-    } else {
-      darkMode.disable
+    const updateThemeOnDocument = (newTheme) => {
+      setCurrentTheme(newTheme)
+      document.documentElement.setAttribute("data-theme", newTheme)
     }
-  }, [isDarkMode])
 
-  useEffect(() => {
-    document.documentElement.className = theme
-    // localStorage.setItem("theme", themeName)
-  }, [theme])
-  */
+    // Get initial theme from main process
+    ipcRenderer
+      .invoke("get-theme")
+      .then((initialTheme) => {
+        updateThemeOnDocument(initialTheme)
+      })
+      .catch((error) => {
+        console.error("Failed to get initial theme:", error)
+        updateThemeOnDocument("light") // Default to light theme on error
+      })
+
+    // Listen for theme updates from main process
+    const themeUpdateHandler = (event, newTheme) => {
+      updateThemeOnDocument(newTheme)
+    }
+    ipcRenderer.on("theme-updated", themeUpdateHandler)
+
+    return () => {
+      ipcRenderer.removeListener("theme-updated", themeUpdateHandler)
+    }
+  }, []) // Runs once on mount and cleans up on unmount
 
   let initialLayout = {
     // this is the intial layout model for flexlayout model that is passed to the LayoutManager -- See flexlayout-react docs for more info
@@ -236,6 +246,7 @@ function App() {
     }
   }, [workspaceObject])
 
+  // Render the active page - this is standard for Next.js _app.js
   return (
     <>
       <Head>

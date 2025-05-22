@@ -81,6 +81,7 @@
     "react-popper": "^2.3.0",
     "react-query": "^3.39.3",
     "react-resizable-panels": "^0.0.51",
+    "react-responsive": "^10.0.1",
     "react-select": "^5.7.2",
     "react-simple-editlabel": "^1.0.2",
     "react-simple-tree-menu": "^1.1.18",

@@ -14,7 +14,10 @@ import { Button } from "primereact/button"
 import { TbFileExport } from "react-icons/tb"
 import { VscChromeClose } from "react-icons/vsc"
 import { PiGraphFill } from "react-icons/pi"
-import { MdOutlineGroups3 } from "react-icons/md"
+import { MdOutlineGroups3, MdSunny } from "react-icons/md"
+import { MdOutlineDarkMode } from "react-icons/md";
+import { ipcRenderer } from "electron"
+
 /**
  * @description Sidebar component containing icons for each page
  * @param {function} onSidebarItemSelect - function to handle sidebar item selection
@@ -28,6 +31,7 @@ const IconSidebar = ({ onSidebarItemSelect }) => {
   const [developerModeNav, setDeveloperModeNav] = useState(true)
   const [extractionBtnstate, setExtractionBtnstate] = useState(false)
   const [buttonClass, setButtonClass] = useState("")
+  const [isDarkMode, setIsDarkMode] = useState(false)
 
   const delayOptions = { showDelay: 750, hideDelay: 0 }
 
@@ -35,6 +39,18 @@ const IconSidebar = ({ onSidebarItemSelect }) => {
   useEffect(() => {
     setDeveloperMode(true)
     setDeveloperModeNav(true)
+  }, [])
+
+  // Get initial theme and listen for updates
+  useEffect(() => {
+    ipcRenderer.invoke("get-theme").then((themeSource) => setIsDarkMode(themeSource === "dark"))
+    const handler = () => {
+      ipcRenderer.invoke("get-theme").then((themeSource) => {
+        setIsDarkMode(themeSource === "dark")
+      })
+    }
+    ipcRenderer.on("theme-updated", handler)
+    return () => ipcRenderer.removeListener("theme-updated", handler)
   }, [])
 
   /**
@@ -89,6 +105,11 @@ const IconSidebar = ({ onSidebarItemSelect }) => {
    */
   const handleNavClick = () => {
     setButtonClass(buttonClass === "" ? "show" : "")
+  }
+
+  function handleThemeToggleClick() {
+    const newTheme = isDarkMode ? "light" : "dark"
+    ipcRenderer.invoke("toggle-theme", newTheme) // No need to call setIsDarkMode here, it will be updated by the 'theme-updated' event
   }
 
   return (
@@ -351,6 +372,28 @@ const IconSidebar = ({ onSidebarItemSelect }) => {
 
           {/* div that puts the buttons to the bottom of the sidebar*/}
           <div className="d-flex icon-sidebar-divider" style={{ flexGrow: "1" }}></div>
+          {/* ------------------------------------------- DARK/LIGHT MODE BUTTON ----------------------------------------- */}
+
+          <Nav.Link
+            className="darkModeNav btnSidebar align-center"
+            data-pr-at="right center"
+            data-pr-my="left center"
+            data-pr-tooltip="Dark/Light Mode"
+            eventKey="darkMode"
+            data-tooltip-id="tooltip-darkMode"
+            onClick={() => {
+              handleThemeToggleClick()
+            }}
+            disabled={disabledIcon}
+          >
+            {isDarkMode ? (
+
+              <MdOutlineDarkMode style={{ height: "2.2rem", width: "auto" }} />
+            ) : (
+              <MdSunny style={{ height: "2.2rem", width: "auto" }} />
+            )}
+          </Nav.Link>
+          {/* ------------------------------------------- END DARK/LIGHT MODE BUTTON ----------------------------------------- */}
 
           {/* ------------------------------------------- SETTINGS BUTTON ----------------------------------------- */}
           <Nav.Link
