@@ -25,7 +25,7 @@ const TrainModelNode = ({ id, data }) => {
   const [modalShow, setModalShow] = useState(false) // state of the modal
   const [usePycaretSearchSpace, setUsePycaretSearchSpace] = useState(false) // state of the checkbox
   const { updateNode } = useContext(FlowFunctionsContext)
-  const [IntegrateTuning, setIntegrateTuning] = useState(data.internal.isTuningEnabled ?? true)
+  const [IntegrateTuning, setIntegrateTuning] = useState(data.internal.isTuningEnabled ?? false)
 
   // Check if isTuningEnabled exists in data.internal, if not initialize it
   useEffect(() => {
@@ -42,8 +42,8 @@ const TrainModelNode = ({ id, data }) => {
         updatedData: data.internal
       })
     }
-    if (!("useTuningGrid" in Object.keys(data.internal.settings))) {
-      data.internal.settings.useTuningGrid = false
+    if (!("useTuningGrid" in Object.keys(data.internal))) {
+      data.internal.useTuningGrid = false
       updateNode({
         id: id,
         updatedData: data.internal
@@ -215,7 +215,7 @@ const TrainModelNode = ({ id, data }) => {
                         className="user-defined-switch"
                         checked={usePycaretSearchSpace}
                         onChange={(e) => {
-                          data.internal.settings.useTuningGrid = !e.value
+                          data.internal.useTuningGrid = !e.value
                           setUsePycaretSearchSpace(e.value)
                         }}
                       />

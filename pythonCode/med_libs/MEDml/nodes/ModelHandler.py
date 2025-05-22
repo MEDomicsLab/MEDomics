@@ -30,7 +30,7 @@ class ModelHandler(Node):
             self.isTuningEnabled = self.config_json['data']['internal']['isTuningEnabled']
             if self.isTuningEnabled:
                 self.settingsTuning = self.config_json['data']['internal']['settingsTuning']
-                self.useTuningGrid = self.config_json['data']['internal']['settings']['useTuningGrid']
+                self.useTuningGrid = self.config_json['data']['internal']['useTuningGrid']
             self.model_id = self.config_json['associated_id']
             model_obj = self.global_config_json['nodes'][self.model_id]
             self.config_json['data']['estimator'] = {
