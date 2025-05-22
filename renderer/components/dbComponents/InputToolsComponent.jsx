@@ -114,10 +114,10 @@ const InputToolsComponent = ({ exportOptions }) => {
           <Panel header="Holdout Set Creation Tools" toggleable collapsed={true}>
             <HoldoutSetCreationToolsDB currentCollection={!collectionId ? null : collectionId} />
           </Panel>
-          <Panel header="Sample | Row Grouping Tools" toggleable collapsed={true}>
+          <Panel header="Row Tagging & Subset Creation Tools" toggleable collapsed={true}>
             <SubsetCreationToolsDB currentCollection={!collectionId ? null : collectionId} />
           </Panel>
-          <Panel header="Feature | Column Tagging Tools" toggleable collapsed={true}>
+          <Panel header="Column Tagging Tools" toggleable collapsed={true}>
             <GroupingTaggingToolsDB />
           </Panel>
           <Panel header="Feature Reduction Tools" toggleable collapsed={true}>
