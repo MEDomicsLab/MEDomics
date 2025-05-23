@@ -177,21 +177,53 @@ const Workflow = ({ setWorkflowType, workflowType }) => {
   // Update split node columns
   const updateSplitNodesColumns = (nodes) => {
     const splitNodes = nodes.filter((node) => node.type === "splitNode")
+    if (splitNodes.length === 0) return
     const datasetNodes = nodes.filter((node) => node.type === "datasetNode")
+    if (datasetNodes.length === 0) return
+    const cleanNodes = nodes.filter((node) => node.type === "standardNode" && node.name == "Clean")
     // Link split nodes to dataset nodes
     let dataSplitCouples = {}
-    edges.forEach((edge) => {
-      datasetNodes.forEach((datasetNode) => {
-        splitNodes.forEach((splitNode) => {
-          if (edge.source === datasetNode.id && edge.target === splitNode.id) {
-            if (!dataSplitCouples[datasetNode.id]) {
-              dataSplitCouples[datasetNode.id] = {}
+    if (cleanNodes.length === 0) {
+      edges.forEach((edge) => {
+        datasetNodes.forEach((datasetNode) => {
+          splitNodes.forEach((splitNode) => {
+            if (edge.source === datasetNode.id && edge.target === splitNode.id) {
+              if (!dataSplitCouples[datasetNode.id]) {
+                dataSplitCouples[datasetNode.id] = {}
+              }
+              dataSplitCouples[datasetNode.id] = splitNode.id
             }
-            dataSplitCouples[datasetNode.id] = splitNode.id
-          }
+          })
         })
       })
-    })
+    } else {
+      let dataCleanCouples = {}
+      edges.forEach((edge) => {
+        datasetNodes.forEach((datasetNode) => {
+          cleanNodes.forEach((cleanNode) => {
+            if (edge.source === datasetNode.id && edge.target === cleanNode.id) {
+              if (!dataCleanCouples[datasetNode.id]) {
+                dataCleanCouples[datasetNode.id] = {}
+              }
+              dataCleanCouples[datasetNode.id] = cleanNode.id
+            }
+          })
+        })
+      })
+      edges.forEach((edge) => {
+        Object.keys(dataCleanCouples).length > 0 && Object.keys(dataCleanCouples).forEach((datasetNodeId) => {
+          const cleanNodeId = dataCleanCouples[datasetNodeId]
+          splitNodes.forEach((splitNode) => {
+            if (edge.source === cleanNodeId && edge.target === splitNode.id) {
+              if (!dataSplitCouples[datasetNodeId]) {
+                dataSplitCouples[datasetNodeId] = {}
+              }
+              dataSplitCouples[datasetNodeId] = splitNode.id
+            }
+          })
+        })
+      })
+    }
     let needsUpdate = false
     Object.keys(dataSplitCouples).length > 0 && Object.keys(dataSplitCouples).forEach((datasetNodeId) => {
       const splitNodeId = dataSplitCouples[datasetNodeId]
