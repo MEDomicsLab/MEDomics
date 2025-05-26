@@ -7,10 +7,10 @@ import { defaultJupyterPort } from "../layout/flexlayout/mainContainerClass"
  * @param {string} path - the path of the file to edit
  * @returns {JSX.Element} - A Jupyter Notebook viewer
  */
-const JupyterNotebookViewer = ({ path }) => {
+const JupyterNotebookViewer = ({ path, updateSavedCode }) => {
   const [error, setError] = useState(null)
-  const fileName = path.split("\\").pop() // Get the file name from the path
-  const relativePath = path.split("DATA\\").pop() // Get the relative path from the DATA directory
+  const fileName = path.basename(path) // Get the file name from the path
+  const relativePath = path.relative("DATA", path) // Get the relative path from the DATA directory
 
   const getJupyterURL = () => {
     return "http://localhost:" + defaultJupyterPort + "/notebooks/" + relativePath

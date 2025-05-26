@@ -178,8 +178,9 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
       toast.error("No workspace path found. Jupyter server cannot be started.")
       return
     }
-    if (!(await this.checkJupyterServerRunning()))
-    exec('jupyter notebook ' + workspacePath + '/DATA --no-browser --port ' + defaultJupyterPort)
+    if (!(await this.checkJupyterServerRunning())) {
+      exec('jupyter notebook ' + workspacePath + '/DATA --no-browser --port ' + defaultJupyterPort)
+    }
   }
 
   checkJupyterServerRunning = async () => {
