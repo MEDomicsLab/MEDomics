@@ -59,11 +59,15 @@ import { TabStorage } from "./tabStorage"
 import { Utils } from "./utils"
 import ZoomPanPinchComponent from "./zoomPanPinchComponent"
 import CodeEditor from "../../flow/codeEditor"
-import JupyterNotebook from "../../flow/JupyterNoteBookViewer"
+import { WorkspaceContext } from "../../workspace/workspaceContext"
 import { confirmDialog } from "primereact/confirmdialog"
 import JupyterNotebookViewer from "../../flow/JupyterNoteBookViewer"
+const util = require("util")
+const exec = util.promisify(require("child_process").exec)
 
 var fields = ["Name", "Field1", "Field2", "Field3", "Field4", "Field5"]
+
+export const defaultJupyterPort = 8900
 
 interface LayoutContextType {
   layoutRequestQueue: any[]
@@ -94,6 +98,7 @@ interface MyComponentState {
 const MainContainer = (props) => {
   const { layoutRequestQueue, setLayoutRequestQueue, isEditorOpen, setIsEditorOpen } = React.useContext(LayoutModelContext) as unknown as LayoutContextType
   const { globalData, setGlobalData } = React.useContext(DataContext) as unknown as DataContextType
+  const { workspace } = React.useContext(WorkspaceContext) as unknown as { workspace: any }
   return (
     <MainInnerContainer
       layoutRequestQueue={layoutRequestQueue}
@@ -102,6 +107,7 @@ const MainContainer = (props) => {
       setIsEditorOpen={setIsEditorOpen}
       globalData={globalData}
       setGlobalData={setGlobalData}
+      workspace={workspace}
     />
   )
 }
@@ -137,6 +143,11 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
     }
   }
 
+  async stopJuypterServerEvent(e: Event) {
+    e.preventDefault()
+    await this.stopJyputerServer()
+  }
+
   /**
    * Callback when the component is mounted
    * @returns nothing
@@ -145,6 +156,7 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
   componentDidMount() {
     this.loadLayout("default", false)
     document.body.addEventListener("touchmove", this.preventIOSScrollingWhenDragging, { passive: false })
+    document.body.addEventListener("close", this.stopJuypterServerEvent, { passive: false })
     const { layoutRequestQueue, setLayoutRequestQueue } = this.context as LayoutContextType
     if (layoutRequestQueue.length > 0) {
       layoutRequestQueue.forEach((action) => {
@@ -156,7 +168,57 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
       })
       setLayoutRequestQueue([])
     }
+    this.startJupyterServer()
   }
+
+  startJupyterServer = async () => {
+    await this.setJupyterConfig()
+    const workspacePath = this.props.workspace?.workingDirectory?.path
+    if (!workspacePath) {
+      toast.error("No workspace path found. Jupyter server cannot be started.")
+      return
+    }
+    if (!(await this.checkJupyterServerRunning()))
+    exec('jupyter notebook ' + workspacePath + '/DATA --no-browser --port ' + defaultJupyterPort)
+  }
+
+  checkJupyterServerRunning = async () => {
+    try {
+      const result = await exec('jupyter notebook list')
+      const isRunning = result.stdout.includes(defaultJupyterPort.toString())
+      return isRunning
+    } catch (error) {
+      console.error("Error checking Jupyter server status:", error)
+      return false
+    }
+  }
+
+  setJupyterConfig = async () => {
+    await exec('jupyter --paths').then((result) => {
+      const configPath = result.stdout.split("\n").find(line => line.includes(".jupyter"))
+      if (configPath) {
+        // Read the last line of the jupyter_notebook_config.py file
+        const configFilePath = configPath.trim() + "/jupyter_notebook_config.py"
+        // Get last line of configfilepath
+        const lastLine = fs.readFileSync(configFilePath, "utf8").split("\n").slice(-1)[0]
+        if (!lastLine.includes("c.NotebookApp.tornado_settings") || !lastLine.includes("c.ServerApp.allow_unauthenticated_access")) {
+          // Add config settings to allow iframe embedding and unauthenticated access
+          fs.appendFileSync(configFilePath, `\nc.ServerApp.allow_unauthenticated_access = True`)
+          fs.appendFileSync(configFilePath, `\nc.NotebookApp.tornado_settings={'headers': {'Content-Security-Policy': "frame-ancestors 'self' http://localhost:8888;"}}`)
+        }
+      }
+    })
+  }
+
+  componentWillUnmount(): void {
+    this.stopJyputerServer()
+  }
+
+  stopJyputerServer = async () => {
+    await exec('jupyter notebook stop ' + defaultJupyterPort).catch((error) => {})
+    // Ignore error, Jupyter says "could not stop server" yet it still stops it
+  }
+
 
   /**
    * Function to delete the tabs related to a data object
@@ -1340,5 +1402,6 @@ function showImage(url, scale) {
 
   img.src = url
 }
+
 
 export { MainContainer }
