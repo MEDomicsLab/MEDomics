@@ -995,7 +995,7 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
     } else if (component === "jupyterNotebook") {
       if (node.getExtraData().data == null) {
         const config = node.getConfig()
-        return <JupyterNotebookViewer path={config.path}/>
+        return <JupyterNotebookViewer filePath={config.path}/>
       }
     } else if (component === "Settings") {
       return <SettingsPage />

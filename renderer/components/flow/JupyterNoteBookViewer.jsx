@@ -1,16 +1,20 @@
 import React, { useEffect, useState } from "react"
+import path from "node:path"
 import Iframe from "react-iframe"
 import { defaultJupyterPort } from "../layout/flexlayout/mainContainerClass"
 
 /**
  * Jupyter Notebook viewer
- * @param {string} path - the path of the file to edit
+ * @param {string} filePath - the path of the file to edit
  * @returns {JSX.Element} - A Jupyter Notebook viewer
  */
-const JupyterNotebookViewer = ({ path }) => {
+const JupyterNotebookViewer = ({ filePath }) => {
   const [error, setError] = useState(null)
-  const fileName = path.basename(path) // Get the file name from the path
-  const relativePath = path.relative("DATA", path) // Get the relative path from the DATA directory
+  const fileName = path.basename(filePath) // Get the file name from the path
+  // Get the relative path after "DATA" in the filePath
+  // This works cross-platform (Windows, Mac, Linux)
+  const match = filePath.replace(/\\/g, "/").match(/DATA\/(.+)$/)
+  const relativePath = match ? match[1] : filePath
 
   const getJupyterURL = () => {
     return "http://localhost:" + defaultJupyterPort + "/notebooks/" + relativePath
@@ -21,8 +25,11 @@ const JupyterNotebookViewer = ({ path }) => {
   }
 
   useEffect( () => {
-    if (!path) return
-  }, [path])
+    if (!filePath) return
+    console.log("Loading Jupyter Notebook:", filePath)
+    console.log("Relative Path:", relativePath)
+    console.log("File Name:", fileName)
+  }, [filePath])
 
   
 
