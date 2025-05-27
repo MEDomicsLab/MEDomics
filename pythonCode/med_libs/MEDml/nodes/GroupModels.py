@@ -41,7 +41,7 @@ class GroupModels(Node):
         """
         self.config_json['instance'] += 1
         self.config_json['cur_models_list_id'] += [kwargs['id'].split('*')[0]]
-        self.config_json['cur_models_list_settings'] += [kwargs['settings']]
+        self.config_json['cur_models_list_settings'] += [kwargs.get('settings', {})] if 'settings' in kwargs else []
         print()
         print(Fore.BLUE + "=== GroupModels === " + Fore.YELLOW + f"({self.username})" + Fore.RESET)
         print(self.config_json['instance'])

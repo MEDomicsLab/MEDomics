@@ -271,14 +271,13 @@ class MEDexperiment(ABC):
                     'next_nodes': copy.deepcopy(next_nodes_id_json),
                     'results': node_info['results']
                 }
-                if node_can_go:
-                    self.execute_next_nodes(
-                        prev_node=node,
-                        next_nodes_to_execute=next_nodes_id_json,
-                        next_nodes=node_info['next_nodes'],
-                        results=results[current_node_id]['next_nodes'],
-                        experiment=exp_to_return
-                    )
+                self.execute_next_nodes(
+                    prev_node=node,
+                    next_nodes_to_execute=next_nodes_id_json,
+                    next_nodes=node_info['next_nodes'],
+                    results=results[current_node_id]['next_nodes'],
+                    experiment=exp_to_return
+                )
                 print(f'END-{node.username}')
 
     @abstractmethod
