@@ -4,7 +4,7 @@ import { Accordion, AccordionTab } from "primereact/accordion"
 import { Button } from "primereact/button"
 import { SelectButton } from "primereact/selectbutton"
 import process from "process"
-import React, { useCallback, useContext, useEffect, useState } from "react"
+import { useCallback, useContext, useEffect, useState } from "react"
 import * as Icon from "react-bootstrap-icons"
 import { toast } from "react-toastify"
 import { getPathSeparator, loadJsonPath } from "../../../utilities/fileManagementUtils"
@@ -13,6 +13,7 @@ import AnalyseResults from "../../learning/results/node/analyseResults"
 import DataParamResults from "../../learning/results/node/dataParamResults"
 import ModelsResults from "../../learning/results/node/modelsResults"
 import SaveModelResults from "../../learning/results/node/saveModelResults"
+import SplitResults from "../../learning/results/node/splitResults"
 import { connectToMongoDB, insertMEDDataObjectIfNotExists, updateMEDDataObjectUsedInList } from "../../mongoDB/mongoDBUtils"
 import { MEDDataObject } from "../../workspace/NewMedDataObject"
 import { EXPERIMENTS, WorkspaceContext } from "../../workspace/workspaceContext"
@@ -116,6 +117,8 @@ const PipelineResult = ({ pipeline, selectionMode, flowContent }) => {
         console.log("type", type)
         if (type == "dataset" || type == "clean") {
           toReturn = <DataParamResults selectedResults={selectedResults} type={type} />
+        } else if (type == "split") {
+          toReturn = <SplitResults selectedResults={selectedResults} />
         } else if (["train_model", "compare_models", "stack_models", "ensemble_model", "tune_model", "blend_models", "calibrate_model"].includes(type)) {
           toReturn = <ModelsResults selectedResults={selectedResults} />
         } else if (type == "analyze") {

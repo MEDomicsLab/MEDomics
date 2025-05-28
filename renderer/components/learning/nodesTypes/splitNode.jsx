@@ -118,7 +118,7 @@ const SplitNode = ({ id, data }) => {
             columnsTags: data.internal.settings.columnsTags || [],
             rowsTagsMapped: data.internal.settings.rowsTagsMapped || {},
             rowsTags: data.internal.settings.rowsTags || [],
-            stratify_columns: (columnsArray.length - 1).toString(),
+            stratify_columns: columnsArray[columnsArray.length - 1],
           },
         },
       },
@@ -314,12 +314,8 @@ const SplitNode = ({ id, data }) => {
                     className="use-tags-switch"
                     checked={useTags}
                     onChange={(e) => {
-                      setUseTags(e.value)
                       data.internal.settings.useTags = e.value
-                      updateNode({
-                        id,
-                        updatedData: data.internal,
-                      })
+                      setUseTags(e.value)
                     }}
                   />
                 </div>
@@ -402,8 +398,11 @@ const SplitNode = ({ id, data }) => {
                     // Swap the dummy columns for the real dataset columns
                     if (data.internal.settings.columns) {
                       const columnsArray = Object.keys(data.internal.settings.columns)
-                      if (nameParam === "stratify_columns" && (data.internal.settings.global[nameParam] === "None" || parseInt(data.internal.settings.global[nameParam]) >= columnsArray.length)) {
-                        data.internal.settings.global[nameParam] = (columnsArray.length - 1).toString()
+                      if (nameParam === "stratify_columns") {
+                        if (typeof data.internal.settings.global[nameParam] === "object" && !data.internal.settings.global[nameParam].every(r=>columnsArray.includes(r))) {
+                          data.internal.settings.global[nameParam] = columnsArray[columnsArray.length - 1]
+                        }
+                        
                       }
                     }
 
