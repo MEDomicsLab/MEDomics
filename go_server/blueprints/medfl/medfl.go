@@ -3,6 +3,10 @@ package medfl
 import (
 	Utils "go_module/src"
 	"log"
+    "fmt"
+    "io"
+    "net/http"
+    "time"
 )
 
 var prePath = "medfl"
@@ -14,6 +18,45 @@ func AddHandleFunc() {
 	Utils.CreateHandleFunc(prePath+"/config-db/", handleConfigFlDb)
 	Utils.CreateHandleFunc(prePath+"/run-pipeline/", handleRunFlPipeline)
 	Utils.CreateHandleFunc(prePath+"/param-optim/", handleOptimParams)
+
+	Utils.CreateHandleFunc(prePath+"/devices/", handleGetDevices)
+
+}
+
+var (
+    apiKey    = "tskey-api-kWSTR44ZoH11CNTRL-47uggCMtTpKEQvtVbyjhpKdmBm9e1fpX"
+    tailnet   = "taild030b7.ts.net"
+)
+
+// handleGetDevices proxies a GET to Tailscale’s devices API.
+// Expects JSON: { "api_key": "...", "tailnet": "your-ts-net" }
+func handleGetDevices(_ string, id string) (string, error) {
+    log.Println("Fetching Tailscale devices (hard-coded)...", id)
+
+    url := fmt.Sprintf("https://api.tailscale.com/api/v2/tailnet/%s/devices", tailnet)
+    req, err := http.NewRequest("GET", url, nil)
+    if err != nil {
+        return "", fmt.Errorf("creating request: %w", err)
+    }
+    req.Header.Set("Authorization", "Bearer "+apiKey)
+
+    client := &http.Client{Timeout: 10 * time.Second}
+    resp, err := client.Do(req)
+    if err != nil {
+        return "", fmt.Errorf("calling Tailscale API: %w", err)
+    }
+    defer resp.Body.Close()
+
+    if resp.StatusCode != http.StatusOK {
+        bodyBytes, _ := io.ReadAll(resp.Body)
+        return "", fmt.Errorf("Tailscale API error %s: %s", resp.Status, string(bodyBytes))
+    }
+
+    bodyBytes, err := io.ReadAll(resp.Body)
+    if err != nil {
+        return "", fmt.Errorf("reading response: %w", err)
+    }
+    return string(bodyBytes), nil
 }
 
 // handleStartSweetviz handles the request to run a sweetviz analysis
