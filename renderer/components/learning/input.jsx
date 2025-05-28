@@ -329,6 +329,42 @@ const Input = ({ name, settingInfos, currentValue, onInputChange, disabled = fal
         </>
       );
 
+      // for list input but with name not indexes (form select of all the options, multiple selection possible)
+      case "list-multiple-name":
+      const safeValue1 = Array.isArray(currentValue) ? currentValue : (currentValue ? [currentValue] : []);
+
+      return (
+        <>
+          <label htmlFor={name} className="block mb-2 text-sm font-medium text-gray-700">
+            {settingInfos.label || name}
+          </label>
+
+          <MultiSelect
+            key={name}
+            id={name}
+            disabled={disabled}
+            value={safeValue1}
+            filter
+            onChange={(e) => {
+              setInputUpdate({
+                name,
+                value: e.value,
+                type: settingInfos.type,
+              });
+            }}
+            options={Object.entries(settingInfos?.choices || {}).map(([option, label]) => ({
+              name: label,
+              value: label,
+            }))}
+            optionLabel="name"
+            display="chip"
+            className="w-full md:w-20rem"
+          />
+
+          {createTooltip(settingInfos.tooltip, name)}
+        </>
+      );
+
       // for range input
       case "range":
         return (
