@@ -8,6 +8,7 @@ import pandas as pd
 
 sys.path.append(
     str(Path(os.path.dirname(os.path.abspath(__file__))).parent.parent))
+
 from med_libs.GoExecutionScript import GoExecutionScript, parse_arguments
 from med_libs.mongodb_utils import connect_to_mongo
 from med_libs.server_utils import go_print
@@ -41,17 +42,20 @@ class GoExecScriptClean(GoExecutionScript):
         go_print(json.dumps(json_config, indent=4))
         # Set local variables
         dataset_name = json_config["datasetRequested"]
-        file_path = json_config["filePath"]
+        sample_id = json_config["newSampleID"]
 
         data = get_data(dataset_name)
         # Remove spaces from column names
         data.columns = data.columns.str.replace(' ', '_')
 
+        # Setup the new mongo collection
         db = connect_to_mongo()
+        db.create_collection(sample_id)
+        new_collection = db[sample_id]
 
-        # Create a file with sample data
-        created_file_path = os.path.join(file_path, "SampleData.csv")
-        pd.DataFrame(data).to_csv(created_file_path, index=False)
+        # Insert sample data in collection
+        data_dict = pd.DataFrame(data).to_dict(orient="records")
+        new_collection.insert_many(data_dict)
 
         return
 

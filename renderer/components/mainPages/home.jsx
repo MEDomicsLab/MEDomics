@@ -33,10 +33,20 @@ const HomePage = () => {
 
   const generateSampleData = async () => {
     setSampleGenerated(true)
+    // Create a new MEDDataObject with the sample data
+    const sampleID = randomUUID()
+    const object = new MEDDataObject({
+      id: sampleID,
+      name: "SampleData.csv",
+      type: "csv",
+      parentID: "DATA",
+      childrenIDs: [],
+      inWorkspace: false
+    })
 
     const jsonToSend = {
       datasetRequested: "diabetes", // Choose which dataset to generate from pycaret
-      filePath: workspace.workingDirectory.path + "/DATA/",
+      newSampleID: sampleID
     }
 
     // Request the creation of the sample data to the go server
@@ -57,6 +67,8 @@ const HomePage = () => {
             toast.error(jsonResponse.error)
           }
         } else {
+          // Insert the MEDDataObject in the mongoDB database
+          await insertMEDDataObjectIfNotExists(object)
           MEDDataObject.updateWorkspaceDataObject()
           toast.success("Sample data generated successfully.")
         }
