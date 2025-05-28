@@ -132,11 +132,7 @@ class Dataset(Node):
 
         if self.df is not None:
             all_columns = list(self.df.columns)
-            self._info_for_next_node['available_stratify_columns'] = all_columns
-            self._info_for_next_node['target'] = self.settings['target']
-            self._info_for_next_node['dataset_columns'] = all_columns  # optionnel mais pratique
-            self._info_for_next_node['splitted'] = False
-
+            self._info_for_next_node['dataset_columns'] = all_columns
         self._info_for_next_node['target'] = self.settings['target']
         self._info_for_next_node['splitted'] = False
         return {}
