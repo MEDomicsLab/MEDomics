@@ -1,4 +1,3 @@
-import React from "react"
 import Parameters from "../utilities/parameters"
 import DataTablePath from "../utilities/dataTablePath"
 import DataTable from "../../../dataTypeVisualisation/dataTableWrapper"
