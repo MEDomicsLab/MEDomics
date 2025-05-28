@@ -786,7 +786,7 @@ const Workflow = ({ setWorkflowType, workflowType }) => {
       if (success) {
         toast.success("Scene " + sceneName + " has been saved successfully")
       } else {
-        toast.error("Error while saving scene" + sceneName)
+        toast.error("Error while saving scene: " + sceneName)
       }
     }
   }, [reactFlowInstance, MLType, intersections])

@@ -159,7 +159,7 @@ const CodeEditor = ({id, path, updateSavedCode}) => {
       (error) => {
         setLoadingSave(false)
         console.error("Error from backend:", error)
-        toast.error("Error saving file " + globalData[id].name)
+        toast.error("Error saving file: " + globalData[id].name)
       }
     )
   })
