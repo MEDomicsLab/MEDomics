@@ -290,6 +290,46 @@ const TrainModelNode = ({ id, data }) => {
                         style={{ width: "100%", marginBottom: 12 }}
                       />
                     )}
+                                          {/* ──────────── Calibrate controls (NEW) ──────────── */}
+                      {(() => {
+                        // Initialisation sûre (évite les undefined)
+                        if (!data.internal[model]) data.internal[model] = {}
+                        if (data.internal[model].isCalibrateEnabled === undefined)
+                          data.internal[model].isCalibrateEnabled = false
+                        if (!data.internal[model].calibrateMethod)
+                          data.internal[model].calibrateMethod = "sigmoid"
+                      })()}
+
+                      <hr style={{ margin: "12px 0" }} />
+
+                      <div className="d-flex align-items-center justify-content-between mb-2">
+                        <label className="me-2">Calibrate</label>
+                        <InputSwitch
+                          checked={data.internal[model].isCalibrateEnabled}
+                          onChange={(e) => {
+                            data.internal[model].isCalibrateEnabled = e.value
+                            updateNode({ id, updatedData: data.internal })
+                          }}
+                        />
+                      </div>
+
+                      {data.internal[model].isCalibrateEnabled && (
+                        <Dropdown
+                          value={data.internal[model].calibrateMethod}
+                          options={[
+                            { label: "Sigmoid",  value: "sigmoid" },
+                            { label: "Isotonic", value: "isotonic" },
+                          ]}
+                          onChange={(e) => {
+                            data.internal[model].calibrateMethod = e.value
+                            updateNode({ id, updatedData: data.internal })
+                          }}
+                          placeholder="Select method"
+                          style={{ width: "100%", marginBottom: 12 }}
+                        />
+                      )}
+                      {/* ──────────── end Calibrate controls ─────────────── */}
+
 
                     </Panel>
                   )
