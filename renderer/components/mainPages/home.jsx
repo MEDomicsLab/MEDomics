@@ -11,6 +11,8 @@ import { randomUUID } from "crypto"
 import { requestBackend } from "../../utilities/requests"
 import { ServerConnectionContext } from "../serverConnection/connectionContext"
 import { toast } from "react-toastify"
+import { FaRegQuestionCircle } from "react-icons/fa";
+import { Tooltip } from "react-bootstrap"
 
 
 /**
@@ -167,7 +169,10 @@ const HomePage = () => {
           ) : (
             <div className="workspace-set" style={{ display: "flex", flexDirection: "column", alignItems: "flex-start" }}>
               <h5>Workspace is set to {workspace.workingDirectory.path}</h5>
-              <Button disabled={sampleGenerated} style={{ marginTop: "0.5rem" }} onClick={generateSampleData}>Generate sample data</Button>
+              <div>
+                <Button disabled={sampleGenerated} style={{ marginTop: "0.5rem" }} onClick={generateSampleData}>Generate sample data</Button>
+                <FaRegQuestionCircle title="Generates a SampleData.csv file filled with a default PyCaret dataset (currently 'Diabetes')" style={{fontSize: "30px", color: "#444", marginTop: "0.5rem", marginLeft: "0.5rem"}} />
+              </div>
             </div>
           )}
         </Stack>
