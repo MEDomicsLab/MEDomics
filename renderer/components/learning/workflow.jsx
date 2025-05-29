@@ -244,7 +244,7 @@ const Workflow = ({ setWorkflowType, workflowType }) => {
         if (datasetNode.data.internal.settings.files) {
           splitNode.data.internal.settings.files = datasetNode.data.internal.settings.files
         }
-        splitNode.data.internal.settings.useTags = false
+        splitNode.data.internal.settings.useTags = splitNode.data.internal.settings.useTags || false
         setNodes((nds) =>
           nds.map((node) => {
             if (node.id === splitNodeId) {

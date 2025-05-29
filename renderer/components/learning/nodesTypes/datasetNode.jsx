@@ -102,7 +102,9 @@ const DatasetNode = ({ id, data }) => {
       let columnsArray = await getCollectionColumns(inputUpdate.value.id)
       let columnsObject = {}
       columnsArray.forEach((column) => {
-        columnsObject[column] = column
+        if (column !== '_id'){
+          columnsObject[column] = column
+        }
       })
       let steps = null
       setLoader(false)
