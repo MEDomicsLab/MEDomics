@@ -124,6 +124,7 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
   layoutRef?: React.RefObject<Layout>
   saved: { [key: string]: boolean } = {}
   static contextType = LayoutModelContext
+  jupyterStarting: boolean = false
 
   constructor(props: any) {
     super(props)
@@ -172,6 +173,10 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
   }
 
   startJupyterServer = async () => {
+    // Avoid booting up multiple servers at once
+    if (this.jupyterStarting) return
+    this.jupyterStarting = true
+    
     await this.setJupyterConfig()
     const workspacePath = this.props.workspace?.workingDirectory?.path
     if (!workspacePath) {
@@ -218,6 +223,7 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
   stopJyputerServer = async () => {
     await exec('jupyter notebook stop ' + defaultJupyterPort).catch((error) => {})
     // Ignore error, Jupyter says "could not stop server" yet it still stops it
+    this.jupyterStarting = false
   }
 
 
@@ -998,7 +1004,7 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
         return <JupyterNotebookViewer filePath={config.path}/>
       }
     } else if (component === "Settings") {
-      return <SettingsPage />
+      return <SettingsPage checkJupyterIsRunning={this.checkJupyterServerRunning} startJupyterServer={this.startJupyterServer} stopJupyterServer={this.stopJyputerServer} />
     } else if (component !== "") {
       if (node.getExtraData().data == null) {
         const config = node.getConfig()
