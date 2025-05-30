@@ -5,13 +5,14 @@ from sklearn.preprocessing import KBinsDiscretizer
 from sklearn.utils.multiclass import type_of_target
 
 
-def get_cv_stratification_details(dataset, stratify_column, cv_folds=5, random_state=42):
+def get_cv_stratification_details(dataset, stratify_column, class_names, cv_folds=5, random_state=42):
     """
     Returns detailed fold stratification report with robust class handling
     
     Args:
         dataset (pd.DataFrame): The dataset containing the stratification column.
         stratify_column (str): The column name to stratify by.
+        class_names (str): A string of class names separated by underscores, e.g. "class1_class2_class3".
         cv_folds (int): Number of folds for cross-validation.
         random_state (int): Random seed for reproducibility.
     Returns:
@@ -41,15 +42,39 @@ def get_cv_stratification_details(dataset, stratify_column, cv_folds=5, random_s
         
         # Add train class counts (will include all classes due to stratification)
         for cls, cnt in zip(train_classes, train_counts):
-            fold_entry[f'Train Class {cls}'] = round(cnt, 2)
+            if '_' in str(cls):
+                # Handle multi-label classes
+                cls_idxs = [c for c in cls.split('_')]
+                class_name = []
+                for c in range(len(class_names.split('_'))):
+                    if class_names.split('_')[c].startswith('XTAGX') and int(cls_idxs[c]) == 1:
+                        class_name.append(class_names.split('_')[c][5:])  # Remove 'XTAGX' prefix
+                    elif not class_names.split('_')[c].startswith('XTAGX'):
+                        class_name.append(class_names.split('_')[c] + '-' + str(cls_idxs[c]))
+                class_name = '_'.join(class_name)
+            else:
+                class_name = class_names + '-' + str(cls)  # Single class handling
+            fold_entry[f'Train Class {class_name}'] = round(cnt, 2)
         
         # Add test class counts (may have missing classes)
         for cls, cnt in zip(test_classes, test_counts):
-            fold_entry[f'Test Class {cls}'] = round(cnt, 2)
+            if '_' in str(cls):
+                # Handle multi-label classes
+                cls_idxs = [c for c in cls.split('_')]
+                class_name = []
+                for c in range(len(class_names.split('_'))):
+                    if class_names.split('_')[c].startswith('XTAGX') and int(cls_idxs[c]) == 1:
+                        class_name.append(class_names.split('_')[c][5:])  # Remove 'XTAGX' prefix
+                    elif not class_names.split('_')[c].startswith('XTAGX'):
+                        class_name.append(class_names.split('_')[c] + '-' + str(cls_idxs[c]))
+                class_name = '_'.join(class_name)
+            else:
+                class_name = class_names + '-' + str(cls)
+            fold_entry[f'Test Class {class_name}'] = round(cnt, 2)
         
         fold_stats.append(fold_entry)
     
-    # Convert to DataFrame and fill NaN for missing test classes
+    # Convert to DataFrame
     stats_df = pd.DataFrame(fold_stats)
     
     # Calculate percentages
@@ -63,13 +88,14 @@ def get_cv_stratification_details(dataset, stratify_column, cv_folds=5, random_s
     
     return stats_df
 
-def get_subsampling_details(dataset, stratify_columns=None, test_size=0.2, n_iterations=5, random_state=None):
+def get_subsampling_details(dataset, class_names, stratify_columns=None, test_size=0.2, n_iterations=5, random_state=None):
     """
     Gets detailed subsampling report for random subsampling with optional stratification
     
     Args:
         dataset (pd.DataFrame): The dataset to analyze.
         stratify_columns (str or list of str, optional): Column(s) to stratify by. If None, no stratification.
+        class_names (str): A string of class names separated by underscores, e.g. "class1_class2_class3".
         test_size (float): Proportion of the dataset to include in the test split (between 0 and 1).
         n_iterations (int): Number of iterations to perform for subsampling.
         random_state (int, optional): Random seed for reproducibility.
@@ -122,16 +148,49 @@ def get_subsampling_details(dataset, stratify_columns=None, test_size=0.2, n_ite
             
             # Add train class counts
             for cls, cnt in zip(train_classes, train_counts):
+                if '_' in str(cls):
+                    # Handle multi-label classes
+                    cls_idxs = [c for c in cls.split('_')]
+                    class_name = []
+                    for c in range(len(class_names.split('_'))):
+                        if class_names.split('_')[c].startswith('XTAGX') and int(cls_idxs[c]) == 1:
+                            class_name.append(class_names.split('_')[c][5:])  # Remove 'XTAGX' prefix
+                        elif not class_names.split('_')[c].startswith('XTAGX'):
+                            class_name.append(class_names.split('_')[c] + '-' + str(cls_idxs[c]))
+                    class_name = '_'.join(class_name)
+                else:
+                    class_name = class_names + '-' + str(cls)
                 stats_entry[f'Train Class {cls}'] = round(cnt, 2)
             
             # Add test class counts
             for cls, cnt in zip(test_classes, test_counts):
+                if '_' in str(cls):
+                    # Handle multi-label classes
+                    cls_idxs = [c for c in cls.split('_')]
+                    class_name = []
+                    for c in range(len(class_names.split('_'))):
+                        if class_names.split('_')[c].startswith('XTAGX') and int(cls_idxs[c]) == 1:
+                            class_name.append(class_names.split('_')[c][5:])  # Remove 'XTAGX' prefix
+                        elif not class_names.split('_')[c].startswith('XTAGX'):
+                            class_name.append(class_names.split('_')[c] + '-' + str(cls_idxs[c]))
+                    class_name = '_'.join(class_name)
+                else:
+                    class_name = class_names + '-' + str(cls)
                 stats_entry[f'Test Class {cls}'] = round(cnt, 2)
         
         iteration_stats.append(stats_entry)
-        
+    
     # Convert to DataFrame
     stats_df = pd.DataFrame(iteration_stats)
+
+    # Calculate percentages
+    for col in stats_df.columns:
+        if col.startswith('Train Class '):
+            cls = col.replace('Train Class ', '')
+            stats_df[f'Train Class {cls} %'] = stats_df[col] / stats_df['Train Samples']
+        elif col.startswith('Test Class '):
+            cls = col.replace('Test Class ', '')
+            stats_df[f'Test Class {cls} %'] = stats_df[col] / stats_df['Test Samples']
     
     return stats_df
  

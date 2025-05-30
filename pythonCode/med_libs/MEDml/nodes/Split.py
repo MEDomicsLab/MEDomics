@@ -119,6 +119,7 @@ class Split(Node):
             raise ValueError(f"Stratify columns not in dataset: {missing}")
 
         use_stratification = bool(stratify_columns)
+        strat_classes_name = stratify_columns[0]
 
         # Build kwargs for the first Pycaret setup 
         pycaret_exp = experiment["pycaret_exp"]
@@ -144,9 +145,10 @@ class Split(Node):
                                 if unique_values > 2:
                                     raise ValueError(
                                         f"Column {col} is continuous with {unique_values} unique values. "
-                                        "Please bin it before using it for stratification."
+                                        "Please use the row tagging tool in the input module to define stratification categories for this column."
                                     )
                             stratify_columns.append(col)
+                            strat_classes_name += f"_{col}"
                         else:
                             raise ValueError(f"Column {col} not found in DataFrame for tag {tag}.")
             
@@ -177,6 +179,7 @@ class Split(Node):
                             experiment_df.at[index, tag_column_name] = 1
                             if tag_column_name not in stratify_columns:
                                 stratify_columns.append(tag_column_name)
+                                strat_classes_name += f"_XTAGX{tag}"
                         else:
                             raise ValueError(f"Document with _id {row_id} not found in collection {collection_id}.")
 
@@ -260,6 +263,7 @@ class Split(Node):
             stats_df = get_cv_stratification_details(
                 dataset=dataset,
                 stratify_column=stratify_columns,
+                class_names=strat_classes_name,
                 cv_folds=cv_folds,
                 random_state=random_state
             )
@@ -306,6 +310,7 @@ class Split(Node):
             stats_df = get_subsampling_details(
                 dataset=dataset,
                 stratify_columns=stratify_columns,
+                class_names=strat_classes_name,
                 test_size=test_size,
                 n_iterations=n_iterations,
                 random_state=random_state
