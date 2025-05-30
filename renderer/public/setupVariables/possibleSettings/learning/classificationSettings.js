@@ -48,7 +48,7 @@ const classificationSettings = {
         },
         n_iterations: {
           type: "int",
-          tooltip: "Number of repetitions for the splits.",
+          tooltip: "Number of iterations i.e. number of splits to create.",
           default_val: 10,
           min: 1,
           max: 100
