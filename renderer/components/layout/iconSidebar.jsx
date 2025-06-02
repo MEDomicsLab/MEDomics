@@ -17,6 +17,7 @@ import { PiGraphFill } from "react-icons/pi"
 import { MdOutlineGroups3, MdSunny } from "react-icons/md"
 import { MdOutlineDarkMode } from "react-icons/md";
 import { ipcRenderer } from "electron"
+import { useTheme } from "../theme/themeContext"
 
 /**
  * @description Sidebar component containing icons for each page
@@ -26,12 +27,12 @@ import { ipcRenderer } from "electron"
 const IconSidebar = ({ onSidebarItemSelect }) => {
   // eslint-disable-next-line no-unused-vars
   const { dispatchLayout, developerMode, setDeveloperMode } = useContext(LayoutModelContext)
+  const { isDarkMode, toggleTheme } = useTheme()
   const [activeKey, setActiveKey] = useState("home") // activeKey is the name of the page
   const [disabledIcon, setDisabledIcon] = useState("disabled") // disabled is the state of the page
   const [developerModeNav, setDeveloperModeNav] = useState(true)
   const [extractionBtnstate, setExtractionBtnstate] = useState(false)
   const [buttonClass, setButtonClass] = useState("")
-  const [isDarkMode, setIsDarkMode] = useState(false)
 
   const delayOptions = { showDelay: 750, hideDelay: 0 }
 
@@ -39,18 +40,6 @@ const IconSidebar = ({ onSidebarItemSelect }) => {
   useEffect(() => {
     setDeveloperMode(true)
     setDeveloperModeNav(true)
-  }, [])
-
-  // Get initial theme and listen for updates
-  useEffect(() => {
-    ipcRenderer.invoke("get-theme").then((themeSource) => setIsDarkMode(themeSource === "dark"))
-    const handler = () => {
-      ipcRenderer.invoke("get-theme").then((themeSource) => {
-        setIsDarkMode(themeSource === "dark")
-      })
-    }
-    ipcRenderer.on("theme-updated", handler)
-    return () => ipcRenderer.removeListener("theme-updated", handler)
   }, [])
 
   /**
@@ -108,8 +97,7 @@ const IconSidebar = ({ onSidebarItemSelect }) => {
   }
 
   function handleThemeToggleClick() {
-    const newTheme = isDarkMode ? "light" : "dark"
-    ipcRenderer.invoke("toggle-theme", newTheme) // No need to call setIsDarkMode here, it will be updated by the 'theme-updated' event
+    toggleTheme()
   }
 
   return (

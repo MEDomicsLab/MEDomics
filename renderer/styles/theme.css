@@ -1,0 +1,256 @@
+:root {
+  /* Light theme variables */
+  --bg-primary: #ffffff;
+  --bg-secondary: #f8f9fa;
+  --bg-tertiary: #e9ecef;
+  --text-primary: #212529;
+  --text-secondary: #6c757d;
+  --text-muted: #adb5bd;
+  --border-color: #dee2e6;
+  --border-color-light: #f1f3f4;
+  --sidebar-bg: #ffffff;
+  --sidebar-text: #212529;
+  --sidebar-hover: #f8f9fa;
+  --sidebar-active: #e9ecef;
+  --button-bg: #0d6efd;
+  --button-text: #ffffff;
+  --button-hover: #0b5ed7;
+  --card-bg: #ffffff;
+  --card-border: #dee2e6;
+  --input-bg: #ffffff;
+  --input-border: #ced4da;
+  --input-focus: #86b7fe;
+  --shadow: rgba(0, 0, 0, 0.15);
+  --shadow-hover: rgba(0, 0, 0, 0.25);
+  --terminal-bg: #ffffff;
+  --terminal-text: #212529;
+  --success: #198754;
+  --warning: #ffc107;
+  --danger: #dc3545;
+  --info: #0dcaf0;
+}
+
+[data-theme="dark"] {
+  /* Dark theme variables */
+  --bg-primary: #1a1a1a;
+  --bg-secondary: #2d2d2d;
+  --bg-tertiary: #404040;
+  --text-primary: #ffffff;
+  --text-secondary: #b3b3b3;
+  --text-muted: #8d8d8d;
+  --border-color: #404040;
+  --border-color-light: #333333;
+  --sidebar-bg: #2d2d2d;
+  --sidebar-text: #ffffff;
+  --sidebar-hover: #404040;
+  --sidebar-active: #4a4a4a;
+  --button-bg: #0d6efd;
+  --button-text: #ffffff;
+  --button-hover: #0b5ed7;
+  --card-bg: #2d2d2d;
+  --card-border: #404040;
+  --input-bg: #2d2d2d;
+  --input-border: #404040;
+  --input-focus: #0d6efd;
+  --shadow: rgba(0, 0, 0, 0.3);
+  --shadow-hover: rgba(0, 0, 0, 0.5);
+  --terminal-bg: #1a1a1a;
+  --terminal-text: #ffffff;
+  --success: #20c997;
+  --warning: #ffc107;
+  --danger: #dc3545;
+  --info: #0dcaf0;
+}
+
+body {
+  background-color: var(--bg-primary) !important;
+  color: var(--text-primary) !important;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Oxygen", "Ubuntu", "Cantarell", "Fira Sans", "Droid Sans", "Helvetica Neue", sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Sidebar styles */
+.sidebar {
+  background-color: var(--sidebar-bg) !important;
+  color: var(--sidebar-text) !important;
+  border-right: 1px solid var(--border-color) !important;
+}
+
+.sidebar-item {
+  color: var(--sidebar-text) !important;
+}
+
+.sidebar-item:hover {
+  background-color: var(--sidebar-hover) !important;
+}
+
+.sidebar-item.active {
+  background-color: var(--sidebar-active) !important;
+}
+
+/* Card and panel styles */
+.card,
+.panel,
+.p-card {
+  background-color: var(--card-bg) !important;
+  border-color: var(--card-border) !important;
+  color: var(--text-primary) !important;
+}
+
+.card-header,
+.p-card-header {
+  background-color: var(--bg-secondary) !important;
+  border-bottom-color: var(--border-color) !important;
+  color: var(--text-primary) !important;
+}
+
+/* PrimeReact panel styles */
+.p-panel {
+  background-color: var(--card-bg) !important;
+  border-color: var(--card-border) !important;
+  color: var(--text-primary) !important;
+}
+
+.p-panel.p-panel-header {
+  background-color: var(--bg-secondary) !important;
+  border-bottom-color: var(--border-color) !important;
+  color: var(--text-primary) !important;
+}
+
+/* Button styles */
+.btn,
+.p-button {
+  background-color: var(--button-bg) !important;
+  border-color: var(--button-bg) !important;
+  color: var(--button-text) !important;
+}
+
+.btn:hover,
+.p-button:hover {
+  background-color: var(--button-hover) !important;
+  border-color: var(--button-hover) !important;
+}
+
+/* Input styles */
+.form-control,
+.p-inputtext,
+.p-dropdown,
+.p-multiselect {
+  background-color: var(--input-bg) !important;
+  border-color: var(--input-border) !important;
+  color: var(--text-primary) !important;
+}
+
+.form-control:focus,
+.p-inputtext:focus {
+  border-color: var(--input-focus) !important;
+  box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25) !important;
+}
+
+/* Modal styles */
+.modal-content,
+.p-dialog {
+  background-color: var(--card-bg) !important;
+  color: var(--text-primary) !important;
+}
+
+.modal-header,
+.p-dialog-header {
+  background-color: var(--bg-secondary) !important;
+  border-bottom-color: var(--border-color) !important;
+}
+
+/* Table styles */
+.table,
+.p-datatable {
+  color: var(--text-primary) !important;
+}
+
+.table th,
+.p-datatable-thead th {
+  background-color: var(--bg-secondary) !important;
+  border-color: var(--border-color) !important;
+  color: var(--text-primary) !important;
+}
+
+.table td,
+.p-datatable-tbody td {
+  border-color: var(--border-color) !important;
+  color: var(--text-primary) !important;
+}
+
+.table-striped tbody tr:nth-of-type(odd) {
+  background-color: var(--bg-secondary) !important;
+}
+
+/* Terminal styles */
+.terminal,
+.xterm {
+  background-color: var(--terminal-bg) !important;
+  color: var(--terminal-text) !important;
+}
+
+/* Dropdown and menu styles */
+.dropdown-menu,
+.p-menu {
+  background-color: var(--card-bg) !important;
+  border-color: var(--border-color) !important;
+}
+
+.dropdown-item,
+.p-menuitem-link {
+  color: var(--text-primary) !important;
+}
+
+.dropdown-item:hover,
+.p-menuitem-link:hover {
+  background-color: var(--sidebar-hover) !important;
+}
+
+/* Toast and notification styles */
+.toast,
+.p-toast {
+  background-color: var(--card-bg) !important;
+  color: var(--text-primary) !important;
+  border-color: var(--border-color) !important;
+}
+
+/* Scrollbar styles for dark mode */
+[data-theme="dark"] ::-webkit-scrollbar {
+  background-color: var(--bg-secondary);
+}
+
+[data-theme="dark"] ::-webkit-scrollbar-thumb {
+  background-color: var(--bg-tertiary);
+}
+
+[data-theme="dark"] ::-webkit-scrollbar-thumb:hover {
+  background-color: var(--border-color);
+}
+
+/* Layout manager styles */
+.flexlayout__border_top,
+.flexlayout__border_bottom,
+.flexlayout__border_left,
+.flexlayout__border_right {
+  background-color: var(--sidebar-bg) !important;
+  color: var(--sidebar-text) !important;
+}
+
+.flexlayout__tab {
+  background-color: var(--bg-secondary) !important;
+  color: var(--text-primary) !important;
+}
+
+.flexlayout__tab_selected {
+  background-color: var(--bg-primary) !important;
+}
+
+.flexlayout__tabset_header {
+  background-color: var(--bg-secondary) !important;
+}
+
+.flexlayout__splitter {
+  background-color: var(--border-color) !important;
+}

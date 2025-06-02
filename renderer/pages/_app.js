@@ -14,6 +14,7 @@ import { MEDDataObject } from "../components/workspace/NewMedDataObject"
 import { WorkspaceProvider } from "../components/workspace/workspaceContext"
 import { loadMEDDataObjects, updateGlobalData } from "../utilities/appUtils/globalDataUtils"
 import { NotificationContextProvider } from "../components/generalPurpose/notificationContext"
+import { ThemeProvider } from "../components/theme/themeContext"
 
 // CSS
 import "bootstrap/dist/css/bootstrap.min.css"
@@ -25,7 +26,7 @@ import "react-tooltip/dist/react-tooltip.css"
 // --primereact
 import "primeicons/primeicons.css"
 import "primereact/resources/primereact.min.css"
-import "primereact/resources/themes/lara-light-indigo/theme.css"
+import "primereact/resources/themes/lara-dark-indigo/theme.css"
 
 // blueprintjs
 import "@blueprintjs/core/lib/css/blueprint.css"
@@ -56,6 +57,7 @@ import "../styles/learning/sidebar.css"
 import "../styles/output.css"
 import "../styles/sidebarTree.css"
 import "../styles/workspaceSidebar.css"
+import "../styles/theme.css"
 
 /**
  * This is the main app component. It is the root component of the app.
@@ -64,36 +66,7 @@ import "../styles/workspaceSidebar.css"
  * @constructor
  */
 function App({ Component, pageProps }) {
-  const [currentTheme, setCurrentTheme] = useState("light") // Manages "light" or "dark"
-
-  useEffect(() => {
-    const updateThemeOnDocument = (newTheme) => {
-      setCurrentTheme(newTheme)
-      document.documentElement.setAttribute("data-theme", newTheme)
-    }
-
-    // Get initial theme from main process
-    ipcRenderer
-      .invoke("get-theme")
-      .then((initialTheme) => {
-        updateThemeOnDocument(initialTheme)
-      })
-      .catch((error) => {
-        console.error("Failed to get initial theme:", error)
-        updateThemeOnDocument("light") // Default to light theme on error
-      })
-
-    // Listen for theme updates from main process
-    const themeUpdateHandler = (event, newTheme) => {
-      updateThemeOnDocument(newTheme)
-    }
-    ipcRenderer.on("theme-updated", themeUpdateHandler)
-
-    return () => {
-      ipcRenderer.removeListener("theme-updated", themeUpdateHandler)
-    }
-  }, []) // Runs once on mount and cleans up on unmount
-
+  // Note: Component and pageProps are required by Next.js but not used in this layout-based app
   let initialLayout = {
     // this is the intial layout model for flexlayout model that is passed to the LayoutManager -- See flexlayout-react docs for more info
     global: {
@@ -246,7 +219,6 @@ function App({ Component, pageProps }) {
     }
   }, [workspaceObject])
 
-  // Render the active page - this is standard for Next.js _app.js
   return (
     <>
       <Head>
@@ -256,34 +228,36 @@ function App({ Component, pageProps }) {
         {/* Uncomment if you want to use React Dev tools */}
       </Head>
       <div style={{ height: "100%", width: "100%" }}>
-        <HotkeysProvider>
-          <ActionContextProvider>
-            <NotificationContextProvider>
-              <DataContextProvider globalData={globalData} setGlobalData={setGlobalData}>
-                <WorkspaceProvider
-                  workspace={workspaceObject}
-                  setWorkspace={setWorkspaceObject}
-                  port={port}
-                  setPort={setPort}
-                  recentWorkspaces={recentWorkspaces}
-                  setRecentWorkspaces={setRecentWorkspaces}
-                >
-                  <ServerConnectionProvider port={port} setPort={setPort}>
-                    <LayoutModelProvider // This is the LayoutContextProvider, which provides the layout model to all the children components of the LayoutManager
-                      layoutModel={layoutModel}
-                      setLayoutModel={setLayoutModel}
-                    >
-                      {/* This is the WorkspaceProvider, which provides the workspace model to all the children components of the LayoutManager */}
-                      {/* This is the LayoutContextProvider, which provides the layout model to all the children components of the LayoutManager */}
-                      <LayoutManager layout={initialLayout} />
-                      {/** We pass the initialLayout as a parameter */}
-                    </LayoutModelProvider>
-                  </ServerConnectionProvider>
-                </WorkspaceProvider>
-              </DataContextProvider>
-            </NotificationContextProvider>
-          </ActionContextProvider>
-        </HotkeysProvider>
+        <ThemeProvider>
+          <HotkeysProvider>
+            <ActionContextProvider>
+              <NotificationContextProvider>
+                <DataContextProvider globalData={globalData} setGlobalData={setGlobalData}>
+                  <WorkspaceProvider
+                    workspace={workspaceObject}
+                    setWorkspace={setWorkspaceObject}
+                    port={port}
+                    setPort={setPort}
+                    recentWorkspaces={recentWorkspaces}
+                    setRecentWorkspaces={setRecentWorkspaces}
+                  >
+                    <ServerConnectionProvider port={port} setPort={setPort}>
+                      <LayoutModelProvider // This is the LayoutContextProvider, which provides the layout model to all the children components of the LayoutManager
+                        layoutModel={layoutModel}
+                        setLayoutModel={setLayoutModel}
+                      >
+                        {/* This is the WorkspaceProvider, which provides the workspace model to all the children components of the LayoutManager */}
+                        {/* This is the LayoutContextProvider, which provides the layout model to all the children components of the LayoutManager */}
+                        <LayoutManager layout={initialLayout} />
+                        {/** We pass the initialLayout as a parameter */}
+                      </LayoutModelProvider>
+                    </ServerConnectionProvider>
+                  </WorkspaceProvider>
+                </DataContextProvider>
+              </NotificationContextProvider>
+            </ActionContextProvider>
+          </HotkeysProvider>
+        </ThemeProvider>
         <ConfirmPopup />
         <ConfirmDialog />
         <ToastContainer // This is the ToastContainer, which is used to display toast notifications
