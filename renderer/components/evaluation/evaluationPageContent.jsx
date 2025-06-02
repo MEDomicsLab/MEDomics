@@ -5,7 +5,7 @@ import { requestBackend } from "../../utilities/requests"
 import { getCollectionData } from "../dbComponents/utils"
 import { LoaderContext } from "../generalPurpose/loaderContext"
 import { PageInfosContext } from "../mainPages/moduleBasics/pageInfosContext"
-import { getCollectionColumns, overwriteMEDDataObjectContent } from "../mongoDB/mongoDBUtils"
+import { getCollectionColumns, overwriteMEDDataObjectContent, deleteMEDDataObject } from "../mongoDB/mongoDBUtils"
 import { DataContext } from "../workspace/dataContext"
 import { MEDDataObject } from "../workspace/NewMedDataObject"
 import { WorkspaceContext } from "../workspace/workspaceContext"
@@ -73,9 +73,14 @@ const EvaluationPageContent = () => {
    * @description - This function is used to update the config WHEN THE USER CLICKS ON THE UPDATE CONFIG BUTTON
    */
   const updateConfigClick = async () => {
+    console.log("called updateConfigClick")
     let config = { ...evalConfig }
     config["isSet"] = true
     setEvalConfig(config)
+    let predictionFileID = MEDDataObject.getChildIDWithName(globalData, pageId, "predictions.csv")
+    if (predictionFileID) {
+      await deleteMEDDataObject(predictionFileID)
+    }
     let configToLoadID = MEDDataObject.getChildIDWithName(globalData, pageId, "metadata.json")
     let success = await overwriteMEDDataObjectContent(configToLoadID, [config])
     if (success) {
@@ -231,6 +236,16 @@ const EvaluationPageContent = () => {
   }
 
   /**
+   * @description Function used to disable the create evaluation button if the fields are empty
+   */
+  const checkForEmptyInput = () => {
+    return (chosenDataset == {} ||
+            chosenDataset.selectedDatasets?.length == 0 ||
+            chosenModel == {} ||
+            chosenModel.id == '')
+  }
+
+  /**
    *
    * @returns the evaluation step: either the config step or the evaluation step
    */
@@ -267,6 +282,7 @@ const EvaluationPageContent = () => {
           updateConfigClick={updateConfigClick}
           setChosenModel={setChosenModel}
           setChosenDataset={setChosenDataset}
+          checkForEmptyInput={checkForEmptyInput}
         />
       )
     }

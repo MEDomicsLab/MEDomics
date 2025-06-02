@@ -546,6 +546,19 @@ export async function findMEDDataObjectByName(name) {
 }
 
 /**
+ * @description Get MEDDataObjects specified by name from the DB in case of multiple objects with identical names
+ * @param {*} name
+ * @returns
+ */
+export async function findMEDDataObjectsByName(name) {
+  const db = await connectToMongoDB()
+  const collection = db.collection("medDataObjects")
+  const query = { name: name }
+  const documents = await collection.find(query)
+  return documents
+}
+
+/**
  * @description Get the MEDDataObject specified by path from the DB
  * @param {*} path // path of the MEDDataObject
  * @param {*} type // type of the MEDDataObject
