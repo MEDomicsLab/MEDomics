@@ -37,9 +37,30 @@ class ModelHandler(Node):
                 "settings": model_obj['data']['internal']['settings']
             }
 
-    def __custom_train_and_evaluate(self, pycaret_exp, model_id: str, folds: list, X_processed: pd.DataFrame, y_processed: pd.Series, random_state=42, **ml_settings) -> None:
+    def __custom_train_and_evaluate(
+            self, 
+            pycaret_exp, 
+            model_id: str, 
+            folds: list,
+            X_processed: pd.DataFrame, 
+            y_processed: pd.Series, 
+            random_state=42, 
+            **ml_settings
+        ) -> None:
         """
         Custom function to train and evaluate models using PyCaret's create_model and tune_model functions.
+
+        Args:
+            pycaret_exp (object): The PyCaret experiment object.
+            model_id (str): The model ID to train and evaluate.
+            folds (list): List of fold data for cross-validation.
+            X_processed (pd.DataFrame): Processed feature data.
+            y_processed (pd.Series): Processed target data.
+            random_state (int): Random state for reproducibility.
+            ml_settings (dict): Additional settings for model training and evaluation.
+        
+        Returns:
+            None
         """
         if folds is None:
             raise ValueError("Folds should not be None. Check the iteration data.")
@@ -49,11 +70,13 @@ class ModelHandler(Node):
         fold_performances = []
         optimization_metric = 'Accuracy'
         
+        # Iterate through each fold and train the model
         for fold_data in folds:
             fold_num = fold_data['fold']
             train_indices = fold_data['train_indices']
             test_indices = fold_data['test_indices']
            
+            # Fold data extraction
             try:
                 X_train_fold = X_processed.iloc[train_indices]
                 y_train_fold = y_processed.iloc[train_indices]
@@ -62,37 +85,57 @@ class ModelHandler(Node):
             except IndexError as e:
                 raise ValueError(f"Index error during fold data extraction on fold {fold_num}: {e}")
 
+            # Model Instantiation
             try:
+                # Check if estimator is already set in settings
                 if 'estimator' in ml_settings:
                     if model_id != ml_settings['estimator']:
                         raise ValueError(f"Model ID {model_id} does not match the estimator in settings. Please check your configuration.")
                 else:
                     ml_settings['estimator'] = model_id
+                
+                # Use PyCaret's create_model instead of manual instantiation
                 model = pycaret_exp.create_model(verbose=False, **ml_settings)
             except Exception as e:
                 raise ValueError(f"Failed to create model {model_id} on fold {fold_num}. Error: {e}")
 
+            # Model Training
             try:
+                # Set random_state if the model supports it
                 if hasattr(model, 'random_state'):
                     setattr(model, 'random_state', random_state)
+                
+                # Try fitting with specific train-test data
                 model.fit(X_train_fold, y_train_fold)
             except Exception as e:
                 raise ValueError(f"Failed to fit model {model_id}. Error: {e}")
 
+            # Model Tuning
             try:
                 if self.isTuningEnabled:
+                    # Check if optimization metric is set
                     if 'optimize' in self.settingsTuning and self.settingsTuning['optimize']:
                         optimization_metric = self.settingsTuning['optimize']
+                    
+                    # Check if a custom grid is provided
                     if self.useTuningGrid and model_id in list(self.config_json['data']['internal'].keys()) and 'custom_grid' in list(self.config_json['data']['internal'][model_id].keys()):
                         self.settingsTuning['custom_grid'] = self.config_json['data']['internal'][model_id]['custom_grid']
+                    
+                    # Tune the model
                     model = pycaret_exp.tune_model(model, **self.settingsTuning)
             except Exception as e:
                 raise ValueError(f"Failed to tune model {model_id} on fold {fold_num}. Error: {e}")
 
+            # Testing on the test set for this fold
             try:
+                # Make predictions on the test set
                 y_pred = model.predict(X_test_fold)
+                
+                # Get predictions for probability-based metrics if available
                 if optimization_metric.lower() == 'auc' and hasattr(model, 'predict_proba'):
                     y_pred = model.predict_proba(X_test_fold)[:, 1]
+                
+                # Store the model and its performance
                 fold_score = check_metric(y_test_fold, pd.Series(y_pred), metric=optimization_metric)
                 fold_performances.append({
                     'fold': fold_num,
@@ -103,14 +146,24 @@ class ModelHandler(Node):
             except Exception as e:
                 raise ValueError(f"Failed to evaluate model {model_id} on fold {fold_num}. Error: {e}")
 
+            # Store Results for the fold
             trained_models.append(model)
 
+        # Select the best model based on performance
         if fold_performances:
+            # Sort by score (higher is better) and select the best model
             best_model = sorted(fold_performances, key=lambda x: x['score'], reverse=True)[0]['model']
+            
+            # Final evaluation on the entire dataset if needed
             try:
+                # Ensure the final model has the same random state
                 if hasattr(best_model, 'random_state'):
                     setattr(best_model, 'random_state', random_state)
+                
+                # Final fit on the entire dataset
                 best_model.fit(X_processed, y_processed)
+                
+                # Store the final model
                 return best_model
             except Exception as e:
                 raise ValueError(f"Failed to fit the best model {model_id} on the entire dataset. Error: {e}")
@@ -120,12 +173,24 @@ class ModelHandler(Node):
     def __handle_splitted_data(self, experiment: dict, settings: dict, **kwargs) -> None:
         """
         Trains and evaluates models using PyCaret's create_model and tune_model functions based on user-defined splits.
+
+        Args:
+            experiment (dict): The experiment dictionary containing the PyCaret experiment object.
+            settings (dict): The settings for the model training and evaluation.
+            **kwargs: Additional arguments including dataset and iteration_result.
+
+        Returns:
+            None
         """
+
+        # Initialize variables
         iteration_data = kwargs["split_indices"]
         pycaret_exp = experiment['pycaret_exp']
         random_state = kwargs.get("random_state", 42)
 
+        # Metrics to use for evaluation
         try:
+            # Extract the metrics (usually the DataFrame index)
             metrics_to_calculate = pycaret_exp.get_metrics()['Name'].tolist()
             if not metrics_to_calculate:
                 raise ValueError("No metrics found in pycaret_exp.get_metrics(). Ensure setup was successful.")
@@ -133,9 +198,11 @@ class ModelHandler(Node):
             print(f"ERROR: Failed to retrieve models using pycaret_exp.models(). Error: {e}")
             metrics_to_calculate = ['Accuracy', 'AUC', 'Recall', 'Prec.', 'F1', 'Kappa']
 
+        # Retrieve processed data from PyCaret
         X_processed = pycaret_exp.get_config('X_transformed')
         y_processed = pycaret_exp.get_config('y_transformed')
 
+        # Setup models to train and evaluate 
         try:
             if self.type == 'compare_models':
                 all_models_df = pycaret_exp.models()
@@ -143,6 +210,7 @@ class ModelHandler(Node):
                 if not models_to_evaluate:
                     raise ValueError("No models found in pycaret_exp.models(). Ensure setup was successful.")
             elif self.type == 'train_model':
+                # For train_model, we can use the model_id from the configuration
                 settings.update(self.config_json['data']['estimator']['settings'])
                 settings.update({'estimator': self.config_json['data']['estimator']['type']})
                 models_to_evaluate = [self.config_json['data']['estimator']['type']]
@@ -155,19 +223,31 @@ class ModelHandler(Node):
         split_type = iteration_data['type']
         folds = iteration_data['folds']
 
+        # Iterate through models to train and evaluate
         trained_models = []
         for model_id in models_to_evaluate:
             if split_type == "cross_validation":
+                # Check if estimator is already set in settings
                 if 'estimator' in settings:
                     if model_id != settings['estimator']:
                         raise ValueError(f"Model ID {model_id} does not match the estimator in settings. Please check your configuration.")
                 else:
                     settings['estimator'] = model_id
+                
+                # Use PyCaret's create_model instead of manual instantiation
                 trained_models = pycaret_exp.create_model(**settings)
                 if type(trained_models) != list:
                     trained_models = [trained_models]
             else:
-                trained_model = self.__custom_train_and_evaluate(pycaret_exp, model_id, folds, X_processed, y_processed, random_state, **settings)
+                trained_model = self.__custom_train_and_evaluate(
+                    pycaret_exp, 
+                    model_id, 
+                    folds, 
+                    X_processed, 
+                    y_processed, 
+                    random_state, 
+                    **settings
+                )
                 trained_models.append(trained_model)
         return trained_models
 
@@ -181,6 +261,8 @@ class ModelHandler(Node):
         trained_models = None
         trained_models_json = {}
         settings = copy.deepcopy(self.settings)
+        if 'useTuningGrid' in list(settings.keys()):
+            del settings['useTuningGrid']
         splitted = kwargs.get("splitted", None)
         if splitted:
             trained_models = self.__handle_splitted_data(experiment, settings, **kwargs)
