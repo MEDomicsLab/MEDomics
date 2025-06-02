@@ -26,7 +26,7 @@ const TrainModelNode = ({ id, data }) => {
   const [modalShow, setModalShow] = useState(false) // state of the modal
   const [usePycaretSearchSpace, setUsePycaretSearchSpace] = useState(false) // state of the checkbox
   const { updateNode } = useContext(FlowFunctionsContext)
-  const [IntegrateTuning, setIntegrateTuning] = useState(data.internal.isTuningEnabled ?? true)
+  const [IntegrateTuning, setIntegrateTuning] = useState(data.internal.isTuningEnabled ?? false)
 
   // Check if isTuningEnabled exists in data.internal, if not initialize it
   useEffect(() => {
@@ -43,8 +43,8 @@ const TrainModelNode = ({ id, data }) => {
         updatedData: data.internal
       })
     }
-    if (!("useTuningGrid" in Object.keys(data.internal.settings))) {
-      data.internal.settings.useTuningGrid = false
+    if (!("useTuningGrid" in Object.keys(data.internal))) {
+      data.internal.useTuningGrid = false
       updateNode({
         id: id,
         updatedData: data.internal
@@ -216,7 +216,7 @@ const TrainModelNode = ({ id, data }) => {
                         className="user-defined-switch"
                         checked={usePycaretSearchSpace}
                         onChange={(e) => {
-                          data.internal.settings.useTuningGrid = !e.value
+                          data.internal.useTuningGrid = !e.value
                           setUsePycaretSearchSpace(e.value)
                         }}
                       />
@@ -228,10 +228,6 @@ const TrainModelNode = ({ id, data }) => {
                   <hr />
                   <div style={{ fontWeight: "bold", margin: "10px 0" }}>Custom Tuning Grid</div>
                   {Object.keys(data.internal.tuningGrid).map((model) => {
-                    if (!data.internal[model]?.custom_grid) {
-                      if (!data.internal[model]) data.internal[model] = {};
-                      data.internal[model].custom_grid = {};
-                    }
                     return (
                       <Panel header={model} key={model} collapsed toggleable>
                         {Object.keys(data.internal.tuningGrid[model].options).filter((setting => data.internal.tuningGrid[model].hasOwnProperty(setting))).map((setting) => {
@@ -241,95 +237,12 @@ const TrainModelNode = ({ id, data }) => {
                             model={model}
                             paramInfo={data.internal.tuningGrid[model].options[setting]}
                             currentValue={data.internal.tuningGrid[model].options[setting].default_val}
-                            currentGridValues={
-                              data.internal[model] && data.internal[model].custom_grid
-                                ? data.internal[model].custom_grid[setting] ?? null
-                                : null
-                            }
-                            
+                            currentGridValues={data.internal[model] ? data.internal[model]?.custom_grid[setting] : null}
                             onParamChange={onTuningParamChange}
                           />
                         )
                         
                       })}
-                      {/* ─── Ensemble controls (non-intrusive) ─── */}
-                    {(() => {
-                      // Make sure the model slot and keys exist (no mutation until needed)
-                      if (!data.internal[model]) data.internal[model] = {};
-                      if (data.internal[model].isEnsembleEnabled === undefined)
-                        data.internal[model].isEnsembleEnabled = false;
-                      if (!data.internal[model].ensembleMethod)
-                        data.internal[model].ensembleMethod = "bagging";
-                    })()}
-
-                    <hr style={{ margin: "12px 0" }} />
-
-                    <div className="d-flex align-items-center justify-content-between mb-2">
-                      <label className="me-2">Ensemble</label>
-                      <InputSwitch
-                        checked={data.internal[model].isEnsembleEnabled}
-                        onChange={(e) => {
-                          data.internal[model].isEnsembleEnabled = e.value;
-                          updateNode({ id, updatedData: data.internal });
-                        }}
-                      />
-                    </div>
-
-                    {data.internal[model].isEnsembleEnabled && (
-                      <Dropdown
-                        value={data.internal[model].ensembleMethod}
-                        options={[
-                          { label: "Bagging", value: "bagging" },
-                          { label: "Boosting", value: "boosting" },
-                        ]}
-                        onChange={(e) => {
-                          data.internal[model].ensembleMethod = e.value;
-                          updateNode({ id, updatedData: data.internal });
-                        }}
-                        placeholder="Select method"
-                        style={{ width: "100%", marginBottom: 12 }}
-                      />
-                    )}
-                                          {/* ──────────── Calibrate controls (NEW) ──────────── */}
-                      {(() => {
-                        // Initialisation sûre (évite les undefined)
-                        if (!data.internal[model]) data.internal[model] = {}
-                        if (data.internal[model].isCalibrateEnabled === undefined)
-                          data.internal[model].isCalibrateEnabled = false
-                        if (!data.internal[model].calibrateMethod)
-                          data.internal[model].calibrateMethod = "sigmoid"
-                      })()}
-
-                      <hr style={{ margin: "12px 0" }} />
-
-                      <div className="d-flex align-items-center justify-content-between mb-2">
-                        <label className="me-2">Calibrate</label>
-                        <InputSwitch
-                          checked={data.internal[model].isCalibrateEnabled}
-                          onChange={(e) => {
-                            data.internal[model].isCalibrateEnabled = e.value
-                            updateNode({ id, updatedData: data.internal })
-                          }}
-                        />
-                      </div>
-
-                      {data.internal[model].isCalibrateEnabled && (
-                        <Dropdown
-                          value={data.internal[model].calibrateMethod}
-                          options={[
-                            { label: "Sigmoid",  value: "sigmoid" },
-                            { label: "Isotonic", value: "isotonic" },
-                          ]}
-                          onChange={(e) => {
-                            data.internal[model].calibrateMethod = e.value
-                            updateNode({ id, updatedData: data.internal })
-                          }}
-                          placeholder="Select method"
-                          style={{ width: "100%", marginBottom: 12 }}
-                        />
-                      )}
-                      {/* ──────────── end Calibrate controls ─────────────── */}
-
 
                     </Panel>
                   )
