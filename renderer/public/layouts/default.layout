@@ -35,6 +35,13 @@
         {
           "type": "tab",
           "enableClose": false,
+          "name": "Logging",
+          "component": "logging",
+          "icon": "images/terminal.svg"
+        },
+        {
+          "type": "tab",
+          "enableClose": false,
           "name": "Terminal",
           "component": "terminal",
           "icon": "images/terminal.svg"

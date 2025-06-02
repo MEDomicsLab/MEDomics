@@ -87,8 +87,8 @@ function App({ Component, pageProps }) {
         children: [
           {
             type: "tab",
-            name: "Terminal",
-            component: "terminal"
+            name: "Logging",
+            component: "logging"
           }
         ]
       }

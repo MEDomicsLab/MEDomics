@@ -49,7 +49,7 @@ import ModelViewer from "../../mainPages/modelViewer"
 import ModulePage from "../../mainPages/moduleBasics/modulePage"
 import OutputPage from "../../mainPages/output"
 import SettingsPage from "../../mainPages/settings"
-import TerminalPage from "../../mainPages/terminal"
+import LoggingPage from "../../mainPages/terminal"
 import { getCollectionSize, updateMEDDataObjectName, updateMEDDataObjectPath, updateMEDDataObjectType } from "../../mongoDB/mongoDBUtils"
 import { DataContext } from "../../workspace/dataContext"
 import { MEDDataObject } from "../../workspace/NewMedDataObject"
@@ -893,10 +893,14 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
           return <ApplicationPage pageId={"EvaluationPage"} />
         }
       }
+    } else if (component === "logging") {
+      if (node.getExtraData().data == null) {
+        const config = node.getConfig()
+        return <LoggingPage />
+      }
     } else if (component === "terminal") {
       if (node.getExtraData().data == null) {
         const config = node.getConfig()
-
         return <TerminalPage />
       }
     } else if (component === "output") {
@@ -1042,7 +1046,7 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
       if (component === "MEDprofilesViewer") {
         return <span style={{ marginRight: 3 }}>📊</span>
       }
-      if (component === "terminal") {
+      if (component === "terminal" || component === "logging") {
         return <span style={{ marginRight: 3 }}>🖥️</span>
       }
       if (component === "output") {
