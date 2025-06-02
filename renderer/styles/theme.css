@@ -69,6 +69,11 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
+/* Label styles */
+label {
+  color: var(--text-primary) !important;
+  font-weight: 500;
+}
 
 /* Sidebar styles */
 .sidebar {
@@ -121,9 +126,9 @@ body {
 /* Button styles */
 .btn,
 .p-button {
-  background-color: var(--button-bg) !important;
-  border-color: var(--button-bg) !important;
-  color: var(--button-text) !important;
+  background-color: var(--button-bg);
+  border-color: var(--button-bg);
+  color: var(--button-text);
 }
 
 .btn:hover,

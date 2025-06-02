@@ -383,11 +383,11 @@
 
 .btn-ctl-available-nodes.p-button {
   width: var(--size-top-panel) !important;
-  padding: 0;
-  border-radius: 15% 50% 50% 15%;
+  padding: 0 0 !important;
+  border-radius: 15% 50% 50% 15% !important;
   /* background: #ef4444 !important; */
   border-color: #dc2626 !important;
-  background-color: #ff000073;
+  background-color: #ff000073 !important;
   /* smooth color transition */
   transition:
     background-color 0.35s ease-in-out,
