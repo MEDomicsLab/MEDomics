@@ -15,10 +15,8 @@
 }
 
 /* Dark mode inversion for icon nodes */
-@media (prefers-color-scheme: dark) {
-  .icon-nodes {
-    filter: invert(1);
-  }
+[data-theme="dark"] .icon-nodes {
+  filter: invert(1);
 }
 
 .btn-contour {
