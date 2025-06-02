@@ -2,26 +2,66 @@
  * Utility functions for loading different UI library themes dynamically
  */
 
+import { PrimeReact } from 'primereact/api'
+
 /**
  * Load appropriate PrimeReact theme based on dark/light mode
+ * Uses PrimeReact.changeTheme for smooth theme transitions when available,
+ * falls back to direct link manipulation
  * @param {boolean} isDark - Whether dark mode is enabled
  */
 export const loadPrimeTheme = (isDark) => {
-  // Remove existing PrimeReact theme
-  const existingTheme = document.getElementById("primereact-theme")
-  if (existingTheme) {
-    existingTheme.remove()
+  // Define theme paths (using local themes for better performance)
+  const lightTheme = '/primereact-themes/lara-light-indigo/theme.css'
+  const darkTheme = '/primereact-themes/lara-dark-indigo/theme.css'
+  
+  const newTheme = isDark ? darkTheme : lightTheme
+  
+  // Check if theme link exists, if not create it
+  let themeLink = document.getElementById('primereact-theme')
+  if (!themeLink) {
+    themeLink = document.createElement('link')
+    themeLink.id = 'primereact-theme'
+    themeLink.rel = 'stylesheet'
+    themeLink.href = newTheme
+    document.head.appendChild(themeLink)
+    console.log(`PrimeReact theme initialized with ${isDark ? 'dark' : 'light'} mode`)
+    return
   }
+  
+  // Get current theme from the link element
+  const currentTheme = themeLink.href
+  
+  // Try to use PrimeReact.changeTheme if available
+  if (typeof PrimeReact !== 'undefined' && PrimeReact.changeTheme) {
+    try {
+      PrimeReact.changeTheme(
+        currentTheme,
+        newTheme,
+        'primereact-theme',
+        () => {
+          console.log(`PrimeReact theme switched to ${isDark ? 'dark' : 'light'} mode`)
+        }
+      )
+    } catch (error) {
+      console.warn('PrimeReact.changeTheme failed, falling back to direct link update:', error)
+      fallbackThemeChange(themeLink, newTheme, isDark)
+    }
+  } else {
+    // Fallback: direct link manipulation
+    fallbackThemeChange(themeLink, newTheme, isDark)
+  }
+}
 
-  // Load new theme
-  const link = document.createElement("link")
-  link.id = "primereact-theme"
-  link.rel = "stylesheet"
-  link.href = isDark
-    ? "https://cdn.jsdelivr.net/npm/primereact@10.8.3/resources/themes/lara-dark-indigo/theme.css"
-    : "https://cdn.jsdelivr.net/npm/primereact@10.8.3/resources/themes/lara-light-indigo/theme.css"
-
-  document.head.appendChild(link)
+/**
+ * Fallback theme switching method when PrimeReact.changeTheme is not available
+ * @param {HTMLLinkElement} themeLink - The theme link element
+ * @param {string} newTheme - The new theme path
+ * @param {boolean} isDark - Whether dark mode is enabled
+ */
+const fallbackThemeChange = (themeLink, newTheme, isDark) => {
+  themeLink.href = newTheme
+  console.log(`PrimeReact theme switched to ${isDark ? 'dark' : 'light'} mode (fallback method)`)
 }
 
 /**

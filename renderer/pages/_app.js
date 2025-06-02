@@ -26,7 +26,7 @@ import "react-tooltip/dist/react-tooltip.css"
 // --primereact
 import "primeicons/primeicons.css"
 import "primereact/resources/primereact.min.css"
-import "primereact/resources/themes/lara-dark-indigo/theme.css"
+// Theme will be loaded dynamically via themeUtils.js
 
 // blueprintjs
 import "@blueprintjs/core/lib/css/blueprint.css"
