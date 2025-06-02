@@ -196,6 +196,58 @@ label {
   color: var(--terminal-text) !important;
 }
 
+/* Terminal container and tab styling */
+.terminal-container {
+  height: 100%;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  background-color: var(--terminal-bg);
+}
+
+.terminal-tab .p-tabview-panel {
+  padding: 0 !important;
+  height: calc(100% - 40px);
+}
+
+.terminal-tab .p-tabview-panels {
+  background-color: var(--terminal-bg) !important;
+  height: calc(100% - 40px);
+}
+
+.terminal-tab .p-tabview-nav {
+  background-color: var(--card-bg) !important;
+  border-bottom: 1px solid var(--border-color) !important;
+}
+
+.terminal-tab .p-tabview-nav li .p-tabview-nav-link {
+  background-color: transparent !important;
+  color: var(--text-primary) !important;
+  border: none !important;
+}
+
+.terminal-tab .p-tabview-nav li.p-highlight .p-tabview-nav-link {
+  background-color: var(--primary-color) !important;
+  color: white !important;
+}
+
+/* Xterm.js specific styling */
+.xterm .xterm-viewport {
+  background-color: var(--terminal-bg) !important;
+}
+
+.xterm .xterm-screen {
+  background-color: var(--terminal-bg) !important;
+}
+
+.xterm .xterm-cursor {
+  background-color: var(--terminal-text) !important;
+}
+
+.xterm .xterm-selection {
+  background-color: rgba(255, 255, 255, 0.3) !important;
+}
+
 /* Dropdown and menu styles */
 .dropdown-menu,
 .p-menu {

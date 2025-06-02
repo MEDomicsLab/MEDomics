@@ -1,7 +1,8 @@
 import { app, ipcMain, Menu, dialog, BrowserWindow, protocol, shell, nativeTheme } from "electron"
 import axios from "axios"
+import os from "os"
 import serve from "electron-serve"
-import { createWindow } from "./helpers"
+import { createWindow, TerminalManager } from "./helpers"
 import { installExtension, REACT_DEVELOPER_TOOLS } from "electron-extension-installer"
 import MEDconfig from "../medomics.dev"
 import { runServer, findAvailablePort } from "./utils/server"
@@ -15,7 +16,9 @@ import {
   installRequiredPythonPackages
 } from "./utils/pythonEnv"
 import { installMongoDB, checkRequirements } from "./utils/installation"
+
 const fs = require("fs")
+const terminalManager = new TerminalManager()
 var path = require("path")
 let mongoProcess = null
 const dirTree = require("directory-tree")
@@ -647,6 +650,8 @@ ipcMain.handle("checkMongoIsRunning", async (event) => {
 
 app.on("window-all-closed", () => {
   console.log("app quit")
+  // Clean up terminals
+  terminalManager.cleanup()
   stopMongoDB(mongoProcess)
   if (MEDconfig.runServerAutomatically) {
     try {
@@ -692,6 +697,51 @@ nativeTheme.on("updated", () => {
   if (mainWindow && mainWindow.webContents) {
     mainWindow.webContents.send("theme-updated")
   }
+})
+
+// Terminal IPC Handlers
+ipcMain.handle("terminal-create", async (event, options) => {
+  try {
+    // Ensure cwd is a string, not an object
+    let cwd = options.cwd
+    if (typeof cwd === "object" && cwd !== null) {
+      // If cwd is an object, try to extract a path property or use a default
+      cwd = cwd.path || cwd.workingDirectory || os.homedir()
+    } else if (!cwd || typeof cwd !== "string") {
+      // If cwd is null, undefined, or not a string, use home directory
+      cwd = os.homedir()
+    }
+
+    const terminalInfo = terminalManager.createTerminal(options.terminalId, {
+      cwd: cwd,
+      cols: options.cols,
+      rows: options.rows
+    })
+
+    // Set up event handlers for this terminal
+    terminalManager.setupTerminalEventHandlers(options.terminalId, mainWindow)
+
+    return terminalInfo
+  } catch (error) {
+    console.error("Failed to create terminal:", error)
+    throw error
+  }
+})
+
+ipcMain.on("terminal-input", (event, terminalId, data) => {
+  terminalManager.writeToTerminal(terminalId, data)
+})
+
+ipcMain.on("terminal-resize", (event, terminalId, cols, rows) => {
+  terminalManager.resizeTerminal(terminalId, cols, rows)
+})
+
+ipcMain.handle("terminal-kill", async (event, terminalId) => {
+  terminalManager.killTerminal(terminalId)
+})
+
+ipcMain.handle("terminal-list", async () => {
+  return terminalManager.getAllTerminals()
 })
 
 /**
