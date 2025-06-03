@@ -34,7 +34,8 @@ const TerminalManager = () => {
       parentId: parentTerminal?.id || null,
       cwd: parentTerminal?.cwd || null, // Inherit CWD from parent
       isSplit: false,
-      splitPane: null
+      splitPane: null,
+      isManuallyRenamed: false // Initialize as not manually renamed
     }
     
     setTerminals(prev => [...prev, newTerminal])
@@ -58,7 +59,8 @@ const TerminalManager = () => {
       parentId: terminalId,
       cwd: terminal.cwd, // Inherit current working directory
       isSplit: true,
-      splitPane: 'right'
+      splitPane: 'right',
+      isManuallyRenamed: false // Initialize as not manually renamed
     }
 
     // Update the original terminal to be split
@@ -195,6 +197,7 @@ const TerminalManager = () => {
             ? { 
                 ...terminal, 
                 title: newTitle.trim(),
+                isManuallyRenamed: true, // Mark as manually renamed
                 originalTitle: undefined // Clean up temporary storage
               }
             : terminal
@@ -208,6 +211,7 @@ const TerminalManager = () => {
             ? { 
                 ...terminal, 
                 title: terminal.originalTitle || terminal.title,
+                isManuallyRenamed: false, // Reset manual rename flag
                 originalTitle: undefined // Clean up temporary storage
               }
             : terminal
@@ -217,12 +221,28 @@ const TerminalManager = () => {
     setEditingTerminal(null)
   }, [])
 
+  // Reset terminal to automatic title updates
+  const resetToAutomaticTitle = useCallback((terminalId) => {
+    setTerminals(prev => 
+      prev.map(terminal => 
+        terminal.id === terminalId 
+          ? { 
+              ...terminal, 
+              isManuallyRenamed: false,
+              title: `Terminal ${prev.findIndex(t => t.id === terminalId) + 1}` // Reset to default naming
+            }
+          : terminal
+      )
+    )
+  }, [])
+
   // Update terminal title when working directory changes
   const updateTerminalTitle = useCallback((terminalId, newTitle) => {
+    // Don't update title if terminal is being edited or has been manually renamed
     if (!editingTerminal) {
       setTerminals(prev => 
         prev.map(terminal => 
-          terminal.id === terminalId 
+          terminal.id === terminalId && !terminal.isManuallyRenamed
             ? { ...terminal, title: newTitle }
             : terminal
         )
@@ -264,6 +284,7 @@ const TerminalManager = () => {
   const getContextMenuItems = useCallback((terminalId) => {
     const terminal = terminals.find(t => t.id === terminalId)
     const isSplit = terminal?.isSplit || false
+    const isManuallyRenamed = terminal?.isManuallyRenamed || false
     
     const baseItems = [
       {
@@ -292,7 +313,19 @@ const TerminalManager = () => {
         label: 'Rename',
         icon: 'pi pi-pencil',
         command: () => startRename(terminalId)
-      },
+      }
+    )
+
+    // Add "Reset to automatic title" option for manually renamed terminals
+    if (isManuallyRenamed) {
+      baseItems.push({
+        label: 'Reset to automatic title',
+        icon: 'pi pi-refresh',
+        command: () => resetToAutomaticTitle(terminalId)
+      })
+    }
+
+    baseItems.push(
       { separator: true },
       {
         label: 'Close',
@@ -302,7 +335,7 @@ const TerminalManager = () => {
     )
 
     return baseItems
-  }, [terminals, createNewTerminal, splitTerminal, unsplitTerminal, startRename, closeTerminal])
+  }, [terminals, createNewTerminal, splitTerminal, unsplitTerminal, startRename, closeTerminal, resetToAutomaticTitle])
 
   // Context menu items (fallback for backward compatibility)
   const contextMenuItems = [
