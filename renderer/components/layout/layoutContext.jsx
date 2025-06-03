@@ -27,6 +27,7 @@ function LayoutModelProvider({ children, layoutModel, setLayoutModel }) {
   const [layoutRequestQueue, setLayoutRequestQueue] = useState([])
   const [developerMode, setDeveloperMode] = useState(false)
   const [isEditorOpen, setIsEditorOpen] = useState(false)
+  const [jupyterStatus, setJupyterStatus] = useState({running: false, port: null, error: null})
 
   /**
    * @param {FlexLayout.Model.Action} action - The actions passed on by the flexlayout-react library
@@ -603,7 +604,9 @@ function LayoutModelProvider({ children, layoutModel, setLayoutModel }) {
         developerMode,
         setDeveloperMode,
         isEditorOpen,
-        setIsEditorOpen
+        setIsEditorOpen,
+        jupyterStatus,
+        setJupyterStatus
       }}
     >
       {children}

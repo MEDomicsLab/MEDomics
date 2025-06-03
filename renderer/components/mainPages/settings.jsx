@@ -89,6 +89,7 @@ const SettingsPage = ({pageId = "settings", checkJupyterIsRunning, startJupyterS
     // })
     checkMongoIsRunning()
     checkServer()
+    getJupyterStatus()
   }, [])
 
   /**
@@ -116,6 +117,7 @@ const SettingsPage = ({pageId = "settings", checkJupyterIsRunning, startJupyterS
       // })
       checkServer()
       checkMongoIsRunning()
+      getJupyterStatus()
       ipcRenderer.invoke("getBundledPythonEnvironment").then((res) => {
         console.log("Python embedded: ", res)
 
@@ -147,10 +149,6 @@ const SettingsPage = ({pageId = "settings", checkJupyterIsRunning, startJupyterS
     const running = await checkJupyterIsRunning()
     setjupyterServerIsRunning(running)
   }
-
-  useEffect(() => {
-    getJupyterStatus()
-  })
 
   const startMongo = () => {
     let workspacePath = workspace.workingDirectory.path

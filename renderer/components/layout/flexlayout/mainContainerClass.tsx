@@ -62,6 +62,8 @@ import CodeEditor from "../../flow/codeEditor"
 import { WorkspaceContext } from "../../workspace/workspaceContext"
 import { confirmDialog } from "primereact/confirmdialog"
 import JupyterNotebookViewer from "../../flow/JupyterNoteBookViewer"
+import { ipcRenderer } from "electron"
+
 const util = require("util")
 const exec = util.promisify(require("child_process").exec)
 
@@ -74,6 +76,8 @@ interface LayoutContextType {
   setLayoutRequestQueue: (value: any[]) => void
   isEditorOpen: boolean
   setIsEditorOpen: (value: boolean) => void
+  jupyterStatus: { running: boolean; port: number; error: string | null }
+  setJupyterStatus: (value: { running: boolean; port: number; error: string | null }) => void
 }
 
 interface DataContextType {
@@ -96,7 +100,7 @@ interface MyComponentState {
  * @returns the main container
  */
 const MainContainer = (props) => {
-  const { layoutRequestQueue, setLayoutRequestQueue, isEditorOpen, setIsEditorOpen } = React.useContext(LayoutModelContext) as unknown as LayoutContextType
+  const { layoutRequestQueue, setLayoutRequestQueue, isEditorOpen, setIsEditorOpen, jupyterStatus, setJupyterStatus } = React.useContext(LayoutModelContext) as unknown as LayoutContextType
   const { globalData, setGlobalData } = React.useContext(DataContext) as unknown as DataContextType
   const { workspace } = React.useContext(WorkspaceContext) as unknown as { workspace: any }
   return (
@@ -105,6 +109,8 @@ const MainContainer = (props) => {
       setLayoutRequestQueue={setLayoutRequestQueue}
       isEditorOpen={isEditorOpen}
       setIsEditorOpen={setIsEditorOpen}
+      jupyterStatus={jupyterStatus}
+      setJupyterStatus={setJupyterStatus}
       globalData={globalData}
       setGlobalData={setGlobalData}
       workspace={workspace}
@@ -146,7 +152,7 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
 
   async stopJuypterServerEvent(e: Event) {
     e.preventDefault()
-    await this.stopJyputerServer()
+    await this.stopJupyterServer()
   }
 
   /**
@@ -169,10 +175,43 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
       })
       setLayoutRequestQueue([])
     }
-    this.startJupyterServer()
   }
 
+  getJupyterPid = async (port) => {
+    if (!port) {
+      throw new Error("Port is required to get Jupyter PID")
+    }
+    const { exec } = require('child_process')
+    const { promisify } = require('util')
+    const execAsync = promisify(exec)
+
+    const platform = process.platform
+    const command = platform === 'win32' 
+      ? `netstat -ano | findstr :${port}`
+      : `lsof -ti :${port} | head -n 1`
+
+    try {
+      const { stdout, stderr } = await execAsync(command)
+      if (stderr) throw new Error(stderr)
+      
+      return platform === 'win32'
+        ? stdout.trim().split(/\s+/).pop()
+        : stdout.trim()
+    } catch (error) {
+      throw new Error(`PID lookup failed: ${error.message}`)
+    }
+  }
+
+
   startJupyterServer = async () => {
+    const { jupyterStatus, setJupyterStatus } = this.props as LayoutContextType
+    // Get Python path
+    const pythonPath = await this.getPythonPath()
+    if (!pythonPath) {
+      toast.error("Python path is not set. Jupyter server cannot be started.")
+      setJupyterStatus({ running: false, port: defaultJupyterPort, error: "Python path is not set. Jupyter server cannot be started." })
+      return
+    }
     // Avoid booting up multiple servers at once
     if (this.jupyterStarting) return
     this.jupyterStarting = true
@@ -181,49 +220,175 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
     const workspacePath = this.props.workspace?.workingDirectory?.path
     if (!workspacePath) {
       toast.error("No workspace path found. Jupyter server cannot be started.")
+      setJupyterStatus({ running: false, port: defaultJupyterPort, error: "No workspace path found. Jupyter server cannot be started." })
       return
     }
-    if (!(await this.checkJupyterServerRunning())) {
-      exec('jupyter notebook ' + workspacePath + '/DATA --no-browser --port ' + defaultJupyterPort)
+    if (!jupyterStatus.running) {
+      const result = await exec(`${pythonPath} -m jupyter notebook --NotebookApp.token='' --NotebookApp.password='' `  + workspacePath + '/DATA --no-browser --port ' + defaultJupyterPort)
+      this.jupyterStarting = false
+      setJupyterStatus({running: true, port: defaultJupyterPort, error: null })
     }
   }
 
-  checkJupyterServerRunning = async () => {
+  getPythonPath = async () => {
+    const { setJupyterStatus } = this.props as LayoutContextType
+    let pythonPath = ""
+    await ipcRenderer.invoke("getBundledPythonEnvironment").then((res) => {
+      pythonPath = res
+    })
+    // Check if pythonPath is set
+    if (pythonPath === "") {
+      toast.error("Python path is not set. Jupyter server cannot be started.")
+      setJupyterStatus({ running: false, port: defaultJupyterPort, error: "Python path is not set. Jupyter server cannot be started." })
+      return null
+    }
+    return pythonPath
+  }
+
+  checkJupyterIsRunning = async () => {
     try {
-      const result = await exec('jupyter notebook list')
+      const { setJupyterStatus } = this.props as LayoutContextType
+      const pythonPath = await this.getPythonPath()
+      if (!pythonPath) {
+        setJupyterStatus({ running: false, port: defaultJupyterPort, error: "Python path is not set. Cannot check Jupyter server status." })
+        console.error("Python path is not set. Cannot check Jupyter server status.")
+        return false
+      }
+      const result = await exec(`${pythonPath} -m jupyter notebook list`)
+      if (result.stderr) {
+        setJupyterStatus({ running: false, port: defaultJupyterPort, error: "Jupyter server is not running. You can start it from the settings page." })
+        console.error("Error checking Jupyter server status:", result.stderr)
+        return false
+      }
       const isRunning = result.stdout.includes(defaultJupyterPort.toString())
+      setJupyterStatus({ running: isRunning, port: defaultJupyterPort, error: "Jupyter server is not running. You can start it from the settings page." })
       return isRunning
     } catch (error) {
+      setJupyterStatus({ running: false, port: defaultJupyterPort, error: "Error while checking Jupyter server status." })
       console.error("Error checking Jupyter server status:", error)
       return false
     }
   }
 
   setJupyterConfig = async () => {
-    await exec('jupyter --paths').then((result) => {
+    const { setJupyterStatus } = this.props as LayoutContextType
+    let pythonPath = await this.getPythonPath()
+    if (!pythonPath) {
+      setJupyterStatus({ running: false, port: defaultJupyterPort, error: "Python path is not set. Cannot configure Jupyter." })
+      console.error("Python path is not set. Cannot configure Jupyter.")
+      return
+    }
+    // Check if jupyter is installed
+    try {
+      await exec(`${pythonPath} -m jupyter --version`).then((result) => {
+        const trimmedVersion = result.stdout.split("\n")
+        const includesJupyter = trimmedVersion.some((line) => line.startsWith("jupyter"))
+        if (!includesJupyter) {
+          throw new Error("Jupyter is not installed")
+        }
+      })
+    } catch (error) {
+      toast.error("Jupyter is not installed. Please install Jupyter to use this feature.")
+      console.error("Jupyter is not installed", error)
+      return
+    }
+    // Check if jupyter_notebook_config.py exists and update it
+    try {
+      const result = await exec(`${pythonPath} -m jupyter --paths`)
+      if (result.stderr) {
+        setJupyterStatus({ running: false, port: defaultJupyterPort, error: "Failed to get Jupyter paths." })
+        console.error("Error getting Jupyter paths:", result.stderr)
+        toast.error("Failed to locate Jupyter config directory.")
+        return
+      }
       const configPath = result.stdout.split("\n").find(line => line.includes(".jupyter"))
+      
       if (configPath) {
-        // Read the last line of the jupyter_notebook_config.py file
         const configFilePath = configPath.trim() + "/jupyter_notebook_config.py"
+        
+        // Check if the file exists
+        if (!fs.existsSync(configFilePath)) {
+          try {
+            // Await the config generation
+            const output = await exec(`${pythonPath} -m jupyter notebook --generate-config`)            
+            if (output.stderr) {
+              console.error("Error generating Jupyter config:", output.stderr)
+              toast.error("Error generating Jupyter config. Please check the console for more details.")
+              return
+            }
+          } catch (error) {
+            console.error("Error generating config:", error)
+            toast.error("Failed to generate Jupyter config")
+            return
+          }
+        }
+        
         // Get last line of configfilepath
         const lastLine = fs.readFileSync(configFilePath, "utf8").split("\n").slice(-1)[0]
-        if (!lastLine.includes("c.NotebookApp.tornado_settings") || !lastLine.includes("c.ServerApp.allow_unauthenticated_access")) {
-          // Add config settings to allow iframe embedding and unauthenticated access
+        
+        if (!lastLine.includes("c.NotebookApp.tornado_settings") || 
+            !lastLine.includes("c.ServerApp.allow_unauthenticated_access")) {
+          // Add config settings
           fs.appendFileSync(configFilePath, `\nc.ServerApp.allow_unauthenticated_access = True`)
           fs.appendFileSync(configFilePath, `\nc.NotebookApp.tornado_settings={'headers': {'Content-Security-Policy': "frame-ancestors 'self' http://localhost:8888;"}}`)
         }
       }
-    })
+    } catch (error) {
+      setJupyterStatus({ running: false, port: defaultJupyterPort, error: "Failed to configure Jupyter." })
+      console.error("Error in Jupyter config setup:", error)
+      toast.error("Failed to configure Jupyter")
+    }
   }
 
   componentWillUnmount(): void {
-    this.stopJyputerServer()
+    this.stopJupyterServer()
   }
 
-  stopJyputerServer = async () => {
-    await exec('jupyter notebook stop ' + defaultJupyterPort).catch((error) => {})
-    // Ignore error, Jupyter says "could not stop server" yet it still stops it
-    this.jupyterStarting = false
+  stopJupyterServer = async () => {
+    const { setJupyterStatus } = this.props as LayoutContextType
+    const pythonPath = await this.getPythonPath()
+    
+    if (!pythonPath) {
+      setJupyterStatus({ running: false, port: defaultJupyterPort, error: "Python path is not set. Cannot stop Jupyter server." })
+      console.error("Python path is not set. Cannot stop Jupyter server.")
+      return
+    }
+
+    try {
+      // Get the PID first
+      const pid = await this.getJupyterPid(defaultJupyterPort)
+      
+      if (!pid) {
+        console.log("No running Jupyter server found")
+        setJupyterStatus({ running: false, port: defaultJupyterPort, error: null })
+        return
+      }
+
+      // Platform-specific kill command
+      const killCommand = process.platform === 'win32'
+        ? `taskkill /PID ${pid} /F`
+        : `kill ${pid}`
+
+      await exec(killCommand)
+      console.log(`Successfully stopped Jupyter server (PID: ${pid})`)
+      setJupyterStatus({ running: false, port: defaultJupyterPort, error: null })
+    } catch (error) {
+      console.error("Error stopping Jupyter server:", error)
+      // Fallback to original method if PID method fails
+      try {
+        await exec(`${pythonPath} -m jupyter notebook stop ${defaultJupyterPort}`)
+        setJupyterStatus({ running: false, port: defaultJupyterPort, error: null })
+      } catch (fallbackError) {
+        console.error("Fallback stop method also failed:", fallbackError)
+        setJupyterStatus({ 
+          running: false, 
+          port: defaultJupyterPort, 
+          error: "Failed to stop server" 
+        })
+      }
+    } finally {
+      this.jupyterStarting = false
+    }
   }
 
 
@@ -1004,7 +1169,7 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
         return <JupyterNotebookViewer filePath={config.path}/>
       }
     } else if (component === "Settings") {
-      return <SettingsPage checkJupyterIsRunning={this.checkJupyterServerRunning} startJupyterServer={this.startJupyterServer} stopJupyterServer={this.stopJyputerServer} />
+      return <SettingsPage checkJupyterIsRunning={this.checkJupyterIsRunning} startJupyterServer={this.startJupyterServer} stopJupyterServer={this.stopJupyterServer} />
     } else if (component !== "") {
       if (node.getExtraData().data == null) {
         const config = node.getConfig()
