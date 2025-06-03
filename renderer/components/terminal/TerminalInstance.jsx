@@ -6,6 +6,7 @@ import { SearchAddon } from '@xterm/addon-search'
 import { ContextMenu } from 'primereact/contextmenu'
 import { ipcRenderer } from 'electron'
 import { WorkspaceContext } from '../workspace/workspaceContext'
+import { useTheme } from '../theme/themeContext'
 import '@xterm/xterm/css/xterm.css'
 
 /**
@@ -21,12 +22,57 @@ const TerminalInstance = forwardRef(({ terminalId, isActive, onTitleChange }, re
   const contextMenuRef = useRef(null)
   const onTitleChangeRef = useRef(onTitleChange)
   const { workspace } = useContext(WorkspaceContext)
+  const { isDarkMode } = useTheme()
   const isInitializingRef = useRef(false)
 
   // Update the ref when onTitleChange changes
   React.useEffect(() => {
     onTitleChangeRef.current = onTitleChange
   }, [onTitleChange])
+
+  // Update terminal theme when global theme changes
+  useEffect(() => {
+    if (xtermRef.current) {
+      console.log(`Updating theme for terminal ${terminalId}`)
+      
+      // Get current CSS custom properties for theming
+      const computedStyle = getComputedStyle(document.documentElement)
+      const terminalBg = computedStyle.getPropertyValue('--terminal-bg').trim()
+      const terminalText = computedStyle.getPropertyValue('--terminal-text').trim()
+      
+      // Determine if we're in dark mode based on the terminal text color
+      const isDarkModeCheck = terminalText === '#ffffff'
+      
+      // Update terminal theme
+      const newTheme = {
+        background: terminalBg,
+        foreground: terminalText,
+        cursor: terminalText,
+        cursorAccent: terminalBg,
+        selection: isDarkModeCheck ? 'rgba(255, 255, 255, 0.3)' : 'rgba(0, 0, 0, 0.3)',
+        black: isDarkModeCheck ? '#2e3436' : '#000000',
+        red: '#e74c3c',
+        green: '#2ecc71',
+        yellow: '#f39c12',
+        blue: '#3498db',
+        magenta: '#9b59b6',
+        cyan: '#1abc9c',
+        white: isDarkModeCheck ? '#ffffff' : '#d3d7cf',
+        brightBlack: isDarkModeCheck ? '#555753' : '#7f8c8d',
+        brightRed: '#ef2929',
+        brightGreen: '#8ae234',
+        brightYellow: '#fce94f',
+        brightBlue: '#729fcf',
+        brightMagenta: '#ad7fa8',
+        brightCyan: '#34e2e2',
+        brightWhite: '#ffffff'
+      }
+      
+      // Apply the new theme to the existing terminal
+      xtermRef.current.options.theme = newTheme
+      xtermRef.current.refresh(0, xtermRef.current.rows - 1)
+    }
+  }, [isDarkMode, terminalId])
 
   // Context menu items
   const contextMenuItems = [
@@ -125,6 +171,14 @@ const TerminalInstance = forwardRef(({ terminalId, isActive, onTitleChange }, re
   useEffect(() => {
     if (!terminalRef.current) return
 
+    // Get computed CSS custom properties for theming
+    const computedStyle = getComputedStyle(document.documentElement)
+    const terminalBg = computedStyle.getPropertyValue('--terminal-bg').trim()
+    const terminalText = computedStyle.getPropertyValue('--terminal-text').trim()
+    
+    // Determine if we're in dark mode based on the terminal text color
+    const isDarkMode = terminalText === '#ffffff'
+    
     // Create terminal instance
     const terminal = new Terminal({
       fontFamily: '"Fira Code", "Cascadia Code", "Consolas", "Monaco", monospace',
@@ -136,25 +190,26 @@ const TerminalInstance = forwardRef(({ terminalId, isActive, onTitleChange }, re
       cursorBlink: true,
       cursorStyle: 'block',
       theme: {
-        background: 'var(--terminal-bg)',
-        foreground: 'var(--terminal-text)',
-        cursor: '#ffffff',
-        selection: 'rgba(255, 255, 255, 0.3)',
-        black: '#000000',
+        background: terminalBg,
+        foreground: terminalText,
+        cursor: terminalText,
+        cursorAccent: terminalBg,
+        selection: isDarkMode ? 'rgba(255, 255, 255, 0.3)' : 'rgba(0, 0, 0, 0.3)',
+        black: isDarkMode ? '#2e3436' : '#000000',
         red: '#e74c3c',
         green: '#2ecc71',
         yellow: '#f39c12',
         blue: '#3498db',
         magenta: '#9b59b6',
         cyan: '#1abc9c',
-        white: '#ffffff',
-        brightBlack: '#7f8c8d',
-        brightRed: '#e74c3c',
-        brightGreen: '#2ecc71',
-        brightYellow: '#f1c40f',
-        brightBlue: '#3498db',
-        brightMagenta: '#9b59b6',
-        brightCyan: '#1abc9c',
+        white: isDarkMode ? '#ffffff' : '#d3d7cf',
+        brightBlack: isDarkMode ? '#555753' : '#7f8c8d',
+        brightRed: '#ef2929',
+        brightGreen: '#8ae234',
+        brightYellow: '#fce94f',
+        brightBlue: '#729fcf',
+        brightMagenta: '#ad7fa8',
+        brightCyan: '#34e2e2',
         brightWhite: '#ffffff'
       },
       allowTransparency: false,
