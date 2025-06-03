@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useImperativeHandle, forwardRef, useContext } from 'react'
+import React, { useEffect, useRef, useImperativeHandle, forwardRef, useContext, useState, useMemo } from 'react'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import { WebLinksAddon } from '@xterm/addon-web-links'
@@ -31,7 +31,8 @@ const TerminalInstance = forwardRef(({
   const { workspace } = useContext(WorkspaceContext)
   const { isDarkMode } = useTheme()
   const isInitializingRef = useRef(false)
-
+  const [hasSelection, setHasSelection] = useState(false)
+  
   // Update the ref when onTitleChange changes
   React.useEffect(() => {
     onTitleChangeRef.current = onTitleChange
@@ -81,18 +82,20 @@ const TerminalInstance = forwardRef(({
     }
   }, [isDarkMode, terminalId])
 
-  // Context menu items
-  const contextMenuItems = [
+  // Context menu items - note that we update the disabled property right before showing the menu
+  const contextMenuItems = useMemo(() => [
     {
       label: 'Copy',
       icon: 'pi pi-copy',
       command: () => {
-        if (xtermRef.current && xtermRef.current.hasSelection()) {
+        if (xtermRef.current) {
           const selection = xtermRef.current.getSelection()
-          navigator.clipboard.writeText(selection)
+          if (selection) {
+            navigator.clipboard.writeText(selection)
+          }
         }
       },
-      disabled: () => !xtermRef.current?.hasSelection()
+      disabled: !hasSelection // This will be updated right before showing the menu
     },
     {
       label: 'Paste',
@@ -139,7 +142,7 @@ const TerminalInstance = forwardRef(({
       icon: 'pi pi-minus',
       command: () => onUnsplit(terminalId)
     }] : [])
-  ]
+  ])
 
   // Expose methods to parent component
   useImperativeHandle(ref, () => ({
@@ -184,7 +187,7 @@ const TerminalInstance = forwardRef(({
         fitAddonRef.current.fit()
       }
     }
-  }))
+  }), [terminalId])
 
   useEffect(() => {
     if (!terminalRef.current) return
@@ -249,14 +252,9 @@ const TerminalInstance = forwardRef(({
 
     // Open terminal in the DOM
     terminal.open(terminalRef.current)
-
-    // Add right-click context menu handler
-    terminalRef.current.addEventListener('contextmenu', (e) => {
-      e.preventDefault()
-      if (contextMenuRef.current) {
-        contextMenuRef.current.show(e)
-      }
-    })
+    
+    // We're using the React onContextMenu handler now, 
+    // so we don't need to add our own event listener here
 
     // Store references
     xtermRef.current = terminal
@@ -290,6 +288,22 @@ const TerminalInstance = forwardRef(({
       isInitializingRef.current = true
       
       try {
+        // Check if this is a split terminal or a source terminal in a split setup
+        const isSplitSession = sessionStorage.getItem(`terminal-split-${terminalId}`) === 'true'
+        const isSourceSplitSession = sessionStorage.getItem(`terminal-split-source-${terminalId}`) === 'true'
+        const isUnsplittedTerminal = sessionStorage.getItem(`terminal-unsplit-preserve-${terminalId}`) === 'true'
+        
+        // Special handling for split terminals
+        if (isSplitSession) {
+          console.log(`Terminal ${terminalId} is a split terminal (right pane)`)
+        }
+        else if (isSourceSplitSession) {
+          console.log(`Terminal ${terminalId} is a source terminal in a split (left pane)`)
+        }
+        else if (isUnsplittedTerminal) {
+          console.log(`Terminal ${terminalId} is a preserved terminal from unsplit operation`)
+        }
+        
         // Ensure we pass a proper string for cwd
         let workingDir = workspace.workingDirectory
         if (typeof workingDir === 'object' && workingDir !== null) {
@@ -297,14 +311,68 @@ const TerminalInstance = forwardRef(({
           workingDir = workingDir.path || workingDir.workingDirectory || undefined
         }
         
-        console.log(`Initializing terminal ${terminalId} with cwd: ${workingDir}`)
+        // If this is a split terminal instance, we want to get the CWD from the parent
+        if (isSplit) {
+          try {
+            // Try to get the current directory from the backend
+            const terminalCwd = await ipcRenderer.invoke('terminal-get-cwd', terminalId)
+            if (terminalCwd) {
+              console.log(`Using split terminal CWD: ${terminalCwd} for terminal ${terminalId}`)
+              workingDir = terminalCwd
+            }
+          } catch (error) {
+            console.warn(`Error getting CWD for split terminal ${terminalId}:`, error)
+          }
+        }
         
-        const ptyInfo = await ipcRenderer.invoke('terminal-create', {
-          terminalId,
-          cwd: workingDir || undefined, // Let backend handle fallback to home directory
-          cols: terminal.cols,
-          rows: terminal.rows
-        })
+        console.log(`Initializing terminal ${terminalId} with cwd: ${workingDir} (isSplit: ${isSplit})`)
+        
+        // Check if this terminal already exists in the backend to avoid unnecessary recreation
+        // This is especially important for the left pane in split view
+        let ptyInfo;
+        
+        // Keep the existing process if this is a preserved unsplit terminal
+        if (isUnsplittedTerminal || isSourceSplitSession) {
+          try {
+            // Get existing terminal info without creating a new one
+            const existingTerminals = await ipcRenderer.invoke('terminal-list');
+            if (existingTerminals.includes(terminalId)) {
+              console.log(`Reusing existing terminal ${terminalId}`);
+              // We don't need to create a new terminal, just use the existing one
+              ptyInfo = { terminalId, reused: true };
+              
+              // Clear the unsplit-preserve flag as it's no longer needed
+              if (isUnsplittedTerminal) {
+                sessionStorage.removeItem(`terminal-unsplit-preserve-${terminalId}`);
+              }
+            } else {
+              // If terminal doesn't exist for some reason, create a new one
+              ptyInfo = await ipcRenderer.invoke('terminal-create', {
+                terminalId,
+                cwd: workingDir || undefined,
+                cols: terminal.cols,
+                rows: terminal.rows
+              });
+            }
+          } catch (error) {
+            console.warn(`Error checking existing terminal ${terminalId}:`, error);
+            // Fallback to creating a new terminal
+            ptyInfo = await ipcRenderer.invoke('terminal-create', {
+              terminalId,
+              cwd: workingDir || undefined,
+              cols: terminal.cols,
+              rows: terminal.rows
+            });
+          }
+        } else {
+          // For new terminals or regular terminals, create as usual
+          ptyInfo = await ipcRenderer.invoke('terminal-create', {
+            terminalId,
+            cwd: workingDir || undefined, // Let backend handle fallback to home directory
+            cols: terminal.cols,
+            rows: terminal.rows
+          });
+        }
 
         ptyProcessRef.current = ptyInfo
         console.log(`Terminal ${terminalId} initialized successfully`)
@@ -433,6 +501,49 @@ const TerminalInstance = forwardRef(({
     }
   }, [isActive])
 
+  // Track terminal selection for context menu
+  useEffect(() => {
+    if (!xtermRef.current) return;
+    
+    // Create selection listener
+    const terminal = xtermRef.current;
+    
+    // Selection change handler
+    const checkSelection = () => {
+      if (terminal) {
+        const selected = terminal.hasSelection();
+        setHasSelection(selected);
+      }
+    };
+    
+    // Listen for selection changes
+    terminal.onSelectionChange(checkSelection);
+    
+    // Initial check
+    checkSelection();
+    
+    // Clean up listener
+    return () => {
+      // xterm.js doesn't provide a way to remove this listener,
+      // but it will be cleaned up when the terminal is disposed
+    };
+  }, []);
+  
+  // Update context menu items dynamically when showing the menu
+  const handleContextMenu = (e) => {
+    e.preventDefault();
+    
+    // Update hasSelection state right before showing the menu
+    if (xtermRef.current) {
+      setHasSelection(xtermRef.current.hasSelection());
+    }
+    
+    // Use the most up-to-date selection state for the menu
+    if (contextMenuRef.current) {
+      contextMenuRef.current.show(e);
+    }
+  };
+
   return (
     <>
       <div
@@ -443,6 +554,7 @@ const TerminalInstance = forwardRef(({
           backgroundColor: 'var(--terminal-bg)',
           padding: '8px'
         }}
+        onContextMenu={handleContextMenu}
       />
       <ContextMenu 
         ref={contextMenuRef} 

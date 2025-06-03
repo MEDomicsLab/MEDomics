@@ -5,6 +5,7 @@ import path from "path"
 class TerminalManager {
   constructor() {
     this.terminals = new Map()
+    this.terminalCwd = new Map() // Track current working directory for each terminal
   }
 
   getShellForPlatform() {
@@ -65,8 +66,9 @@ class TerminalManager {
         }
       })
 
-      // Store the terminal process
+      // Store the terminal process and initial directory
       this.terminals.set(terminalId, ptyProcess)
+      this.terminalCwd.set(terminalId, cwd)
 
       console.log(`Terminal ${terminalId} created successfully`)
       return {
@@ -77,6 +79,60 @@ class TerminalManager {
       }
     } catch (error) {
       console.error(`Failed to create terminal ${terminalId}:`, error)
+      throw error
+    }
+  }
+
+  // Create a clone of an existing terminal (used for splitting)
+  cloneTerminal(sourceTerminalId, newTerminalId, options = {}) {
+    try {
+      // First check if source terminal exists
+      if (!this.terminals.has(sourceTerminalId)) {
+        throw new Error(`Source terminal ${sourceTerminalId} not found for cloning`)
+      }
+
+      // Get current working directory from source terminal
+      const cwd = this.terminalCwd.get(sourceTerminalId) || os.homedir()
+      console.log(`Source terminal cwd: ${cwd}`)
+
+      // Create a new terminal with the same directory
+      const cloneOptions = {
+        ...options,
+        cwd
+      }
+
+      console.log(`Cloning terminal ${sourceTerminalId} to ${newTerminalId} with CWD: ${cwd}`)
+
+      // Create a new terminal process at the same directory as the source
+      const result = this.createTerminal(newTerminalId, cloneOptions)
+
+      // Execute clear and show the path for better user experience
+      // Use a slight delay to ensure the terminal is ready
+      setTimeout(() => {
+        this.writeToTerminal(newTerminalId, "clear\n")
+
+        // Using echo and pwd to show terminal is in the same directory
+        this.writeToTerminal(newTerminalId, 'echo "Terminal split in directory:"\n')
+        this.writeToTerminal(newTerminalId, "pwd\n")
+      }, 200)
+
+      // Copy working directory from source terminal
+      this.terminalCwd.set(newTerminalId, cwd)
+
+      // Keep a reference to the parent terminal
+      const relationshipInfo = {
+        parentId: sourceTerminalId,
+        childId: newTerminalId
+      }
+
+      return {
+        ...result,
+        cwd,
+        sourceTerminalId, // Keep track of parent terminal for better split management
+        relationshipInfo // Additional relationship information
+      }
+    } catch (error) {
+      console.error(`Failed to clone terminal ${sourceTerminalId}:`, error)
       throw error
     }
   }
@@ -105,6 +161,7 @@ class TerminalManager {
       try {
         terminal.kill()
         this.terminals.delete(terminalId)
+        this.terminalCwd.delete(terminalId) // Clean up stored CWD
         console.log(`Terminal ${terminalId} killed successfully`)
       } catch (error) {
         console.error(`Error killing terminal ${terminalId}:`, error)
@@ -112,6 +169,10 @@ class TerminalManager {
     } else {
       console.warn(`Terminal ${terminalId} not found for kill operation`)
     }
+  }
+
+  getCurrentWorkingDirectory(terminalId) {
+    return this.terminalCwd.get(terminalId) || os.homedir()
   }
 
   setupTerminalEventHandlers(terminalId, mainWindow) {
@@ -140,20 +201,42 @@ class TerminalManager {
         mainWindow.webContents.send(`terminal-exit-${terminalId}`, exitData)
       }
       this.terminals.delete(terminalId)
+      this.terminalCwd.delete(terminalId) // Clean up stored CWD
     })
 
-    // Simulate title changes based on working directory changes
-    // Since node-pty doesn't always properly emit title changes,
-    // we'll monitor the output for directory changes
-    let currentDir = os.homedir()
+    // Track working directory changes based on output
+    let currentDir = this.terminalCwd.get(terminalId) || os.homedir()
+
     terminal.onData((data) => {
-      // Simple heuristic to detect directory changes
-      // This is a basic implementation - in a real app you might want more sophisticated detection
-      if (data.includes(currentDir) || data.match(/[\w-]+@[\w-]+:/)) {
-        const title = `Terminal - ${path.basename(currentDir)}`
-        if (mainWindow && !mainWindow.isDestroyed()) {
-          mainWindow.webContents.send(`terminal-title-${terminalId}`, title)
+      // Try to detect directory changes using various patterns
+      const dirPatterns = [
+        // Linux/macOS pwd command result
+        /^(\/[^\r\n]+)[\r\n]/,
+        // Common prompt patterns with paths
+        /\w+:([\/\\][^\s\$]+)[$#>]/,
+        // Windows directory change (cd output)
+        /^(?:.*?)?([A-Z]:\\(?:[^\\]+\\)*[^\\]+)>/i
+      ]
+
+      for (const pattern of dirPatterns) {
+        const match = data.match(pattern)
+        if (match && match[1]) {
+          const potentialDir = match[1].trim()
+          if (potentialDir && potentialDir !== currentDir) {
+            currentDir = potentialDir
+            this.terminalCwd.set(terminalId, currentDir)
+            console.log(`Terminal ${terminalId} directory updated: ${currentDir}`)
+            break
+          }
         }
+      }
+
+      // Send title update with directory info
+      const title = `Terminal - ${path.basename(currentDir)}`
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send(`terminal-title-${terminalId}`, title)
+        // Also send current directory for UI to use
+        mainWindow.webContents.send(`terminal-cwd-${terminalId}`, currentDir)
       }
     })
   }
@@ -169,6 +252,7 @@ class TerminalManager {
       }
     }
     this.terminals.clear()
+    this.terminalCwd.clear()
   }
 
   getTerminalCount() {

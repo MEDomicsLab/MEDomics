@@ -728,6 +728,24 @@ ipcMain.handle("terminal-create", async (event, options) => {
   }
 })
 
+// Clone an existing terminal - used for split terminal functionality
+ipcMain.handle("terminal-clone", async (event, sourceTerminalId, newTerminalId, options) => {
+  try {
+    const terminalInfo = terminalManager.cloneTerminal(sourceTerminalId, newTerminalId, {
+      cols: options.cols,
+      rows: options.rows
+    })
+
+    // Set up event handlers for the cloned terminal
+    terminalManager.setupTerminalEventHandlers(newTerminalId, mainWindow)
+
+    return terminalInfo
+  } catch (error) {
+    console.error("Failed to clone terminal:", error)
+    throw error
+  }
+})
+
 ipcMain.on("terminal-input", (event, terminalId, data) => {
   terminalManager.writeToTerminal(terminalId, data)
 })
@@ -740,6 +758,16 @@ ipcMain.handle("terminal-kill", async (event, terminalId) => {
   terminalManager.killTerminal(terminalId)
 })
 
+ipcMain.handle("terminal-list", async () => {
+  return terminalManager.getAllTerminals()
+})
+
+// Get current working directory of a terminal
+ipcMain.handle("terminal-get-cwd", async (event, terminalId) => {
+  return terminalManager.getCurrentWorkingDirectory(terminalId)
+})
+
+// Get list of all active terminals
 ipcMain.handle("terminal-list", async () => {
   return terminalManager.getAllTerminals()
 })

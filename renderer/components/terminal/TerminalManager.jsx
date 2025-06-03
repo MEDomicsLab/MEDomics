@@ -7,6 +7,7 @@ import { Splitter, SplitterPanel } from 'primereact/splitter'
 import { Tooltip } from 'primereact/tooltip'
 import TerminalInstance from './TerminalInstance'
 import uuid from 'react-native-uuid'
+import { ipcRenderer } from 'electron'
 
 /**
  * Terminal Manager Component
@@ -44,50 +45,100 @@ const TerminalManager = () => {
   }, [terminals.length])
 
   // Split terminal - create side-by-side terminal panes
-  const splitTerminal = useCallback((terminalId) => {
+  const splitTerminal = useCallback(async (terminalId) => {
     const terminal = terminals.find(t => t.id === terminalId)
     if (!terminal || terminal.isSplit) {
       return // Can't split an already split terminal
     }
-
-    // Create a new terminal instance for the split
-    const splitTerminalId = uuid.v4()
-    const splitTerminal = {
-      id: splitTerminalId,
-      title: `Terminal ${terminals.length + 1} (Split)`,
-      isActive: false,
-      parentId: terminalId,
-      cwd: terminal.cwd, // Inherit current working directory
-      isSplit: true,
-      splitPane: 'right',
-      isManuallyRenamed: false // Initialize as not manually renamed
-    }
-
-    // Update the original terminal to be split
-    setTerminals(prev => [
-      ...prev.map(t => 
-        t.id === terminalId 
-          ? { ...t, isSplit: true, splitPane: 'left' }
-          : t
-      ),
-      splitTerminal
-    ])
-
-    // Store split information
-    setSplitTerminals(prev => ({
-      ...prev,
-      [terminalId]: {
-        leftTerminalId: terminalId,
-        rightTerminalId: splitTerminalId
+    
+    try {
+      // Store session information for the source terminal
+      // This will prevent recreation of the terminal on state changes
+      sessionStorage.setItem(`terminal-split-source-${terminalId}`, 'true')
+      
+      // Get the current working directory from the original terminal
+      const terminalCwd = await ipcRenderer.invoke('terminal-get-cwd', terminalId)
+      console.log(`Splitting terminal ${terminalId} with CWD: ${terminalCwd}`)
+      
+      // Generate a new ID for the right split terminal
+      const splitTerminalId = uuid.v4()
+      
+      // Mark the split terminal in session storage
+      sessionStorage.setItem(`terminal-split-${splitTerminalId}`, 'true')
+      
+      // Clone the terminal using the backend method to ensure same directory
+      const cloneResult = await ipcRenderer.invoke('terminal-clone', terminalId, splitTerminalId, {
+        cols: 80,
+        rows: 24
+      })
+      
+      console.log("Clone result:", cloneResult)
+      
+      // Create the split terminal object for the right side only
+      const splitTerminal = {
+        id: splitTerminalId,
+        title: `${terminal.title} (Split)`,
+        isActive: false,
+        parentId: terminalId,
+        cwd: cloneResult.cwd || terminalCwd, // Use the CWD from the backend
+        isSplit: true,
+        splitPane: 'right',
+        isManuallyRenamed: false, // Initialize as not manually renamed
+        sourceTerminalId: terminalId // Track the source terminal
       }
-    }))
 
-    // Set the new split terminal as active
-    setActiveTerminalId(splitTerminalId)
+      // For the left terminal, we only update metadata without recreating the instance
+      const updatedTerminals = [...terminals];
+      const leftTerminalIndex = updatedTerminals.findIndex(t => t.id === terminalId);
+      
+      if (leftTerminalIndex !== -1) {
+        // Update the original terminal's metadata - DO NOT replace the instance
+        updatedTerminals[leftTerminalIndex] = {
+          ...updatedTerminals[leftTerminalIndex],
+          isSplit: true,
+          splitPane: 'left',
+          linkedTerminalId: splitTerminalId // Reference to the right terminal
+        };
+      }
+      
+      // Add the new right terminal
+      updatedTerminals.push(splitTerminal);
+      
+      // Update state with both terminals
+      setTerminals(updatedTerminals);
+
+      // Store split information
+      setSplitTerminals(prev => ({
+        ...prev,
+        [terminalId]: {
+          leftTerminalId: terminalId,
+          rightTerminalId: splitTerminalId,
+          sharedDirectory: cloneResult.cwd || terminalCwd
+        }
+      }))
+
+      // Set the new split terminal as active
+      setActiveTerminalId(splitTerminalId)
+    } catch (error) {
+      console.error('Failed to split terminal:', error)
+    }
   }, [terminals])
 
   // Close a specific terminal
   const closeTerminal = useCallback((terminalId) => {
+    // Track if this is the last terminal and user explicitly closed it
+    const isLastTerminal = terminals.length === 1;
+    
+    // If we're closing the last terminal, mark it in session storage
+    if (isLastTerminal) {
+      sessionStorage.setItem('lastTerminalExplicitlyClosed', 'true');
+    }
+    
+    // Clean up all session storage flags for this terminal
+    sessionStorage.removeItem(`terminal-split-${terminalId}`);
+    sessionStorage.removeItem(`terminal-split-source-${terminalId}`);
+    sessionStorage.removeItem(`terminal-unsplit-preserve-${terminalId}`);
+    
     // Clean up the terminal reference
     if (terminalRefs.current[terminalId]) {
       terminalRefs.current[terminalId].dispose()
@@ -111,9 +162,9 @@ const TerminalManager = () => {
       
       return filteredTerminals
     })
-  }, [activeTerminalId])
+  }, [activeTerminalId, terminals.length])
 
-  // Unsplit terminal - remove split terminal and restore single view
+  // Unsplit terminal - keep both terminals (left remains as primary, right becomes standalone)
   const unsplitTerminal = useCallback((terminalId) => {
     const terminal = terminals.find(t => t.id === terminalId)
     if (terminal && terminal.isSplit) {
@@ -138,24 +189,66 @@ const TerminalManager = () => {
       if (splitInfo && parentId) {
         const { leftTerminalId, rightTerminalId } = splitInfo
         
-        // Remove the split terminal (keep the original)
-        const terminalToRemove = terminalId === leftTerminalId ? rightTerminalId : leftTerminalId
-        const terminalToKeep = terminalId === leftTerminalId ? leftTerminalId : rightTerminalId
+        // Store references to both terminal instances
+        const leftTerminal = terminals.find(t => t.id === leftTerminalId)
+        const rightTerminal = terminals.find(t => t.id === rightTerminalId)
         
-        // Clean up the terminal reference for the removed terminal
-        if (terminalRefs.current[terminalToRemove]) {
-          terminalRefs.current[terminalToRemove].dispose()
-          delete terminalRefs.current[terminalToRemove]
+        if (!leftTerminal || !rightTerminal) {
+          console.error('Missing terminal references for unsplit operation')
+          return
         }
+
+        // Set flags to preserve both terminal instances during unsplit
+        sessionStorage.setItem(`terminal-unsplit-preserve-${leftTerminalId}`, 'true')
+        sessionStorage.setItem(`terminal-unsplit-preserve-${rightTerminalId}`, 'true')
         
-        // Update terminals state
-        setTerminals(prev => prev
-          .filter(t => t.id !== terminalToRemove)
-          .map(t => t.id === terminalToKeep 
-            ? { ...t, isSplit: false, splitPane: null }
-            : t
-          )
-        )
+        // Make the left terminal (original) active
+        setActiveTerminalId(leftTerminalId)
+        
+        // Clean up split session markers
+        sessionStorage.removeItem(`terminal-split-${leftTerminalId}`)
+        sessionStorage.removeItem(`terminal-split-${rightTerminalId}`)
+        sessionStorage.removeItem(`terminal-split-source-${leftTerminalId}`)
+        
+        // Create a standalone instance for the right terminal if needed
+        // We don't actually need to re-create the process, just update UI state
+        console.log('Unsplitting terminals - keeping both instances active')
+        
+        // Update terminals state - unsplit both terminals
+        setTerminals(prev => {
+          // Create a copy of the terminals array to avoid mutation
+          const updatedTerminals = [...prev];
+          
+          // Find indices of both terminals
+          const leftIndex = updatedTerminals.findIndex(t => t.id === leftTerminalId);
+          const rightIndex = updatedTerminals.findIndex(t => t.id === rightTerminalId);
+          
+          // Update the left terminal (originally the parent)
+          if (leftIndex !== -1) {
+            updatedTerminals[leftIndex] = {
+              ...updatedTerminals[leftIndex],
+              isSplit: false, 
+              splitPane: null,
+              linkedTerminalId: undefined
+            };
+          }
+          
+          // Update the right terminal (move to standalone)
+          if (rightIndex !== -1) {
+            // Update terminal state without creating a new process
+            const rightTerminalTitle = updatedTerminals[rightIndex].title.replace(' (Split)', '') || 'Terminal';
+            
+            updatedTerminals[rightIndex] = {
+              ...updatedTerminals[rightIndex],
+              isSplit: false,
+              splitPane: null,
+              parentId: null, // No longer a child terminal
+              title: rightTerminalTitle
+            };
+          }
+          
+          return updatedTerminals;
+        });
         
         // Remove split info
         setSplitTerminals(prev => {
@@ -164,8 +257,16 @@ const TerminalManager = () => {
           return newSplit
         })
         
-        // Set the remaining terminal as active
-        setActiveTerminalId(terminalToKeep)
+        // Ensure both terminals get properly sized
+        setTimeout(() => {
+          if (terminalRefs.current[leftTerminalId]) {
+            terminalRefs.current[leftTerminalId].fit()
+          }
+          
+          if (terminalRefs.current[rightTerminalId]) {
+            terminalRefs.current[rightTerminalId].fit()
+          }
+        }, 150)
       }
     }
   }, [terminals, splitTerminals])
@@ -374,7 +475,16 @@ const TerminalManager = () => {
   // Initialize with one terminal if none exist
   useEffect(() => {
     if (terminals.length === 0) {
-      createNewTerminal()
+      // Check if user explicitly closed the last terminal
+      const userClosedLastTerminal = sessionStorage.getItem('lastTerminalExplicitlyClosed') === 'true';
+      
+      if (!userClosedLastTerminal) {
+        // Only auto-create a terminal if the user didn't explicitly close the last one
+        createNewTerminal();
+      } else {
+        // Reset the flag after we've honored the user's choice once
+        sessionStorage.removeItem('lastTerminalExplicitlyClosed');
+      }
     }
   }, [createNewTerminal, terminals.length])
 
@@ -425,10 +535,10 @@ const TerminalManager = () => {
   return (
     <div className="terminal-container" style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
       {/* Tooltips for buttons - Enhanced with keyboard shortcuts */}
-      <Tooltip target=".terminal-new-btn" content="New Terminal (Ctrl+Shift+`)" position="bottom" showDelay={500} hideDelay={0} />
-      <Tooltip target=".terminal-split-btn" content="Split Terminal (Ctrl+Shift+5)" position="bottom" showDelay={500} hideDelay={0} />
-      <Tooltip target=".terminal-unsplit-btn" content="Unsplit Terminal (Ctrl+Shift+U)" position="bottom" showDelay={500} hideDelay={0} />
       <Tooltip target=".terminal-kill-btn" content="Kill Terminal (Ctrl+Shift+K)" position="bottom" showDelay={500} hideDelay={0} />
+      <Tooltip target=".terminal-new-btn-header" content="New Terminal (Ctrl+Shift+`)" position="bottom" showDelay={500} hideDelay={0} />
+      <Tooltip target=".terminal-split-tab-btn" content="Split Terminal (Ctrl+Shift+5)" position="bottom" showDelay={500} hideDelay={0} />
+      <Tooltip target=".terminal-unsplit-tab-btn" content="Unsplit Terminal (Ctrl+Shift+U)" position="bottom" showDelay={500} hideDelay={0} />
       
       {/* Terminal Controls */}
       <div className="terminal-controls" style={{ 
@@ -439,62 +549,8 @@ const TerminalManager = () => {
         gap: '8px',
         alignItems: 'center'
       }}>
-        <Button
-          icon="pi pi-plus"
-          size="small"
-          onClick={createNewTerminal}
-          className="terminal-new-btn"
-          style={{ 
-            fontSize: '11px',
-            padding: '6px 8px',
-            backgroundColor: 'var(--surface-ground)',
-            border: '1px solid var(--border-color)',
-            color: 'var(--text-primary)',
-            borderRadius: '3px',
-            transition: 'all 0.15s ease',
-            fontWeight: '500',
-            minWidth: '32px'
-          }}
-        />
         {activeTerminal && (
           <>
-            {!activeTerminal.isSplit ? (
-              <Button
-                icon="pi pi-clone"
-                size="small"
-                onClick={() => splitTerminal(activeTerminalId)}
-                className="terminal-split-btn"
-                style={{ 
-                  fontSize: '11px',
-                  padding: '6px 8px',
-                  backgroundColor: 'var(--surface-ground)',
-                  border: '1px solid var(--border-color)',
-                  color: 'var(--text-primary)',
-                  borderRadius: '3px',
-                  transition: 'all 0.15s ease',
-                  fontWeight: '500',
-                  minWidth: '32px'
-                }}
-              />
-            ) : (
-              <Button
-                icon="pi pi-minus"
-                size="small"
-                onClick={() => unsplitTerminal(activeTerminalId)}
-                className="terminal-unsplit-btn"
-                style={{ 
-                  fontSize: '11px',
-                  padding: '6px 8px',
-                  backgroundColor: 'var(--surface-ground)',
-                  border: '1px solid var(--border-color)',
-                  color: 'var(--text-primary)',
-                  borderRadius: '3px',
-                  transition: 'all 0.15s ease',
-                  fontWeight: '500',
-                  minWidth: '32px'
-                }}
-              />
-            )}
             <Button
               icon="pi pi-times"
               size="small"
@@ -509,7 +565,6 @@ const TerminalManager = () => {
                 borderRadius: '3px',
                 transition: 'all 0.15s ease',
                 fontWeight: '500',
-                marginLeft: '8px',
                 minWidth: '32px'
               }}
             />
@@ -632,9 +687,27 @@ const TerminalManager = () => {
                 fontWeight: 'bold',
                 color: 'var(--text-secondary)',
                 textTransform: 'uppercase',
-                flexShrink: 0
+                flexShrink: 0,
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center'
               }}>
-                Terminals
+                <span>Terminals</span>
+                <Button
+                  icon="pi pi-plus"
+                  size="small"
+                  text
+                  onClick={createNewTerminal}
+                  className="terminal-new-btn-header"
+                  style={{ 
+                    width: '18px', 
+                    height: '18px',
+                    padding: '0',
+                    minWidth: 'unset',
+                    opacity: 0.7,
+                    color: 'var(--text-secondary)'
+                  }}
+                />
               </div>
               
               <div style={{ flex: 1, overflow: 'auto' }}>
@@ -681,7 +754,8 @@ const TerminalManager = () => {
                       fontSize: '12px',
                       transition: 'background-color 0.2s',
                       opacity: draggedTerminal?.id === terminal.id ? 0.5 : 1,
-                      minHeight: '32px' // Ensure consistent height
+                      minHeight: '32px', // Ensure consistent height
+                      position: 'relative'
                     }}
                   >
                     <div style={{ flex: 1, minWidth: 0 }}>
@@ -758,7 +832,60 @@ const TerminalManager = () => {
                       )}
                     </div>
                     
-                    {terminals.length > 1 && (
+                    {/* Control buttons container - shows on hover */}
+                    <div 
+                      className="terminal-tab-controls"
+                      style={{ 
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '2px',
+                        marginLeft: '4px',
+                        opacity: 0,
+                        transition: 'opacity 0.2s ease'
+                      }}
+                    >
+                      {/* Split/Unsplit button */}
+                      {!terminal.isSplit ? (
+                        <Button
+                          icon="pi pi-clone"
+                          size="small"
+                          text
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            splitTerminal(terminal.id)
+                          }}
+                          className="terminal-split-tab-btn"
+                          style={{ 
+                            width: '16px', 
+                            height: '16px',
+                            padding: '0',
+                            minWidth: 'unset',
+                            opacity: 0.7,
+                            fontSize: '10px'
+                          }}
+                        />
+                      ) : (
+                        <Button
+                          icon="pi pi-minus"
+                          size="small"
+                          text
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            unsplitTerminal(terminal.id)
+                          }}
+                          className="terminal-unsplit-tab-btn"
+                          style={{ 
+                            width: '16px', 
+                            height: '16px',
+                            padding: '0',
+                            minWidth: 'unset',
+                            opacity: 0.7,
+                            fontSize: '10px'
+                          }}
+                        />
+                      )}
+                      
+                      {/* Close button - allow closing the last terminal */}
                       <Button
                         icon="pi pi-times"
                         size="small"
@@ -772,11 +899,11 @@ const TerminalManager = () => {
                           height: '16px',
                           padding: '0',
                           minWidth: 'unset',
-                          marginLeft: '4px',
-                          opacity: 0.7
+                          opacity: 0.7,
+                          fontSize: '10px'
                         }}
                       />
-                    )}
+                    </div>
                   </div>
                 ))}
               </div>

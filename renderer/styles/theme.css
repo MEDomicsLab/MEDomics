@@ -430,3 +430,40 @@ label {
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
   backdrop-filter: blur(8px);
 }
+
+/* Terminal tab controls hover effect */
+.terminal-tab-item:hover .terminal-tab-controls {
+  opacity: 1 !important;
+}
+
+.terminal-tab-item.active .terminal-tab-controls {
+  opacity: 1 !important;
+}
+
+/* Terminal tab buttons styling */
+.terminal-tab-controls .p-button {
+  transition: all 0.15s ease;
+  color: var(--text-secondary);
+}
+
+.terminal-tab-controls .p-button:hover {
+  background-color: rgba(255, 255, 255, 0.1) !important;
+  color: var(--text-primary) !important;
+  transform: scale(1.1);
+}
+
+.terminal-tab-item.active .terminal-tab-controls .p-button {
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.terminal-tab-item.active .terminal-tab-controls .p-button:hover {
+  background-color: rgba(255, 255, 255, 0.2) !important;
+  color: white !important;
+}
+
+/* Terminal new button in header styling */
+.terminal-new-btn-header:hover {
+  opacity: 1 !important;
+  color: var(--primary-color) !important;
+  transform: scale(1.1);
+}
