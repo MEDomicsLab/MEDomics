@@ -784,12 +784,31 @@ const Workflow = ({ setWorkflowType, workflowType }) => {
       flow.intersections = intersections
       let success = await overwriteMEDDataObjectContent(metadataFileID, [flow])
       if (success) {
-        toast.success("Scene has been saved successfully")
+        toast.success("Scene " + sceneName + " has been saved successfully")
       } else {
-        toast.error("Error while saving scene")
+        toast.error("Error while saving scene: " + sceneName)
       }
     }
   }, [reactFlowInstance, MLType, intersections])
+
+  /**
+   * Add CTRL+S event listener (fired in main container) to save changes
+   */
+  useEffect(() => {
+    const handleSaveEvent = (event) => {
+      if (globalData[pageId]?.id === event.detail?.tabId ) {
+        onSave()
+      }
+    }
+    document.body.addEventListener('saveFileEvent', handleSaveEvent)
+    
+    // Cleanup function to remove event listener when component unmounts
+    return () => {
+      document.body.removeEventListener('saveFileEvent', handleSaveEvent)
+    }
+  }, [onSave])
+
+
 
   /**
    * Clear the canvas if the user confirms
