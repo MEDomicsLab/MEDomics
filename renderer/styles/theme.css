@@ -311,3 +311,122 @@ label {
 .flexlayout__splitter {
   background-color: var(--border-color) !important;
 }
+
+/* Terminal button styles (VSCode-like) */
+.terminal-new-btn:hover,
+.terminal-split-btn:hover,
+.terminal-unsplit-btn:hover {
+  background-color: var(--surface-hover) !important;
+  border-color: var(--primary-color) !important;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.terminal-kill-btn:hover {
+  background-color: var(--red-100) !important;
+  border-color: var(--red-600) !important;
+  color: var(--red-600) !important;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.terminal-new-btn:active,
+.terminal-split-btn:active,
+.terminal-unsplit-btn:active,
+.terminal-kill-btn:active {
+  transform: translateY(0);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+/* Terminal controls bar enhancement */
+.terminal-controls {
+  background: linear-gradient(to bottom, var(--card-bg), var(--surface-ground));
+  border-bottom: 1px solid var(--border-color);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+/* Terminal tab list improvements */
+.terminal-tab-list {
+  background-color: var(--surface-ground);
+  border-left: 1px solid var(--border-color);
+}
+
+.terminal-tab-item {
+  transition: all 0.15s ease;
+  border-radius: 3px;
+  margin: 2px 4px;
+}
+
+.terminal-tab-item:hover {
+  background-color: var(--surface-hover) !important;
+  border-left: 3px solid var(--primary-color);
+}
+
+.terminal-tab-item.active {
+  background-color: var(--primary-color) !important;
+  color: white !important;
+  border-left: 3px solid var(--primary-color-dark);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+/* Terminal splitter improvements */
+.p-splitter {
+  border: none !important;
+}
+
+.p-splitter.p-splitter-horizontal > .p-splitter-gutter {
+  background-color: var(--border-color) !important;
+  width: 4px !important;
+  cursor: col-resize !important;
+  transition: background-color 0.2s ease;
+}
+
+.p-splitter.p-splitter-horizontal > .p-splitter-gutter:hover {
+  background-color: var(--primary-color) !important;
+}
+
+.p-splitter.p-splitter-vertical > .p-splitter-gutter {
+  background-color: var(--border-color) !important;
+  height: 4px !important;
+  cursor: row-resize !important;
+  transition: background-color 0.2s ease;
+}
+
+.p-splitter.p-splitter-vertical > .p-splitter-gutter:hover {
+  background-color: var(--primary-color) !important;
+}
+
+.p-splitter-gutter-handle {
+  display: none !important;
+}
+
+/* Ensure terminal tab manager is responsive */
+.terminal-tab-list {
+  min-width: 120px;
+  max-width: 300px;
+}
+
+/* Responsive terminal tab items */
+@media (max-width: 200px) {
+  .terminal-tab-item span {
+    font-size: 10px !important;
+  }
+
+  .terminal-tab-item .pi-clone {
+    display: none !important;
+  }
+}
+
+/* Improve split terminal appearance */
+.terminal-container .p-splitter-panel {
+  border: none !important;
+  overflow: hidden;
+}
+
+/* Enhanced terminal controls */
+.terminal-controls {
+  background: linear-gradient(135deg, var(--card-bg) 0%, var(--surface-ground) 100%);
+  border-bottom: 1px solid var(--border-color);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  backdrop-filter: blur(8px);
+}

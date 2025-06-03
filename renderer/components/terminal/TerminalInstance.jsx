@@ -13,7 +13,14 @@ import '@xterm/xterm/css/xterm.css'
  * Individual Terminal Instance Component
  * Handles a single terminal with xterm.js
  */
-const TerminalInstance = forwardRef(({ terminalId, isActive, onTitleChange }, ref) => {
+const TerminalInstance = forwardRef(({ 
+  terminalId, 
+  isActive, 
+  onTitleChange, 
+  onSplit, 
+  onUnsplit, 
+  isSplit = false 
+}, ref) => {
   const terminalRef = useRef(null)
   const xtermRef = useRef(null)
   const fitAddonRef = useRef(null)
@@ -120,7 +127,18 @@ const TerminalInstance = forwardRef(({ terminalId, isActive, onTitleChange }, re
           xtermRef.current.clear()
         }
       }
-    }
+    },
+    ...(onSplit || onUnsplit ? [{ separator: true }] : []),
+    ...(onSplit && !isSplit ? [{
+      label: 'Split Terminal',
+      icon: 'pi pi-clone',
+      command: () => onSplit(terminalId)
+    }] : []),
+    ...(onUnsplit && isSplit ? [{
+      label: 'Unsplit Terminal',
+      icon: 'pi pi-minus',
+      command: () => onUnsplit(terminalId)
+    }] : [])
   ]
 
   // Expose methods to parent component
