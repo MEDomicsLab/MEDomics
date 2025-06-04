@@ -442,11 +442,11 @@ export async function deleteMEDDataObject(id) {
  * @param {String} collectionId Id of the collection to retrieve columns from
  * @returns {Array} An array of column names
  */
-export async function getCollectionColumns(collectionId) {
+export async function getCollectionColumns(collectionId, dropId = false) {
   try {
     const db = await connectToMongoDB()
     const collection = db.collection(collectionId)
-    const document = await collection.findOne({}) // Fetch first document
+    const document = dropId ? await collection.findOne({}, { projection: { _id: 0 } }) : await collection.findOne({})
 
     return document ? Object.keys(document) : [] // Return column names or empty array
   } catch (error) {

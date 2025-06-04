@@ -138,7 +138,7 @@ const EvaluationPageContent = () => {
 
         isValidDatasetsSelected = modelDatasetsTx.sort().join(",") == selectedDatasetsTx.sort().join(",")
       } else {
-        let columnsArray = await getCollectionColumns(datasetData.id)
+        let columnsArray = await getCollectionColumns(datasetData.id, true)
         columnsArray_ = columnsArray
         let datasetColsString = JSON.stringify(columnsArray.sort())
         let modelColsString = JSON.stringify(modelCols.sort())
