@@ -23,7 +23,7 @@ const HomePage = () => {
   const { workspace, setWorkspace, recentWorkspaces } = useContext(WorkspaceContext)
   const [hasBeenSet, setHasBeenSet] = useState(workspace.hasBeenSet)
   const [appVersion, setAppVersion] = useState("")
-  const [sampleGenerated, setSampleGenerated] = useState(true)
+  const [sampleGenerated, setSampleGenerated] = useState(false)
   const { port } = useContext(ServerConnectionContext)
 
 
@@ -34,7 +34,6 @@ const HomePage = () => {
   }
 
   const generateSampleData = async () => {
-    setSampleGenerated(true)
     // Create a new MEDDataObject with the sample data
     const sampleID = randomUUID()
     const object = new MEDDataObject({
@@ -60,7 +59,6 @@ const HomePage = () => {
         console.log("jsonResponse", jsonResponse)
         if (jsonResponse.error) {
           console.log("Sample data error")
-          setSampleGenerated(false)
           if (jsonResponse.error.message) {
             console.error(jsonResponse.error.message)
             toast.error(jsonResponse.error.message)
@@ -72,11 +70,11 @@ const HomePage = () => {
           // Insert the MEDDataObject in the mongoDB database
           await insertMEDDataObjectIfNotExists(object)
           MEDDataObject.updateWorkspaceDataObject()
+          setSampleGenerated(true)
           toast.success("Sample data generated successfully.")
         }
       },
       (error) => {
-        setSampleGenerated(false)
         console.log(error)
         toast.error("Error generating sample data " + error)
       }
@@ -169,10 +167,12 @@ const HomePage = () => {
           ) : (
             <div className="workspace-set" style={{ display: "flex", flexDirection: "column", alignItems: "flex-start" }}>
               <h5>Workspace is set to {workspace.workingDirectory.path}</h5>
-              <div>
-                <Button disabled={sampleGenerated} style={{ marginTop: "0.5rem" }} onClick={generateSampleData}>Generate sample data</Button>
-                <FaRegQuestionCircle title="Generates a SampleData.csv file filled with a default PyCaret dataset (currently 'Diabetes')" style={{fontSize: "30px", color: "#444", marginTop: "0.5rem", marginLeft: "0.5rem"}} />
-              </div>
+              {!sampleGenerated && (
+                <div>
+                  <Button style={{ marginTop: "0.5rem" }} onClick={generateSampleData}>Import sample data</Button>
+                  <FaRegQuestionCircle title="Creates a SampleData.csv file in your workspace filled with a default PyCaret dataset (currently 'Diabetes')" style={{fontSize: "30px", color: "#444", marginTop: "0.5rem", marginLeft: "0.5rem"}} />
+                </div>
+              )}
             </div>
           )}
         </Stack>
