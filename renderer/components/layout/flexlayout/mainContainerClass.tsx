@@ -356,10 +356,6 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
     }
   }
 
-  componentWillUnmount(): void {
-    this.stopJupyterServer()
-  }
-
   stopJupyterServer = async () => {
     const { setJupyterStatus } = this.props as LayoutContextType
     const pythonPath = await this.getPythonPath()
@@ -414,6 +410,7 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
    */
   componentWillUnmount(): void {
     document.body.removeEventListener('keydown', this.handleSaveTab)
+    this.stopJupyterServer()
   }
 
   /**
