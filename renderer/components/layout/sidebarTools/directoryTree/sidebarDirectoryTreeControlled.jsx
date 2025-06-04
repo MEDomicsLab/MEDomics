@@ -40,7 +40,7 @@ const SidebarDirectoryTreeControlled = ({ setExternalSelectedItems, setExternalD
   const [isDialogShowing, setIsDialogShowing] = useState(false) // This state is used to know if the dialog is showing or not
   const [dirTree, setDirTree] = useState({}) // We get the directory tree from the workspace
   const [isDropping, setIsDropping] = useState(false) // Set if the item is getting dropped something in (for elements outside of the tree)
-  const [isDirectoryTreeFocused, setIsDirectoryTreeFocused] = useState(false); // New state to track focus
+  const [isDirectoryTreeFocused, setIsDirectoryTreeFocused] = useState(false) // New state to track focus
 
   const { globalData } = useContext(DataContext) // We get the global data from the context to retrieve the directory tree of the workspace, thus retrieving the data files
   const { dispatchLayout, developerMode, isEditorOpen } = useContext(LayoutModelContext)
@@ -137,7 +137,7 @@ const SidebarDirectoryTreeControlled = ({ setExternalSelectedItems, setExternalD
    * This useEffect hook attaches an event listener to the document to listen for key presses.
    */
   useEffect(() => {
-    if(isEditorOpen) {
+    if (isEditorOpen) {
       return
     }
     // attach the event listener
@@ -284,6 +284,8 @@ const SidebarDirectoryTreeControlled = ({ setExternalSelectedItems, setExternalD
         dispatchLayout({ type: "openInDataTableFromDBViewer", payload: item })
       } else if (item.type == "py" || item.type == "json" || item.type == "txt" || item.type == "md") {
         dispatchLayout({ type: "openInCodeEditor", payload: item })
+      } else if (item.type == "ipynb") {
+        dispatchLayout({ type: "openInJupyterNotebook", payload: item })
       } else if (item.type == "png" || item.type == "jpg" || item.type == "jpeg" || item.type == "gif" || item.type == "svg") {
         dispatchLayout({ type: "openInImageViewer", payload: item })
       } else if (item.type == "pdf") {
@@ -473,7 +475,13 @@ const SidebarDirectoryTreeControlled = ({ setExternalSelectedItems, setExternalD
             </Stack>
           </Accordion.Header>
           <Accordion.Body className="sidebar-acc-body" onEnter={() => setIsAccordionShowing(true)} onExit={() => setIsAccordionShowing(false)}>
-            <div className="directory-tree" onMouseEnter={() => setIsHovering(true)} onMouseLeave={() => setIsHovering(false)} onFocus={() => setIsDirectoryTreeFocused(true)} onBlur={() => setIsDirectoryTreeFocused(false)}>
+            <div
+              className="directory-tree"
+              onMouseEnter={() => setIsHovering(true)}
+              onMouseLeave={() => setIsHovering(false)}
+              onFocus={() => setIsDirectoryTreeFocused(true)}
+              onBlur={() => setIsDirectoryTreeFocused(false)}
+            >
               <ControlledTreeEnvironment
                 ref={environment}
                 items={dirTree}
@@ -490,7 +498,7 @@ const SidebarDirectoryTreeControlled = ({ setExternalSelectedItems, setExternalD
                     dirTree
                   })
                 }
-                getItemTitle={(item) => item ? item.data : ""}
+                getItemTitle={(item) => (item ? item.data : "")}
                 viewState={{
                   ["tree-2"]: {
                     focusedItem,

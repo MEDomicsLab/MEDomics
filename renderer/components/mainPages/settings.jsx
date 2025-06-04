@@ -17,16 +17,19 @@ import { Column } from "primereact/column"
 import { WorkspaceContext } from "../workspace/workspaceContext"
 import FirstSetupModal from "../generalPurpose/installation/firstSetupModal"
 import { requestBackend } from "../../utilities/requests"
+const util = require("util")
+const exec = util.promisify(require("child_process").exec)
 
 /**
  * Settings page
  * @returns {JSX.Element} Settings page
  */
-const SettingsPage = (pageId = "settings") => {
+const SettingsPage = ({pageId = "settings", checkJupyterIsRunning, startJupyterServer, stopJupyterServer}) => {
   const { workspace, port } = useContext(WorkspaceContext)
   const [settings, setSettings] = useState(null) // Settings object
-  const [serverIsRunning, setServerIsRunning] = useState(false) // Boolean to know if the server is running
+  const [serverIsRunning, setServerIsRunning] = useState(false) // Boolean to know if the server is running  
   const [mongoServerIsRunning, setMongoServerIsRunning] = useState(false) // Boolean to know if the server is running
+  const [jupyterServerIsRunning, setjupyterServerIsRunning] = useState(false) // Boolean to know if Jupyter Noteobok is running
   const [activeIndex, setActiveIndex] = useState(0) // Index of the active tab
   const [condaPath, setCondaPath] = useState("") // Path to the conda environment
   const [seed, setSeed] = useState(54288) // Seed for random number generation
@@ -86,6 +89,7 @@ const SettingsPage = (pageId = "settings") => {
     // })
     checkMongoIsRunning()
     checkServer()
+    getJupyterStatus()
   }, [])
 
   /**
@@ -113,6 +117,7 @@ const SettingsPage = (pageId = "settings") => {
       // })
       checkServer()
       checkMongoIsRunning()
+      getJupyterStatus()
       ipcRenderer.invoke("getBundledPythonEnvironment").then((res) => {
         console.log("Python embedded: ", res)
 
@@ -138,6 +143,12 @@ const SettingsPage = (pageId = "settings") => {
       }
     })
   }, [])
+
+  const getJupyterStatus = async () => {
+    console.log("Checking jupyter status")
+    const running = await checkJupyterIsRunning()
+    setjupyterServerIsRunning(running)
+  }
 
   const startMongo = () => {
     let workspacePath = workspace.workingDirectory.path
@@ -271,6 +282,25 @@ const SettingsPage = (pageId = "settings") => {
                   />
                 </Col>
                 <Col xs={12} md={12} style={{ display: "flex", flexDirection: "row", justifyContent: "flex-start", alignItems: "center", flexWrap: "wrap", marginTop: ".75rem" }}>
+                  <h5 style={{ marginBottom: "0rem" }}>Jupyter Notebook server status : </h5>
+                  <h5 style={{ marginBottom: "0rem", marginLeft: "1rem", color: jupyterServerIsRunning ? "green" : "#d55757" }}>{jupyterServerIsRunning ? "Running" : "Stopped"}</h5>
+                  {jupyterServerIsRunning ? <Check2Circle size="30" style={{ marginInline: "1rem", color: "green" }} /> : <XCircleFill size="25" style={{ marginInline: "1rem", color: "#d55757" }} />}
+                  <Button
+                    label="Start server"
+                    className=" p-button-success"
+                    onClick={() => {startJupyterServer()}}
+                    style={{ backgroundColor: jupyterServerIsRunning ? "grey" : "#54a559", borderColor: jupyterServerIsRunning ? "grey" : "#54a559", marginRight: "1rem" }}
+                    disabled={jupyterServerIsRunning}
+                  />
+                  <Button
+                    label="Stop server"
+                    className="p-button-danger"
+                    onClick={() => {stopJupyterServer()}}
+                    style={{ backgroundColor: jupyterServerIsRunning ? "#d55757" : "grey", borderColor: jupyterServerIsRunning ? "#d55757" : "grey" }}
+                    disabled={!jupyterServerIsRunning}
+                  />
+                </Col>
+                <Col xs={12} md={12} style={{ display: "flex", flexDirection: "row", justifyContent: "flex-start", alignItems: "center", flexWrap: "wrap", marginTop: ".75rem" }}>
                   <Col xs={12} md="auto" style={{ display: "flex", flexDirection: "row", justifyContent: "flex-start", alignItems: "center", flexWrap: "wrap" }}>
                     <h5>Python environment path : </h5>
                   </Col>
@@ -366,9 +396,9 @@ const SettingsPage = (pageId = "settings") => {
                         }}
                       />
                     )}
+                    {pythonEmbedded.pythonEmbedded && typeof pythonEmbedded.pythonEmbedded === "string" && <h6 style={{ marginTop: "0.5rem", marginLeft: "0.75rem" }}>at {pythonEmbedded.pythonEmbedded}</h6>}
                   </Col>
                   {/* If pythonEmbedded.pythonEmbedded is defined and a string, show it in a label just under this way: "at ${pythonEmbedded.pythonEmbedded}"*/}
-                  {pythonEmbedded.pythonEmbedded && typeof pythonEmbedded.pythonEmbedded === "string" && <h6 style={{ marginTop: "0.5rem" }}>at {pythonEmbedded.pythonEmbedded}</h6>}
                 </Col>
                 {showPythonPackages && (
                   <DataTable value={pythonEmbedded.pythonPackages} size="small" scrollable scrollHeight="25rem" style={{ marginTop: "1rem" }}>
