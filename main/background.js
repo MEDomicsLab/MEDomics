@@ -767,11 +767,6 @@ ipcMain.handle("terminal-get-cwd", async (event, terminalId) => {
   return terminalManager.getCurrentWorkingDirectory(terminalId)
 })
 
-// Get list of all active terminals
-ipcMain.handle("terminal-list", async () => {
-  return terminalManager.getAllTerminals()
-})
-
 /**
  * @description Open a new window from an URL
  * @param {*} url The URL of the page to open
