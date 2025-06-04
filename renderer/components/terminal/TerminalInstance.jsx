@@ -200,9 +200,14 @@ const TerminalInstance = forwardRef(({
     // Determine if we're in dark mode based on the terminal text color
     const isDarkMode = terminalText === '#ffffff'
     
+    // Set font family based on platform
+    const fontFamily = process.platform === 'darwin' 
+      ? '"MesloLGS NF", "Fira Code", "Cascadia Code", "Consolas", "Monaco", monospace'
+      : '"Fira Code", "Cascadia Code", "Consolas", "Monaco", monospace'
+    
     // Create terminal instance
     const terminal = new Terminal({
-      fontFamily: '"Fira Code", "Cascadia Code", "Consolas", "Monaco", monospace',
+      fontFamily: fontFamily,
       fontSize: 14,
       fontWeight: 'normal',
       fontWeightBold: 'bold',
