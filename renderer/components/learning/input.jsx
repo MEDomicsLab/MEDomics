@@ -144,7 +144,7 @@ const Input = ({ name, settingInfos, currentValue, onInputChange, disabled = fal
                 step={settingInfos.step || "1"}
                 min={settingInfos.min}
                 max={settingInfos.max}
-                value={currentValue}
+                defaultValue={currentValue}
                 onChange={(e) =>
                   setInputUpdate({
                     name: name,
@@ -168,7 +168,7 @@ const Input = ({ name, settingInfos, currentValue, onInputChange, disabled = fal
                 step={settingInfos.step || "0.05"}
                 min={settingInfos.min}
                 max={settingInfos.max}
-                value={currentValue}
+                defaultValue={currentValue}
                 onChange={(e) =>
                   setInputUpdate({
                     name: name,
