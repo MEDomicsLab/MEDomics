@@ -16,30 +16,25 @@ const SplitNode = ({ id, data }) => {
 
   // Update available options when split type changes
   useEffect(() => {
-    updateSplitOptions()
-  }, [data.internal.settings.split_type])
-
-  // Function to update options based on split type
-  const updateSplitOptions = () => {
-    const type = data.internal.settings.split_type
-    let options = []
-
-    // Add options specific to the split type
-    if (type && type in data.setupParam.possibleSettings) {
-      options.push(type)
+    if (!data.internal.settings.columns){
+      handleWarning({ state: true, tooltip: <p>No columns available for stratification. Please select a dataset with columns.</p> })
     }
-
-    // Add stratification for Random Sub-Sampling and Cross-Validation
-    if (type === "random_sub_sampling" || type === "cross_validation") {
-      options.push("stratification")
+    if (data.internal.settings.global.stratify_columns.length === 0){
+      handleWarning({ state: true, tooltip: <p>Please select the stratification columns.</p> })
     }
+  }, [data.internal.settings])
 
-    // Update checked options in node data
-    data.internal.checkedOptions = options
-    updateNode({
-      id: id,
-      updatedData: data.internal,
-    })
+  const handleStratificationWarning = () => {
+    const selectedStratificationColumns = data.internal.settings.global.stratify_columns.length > 0
+    const usedTags = data.internal.settings.useTags && (
+      (data.internal.settings.global.columnsTags && data.internal.settings.global.columnsTags.length > 0) ||
+      (data.internal.settings.global.rowsTags && data.internal.settings.global.rowsTags.length > 0)
+    )
+    if (!selectedStratificationColumns && !usedTags) {
+      return { state: true, tooltip: <p>Please select the stratification columns or use tags.</p> }
+    } else {
+      return { state: false }
+    }
   }
 
   // Handler for input changes for global parameters
@@ -57,6 +52,7 @@ const SplitNode = ({ id, data }) => {
       data.internal.settings.global.rowsTagsMapped = {}
     }
     data.internal.settings.global[inputUpdate.name] = inputUpdate.value
+    data.internal.hasWarning = handleStratificationWarning()
     updateNode({
       id: id,
       updatedData: data.internal,
@@ -83,15 +79,15 @@ const SplitNode = ({ id, data }) => {
   }
 
   // Dynamic parameter renderer for Outer splits
-  const renderParams = (level, method) => {
+  const renderParams = (method) => {
     if (!method) return null
-    return Object.entries(data.setupParam?.possibleSettings?.[level]?.[method] || {}).map(
+    return Object.entries(data.setupParam?.possibleSettings.outer?.[method] || {}).map(
       ([param, infos]) => (
           <Input
             name={param}
             settingInfos={infos}
-            currentValue={data.internal.settings[level][method][param]}
-            onInputChange={level === "outer" && onOuterInputChange}
+            currentValue={data.internal.settings.outer[method][param]}
+            onInputChange={onOuterInputChange}
           />
       )
     )
@@ -102,8 +98,13 @@ const SplitNode = ({ id, data }) => {
 
     // Set the default value for stratification
     const columnsArray = Object.keys(data.internal.settings.columns)
-    data.setupParam.possibleSettings.global.stratify_columns.default_val = columnsArray[columnsArray.length - 1]
-    data.setupParam.possibleSettings.global.stratify_columns.choices = columnsArray
+    data.setupParam.possibleSettings.global.stratify_columns.default_val = columnsArray.length > 0 ? columnsArray[columnsArray.length - 1] : ""
+    // Set the choices for stratification
+    data.setupParam.possibleSettings.global.stratify_columns.choices = columnsArray.length > 0 ? columnsArray : [""]
+    // Update warning state
+    if (columnsArray.length > 0){
+      data.internal.hasWarning = { state: false }
+    }
   
     // Update the node
     updateNode({
@@ -118,7 +119,7 @@ const SplitNode = ({ id, data }) => {
             columnsTags: data.internal.settings.columnsTags || [],
             rowsTagsMapped: data.internal.settings.rowsTagsMapped || {},
             rowsTags: data.internal.settings.rowsTags || [],
-            stratify_columns: columnsArray[columnsArray.length - 1],
+            stratify_columns: columnsArray.length > 0 ? columnsArray[columnsArray.length - 1] : "",
           },
         },
       },
@@ -294,7 +295,7 @@ const SplitNode = ({ id, data }) => {
                 placeholder="Select Outer Split method"
                 optionLabel="name"
               />
-              {renderParams("outer", data.internal.settings.outer_split_type)}
+              {renderParams(data.internal.settings.outer_split_type)}
               </>
             </div>
           )}
@@ -315,7 +316,13 @@ const SplitNode = ({ id, data }) => {
                     checked={useTags}
                     onChange={(e) => {
                       data.internal.settings.useTags = e.value
+                      data.internal.hasWarning = handleStratificationWarning()
                       setUseTags(e.value)
+                      updateNode({
+                        id: id,
+                        updatedData: data.internal,
+                      })
+                      
                     }}
                   />
                 </div>
@@ -356,18 +363,18 @@ const SplitNode = ({ id, data }) => {
                       defining the group.">
                       <i className="pi pi-info-circle" style={{ marginRight: "5px" }}/>
                     </span>
-                  <Input
-                    key={"tags"}
-                    name="rowsTags"
-                    settingInfos={{
-                      type: "tags-input-multiple",
-                      tooltip: "<p>Select by tags the columns to use for stratification</p>",
-                      selectedDatasets: [{tags: data.internal.settings.rowsTags}]
-                    }}
-                    currentValue={data.internal.settings.global.rowsTags}
-                    onInputChange={onGlobalInputChange}
-                    setHasWarning={handleWarning}
-                  />
+                    <Input
+                      key={"tags"}
+                      name="rowsTags"
+                      settingInfos={{
+                        type: "tags-input-multiple",
+                        tooltip: "<p>Select by tags the columns to use for stratification</p>",
+                        selectedDatasets: [{tags: data.internal.settings.rowsTags}]
+                      }}
+                      currentValue={data.internal.settings.global.rowsTags}
+                      onInputChange={onGlobalInputChange}
+                      setHasWarning={handleWarning}
+                    />
                   </div>
                 )}
                 {(useTags && (!data.internal.settings.columnsTags || data.internal.settings.columnsTags.length === 0)) && (
@@ -398,12 +405,20 @@ const SplitNode = ({ id, data }) => {
                     // Swap the dummy columns for the real dataset columns
                     if (data.internal.settings.columns) {
                       const columnsArray = Object.keys(data.internal.settings.columns)
-                      if (nameParam === "stratify_columns") {
+                      if (columnsArray.length > 0 && nameParam === "stratify_columns") {
                         if (typeof data.internal.settings.global[nameParam] === "object" && !data.internal.settings.global[nameParam].every(r=>columnsArray.includes(r))) {
                           data.internal.settings.global[nameParam] = columnsArray[columnsArray.length - 1]
                         }
-                        
                       }
+                    } else if (nameParam === "stratify_columns") {
+                      return <Message
+                        key={nameParam}
+                        severity="warn"
+                        text="No columns available for stratification. Please connect a dataset node."
+                        style={{
+                            borderWidth: '0 0 0 6px',
+                        }}
+                      />
                     }
 
                     return (
