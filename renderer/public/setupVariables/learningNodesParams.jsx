@@ -80,16 +80,16 @@ const nodesParams = {
     title: "Compare models",
     possibleSettings: { classification: classificationSettings["compare_models"], regression: regressionSettings["compare_models"] }
   },
-  group_models: {
+  combine_models: {
     type: "standardNode",
-    classes: "action group_models",
+    classes: "action combine_models",
     nbInput: 1,
     nbOutput: 1,
     input: ["model"],
     output: ["model"],
     img: "group_models.png",
-    title: "Group models",
-    possibleSettings: { classification: classificationSettings["group_models"], regression: regressionSettings["group_models"] }
+    title: "Combine models",
+    possibleSettings: { classification: classificationSettings["combine_models"], regression: regressionSettings["group_models"] }
   },
   load_model: {
     type: "loadModelNode",

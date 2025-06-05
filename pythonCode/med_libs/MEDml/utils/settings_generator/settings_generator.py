@@ -168,7 +168,7 @@ nodes_options = {
         "info": ['load_model'],
         "code": """"""
     },
-    'group_models': {
+    'combine_models': {
         "info": [],
         "code": """"""
     },

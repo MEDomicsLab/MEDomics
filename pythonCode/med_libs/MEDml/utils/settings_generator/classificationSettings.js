@@ -730,6 +730,69 @@ const classificationSettings = {
             }
         }
     },
+    "combine_models": {
+  "options": {
+    "blend_models": { "options": {
+            "fold": {
+                "type": "int",
+                "tooltip": "<p>Controls cross-validation. If None, the CV generator in the fold_strategy\nparameter of the setup function is used. When an integer is passed,\nit is interpreted as the \u2018n_splits\u2019 parameter of the CV generator in the\nsetup function.</p>\n",
+                "default_val": "None"
+            },
+            "round": {
+                "type": "int",
+                "tooltip": "<p>Number of decimal places the metrics in the score grid will be rounded to.</p>\n",
+                "default_val": "4"
+            },
+            "choose_better": {
+                "type": "bool",
+                "tooltip": "<p>When set to True, the returned object is always better performing. The\nmetric used for comparison is defined by the optimize parameter.</p>\n",
+                "default_val": "False"
+            },
+            "optimize": {
+                "type": "string",
+                "tooltip": "<p>Metric to compare for model selection when choose_better is True.</p>\n",
+                "default_val": "Accuracy"
+            },
+            "method": {
+                "type": "string",
+                "tooltip": "<p>\u2018hard\u2019 uses predicted class labels for majority rule voting. \u2018soft\u2019, predicts\nthe class label based on the argmax of the sums of the predicted probabilities,\nwhich is recommended for an ensemble of well-calibrated classifiers. Default\nvalue, \u2018auto\u2019, will try to use \u2018soft\u2019 and fall back to \u2018hard\u2019 if the former is\nnot supported.</p>\n",
+                "default_val": "auto"
+            },
+            "weights": {
+                "type": "custom-list",
+                "tooltip": "<p>Sequence of weights (float or int) to weight the occurrences of predicted class\nlabels (hard voting) or class probabilities before averaging (soft voting). Uses\nuniform weights when None.</p>\n",
+                "default_val": "None"
+            },
+            "fit_kwargs": {
+                "type": "dict",
+                "tooltip": "<p>Dictionary of arguments passed to the fit method of the model.</p>\n",
+                "default_val": "{} (empty dict)"
+            },
+            "groups": {
+                "type": "string",
+                "tooltip": "<p>Optional group labels when GroupKFold is used for the cross validation.\nIt takes an array with shape (n_samples, ) where n_samples is the number\nof rows in training dataset. When string is passed, it is interpreted as\nthe column name in the dataset containing group labels.</p>\n",
+                "default_val": "None"
+            },
+            "probability_threshold": {
+                "type": "float",
+                "tooltip": "<p>Threshold for converting predicted probability to class label.\nIt defaults to 0.5 for all classifiers unless explicitly defined\nin this parameter. Only applicable for binary classification.</p>\n",
+                "default_val": "None"
+            },
+            "verbose": {
+                "type": "bool",
+                "tooltip": "<p>Score grid is not printed when verbose is set to False.</p>\n",
+                "default_val": "True"
+            },
+            "return_train_score": {
+                "type": "bool",
+                "tooltip": "<p>If False, returns the CV Validation scores only.\nIf True, returns the CV training scores along with the CV validation scores.\nThis is useful when the user wants to do bias-variance tradeoff. A high CV\ntraining score with a low corresponding CV validation score indicates overfitting.</p>\n",
+                "default_val": "False"
+            }
+        } },
+    "stack_models": { /*  ex-stack_models.options */ }
+  },
+  "code": ""
+},
     "tune_model": {
         "options": {
             "fold": {

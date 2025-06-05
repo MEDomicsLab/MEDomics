@@ -89,7 +89,7 @@ const PipelineResult = ({ pipeline, selectionMode, flowContent }) => {
         if (resultsCopy) {
           let curNode = flowContent.nodes.find((node) => node.id == id)
           console.log("curNode", curNode, "type", curNode.data.internal.type)
-          if (curNode.data.internal.type == "group_models") {
+          if (curNode.data.internal.type == "combine_models") {
             console.log("FLAG")
             passGroupModels = true
             console.log("passGroupModels", passGroupModels)
@@ -268,9 +268,9 @@ const PipelinesResults = ({ pipelines, selectionMode, flowContent }) => {
           // check if next node is a group_models
           let nextNode = index + 1 < pipeline.length ? flowContent.nodes.find((node) => node.id == pipeline[index + 1]) : null
           console.log("nextNode", nextNode)
-          let isNextGroupModels = nextNode && nextNode.data.internal.type == "group_models"
+          let isNextGroupModels = nextNode && nextNode.data.internal.type == "combine_models"
           if (isNextGroupModels) {
-            console.log("next node is a group_models")
+            console.log("next node is a combine_models")
             console.log(checkIfObjectContainsId(resultsCopy, id))
           }
           let nodeResults = checkIfObjectContainsId(resultsCopy, id)

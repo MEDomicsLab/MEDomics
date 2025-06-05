@@ -118,7 +118,7 @@ const NodeObject = ({ id, data, nodeSpecific, color = null, nodeBody, defaultSet
           pt={{
             body: { className: `${nodeBody ? "padding-0_2rem-important" : "padding-0-important"}` }
           }}
-          onClick={(e) => (onClickCustom ? onClickCustom(e) : data.internal.type != "group_models" && op.current.toggle(e))}
+          onClick={(e) => (op.current.toggle(e))}
           // if the node has run and the results pane is displayed, the node is displayed normally
           // if the node has not run and the results pane is displayed, the node is displayed with a notRun class (see .css file)
           className={`text-left ${data.internal.hasRun && showResultsPane ? "" : showResultsPane ? "notRun" : ""}`}
@@ -165,7 +165,7 @@ const NodeObject = ({ id, data, nodeSpecific, color = null, nodeBody, defaultSet
           {nodeBody && <>{nodeBody}</>}
         </Card>
       </div>
-      {!isGroupNode && data.internal.type != "group_models" && (
+      {(defaultSettings || nodeSpecific) && (
         <>
           {/* here is an overlay panel that is displayed when the user clicks on the node name. It contains the settings of the node*/}
           <OverlayPanel className="options-overlayPanel" ref={op}>

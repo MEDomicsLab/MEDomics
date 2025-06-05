@@ -1284,8 +1284,21 @@ const classificationSettings = {
     code: "calibrate_model()",
     default: {}
   },
-  group_models: {
-    options: {},
+  combine_models: {
+    options: {
+      blend_models: {
+        type: "string",
+        tooltip:
+          "<p>Optional group labels when GroupKFold is used for the cross validation.\nIt takes an array with shape (n_samples, ) where n_samples is the number\nof rows in training dataset. When string is passed, it is interpreted as\nthe column name in the dataset containing group labels.</p>\n",
+        default_val: "None"
+      },
+      stack_models: {
+        type: "string",
+        tooltip:
+          "<p>Optional group labels when GroupKFold is used for the cross validation.\nIt takes an array with shape (n_samples, ) where n_samples is the number\nof rows in training dataset. When string is passed, it is interpreted as\nthe column name in the dataset containing group labels.</p>\n",
+        default_val: "None"
+      }
+    },
     code: ""
   }
 }

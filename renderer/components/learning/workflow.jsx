@@ -973,7 +973,7 @@ const Workflow = ({ setWorkflowType, workflowType }) => {
             hasModels = true
           }
 
-          if (nodeType == "group_models") {
+          if (nodeType == "combine_models") {
             edgesCopy = edgesCopy.filter((edge) => edge.target == currentNode.id)
             console.log("edgesCopy", edgesCopy)
             edgesCopy = edgesCopy.reduce((acc, edge) => {

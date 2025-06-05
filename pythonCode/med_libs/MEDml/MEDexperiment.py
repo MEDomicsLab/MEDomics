@@ -238,8 +238,8 @@ class MEDexperiment(ABC):
                 exp_to_return = experiment
                 self._progress['currentLabel'] = node.username
                 if not node.has_run() or prev_node.has_changed():
-                    if node.type == 'group_models':
-                        print("group_models")
+                    if node.type == 'combine_models':
+                        print("combine_models")
                         data = node.execute(experiment, **prev_node.get_info_for_next_node())
                         node_can_go = data['prev_node_complete']
                     else:
