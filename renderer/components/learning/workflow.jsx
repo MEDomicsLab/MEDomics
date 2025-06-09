@@ -38,6 +38,8 @@ import { overwriteMEDDataObjectContent } from "../mongoDB/mongoDBUtils.js"
 import { getCollectionData } from "../dbComponents/utils.js"
 import { MEDDataObject } from "../workspace/NewMedDataObject.js"
 import SplitNode from "./nodesTypes/splitNode.jsx"
+import { Tooltip } from "primereact/tooltip"
+import { Tag } from "primereact/tag"
 
 const staticNodesParams = nodesParams // represents static nodes parameters
 
@@ -51,7 +53,7 @@ const staticNodesParams = nodesParams // represents static nodes parameters
  * This component is used to display a workflow (ui, nodes, edges, etc.).
  *
  */
-const Workflow = ({ setWorkflowType, workflowType }) => {
+const Workflow = ({ setWorkflowType, workflowType, isExperiment }) => {
   const [nodes, setNodes, onNodesChange] = useNodesState([]) // nodes array, setNodes is used to update the nodes array, onNodesChange is a callback hook that is executed when the nodes array is changed
   const [edges, setEdges, onEdgesChange] = useEdgesState([]) // edges array, setEdges is used to update the edges array, onEdgesChange is a callback hook that is executed when the edges array is changed
   const [reactFlowInstance, setReactFlowInstance] = useState(null) // reactFlowInstance is used to get the reactFlowInstance object important for the reactFlow library
@@ -1161,7 +1163,14 @@ const Workflow = ({ setWorkflowType, workflowType }) => {
         uiTopRight={
           <>
             {workflowType == "learning" && (
-              <>
+              <div className="d-flex align-items-center gap-2 p-1.5 rounded-3">
+                {isExperiment && <>
+                  <Tooltip target=".experimenting-tag" position="bottom" className="tooltip-custom">
+                    <span>This an experiment scene, create a new scene to switch to main mode</span>
+                  </Tooltip>
+                  <Tag className="experimenting-tag" severity="info" value="Experiment Mode"></Tag>
+                </>
+                }
                 <Form.Select className="margin-left-10" aria-label="Default select example" value={MLType} onChange={handleMlTypeChanged}>
                   <option value="classification">Classification</option>
                   <option value="regression">Regression</option>
@@ -1175,7 +1184,7 @@ const Workflow = ({ setWorkflowType, workflowType }) => {
                     { type: "load", onClick: onLoad }
                   ]}
                 />
-              </>
+              </div>
             )}
           </>
         }

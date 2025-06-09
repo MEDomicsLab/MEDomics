@@ -20,6 +20,7 @@ const nodesParams = {
     output: ["dataset"],
     img: "dataset.png",
     title: "Dataset",
+    experimenting: true,
     possibleSettings: {
       classification: classificationSettings["dataset"],
       regression: regressionSettings["dataset"]
@@ -34,6 +35,7 @@ const nodesParams = {
     output: ["dataset"],
     img: "split.png",
     title: "Split",
+    experimenting: false,
     possibleSettings: { classification: classificationSettings["split"], regression: regressionSettings["analyze"] }
   },
   clean: {
@@ -45,6 +47,7 @@ const nodesParams = {
     output: ["dataset"],
     img: "clean.png",
     title: "Clean",
+    experimenting: true,
     possibleSettings: { classification: classificationSettings["clean"], regression: regressionSettings["clean"] }
   },
   model: {
@@ -56,6 +59,7 @@ const nodesParams = {
     output: ["model_config"],
     img: "model.png",
     title: "Model",
+    experimenting: false,
     possibleSettings: { classification: classificationModelsSettings, regression: regressionModelsSettings }
   },
   train_model: {
@@ -67,6 +71,7 @@ const nodesParams = {
     output: ["model"],
     img: "create_model.png",
     title: "Train model",
+    experimenting: false,
     possibleSettings: { classification: classificationSettings["create_model"], regression: regressionSettings["create_model"] }
   },
   compare_models: {
@@ -78,6 +83,7 @@ const nodesParams = {
     output: ["model"],
     img: "compare_models.png",
     title: "Compare models",
+    experimenting: true,
     possibleSettings: { classification: classificationSettings["compare_models"], regression: regressionSettings["compare_models"] }
   },
   combine_models: {
@@ -89,6 +95,7 @@ const nodesParams = {
     output: ["model"],
     img: "group_models.png",
     title: "Combine models",
+    experimenting: false,
     possibleSettings: { classification: classificationSettings["combine_models"], regression: regressionSettings["group_models"] }
   },
   load_model: {
@@ -100,6 +107,7 @@ const nodesParams = {
     output: ["model"],
     img: "load_model.png",
     title: "Load model",
+    experimenting: false,
     possibleSettings: { classification: classificationSettings["load_model"], regression: regressionSettings["load_model"] }
   },
   optimize: {
@@ -111,6 +119,7 @@ const nodesParams = {
     output: ["model"],
     img: "optimize.png",
     title: "Optimize",
+    experimenting: false,
     possibleSettings: { classification: classificationSettings["optimize"], regression: regressionSettings["optimize"] }
   },
   analyze: {
@@ -122,6 +131,7 @@ const nodesParams = {
     output: [],
     img: "analyze.png",
     title: "Analyze",
+    experimenting: true,
     possibleSettings: { classification: classificationSettings["analyze"], regression: regressionSettings["analyze"] }
   },
   finalize: {
@@ -133,6 +143,7 @@ const nodesParams = {
     output: ["model"],
     img: "finalize.png",
     title: "Finalize",
+    experimenting: false,
     possibleSettings: { classification: classificationSettings["finalize"], regression: regressionSettings["finalize"] }
   },
   save_model: {
@@ -144,6 +155,7 @@ const nodesParams = {
     output: [],
     img: "save_model.png",
     title: "Save model",
+    experimenting: false,
     possibleSettings: { classification: classificationSettings["save_model"], regression: regressionSettings["save_model"] }
   }
 }

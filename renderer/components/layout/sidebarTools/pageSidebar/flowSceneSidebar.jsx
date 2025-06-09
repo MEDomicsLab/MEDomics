@@ -50,8 +50,8 @@ const FlowSceneSidebar = ({ type }) => {
    * @param {String} name The name of the scene
    * @description - This function is used to create an empty scene
    */
-  const createEmptyScene = async (name) => {
-    createSceneContent("EXPERIMENTS", name, typeInfo[type].extension)
+  const createEmptyScene = async (name, isExperiment = false) => {
+    createSceneContent("EXPERIMENTS", name, typeInfo[type].extension, isExperiment)
   }
 
   /**
@@ -60,7 +60,7 @@ const FlowSceneSidebar = ({ type }) => {
    * @param {String} sceneName The name of the scene
    * @param {String} extension The extension of the scene
    */
-  const createSceneContent = async (parentId, sceneName, extension) => {
+  const createSceneContent = async (parentId, sceneName, extension, isExperiment) => {
     // Create scene folder
     let sceneFolder = new MEDDataObject({
       id: randomUUID(),
@@ -96,7 +96,11 @@ const FlowSceneSidebar = ({ type }) => {
     })
     let sceneObjectId = await insertMEDDataObjectIfNotExists(sceneObject)
     // Create hidden metadata file
-    const emptyScene = [loadJsonPath(isProd ? Path.join(process.resourcesPath, "baseFiles", "emptyScene.json") : "./baseFiles/emptyScene.json")]
+    let emptyScene = [loadJsonPath(isProd ? Path.join(process.resourcesPath, "baseFiles", "emptyScene.json") : "./baseFiles/emptyScene.json")]
+    emptyScene[0] = {
+      ...emptyScene[0],
+      isExperiment: isExperiment,
+    }
     let metadataObject = new MEDDataObject({
       id: randomUUID(),
       name: "metadata.json",
@@ -135,7 +139,7 @@ const FlowSceneSidebar = ({ type }) => {
 
   return (
     <>
-      <FileCreationBtn label="Create scene" piIcon="pi-plus" createEmptyFile={createEmptyScene} checkIsNameValid={checkIsNameValid} />
+      <FileCreationBtn label="Create scene" piIcon="pi-plus" createEmptyFile={createEmptyScene} checkIsNameValid={checkIsNameValid} type={type} />
     </>
   )
 }

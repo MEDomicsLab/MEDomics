@@ -1,7 +1,7 @@
-import React from "react"
 import { Card } from "primereact/card"
 import nodesParams from "../../public/setupVariables/allNodesParams"
 import { Stack } from "react-bootstrap"
+import { useMemo } from "react"
 
 /**
  *
@@ -30,7 +30,19 @@ const onDragStart = (event, node) => {
  * This component is used to display the nodes available in the sidebar.
  *
  */
-const SidebarAvailableNodes = ({ title, sidebarType }) => {
+const SidebarAvailableNodes = ({ title, sidebarType, experimenting }) => {
+  // Create filtered copy without mutating the original
+  const filteredNodes = useMemo(() => {
+    const originalNodes = nodesParams[sidebarType]
+    return experimenting 
+      ? Object.fromEntries(
+          Object.entries(originalNodes).filter(([, node]) => 
+            node?.experimenting === true
+          )
+        )
+      : originalNodes
+  }, [sidebarType, experimenting]) // Re-run when these change
+
   return (
     <>
       <div className="available-nodes-panel-container ">
@@ -42,11 +54,11 @@ const SidebarAvailableNodes = ({ title, sidebarType }) => {
           }}
         >
           <Stack direction="vertical" gap={1}>
-            {Object.keys(nodesParams[sidebarType]).map((nodeName) => {
+            {Object.keys(filteredNodes).map((nodeName) => {
               // this code is executed for each node in nodesParams[sidebarType] and returns a Card for each node
               // it also attaches the onDragStart function to each Card so that the node can be dragged from the sidebar and dropped in the flow
               // the data that is being dragged is set in the onDragStart function and passed to the onDrop function in the flow
-              let node = nodesParams[sidebarType][nodeName]
+              let node = filteredNodes[nodeName]
               return (
                 <div
                   key={nodeName}

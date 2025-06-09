@@ -17,7 +17,7 @@ import ResultsPane from "./results/resultsPane"
  * @description This component is the base for all the flow pages. It contains the sidebar, the flow and the results pane.
  *
  */
-const FlowPageBaseWithFlowInfos = ({ children, workflowType, id }) => {
+const FlowPageBaseWithFlowInfos = ({ children, workflowType, id, isExperiment }) => {
   // here is the use of the context to update the flowInfos
   const [isDragging, setIsDragging] = useState(false)
   const { updateFlowInfos, showAvailableNodes } = useContext(FlowInfosContext)
@@ -63,7 +63,7 @@ const FlowPageBaseWithFlowInfos = ({ children, workflowType, id }) => {
       <PanelGroup className="width-100 height-100" style={{ height: "100%", display: "flex", flexGrow: 1 }} direction="horizontal" id={id}>
         {/* Panel is used to create the sidebar, used to be able to resize it on click */}
         <Panel ref={sidebarPanelRef} id={"sidebar" + id} minSize={18.5} maxSize={18.5} defaultSize={0} order={1} collapsible={true} collapsibleSize={5} className="smooth-transition">
-          <SidebarAvailableNodes title="Available Nodes" sidebarType={workflowType} />
+          <SidebarAvailableNodes title="Available Nodes" sidebarType={workflowType} experimenting={isExperiment}/>
         </Panel>
         <PanelResizeHandle />
         {/* Panel is used to create the flow, used to be able to resize it on drag */}
