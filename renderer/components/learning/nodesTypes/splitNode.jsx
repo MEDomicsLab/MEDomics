@@ -19,7 +19,7 @@ const SplitNode = ({ id, data }) => {
     if (!data.internal.settings.columns){
       handleWarning({ state: true, tooltip: <p>No columns available for stratification. Please select a dataset with columns.</p> })
     }
-    if (data.internal.settings.global.stratify_columns.length === 0){
+    if (data.internal.settings?.global?.stratify_columns.length === 0){
       handleWarning({ state: true, tooltip: <p>Please select the stratification columns.</p> })
     }
   }, [data.internal.settings])
