@@ -15,6 +15,9 @@ import {
   installRequiredPythonPackages
 } from "./utils/pythonEnv"
 import { installMongoDB, checkRequirements } from "./utils/installation"
+import { generateSSHKeyPair } from './sshKeygen.js';
+import { Client } from 'ssh2';
+
 const fs = require("fs")
 var path = require("path")
 let mongoProcess = null
@@ -829,3 +832,97 @@ export function getMongoDBPath() {
     return "mongod"
   }
 }
+
+ipcMain.handle('generate-ssh-key', async (_event, { comment, username }) => {
+  try {
+    const userDataPath = app.getPath('userData');
+    const privKeyPath = path.join(userDataPath, `${username || 'user'}_id_rsa`);
+    const pubKeyPath = path.join(userDataPath, `${username || 'user'}_id_rsa.pub`);
+    let privateKey, publicKey;
+    if (fs.existsSync(privKeyPath) && fs.existsSync(pubKeyPath)) {
+      privateKey = fs.readFileSync(privKeyPath, 'utf8');
+      publicKey = fs.readFileSync(pubKeyPath, 'utf8');
+    } else {
+      const result = await generateSSHKeyPair(comment, username);
+      privateKey = result.privateKey;
+      publicKey = result.publicKey;
+      fs.writeFileSync(privKeyPath, privateKey, { mode: 0o600 });
+      fs.writeFileSync(pubKeyPath, publicKey, { mode: 0o644 });
+    }
+    return { privateKey, publicKey };
+  } catch (err) {
+    return { error: err.message };
+  }
+});
+
+ipcMain.handle('get-ssh-key', async (_event, { username }) => {
+  try {
+    const userDataPath = app.getPath('userData');
+    const privKeyPath = path.join(userDataPath, `${username || 'user'}_id_rsa`);
+    const pubKeyPath = path.join(userDataPath, `${username || 'user'}_id_rsa.pub`);
+    let privateKey, publicKey;
+    if (fs.existsSync(privKeyPath) && fs.existsSync(pubKeyPath)) {
+      privateKey = fs.readFileSync(privKeyPath, 'utf8');
+      publicKey = fs.readFileSync(pubKeyPath, 'utf8');
+      return { privateKey, publicKey };
+    } else {
+      return { privateKey: '', publicKey: '' };
+    }
+  } catch (err) {
+    return { error: err.message };
+  }
+});
+
+let activeTunnel = null;
+ipcMain.handle('start-ssh-tunnel', async (_event, { host, username, privateKey, remotePort, localPort, backendPort }) => {
+  return new Promise((resolve, reject) => {
+    if (activeTunnel) {
+      try { activeTunnel.end(); } catch {}
+      activeTunnel = null;
+    }
+    const conn = new Client();
+    conn.on('ready', () => {
+      conn.forwardOut(
+        '127.0.0.1',
+        parseInt(localPort),
+        '127.0.0.1',
+        parseInt(backendPort),
+        (err, stream) => {
+          if (err) {
+            conn.end();
+            return reject({ error: 'Forwarding error: ' + err.message });
+          }
+          // Set up a TCP server to forward localPort to the SSH stream
+          const net = require('net');
+          const server = net.createServer((socket) => {
+            socket.pipe(stream).pipe(socket);
+          });
+          server.listen(localPort, '127.0.0.1', () => {
+            activeTunnel = conn;
+            resolve({ success: true });
+          });
+          server.on('error', (e) => {
+            conn.end();
+            reject({ error: 'Local server error: ' + e.message });
+          });
+        }
+      );
+    }).on('error', (err) => {
+      reject({ error: 'SSH connection error: ' + err.message });
+    }).connect({
+      host,
+      port: parseInt(remotePort),
+      username,
+      privateKey
+    });
+  });
+});
+
+ipcMain.handle('stop-ssh-tunnel', async () => {
+  if (activeTunnel) {
+    try { activeTunnel.end(); } catch {}
+    activeTunnel = null;
+    return { success: true };
+  }
+  return { success: false, error: 'No active tunnel' };
+});

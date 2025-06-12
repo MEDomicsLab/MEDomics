@@ -12,8 +12,7 @@ import { requestBackend } from "../../utilities/requests"
 import { ServerConnectionContext } from "../serverConnection/connectionContext"
 import { toast } from "react-toastify"
 import { FaRegQuestionCircle } from "react-icons/fa";
-import { Tooltip } from "react-bootstrap"
-
+import ConnectionModal from "./connectionModal"
 
 /**
  *
@@ -25,6 +24,7 @@ const HomePage = () => {
   const [appVersion, setAppVersion] = useState("")
   const [sampleGenerated, setSampleGenerated] = useState(false)
   const { port } = useContext(ServerConnectionContext)
+  const [showConnectionModal, setShowConnectionModal] = useState(false)
 
 
   const [requirementsMet, setRequirementsMet] = useState(true)
@@ -124,6 +124,16 @@ const HomePage = () => {
     ipcRenderer.send("messageFromNext", "getRecentWorkspaces")
   }, [])
 
+  const handleRemoteConnect = () => {
+    // Example: Save connection info to context or state
+    // setRemoteConnection(connectionInfo);
+    // Optionally close the modal
+    setShowConnectionModal(false);
+    // Optionally show a toast or message
+    toast.success("Connected to remote workspace!");
+    // You can also update ServerConnectionContext or trigger any logic needed for remote mode
+  };
+
   return (
     <>
       <div className="container" style={{ paddingTop: "1rem", display: "flex", flexDirection: "vertical", flexGrow: "10" }}>
@@ -142,7 +152,7 @@ const HomePage = () => {
                 Set Workspace
               </Button>
               <h5>Or open a recent workspace</h5>
-              <Stack direction="vertical" gap={0} style={{ padding: "0 0 0 0", alignContent: "center" }}>
+              <Stack direction="vertical" gap={0} style={{ padding: "0 0 0 0", alignContent: "center", flex: "0 1 auto", marginBottom: "3rem" }}>
                 {recentWorkspaces.map((workspace, index) => {
                   if (index > 4) return
                   return (
@@ -163,6 +173,10 @@ const HomePage = () => {
                   )
                 })}
               </Stack>
+              <h5>Or connect to a remote workspace</h5>
+              <Button onClick={() => setShowConnectionModal(true)} style={{ margin: "1rem" }}>
+                Connect to a remote workspace
+              </Button>
             </>
           ) : (
             <div className="workspace-set" style={{ display: "flex", flexDirection: "column", alignItems: "flex-start" }}>
@@ -178,6 +192,12 @@ const HomePage = () => {
         </Stack>
       </div>
       {!requirementsMet && process.platform !=="darwin" && <FirstSetupModal visible={!requirementsMet} closable={false} setRequirementsMet={setRequirementsMet} />}
+      {showConnectionModal && <ConnectionModal
+        visible={showConnectionModal}
+        closable={false}
+        onClose={() => setShowConnectionModal(false)}
+        onConnect={handleRemoteConnect}
+      />}
     </>
   )
 }
