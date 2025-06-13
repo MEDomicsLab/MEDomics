@@ -10,7 +10,7 @@ let tunnelInfo = {
 };
 
 export function setTunnelState(info) {
-  tunnelInfo = { ...tunnelInfo, ...info, tunnelActive: !!info.tunnelActive };
+  tunnelInfo = { ...tunnelInfo, ...info, tunnelActive: !!info.tunnelActive }
 }
 
 export function clearTunnelState() {
@@ -26,5 +26,5 @@ export function clearTunnelState() {
 }
 
 export function getTunnelState() {
-  return tunnelInfo;
+  return tunnelInfo
 }
