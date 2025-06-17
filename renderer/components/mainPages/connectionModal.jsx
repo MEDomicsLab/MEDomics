@@ -6,6 +6,7 @@ import { requestBackend } from "../../utilities/requests"
 import { WorkspaceContext } from "../workspace/workspaceContext"
 import { useTunnel } from "../tunnel/TunnelContext"
 import { setTunnelState, clearTunnelState } from "../../utilities/tunnelState"
+import { Button } from "@blueprintjs/core"
 /**
  *
  * @returns {JSX.Element} The connection modal used for establishing a connection to a remote server
@@ -28,6 +29,10 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
   const maxReconnectAttempts = 3
   const reconnectDelay = 3000 // ms
   const [connectionInfo, setConnectionInfo] = useState(null)
+
+  // Validation state
+  const [inputErrors, setInputErrors] = useState({});
+  const [inputValid, setInputValid] = useState(false);
 
   const { port } = useContext(WorkspaceContext) // we get the port for server connexion
   const { setTunnelInfo, clearTunnelInfo } = useTunnel()
@@ -96,11 +101,24 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
     }
   }, [tunnelActive, reconnectAttempts, connectionInfo])
 
+  // Updated connect handler with error handling and auto-reconnect
   const handleConnect = async (info, isReconnect = false) => {
     setTunnelStatus(isReconnect ? "Reconnecting..." : "Connecting...")
     toast.info(isReconnect ? "Reconnecting SSH tunnel..." : "Establishing SSH tunnel...")
     const connInfo = info || { host, username, privateKey, remotePort, localPort, backendPort }
     setConnectionInfo(connInfo)
+    // --- Host validation ---
+    const hostPattern = /^(?!-)[A-Za-z0-9-]{1,63}(?<!-)\.?([A-Za-z0-9-]{1,63}\.?)*[A-Za-z]{2,6}$|^(\d{1,3}\.){3}\d{1,3}$/;
+    if (!connInfo.host || connInfo.host.trim() === "") {
+      setTunnelStatus("Error: Remote host is required.")
+      toast.error("Remote host is required.")
+      return
+    }
+    if (!hostPattern.test(connInfo.host.trim())) {
+      setTunnelStatus("Error: Invalid remote host. Please enter a valid hostname or IP address.")
+      toast.error("Invalid remote host. Please enter a valid hostname or IP address.")
+      return
+    }
     try {
       if (!connInfo.host) {
         setTunnelStatus("Error: Remote host is required.")
@@ -261,6 +279,38 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
     )
   }
 
+  // Input validation logic
+  useEffect(() => {
+    const errors = {};
+    // Strict IPv4 regex
+    const ipv4Pattern = /^(?:(?:25[0-5]|2[0-4]\d|1\d{2}|[1-9]?\d)\.){3}(?:25[0-5]|2[0-4]\d|1\d{2}|[1-9]?\d)$/;
+    // Hostname regex (RFC 1123, simple)
+    const hostnamePattern = /^(?!-)[A-Za-z0-9-]{1,63}(?<!-)(\.[A-Za-z0-9-]{1,63})*$/;
+    const hostTrimmed = host.trim();
+    if (!hostTrimmed) {
+      errors.host = "Remote host is required.";
+    } else if (!(ipv4Pattern.test(hostTrimmed) || hostnamePattern.test(hostTrimmed))) {
+      errors.host = "Enter a valid IPv4 address or hostname.";
+    }
+    if (!username.trim()) {
+      errors.username = "Username is required.";
+    }
+    if (!remotePort || isNaN(Number(remotePort)) || Number(remotePort) < 1 || Number(remotePort) > 65535) {
+      errors.remotePort = "Remote SSH port must be 1-65535.";
+    }
+    if (!localPort || isNaN(Number(localPort)) || Number(localPort) < 1 || Number(localPort) > 65535) {
+      errors.localPort = "Local port must be 1-65535.";
+    }
+    if (!backendPort || isNaN(Number(backendPort)) || Number(backendPort) < 1 || Number(backendPort) > 65535) {
+      errors.backendPort = "Remote backend port must be 1-65535.";
+    }
+    if (!keyGenerated || !publicKey || !privateKey) {
+      errors.key = "SSH key must be generated.";
+    }
+    setInputErrors(errors);
+    setInputValid(Object.keys(errors).length === 0);
+  }, [host, username, remotePort, localPort, backendPort, keyGenerated, publicKey, privateKey])
+
   return (
     <Dialog className="modal" visible={visible} style={{ width: "50vw" }} closable={closable} onHide={onClose}>
       <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
@@ -268,10 +318,12 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
         <label>
           Remote Host:
           <input type="text" value={host} onChange={e => setHost(e.target.value)} placeholder="e.g. example.com" />
+          {inputErrors.host && <div style={{ color: 'red', fontSize: 13 }}>{inputErrors.host}</div>}
         </label>
         <label>
           Username:
           <input type="text" value={username} onChange={e => setUsername(e.target.value)} placeholder="SSH username" />
+          {inputErrors.username && <div style={{ color: 'red', fontSize: 13 }}>{inputErrors.username}</div>}
         </label>
         <label>
           Password:
@@ -280,14 +332,17 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
         <label>
           Remote SSH Port:
           <input type="number" value={remotePort} onChange={e => setRemotePort(e.target.value)} placeholder="22" />
+          {inputErrors.remotePort && <div style={{ color: 'red', fontSize: 13 }}>{inputErrors.remotePort}</div>}
         </label>
         <label>
           Local Port:
           <input type="number" value={localPort} onChange={e => setLocalPort(e.target.value)} placeholder="8888" />
+          {inputErrors.localPort && <div style={{ color: 'red', fontSize: 13 }}>{inputErrors.localPort}</div>}
         </label>
         <label>
           Remote Backend Port:
           <input type="number" value={backendPort} onChange={e => setBackendPort(e.target.value)} placeholder="8888" />
+          {inputErrors.backendPort && <div style={{ color: 'red', fontSize: 13 }}>{inputErrors.backendPort}</div>}
         </label>
         <label>
           SSH Key Comment:
@@ -296,6 +351,7 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
         <button onClick={handleGenerateKey} disabled={keyGenerated} style={{ background: keyGenerated ? '#ccc' : '#007ad9', color: 'white' }}>
           {keyGenerated ? 'Key Generated' : 'Generate SSH Key'}
         </button>
+        {inputErrors.key && <div style={{ color: 'red', fontSize: 13, marginTop: 4 }}>{inputErrors.key}</div>}
         {keyGenerated && (
           <div>
             <strong>Public Key:</strong>
@@ -304,8 +360,8 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
           </div>
         )}
         <div style={{ display: "flex", gap: "1rem", justifyContent: "flex-end" }}>
-          <button onClick={onClose}>Close</button>
-          <button onClick={() => handleConnect()} style={{ background: "#007ad9", color: "white" }} disabled={tunnelActive}>Connect</button>
+          <Button onClick={onClose}>Close</Button>
+          <Button className="connect-btn" onClick={() => handleConnect()} style={{ background: "#007ad9", color: "white" }} disabled={!inputValid || tunnelActive}>Connect</Button>
           {tunnelActive && (
             <button onClick={handleDisconnect} style={{ background: "#d9534f", color: "white" }}>Disconnect</button>
           )}
@@ -314,9 +370,18 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
           <div style={{ marginTop: '0.5em', color: tunnelStatus.includes('established') ? 'green' : tunnelStatus.includes('Reconnecting') ? 'orange' : 'red' }}>{tunnelStatus}</div>
         )}
         {tunnelActive && (
-            <button onClick={sendTestRequest} style={{ background: "#d9534f", color: "white" }}>Send test request</button>
+            <Button onClick={sendTestRequest} style={{ background: "#d9534f", color: "white" }}>Send test request</Button>
           )}
       </div>
+      <style>
+          {`
+            .connect-btn:disabled {
+              opacity: 0.5;
+              color: #666;
+              cursor: default;
+            }
+          `}
+        </style>
     </Dialog>
   )
 }

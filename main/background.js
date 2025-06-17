@@ -890,7 +890,7 @@ ipcMain.handle('start-ssh-tunnel', async (_event, { host, username, privateKey, 
         (err, stream) => {
           if (err) {
             conn.end()
-            return reject({ error: 'Forwarding error: ' + err.message })
+            return reject(new Error('Forwarding error: ' + err.message))
           }
           // Set up a TCP server to forward localPort to the SSH stream
           const net = require('net')
@@ -903,12 +903,12 @@ ipcMain.handle('start-ssh-tunnel', async (_event, { host, username, privateKey, 
           })
           server.on('error', (e) => {
             conn.end()
-            reject({ error: 'Local server error: ' + e.message })
+            reject(new Error('Local server error: ' + e.message))
           })
         }
       )
     }).on('error', (err) => {
-      reject({ error: 'SSH connection error: ' + err.message })
+      reject(new Error('SSH connection error: ' + err.message))
     }).connect({
       host,
       port: parseInt(remotePort),
