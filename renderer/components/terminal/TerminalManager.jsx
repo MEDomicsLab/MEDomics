@@ -12,8 +12,10 @@ import { ipcRenderer } from "electron"
 /**
  * Terminal Manager Component
  * Features vertical tab manager on the right side with drag & drop, rename, and split functionality
+ * @param {Object} props - Component props
+ * @param {boolean} props.useIPython - Whether to create IPython sessions instead of regular terminals
  */
-const TerminalManager = () => {
+const TerminalManager = ({ useIPython = false }) => {
   const [terminals, setTerminals] = useState([])
   const [activeTerminalId, setActiveTerminalId] = useState(null)
   const [editingTerminal, setEditingTerminal] = useState(null)
@@ -29,22 +31,24 @@ const TerminalManager = () => {
   const createNewTerminal = useCallback(
     (parentTerminal = null) => {
       const terminalId = uuid.v4()
+      const sessionType = useIPython ? "IPython" : "Terminal"
       const newTerminal = {
         id: terminalId,
-        title: `Terminal ${terminals.length + 1}`,
+        title: `${sessionType} ${terminals.length + 1}`,
         isActive: false,
         parentId: parentTerminal?.id || null,
         cwd: parentTerminal?.cwd || null, // Inherit CWD from parent
         isSplit: false,
         splitPane: null,
-        isManuallyRenamed: false // Initialize as not manually renamed
+        isManuallyRenamed: false, // Initialize as not manually renamed
+        useIPython: useIPython // Store the IPython flag for this terminal
       }
 
       setTerminals((prev) => [...prev, newTerminal])
       setActiveTerminalId(terminalId)
       return newTerminal
     },
-    [terminals.length]
+    [terminals.length, useIPython]
   )
 
   // Split terminal - create side-by-side terminal panes
@@ -393,10 +397,11 @@ const TerminalManager = () => {
       const terminal = terminals.find((t) => t.id === terminalId)
       const isSplit = terminal?.isSplit || false
       const isManuallyRenamed = terminal?.isManuallyRenamed || false
+      const sessionType = useIPython ? "IPython Session" : "Terminal"
 
       const baseItems = [
         {
-          label: "New Terminal",
+          label: `New ${sessionType}`,
           icon: "pi pi-plus",
           command: () => createNewTerminal()
         }
@@ -404,13 +409,13 @@ const TerminalManager = () => {
 
       if (!isSplit) {
         baseItems.push({
-          label: "Split Terminal",
+          label: `Split ${sessionType}`,
           icon: "pi pi-clone",
           command: () => splitTerminal(terminalId)
         })
       } else {
         baseItems.push({
-          label: "Unsplit Terminal",
+          label: `Unsplit ${sessionType}`,
           icon: "pi pi-minus",
           command: () => unsplitTerminal(terminalId)
         })
@@ -442,18 +447,18 @@ const TerminalManager = () => {
 
       return baseItems
     },
-    [terminals, createNewTerminal, splitTerminal, unsplitTerminal, startRename, closeTerminal, resetToAutomaticTitle]
+    [terminals, createNewTerminal, splitTerminal, unsplitTerminal, startRename, closeTerminal, resetToAutomaticTitle, useIPython]
   )
 
   // Context menu items (fallback for backward compatibility)
   const contextMenuItems = [
     {
-      label: "New Terminal",
+      label: `New ${useIPython ? 'IPython Session' : 'Terminal'}`,
       icon: "pi pi-plus",
       command: () => createNewTerminal()
     },
     {
-      label: "Split Terminal",
+      label: `Split ${useIPython ? 'Session' : 'Terminal'}`,
       icon: "pi pi-clone",
       command: () => {
         const terminalId = contextMenuRef.current?.activeTerminalId
@@ -576,6 +581,7 @@ const TerminalManager = () => {
                               onSplit={splitTerminal}
                               onUnsplit={unsplitTerminal}
                               isSplit={leftTerminal.isSplit}
+                              useIPython={useIPython}
                               ref={(ref) => {
                                 if (ref) {
                                   terminalRefs.current[leftTerminal.id] = ref
@@ -593,6 +599,7 @@ const TerminalManager = () => {
                               onSplit={splitTerminal}
                               onUnsplit={unsplitTerminal}
                               isSplit={rightTerminal.isSplit}
+                              useIPython={useIPython}
                               ref={(ref) => {
                                 if (ref) {
                                   terminalRefs.current[rightTerminal.id] = ref
@@ -626,6 +633,7 @@ const TerminalManager = () => {
                       onSplit={splitTerminal}
                       onUnsplit={unsplitTerminal}
                       isSplit={terminal.isSplit}
+                      useIPython={useIPython}
                       ref={(ref) => {
                         if (ref) {
                           terminalRefs.current[terminal.id] = ref
@@ -664,7 +672,7 @@ const TerminalManager = () => {
                   alignItems: "center"
                 }}
               >
-                <span>Terminals</span>
+                <span>{useIPython ? 'IPython Sessions' : 'Terminals'}</span>
                 <Button
                   icon="pi pi-plus"
                   size="small"

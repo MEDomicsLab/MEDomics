@@ -37,11 +37,34 @@ class TerminalManager {
   createTerminal(terminalId, options = {}) {
     try {
       const { shell, args } = this.getShellForPlatform()
-      const { cwd = os.homedir(), cols = 80, rows = 24 } = options
+      const { cwd = os.homedir(), cols = 80, rows = 24, useIPython = false } = options
 
-      console.log(`Creating terminal ${terminalId} with shell: ${shell}`)
+      let finalShell = shell
+      let finalArgs = args
 
-      const ptyProcess = spawn(shell, args, {
+      // If IPython is requested, use the Python environment from .medomics
+      if (useIPython) {
+        const pythonPath = this.getPythonEnvironmentPath()
+        if (pythonPath) {
+          console.log(`Creating IPython session ${terminalId} with Python: ${pythonPath}`)
+          finalShell = pythonPath
+          finalArgs = ["-m", "IPython"]
+        } else {
+          console.warn(`Python environment not found for IPython session ${terminalId}, falling back to system IPython`)
+          // Try to use system IPython
+          if (os.platform() === "win32") {
+            finalShell = "cmd.exe"
+            finalArgs = ["/c", "ipython"]
+          } else {
+            finalShell = "ipython"
+            finalArgs = []
+          }
+        }
+      } else {
+        console.log(`Creating terminal ${terminalId} with shell: ${shell}`)
+      }
+
+      const ptyProcess = spawn(finalShell, finalArgs, {
         name: "xterm-color",
         cols,
         rows,
@@ -51,10 +74,16 @@ class TerminalManager {
           // Ensure colored output
           TERM: "xterm-256color",
           COLORTERM: "truecolor",
+          // Add Python environment to PATH if using IPython
+          ...(useIPython &&
+            this.getPythonEnvironmentPath() && {
+              PATH: `${this.getPythonBinPath()}${os.platform() === "win32" ? ";" : ":"}${process.env.PATH}`
+            }),
           // Set PS1 for colored prompt (bash/zsh)
-          ...(os.platform() !== "win32" && {
-            PS1: "\\[\\033[01;32m\\]\\u@\\h\\[\\033[00m\\]:\\[\\033[01;34m\\]\\w\\[\\033[00m\\]\\$ "
-          }),
+          ...(os.platform() !== "win32" &&
+            !useIPython && {
+              PS1: "\\[\\033[01;32m\\]\\u@\\h\\[\\033[00m\\]:\\[\\033[01;34m\\]\\w\\[\\033[00m\\]\\$ "
+            }),
           // Windows-specific environment
           ...(os.platform() === "win32" && {
             TERM_PROGRAM: "MEDomicsLab",
@@ -70,7 +99,8 @@ class TerminalManager {
       this.terminals.set(terminalId, ptyProcess)
       this.terminalCwd.set(terminalId, cwd)
 
-      console.log(`Terminal ${terminalId} created successfully`)
+      const sessionType = useIPython ? "IPython session" : "Terminal"
+      console.log(`${sessionType} ${terminalId} created successfully`)
       return {
         terminalId,
         pid: ptyProcess.pid,
@@ -261,6 +291,66 @@ class TerminalManager {
 
   getAllTerminals() {
     return Array.from(this.terminals.keys())
+  }
+
+  // Get the Python environment path from .medomics directory
+  getPythonEnvironmentPath() {
+    const { app } = require("electron")
+    const path = require("path")
+    const fs = require("fs")
+
+    try {
+      // Check for bundled Python in .medomics directory
+      const homePath = app.getPath("home")
+      const medomicsPath = path.join(homePath, ".medomics", "python")
+
+      let pythonExecutable
+      if (process.platform === "win32") {
+        pythonExecutable = path.join(medomicsPath, "python.exe")
+      } else {
+        pythonExecutable = path.join(medomicsPath, "bin", "python")
+      }
+
+      if (fs.existsSync(pythonExecutable)) {
+        return pythonExecutable
+      }
+
+      // Fallback to conda environment if available
+      const condaPath = this.getCondaEnvironmentPath()
+      if (condaPath) {
+        return condaPath
+      }
+
+      return null
+    } catch (error) {
+      console.error("Error getting Python environment path:", error)
+      return null
+    }
+  }
+
+  // Get conda environment path for med_conda_env
+  getCondaEnvironmentPath() {
+    try {
+      // This should integrate with the existing Python environment detection
+      // For now, return null and let the system handle IPython discovery
+      return null
+    } catch (error) {
+      console.error("Error getting conda environment path:", error)
+      return null
+    }
+  }
+
+  // Get the Python bin directory path
+  getPythonBinPath() {
+    const pythonPath = this.getPythonEnvironmentPath()
+    if (!pythonPath) return null
+
+    const path = require("path")
+    if (process.platform === "win32") {
+      return path.dirname(pythonPath)
+    } else {
+      return path.dirname(pythonPath) // This will be the bin directory
+    }
   }
 }
 

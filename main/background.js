@@ -715,7 +715,8 @@ ipcMain.handle("terminal-create", async (event, options) => {
     const terminalInfo = terminalManager.createTerminal(options.terminalId, {
       cwd: cwd,
       cols: options.cols,
-      rows: options.rows
+      rows: options.rows,
+      useIPython: options.useIPython || false
     })
 
     // Set up event handlers for this terminal

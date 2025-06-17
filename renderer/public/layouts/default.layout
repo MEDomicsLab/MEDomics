@@ -45,6 +45,13 @@
           "name": "Terminal",
           "component": "terminal",
           "icon": "images/terminal.svg"
+        },
+        {
+          "type": "tab",
+          "enableClose": false,
+          "name": "IPython",
+          "component": "ipython",
+          "icon": "images/python.svg"
         }
       ]
     }

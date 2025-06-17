@@ -19,7 +19,8 @@ const TerminalInstance = forwardRef(({
   onTitleChange, 
   onSplit, 
   onUnsplit, 
-  isSplit = false 
+  isSplit = false,
+  useIPython = false
 }, ref) => {
   const terminalRef = useRef(null)
   const xtermRef = useRef(null)
@@ -356,7 +357,8 @@ const TerminalInstance = forwardRef(({
                 terminalId,
                 cwd: workingDir || undefined,
                 cols: terminal.cols,
-                rows: terminal.rows
+                rows: terminal.rows,
+                useIPython: useIPython
               });
             }
           } catch (error) {
@@ -366,7 +368,8 @@ const TerminalInstance = forwardRef(({
               terminalId,
               cwd: workingDir || undefined,
               cols: terminal.cols,
-              rows: terminal.rows
+              rows: terminal.rows,
+              useIPython: useIPython
             });
           }
         } else {
@@ -375,7 +378,8 @@ const TerminalInstance = forwardRef(({
             terminalId,
             cwd: workingDir || undefined, // Let backend handle fallback to home directory
             cols: terminal.cols,
-            rows: terminal.rows
+            rows: terminal.rows,
+            useIPython: useIPython
           });
         }
 
