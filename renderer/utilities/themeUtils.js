@@ -2,7 +2,7 @@
  * Utility functions for loading different UI library themes dynamically
  */
 
-import { PrimeReact } from 'primereact/api'
+import { PrimeReact } from "primereact/api"
 
 /**
  * Load appropriate PrimeReact theme based on dark/light mode
@@ -12,39 +12,34 @@ import { PrimeReact } from 'primereact/api'
  */
 export const loadPrimeTheme = (isDark) => {
   // Define theme paths (using local themes for better performance)
-  const lightTheme = '/primereact-themes/lara-light-indigo/theme.css'
-  const darkTheme = '/primereact-themes/lara-dark-indigo/theme.css'
-  
+  const lightTheme = "/primereact-themes/lara-light-indigo/theme.css"
+  const darkTheme = "/primereact-themes/lara-dark-indigo/theme.css"
+
   const newTheme = isDark ? darkTheme : lightTheme
-  
+
   // Check if theme link exists, if not create it
-  let themeLink = document.getElementById('primereact-theme')
+  let themeLink = document.getElementById("primereact-theme")
   if (!themeLink) {
-    themeLink = document.createElement('link')
-    themeLink.id = 'primereact-theme'
-    themeLink.rel = 'stylesheet'
+    themeLink = document.createElement("link")
+    themeLink.id = "primereact-theme"
+    themeLink.rel = "stylesheet"
     themeLink.href = newTheme
     document.head.appendChild(themeLink)
-    console.log(`PrimeReact theme initialized with ${isDark ? 'dark' : 'light'} mode`)
+    console.log(`PrimeReact theme initialized with ${isDark ? "dark" : "light"} mode`)
     return
   }
-  
+
   // Get current theme from the link element
   const currentTheme = themeLink.href
-  
+
   // Try to use PrimeReact.changeTheme if available
-  if (typeof PrimeReact !== 'undefined' && PrimeReact.changeTheme) {
+  if (typeof PrimeReact !== "undefined" && PrimeReact.changeTheme) {
     try {
-      PrimeReact.changeTheme(
-        currentTheme,
-        newTheme,
-        'primereact-theme',
-        () => {
-          console.log(`PrimeReact theme switched to ${isDark ? 'dark' : 'light'} mode`)
-        }
-      )
+      PrimeReact.changeTheme(currentTheme, newTheme, "primereact-theme", () => {
+        console.log(`PrimeReact theme switched to ${isDark ? "dark" : "light"} mode`)
+      })
     } catch (error) {
-      console.warn('PrimeReact.changeTheme failed, falling back to direct link update:', error)
+      console.warn("PrimeReact.changeTheme failed, falling back to direct link update:", error)
       fallbackThemeChange(themeLink, newTheme, isDark)
     }
   } else {
@@ -61,7 +56,7 @@ export const loadPrimeTheme = (isDark) => {
  */
 const fallbackThemeChange = (themeLink, newTheme, isDark) => {
   themeLink.href = newTheme
-  console.log(`PrimeReact theme switched to ${isDark ? 'dark' : 'light'} mode (fallback method)`)
+  console.log(`PrimeReact theme switched to ${isDark ? "dark" : "light"} mode (fallback method)`)
 }
 
 /**
@@ -107,6 +102,50 @@ export const updateBootstrapTheme = (isDark) => {
 }
 
 /**
+ * Update ReactFlow theme by ensuring CSS variables are properly applied
+ * ReactFlow's colorMode prop handles the main theming, but we ensure CSS variables are available
+ * @param {boolean} isDark - Whether dark mode is enabled
+ */
+export const updateReactFlowTheme = (isDark) => {
+  // ReactFlow's colorMode prop handles the main theming automatically
+  // This function ensures our custom CSS variables are properly applied
+  const root = document.documentElement
+
+  // Force update CSS variables if needed (they should already be set via data-theme)
+  if (isDark) {
+    // Ensure dark mode variables are applied
+    root.style.setProperty("color-scheme", "dark")
+  } else {
+    // Ensure light mode variables are applied
+    root.style.setProperty("color-scheme", "light")
+  }
+
+  // Additional check: ensure all ReactFlow instances have proper colorMode
+  const reactFlowElements = document.querySelectorAll(".react-flow")
+  reactFlowElements.forEach((element) => {
+    // The colorMode prop should handle this, but we can add a class as backup
+    if (isDark) {
+      element.classList.add("dark")
+    } else {
+      element.classList.remove("dark")
+    }
+  })
+
+  console.log(`ReactFlow theme updated to ${isDark ? "dark" : "light"} mode`)
+}
+
+/**
+ * Force refresh ReactFlow theme - useful for dynamic theme changes
+ * @param {boolean} isDark - Whether dark mode is enabled
+ */
+export const refreshReactFlowTheme = (isDark) => {
+  // Force a re-render of ReactFlow theme by toggling and then setting the correct mode
+  setTimeout(() => {
+    updateReactFlowTheme(isDark)
+  }, 100)
+}
+
+/**
  * Load all themes for the given mode
  * @param {boolean} isDark - Whether dark mode is enabled
  */
@@ -114,4 +153,8 @@ export const loadAllThemes = (isDark) => {
   loadPrimeTheme(isDark)
   loadFlexLayoutTheme(isDark)
   updateBootstrapTheme(isDark)
+  updateReactFlowTheme(isDark)
+
+  // Force refresh ReactFlow after a short delay to ensure proper theming
+  setTimeout(() => refreshReactFlowTheme(isDark), 200)
 }

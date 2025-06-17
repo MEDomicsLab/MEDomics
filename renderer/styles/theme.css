@@ -124,7 +124,7 @@ label {
 }
 
 /* Button styles */
-.btn,
+/* .btn,
 .p-button {
   background-color: var(--button-bg);
   border-color: var(--button-bg);
@@ -135,7 +135,7 @@ label {
 .p-button:hover {
   background-color: var(--button-hover) !important;
   border-color: var(--button-hover) !important;
-}
+} */
 
 /* Input styles */
 .form-control,
