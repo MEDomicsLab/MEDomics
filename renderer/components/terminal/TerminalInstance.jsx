@@ -49,8 +49,8 @@ const TerminalInstance = forwardRef(({
       const terminalBg = computedStyle.getPropertyValue('--terminal-bg').trim()
       const terminalText = computedStyle.getPropertyValue('--terminal-text').trim()
       
-      // Determine if we're in dark mode based on the terminal text color
-      const isDarkModeCheck = terminalText === '#ffffff'
+      // Use isDarkMode from theme context for dark mode detection
+      const isDarkModeCheck = isDarkMode;
       
       // Update terminal theme
       const newTheme = {
@@ -496,7 +496,7 @@ const TerminalInstance = forwardRef(({
       // Reset initialization flag
       isInitializingRef.current = false
     }
-  }, [terminalId]) // Removed workspace.workingDirectory and onTitleChange from dependencies
+  }, [terminalId, workspace.workingDirectory]) // Added workspace.workingDirectory to dependencies
 
   // Focus terminal when it becomes active
   useEffect(() => {

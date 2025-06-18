@@ -9,6 +9,9 @@ import TerminalInstance from "./TerminalInstance"
 import uuid from "react-native-uuid"
 import { ipcRenderer } from "electron"
 
+// Delay (in ms) for resizing terminals after unsplit
+const TERMINAL_UNSPLIT_RESIZE_DELAY = 150
+
 /**
  * Terminal Manager Component
  * Features vertical tab manager on the right side with drag & drop, rename, and split functionality
@@ -280,7 +283,7 @@ const TerminalManager = ({ useIPython = false }) => {
             if (terminalRefs.current[rightTerminalId]) {
               terminalRefs.current[rightTerminalId].fit()
             }
-          }, 150)
+          }, TERMINAL_UNSPLIT_RESIZE_DELAY)
         }
       }
     },

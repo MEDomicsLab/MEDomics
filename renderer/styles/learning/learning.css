@@ -9,11 +9,6 @@
   height: 20px;
 }
 
-.icon-nodes {
-  float: right;
-  height: 20px;
-}
-
 /* Dark mode inversion for icon nodes */
 [data-theme="dark"] .icon-nodes {
   filter: invert(1);
