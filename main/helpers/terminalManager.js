@@ -2,6 +2,10 @@ import { spawn } from "node-pty"
 import os from "os"
 import path from "path"
 
+// Delay (in ms) for terminal to be ready after cloning (for clear/pwd commands)
+// This can be overridden via options or environment variable for dynamic adjustment
+const TERMINAL_CLONE_READY_DELAY = process.env.TERMINAL_CLONE_READY_DELAY ? parseInt(process.env.TERMINAL_CLONE_READY_DELAY, 10) : 200
+
 class TerminalManager {
   constructor() {
     this.terminals = new Map()
@@ -131,6 +135,9 @@ class TerminalManager {
         cwd
       }
 
+      // Allow dynamic delay override via options or fallback to constant
+      const cloneReadyDelay = typeof options.cloneReadyDelay === "number" ? options.cloneReadyDelay : TERMINAL_CLONE_READY_DELAY
+
       console.log(`Cloning terminal ${sourceTerminalId} to ${newTerminalId} with CWD: ${cwd}`)
 
       // Create a new terminal process at the same directory as the source
@@ -144,7 +151,7 @@ class TerminalManager {
         // Using echo and pwd to show terminal is in the same directory
         this.writeToTerminal(newTerminalId, 'echo "Terminal split in directory:"\n')
         this.writeToTerminal(newTerminalId, "pwd\n")
-      }, 200)
+      }, cloneReadyDelay)
 
       // Copy working directory from source terminal
       this.terminalCwd.set(newTerminalId, cwd)
