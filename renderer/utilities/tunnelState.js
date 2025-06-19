@@ -1,9 +1,9 @@
 // Simple tunnel state for use outside React (e.g., in requests.js)
 let tunnelInfo = {
+  host: null,
   tunnelActive: false,
   localAddress: "localhost",
   localPort: null,
-  remoteHost: null,
   remotePort: null,
   backendPort: null,
   username: null,
@@ -15,10 +15,10 @@ export function setTunnelState(info) {
 
 export function clearTunnelState() {
   tunnelInfo = {
+    host: null,
     tunnelActive: false,
     localAddress: "localhost",
     localPort: null,
-    remoteHost: null,
     remotePort: null,
     backendPort: null,
     username: null,

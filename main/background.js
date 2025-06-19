@@ -874,47 +874,48 @@ ipcMain.handle('get-ssh-key', async (_event, { username }) => {
 })
 
 let activeTunnel = null
-ipcMain.handle('start-ssh-tunnel', async (_event, { host, username, privateKey, remotePort, localPort, backendPort }) => {
+ipcMain.handle('start-ssh-tunnel', async (_event, { host, username, privateKey, password, remotePort, localPort, backendPort }) => {
   return new Promise((resolve, reject) => {
     if (activeTunnel) {
       try { activeTunnel.end() } catch {}
       activeTunnel = null
     }
-    const conn = new Client()
-    conn.on('ready', () => {
-      conn.forwardOut(
-        '127.0.0.1',
-        parseInt(localPort),
-        '127.0.0.1',
-        parseInt(backendPort),
-        (err, stream) => {
-          if (err) {
-            conn.end()
-            return reject(new Error('Forwarding error: ' + err.message))
-          }
-          // Set up a TCP server to forward localPort to the SSH stream
-          const net = require('net')
-          const server = net.createServer((socket) => {
-            socket.pipe(stream).pipe(socket)
-          })
-          server.listen(localPort, '127.0.0.1', () => {
-            activeTunnel = conn
-            resolve({ success: true })
-          })
-          server.on('error', (e) => {
-            conn.end()
-            reject(new Error('Local server error: ' + e.message))
-          })
-        }
-      )
-    }).on('error', (err) => {
-      reject(new Error('SSH connection error: ' + err.message))
-    }).connect({
+    const connConfig = {
       host,
       port: parseInt(remotePort),
-      username,
-      privateKey
-    })
+      username
+    };
+    if (privateKey) connConfig.privateKey = privateKey
+    if (password) connConfig.password = password
+    const conn = new Client()
+    conn.on('ready', () => {
+      const net = require('net');
+      const server = net.createServer((socket) => {
+        conn.forwardOut(
+          socket.localAddress || '127.0.0.1',
+          socket.localPort || 0,
+          '127.0.0.1',
+          parseInt(backendPort),
+          (err, stream) => {
+            if (err) {
+              socket.destroy();
+              return;
+            }
+            socket.pipe(stream).pipe(socket)
+          }
+        )
+      })
+      server.listen(localPort, '127.0.0.1', () => {
+        activeTunnel = conn
+        resolve({ success: true })
+      })
+      server.on('error', (e) => {
+        conn.end()
+        reject(new Error('Local server error: ' + e.message))
+      })
+    }).on('error', (err) => {
+      reject(new Error('SSH connection error: ' + err.message))
+    }).connect(connConfig)
   })
 })
 

@@ -125,13 +125,7 @@ const HomePage = () => {
   }, [])
 
   const handleRemoteConnect = () => {
-    // Example: Save connection info to context or state
-    // setRemoteConnection(connectionInfo);
-    // Optionally close the modal
-    setShowConnectionModal(false);
-    // Optionally show a toast or message
     toast.success("Connected to remote workspace!");
-    // You can also update ServerConnectionContext or trigger any logic needed for remote mode
   };
 
   return (

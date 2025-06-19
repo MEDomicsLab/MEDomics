@@ -4,8 +4,8 @@ import { toast } from "react-toastify"
 import { ipcRenderer } from "electron"
 import { requestBackend } from "../../utilities/requests"
 import { WorkspaceContext } from "../workspace/workspaceContext"
-import { useTunnel } from "../tunnel/TunnelContext"
-import { setTunnelState, clearTunnelState } from "../../utilities/tunnelState"
+import { TunnelContext, useTunnel } from "../tunnel/TunnelContext"
+import { getTunnelState, setTunnelState, clearTunnelState } from "../../utilities/tunnelState"
 import { Button } from "@blueprintjs/core"
 /**
  *
@@ -31,8 +31,8 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
   const [connectionInfo, setConnectionInfo] = useState(null)
 
   // Validation state
-  const [inputErrors, setInputErrors] = useState({});
-  const [inputValid, setInputValid] = useState(false);
+  const [inputErrors, setInputErrors] = useState({})
+  const [inputValid, setInputValid] = useState(false)
 
   const { port } = useContext(WorkspaceContext) // we get the port for server connexion
   const { setTunnelInfo, clearTunnelInfo } = useTunnel()
@@ -101,14 +101,34 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
     }
   }, [tunnelActive, reconnectAttempts, connectionInfo])
 
+  // On modal open, check for existing tunnel and sync state
+  useEffect(() => {
+    if (visible) {
+      const tunnel = getTunnelState()
+      if (tunnel.tunnelActive) {
+        setTunnelActive(true)
+        setHost(tunnel.host || "")
+        setUsername(tunnel.username || "")
+        setRemotePort(tunnel.remotePort || "22")
+        setLocalPort(tunnel.localPort || "8888")
+        setBackendPort(tunnel.backendPort || "8888")
+        setTunnelStatus("SSH tunnel is already established.")
+        setTunnelInfo(tunnel) // Sync React context
+      } else {
+        setTunnelActive(false)
+        setTunnelStatus("")
+      }
+    }
+  }, [visible])
+
   // Updated connect handler with error handling and auto-reconnect
   const handleConnect = async (info, isReconnect = false) => {
     setTunnelStatus(isReconnect ? "Reconnecting..." : "Connecting...")
     toast.info(isReconnect ? "Reconnecting SSH tunnel..." : "Establishing SSH tunnel...")
-    const connInfo = info || { host, username, privateKey, remotePort, localPort, backendPort }
+    const connInfo = info || { host, username, privateKey, password, remotePort, localPort, backendPort }
     setConnectionInfo(connInfo)
     // --- Host validation ---
-    const hostPattern = /^(?!-)[A-Za-z0-9-]{1,63}(?<!-)\.?([A-Za-z0-9-]{1,63}\.?)*[A-Za-z]{2,6}$|^(\d{1,3}\.){3}\d{1,3}$/;
+    const hostPattern = /^(?!-)[A-Za-z0-9-]{1,63}(?<!-)\.?([A-Za-z0-9-]{1,63}\.?)*[A-Za-z]{2,6}$|^(\d{1,3}\.){3}\d{1,3}$/
     if (!connInfo.host || connInfo.host.trim() === "") {
       setTunnelStatus("Error: Remote host is required.")
       toast.error("Remote host is required.")
@@ -152,32 +172,13 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
       }
       const result = await ipcRenderer.invoke('start-ssh-tunnel', connInfo)
       if (result && result.success) {
-        setTunnelStatus("SSH tunnel established!")
         setTunnelActive(true)
+        setTunnelStatus("SSH tunnel established.")
+        setTunnelInfo({ ...connInfo, tunnelActive: true })
+        setTunnelState({ ...connInfo, tunnelActive: true })
         setReconnectAttempts(0)
-        toast.success("SSH tunnel established and ready.")
-        setTunnelInfo({
-          tunnelActive: true,
-          localAddress: "localhost",
-          localPort: connInfo.localPort,
-          remoteHost: connInfo.host,
-          remotePort: connInfo.remotePort,
-          backendPort: connInfo.backendPort,
-          username: connInfo.username,
-        })
-        setTunnelState({
-          tunnelActive: true,
-          localAddress: "localhost",
-          localPort: connInfo.localPort,
-          remoteHost: connInfo.host,
-          remotePort: connInfo.remotePort,
-          backendPort: connInfo.backendPort,
-          username: connInfo.username,
-        })
-        onConnect && onConnect({ ...connInfo, publicKey })
-        
-        // Automatically register the public key after connection
-        registerPublicKey(result.publicKey, username)
+        if (onConnect) onConnect()
+        toast.success("SSH tunnel established.")
       } else if (result && result.error) {
         setTunnelStatus("Failed to establish SSH tunnel: " + result.error)
         setTunnelActive(false)
@@ -207,12 +208,11 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
     try {
       const result = await ipcRenderer.invoke('stop-ssh-tunnel')
       if (result && result.success) {
-        setTunnelStatus("SSH tunnel disconnected.")
         setTunnelActive(false)
-        setReconnectAttempts(0)
-        toast.success("SSH tunnel successfully disconnected.")
+        setTunnelStatus("SSH tunnel disconnected.")
         clearTunnelInfo()
         clearTunnelState()
+        toast.success("SSH tunnel disconnected.")
       } else {
         setTunnelStatus("Failed to disconnect tunnel: " + (result?.error || 'Unknown error'))
         toast.error("Disconnect Failed: " + result?.error || 'Unknown error')
@@ -245,15 +245,11 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
         }
       })()
     }
-    // Optionally clear key if modal is closed
-    if (!visible) {
-      setKeyGenerated(false)
-      setPublicKey("")
-      setPrivateKey("")
-    }
   }, [visible, username, keyComment])
 
   const sendTestRequest = async () => {
+    console.log("Tunnel state: ", getTunnelState())
+    console.log("Tunnel context: ", TunnelContext)
     if (!tunnelActive) {
       toast.error("SSH tunnel is not active. Please connect first.")
       return
@@ -281,34 +277,34 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
 
   // Input validation logic
   useEffect(() => {
-    const errors = {};
+    const errors = {}
     // Strict IPv4 regex
-    const ipv4Pattern = /^(?:(?:25[0-5]|2[0-4]\d|1\d{2}|[1-9]?\d)\.){3}(?:25[0-5]|2[0-4]\d|1\d{2}|[1-9]?\d)$/;
+    const ipv4Pattern = /^(?:(?:25[0-5]|2[0-4]\d|1\d{2}|[1-9]?\d)\.){3}(?:25[0-5]|2[0-4]\d|1\d{2}|[1-9]?\d)$/
     // Hostname regex (RFC 1123, simple)
-    const hostnamePattern = /^(?!-)[A-Za-z0-9-]{1,63}(?<!-)(\.[A-Za-z0-9-]{1,63})*$/;
-    const hostTrimmed = host.trim();
+    const hostnamePattern = /^(?!-)[A-Za-z0-9-]{1,63}(?<!-)(\.[A-Za-z0-9-]{1,63})*$/
+    const hostTrimmed = host.trim()
     if (!hostTrimmed) {
-      errors.host = "Remote host is required.";
+      errors.host = "Remote host is required."
     } else if (!(ipv4Pattern.test(hostTrimmed) || hostnamePattern.test(hostTrimmed))) {
-      errors.host = "Enter a valid IPv4 address or hostname.";
+      errors.host = "Enter a valid IPv4 address or hostname."
     }
     if (!username.trim()) {
-      errors.username = "Username is required.";
+      errors.username = "Username is required."
     }
     if (!remotePort || isNaN(Number(remotePort)) || Number(remotePort) < 1 || Number(remotePort) > 65535) {
-      errors.remotePort = "Remote SSH port must be 1-65535.";
+      errors.remotePort = "Remote SSH port must be 1-65535."
     }
     if (!localPort || isNaN(Number(localPort)) || Number(localPort) < 1 || Number(localPort) > 65535) {
-      errors.localPort = "Local port must be 1-65535.";
+      errors.localPort = "Local port must be 1-65535."
     }
     if (!backendPort || isNaN(Number(backendPort)) || Number(backendPort) < 1 || Number(backendPort) > 65535) {
-      errors.backendPort = "Remote backend port must be 1-65535.";
+      errors.backendPort = "Remote backend port must be 1-65535."
     }
     if (!keyGenerated || !publicKey || !privateKey) {
-      errors.key = "SSH key must be generated.";
+      errors.key = "SSH key must be generated."
     }
-    setInputErrors(errors);
-    setInputValid(Object.keys(errors).length === 0);
+    setInputErrors(errors)
+    setInputValid(Object.keys(errors).length === 0)
   }, [host, username, remotePort, localPort, backendPort, keyGenerated, publicKey, privateKey])
 
   return (
@@ -376,9 +372,9 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
       <style>
           {`
             .connect-btn:disabled {
-              opacity: 0.5;
-              color: #666;
-              cursor: default;
+              opacity: 0.5
+              color: #666
+              cursor: default
             }
           `}
         </style>

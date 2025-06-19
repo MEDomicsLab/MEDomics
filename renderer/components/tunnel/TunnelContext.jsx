@@ -2,10 +2,10 @@ import React, { createContext, useState, useContext } from "react";
 
 // TunnelContext will store info about the active SSH tunnel
 export const TunnelContext = createContext({
+  host: null,
   tunnelActive: false,
   localAddress: "localhost",
   localPort: null,
-  remoteHost: null,
   remotePort: null,
   backendPort: null,
   username: null,
@@ -15,10 +15,10 @@ export const TunnelContext = createContext({
 
 export const TunnelProvider = ({ children }) => {
   const [tunnelInfo, setTunnelInfo] = useState({
+    host: null,
     tunnelActive: false,
     localAddress: "localhost",
     localPort: null,
-    remoteHost: null,
     remotePort: null,
     backendPort: null,
     username: null,
@@ -30,10 +30,10 @@ export const TunnelProvider = ({ children }) => {
 
   const clearTunnel = () => {
     setTunnelInfo({
+      host: null,
       tunnelActive: false,
       localAddress: "localhost",
       localPort: null,
-      remoteHost: null,
       remotePort: null,
       backendPort: null,
       username: null,
