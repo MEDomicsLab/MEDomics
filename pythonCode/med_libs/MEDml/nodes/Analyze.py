@@ -45,9 +45,8 @@ class Analyze(Node):
         print(Fore.CYAN + f"Using {selection}" + Fore.RESET)
         settings = copy.deepcopy(self.settings)
         plot_paths = {}
-        if selection == 'plot_model':
-            settings.update({'save': True})
-            settings.update({"plot_kwargs": {}})
+        settings.update({'save': True})
+        #settings.update({"plot_kwargs": {}})
         """ if selection == 'interpret_model':
             settings.update({'save': self.global_config_json["tmp_path"]}) """
 
@@ -63,8 +62,7 @@ class Analyze(Node):
             if 'plot' in settings and type(settings['plot']) == str:
                 settings['plot'] = settings['plot'].lower()
             # Set saving path for plot_model
-            if 'save' in settings and settings['save']:
-                settings['save'] = Path("/tmp") if platform.system().lower() == "darwin" else True
+            settings['save'] = Path("/tmp") if platform.system().lower() == "darwin" else True
             plot_image = experiment['pycaret_exp'].plot_model(model, **settings)
 
             # Save Image into MongoDB
