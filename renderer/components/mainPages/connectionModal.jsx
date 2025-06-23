@@ -3,7 +3,7 @@ import { Dialog } from "primereact/dialog"
 import { toast } from "react-toastify"
 import { ipcRenderer } from "electron"
 import { requestBackend } from "../../utilities/requests"
-import { WorkspaceContext } from "../workspace/workspaceContext"
+import { ServerConnectionContext } from "../serverConnection/connectionContext"
 import { TunnelContext, useTunnel } from "../tunnel/TunnelContext"
 import { getTunnelState, setTunnelState, clearTunnelState } from "../../utilities/tunnelState"
 import { Button } from "@blueprintjs/core"
@@ -34,7 +34,7 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
   const [inputErrors, setInputErrors] = useState({})
   const [inputValid, setInputValid] = useState(false)
 
-  const { port } = useContext(WorkspaceContext) // we get the port for server connexion
+  const { port } = useContext(ServerConnectionContext) // we get the port for server connexion
   const { setTunnelInfo, clearTunnelInfo } = useTunnel()
 
   const registerPublicKey = async (publicKeyToRegister, usernameToRegister) => {
@@ -248,6 +248,7 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
   }, [visible, username, keyComment])
 
   const sendTestRequest = async () => {
+    console.log("Port: ", port)
     console.log("Tunnel state: ", getTunnelState())
     console.log("Tunnel context: ", TunnelContext)
     if (!tunnelActive) {

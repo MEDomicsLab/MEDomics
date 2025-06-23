@@ -35,6 +35,17 @@ class GoExecScriptConnectionTest(GoExecutionScript):
             json_config: The input json params
         """
         go_print(json.dumps(json_config, indent=4))
+
+        # Get the directory where the current script is located
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+
+        # Define the path for your new text file
+        file_path = os.path.join(script_dir, "test.txt")
+
+        # Write something to the file
+        with open(file_path, "w") as f:
+            f.write("This is a test file created next to connection_test_request.py.\n")
+    
         self.results = {
             "status": "success",
             "message": "Connection test successful",
