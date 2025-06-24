@@ -874,8 +874,13 @@ ipcMain.handle('get-ssh-key', async (_event, { username }) => {
 })
 
 let activeTunnel = null
+let activeTunnelServer = null // Track the TCP server for proper cleanup
 ipcMain.handle('start-ssh-tunnel', async (_event, { host, username, privateKey, password, remotePort, localPort, backendPort }) => {
   return new Promise((resolve, reject) => {
+    if (activeTunnelServer) {
+      try { activeTunnelServer.close() } catch {}
+      activeTunnelServer = null
+    }
     if (activeTunnel) {
       try { activeTunnel.end() } catch {}
       activeTunnel = null
@@ -907,6 +912,7 @@ ipcMain.handle('start-ssh-tunnel', async (_event, { host, username, privateKey, 
       })
       server.listen(localPort, '127.0.0.1', () => {
         activeTunnel = conn
+        activeTunnelServer = server
         resolve({ success: true })
       })
       server.on('error', (e) => {
@@ -918,12 +924,28 @@ ipcMain.handle('start-ssh-tunnel', async (_event, { host, username, privateKey, 
     }).connect(connConfig)
   })
 })
-
 ipcMain.handle('stop-ssh-tunnel', async () => {
+  let success = false
+  let error = null
+  if (activeTunnelServer) {
+    try {
+      await new Promise((resolve, reject) => {
+        activeTunnelServer.close((err) => {
+          if (err) reject(err)
+          else resolve()
+        })
+      })
+      activeTunnelServer = null
+      success = true
+    } catch (e) {
+      error = e.message || String(e)
+    }
+  }
   if (activeTunnel) {
     try { activeTunnel.end() } catch {}
     activeTunnel = null
-    return { success: true }
+    success = true
   }
-  return { success: false, error: 'No active tunnel' }
+  if (success) return { success: true }
+  return { success: false, error: error || 'No active tunnel' }
 })
