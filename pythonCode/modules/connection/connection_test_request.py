@@ -2,11 +2,9 @@ import json
 import sys
 import os
 from pathlib import Path
-# add a .parent to the import if your script is in a subfolder of modules folder :
-# sys.path.append(
-    #str(Path(os.path.dirname(os.path.abspath(__file__))).parent.parent))
+
 sys.path.append(
-    str(Path(os.path.dirname(os.path.abspath(__file__))).parent)) 
+    str(Path(os.path.dirname(os.path.abspath(__file__))).parent.parent)) 
 from med_libs.server_utils import go_print
 from med_libs.GoExecutionScript import GoExecutionScript, parse_arguments
 

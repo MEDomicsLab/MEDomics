@@ -258,7 +258,7 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
     await requestBackend(
       port,
       "/connection/connection_test_request",
-      {},
+      { data: "" },
       async (jsonResponse) => {
         console.log("received results:", jsonResponse)
         if (!jsonResponse.error) {
