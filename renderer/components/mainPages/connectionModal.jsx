@@ -251,11 +251,11 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
     console.log("Port: ", port)
     console.log("Tunnel state: ", getTunnelState())
     console.log("Tunnel context: ", TunnelContext)
-    if (!tunnelActive) {
-      toast.error("SSH tunnel is not active. Please connect first.")
-      return
-    }
-      await requestBackend(
+    // if (!tunnelActive) {
+    //   toast.error("SSH tunnel is not active. Please connect first.")
+    //   return
+    // }
+    await requestBackend(
       port,
       "/connection/connection_test_request",
       {},
@@ -366,9 +366,7 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
         {tunnelStatus && (
           <div style={{ marginTop: '0.5em', color: tunnelStatus.includes('established') ? 'green' : tunnelStatus.includes('Reconnecting') ? 'orange' : 'red' }}>{tunnelStatus}</div>
         )}
-        {tunnelActive && (
-            <Button onClick={sendTestRequest} style={{ background: "#d9534f", color: "white" }}>Send test request</Button>
-          )}
+        <Button onClick={sendTestRequest} style={{ background: "#d9534f", color: "white" }}>Send test request</Button>
       </div>
       <style>
           {`

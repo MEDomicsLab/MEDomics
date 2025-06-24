@@ -17,7 +17,7 @@ func AddHandleFunc() {
 // Returns the status of the validation
 func registerSSHKey(jsonConfig string, id string) (string, error) {
 	log.Println("Registering SSH Key: ", id)
-	response, err := Utils.StartPythonScripts(jsonConfig, "../pythonCode/modules/app/register_ssh_key.py", id)
+	response, err := Utils.StartPythonScripts(jsonConfig, "../pythonCode/modules/connection/register_ssh_key.py", id)
 	Utils.RemoveIdFromScripts(id)
 	if err != nil {
 		return "", err
@@ -29,7 +29,7 @@ func registerSSHKey(jsonConfig string, id string) (string, error) {
 // It returns the progress of the experiment
 func connectionTestRequest(jsonConfig string, id string) (string, error) {
 	log.Println("Connection test request: ", id)
-	response, err := Utils.StartPythonScripts(jsonConfig, "../pythonCode/modules/app/connection_test_request.py", id)
+	response, err := Utils.StartPythonScripts(jsonConfig, "../pythonCode/modules/connection/connection_test_request.py", id)
 	Utils.RemoveIdFromScripts(id)
 	if err != nil {
 		return "", err
