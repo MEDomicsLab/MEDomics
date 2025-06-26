@@ -16,8 +16,10 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
   const [username, setUsername] = useState("user")
   const [password, setPassword] = useState("")
   const [remotePort, setRemotePort] = useState("22")
-  const [localPort, setLocalPort] = useState("8888")
-  const [backendPort, setBackendPort] = useState("8888")
+  const [localBackendPort, setLocalBackendPort] = useState("54280")
+  const [remoteBackendPort, setRemoteBackendPort] = useState("54288")
+  const [localDBPort, setLocalDBPort] = useState("54020")
+  const [remoteDBPort, setRemoteDBPort] = useState("54017")
   const [privateKey, setPrivateKey] = useState("")
   const [publicKey, setPublicKey] = useState("")
   const [keyComment, setKeyComment] = useState("medomicslab-app")
@@ -33,6 +35,7 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
   // Validation state
   const [inputErrors, setInputErrors] = useState({})
   const [inputValid, setInputValid] = useState(false)
+  const [localPortWarning, setLocalPortWarning] = useState("")
 
   const { port } = useContext(ServerConnectionContext) // we get the port for server connexion
   const { setTunnelInfo, clearTunnelInfo } = useTunnel()
@@ -110,8 +113,10 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
         setHost(tunnel.host || "")
         setUsername(tunnel.username || "")
         setRemotePort(tunnel.remotePort || "22")
-        setLocalPort(tunnel.localPort || "8888")
-        setBackendPort(tunnel.backendPort || "8888")
+        setLocalBackendPort(tunnel.localPort || "54280")
+        setRemoteBackendPort(tunnel.backendPort || "54288")
+        setLocalDBPort(tunnel.mongoLocalPort || "54020")
+        setRemoteDBPort(tunnel.mongoRemotePort || "54017")
         setTunnelStatus("SSH tunnel is already established.")
         setTunnelInfo(tunnel) // Sync React context
       } else {
@@ -125,7 +130,7 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
   const handleConnect = async (info, isReconnect = false) => {
     setTunnelStatus(isReconnect ? "Reconnecting..." : "Connecting...")
     toast.info(isReconnect ? "Reconnecting SSH tunnel..." : "Establishing SSH tunnel...")
-    const connInfo = info || { host, username, privateKey, password, remotePort, localPort, backendPort }
+    const connInfo = info || { host, username, privateKey, password, remotePort, localBackendPort, remoteBackendPort, localDBPort, remoteDBPort }
     setConnectionInfo(connInfo)
     // --- Host validation ---
     const hostPattern = /^(?!-)[A-Za-z0-9-]{1,63}(?<!-)\.?([A-Za-z0-9-]{1,63}\.?)*[A-Za-z]{2,6}$|^(\d{1,3}\.){3}\d{1,3}$/
@@ -168,6 +173,16 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
       if (!connInfo.backendPort || isNaN(Number(connInfo.backendPort))) {
         setTunnelStatus("Error: Remote backend port is invalid.")
         toast.error("Remote backend port is invalid.")
+        return
+      }
+      if (!connInfo.mongoLocalPort || isNaN(Number(connInfo.mongoLocalPort))) {
+        setTunnelStatus("Error: Local MongoDB port is invalid.")
+        toast.error("Local MongoDB port is invalid.")
+        return
+      }
+      if (!connInfo.mongoRemotePort || isNaN(Number(connInfo.mongoRemotePort))) {
+        setTunnelStatus("Error: Remote MongoDB port is invalid.")
+        toast.error("Remote MongoDB port is invalid.")
         return
       }
       const result = await ipcRenderer.invoke('start-ssh-tunnel', connInfo)
@@ -279,6 +294,7 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
   // Input validation logic
   useEffect(() => {
     const errors = {}
+    let warning = ""
     // Strict IPv4 regex
     const ipv4Pattern = /^(?:(?:25[0-5]|2[0-4]\d|1\d{2}|[1-9]?\d)\.){3}(?:25[0-5]|2[0-4]\d|1\d{2}|[1-9]?\d)$/
     // Hostname regex (RFC 1123, simple)
@@ -295,18 +311,29 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
     if (!remotePort || isNaN(Number(remotePort)) || Number(remotePort) < 1 || Number(remotePort) > 65535) {
       errors.remotePort = "Remote SSH port must be 1-65535."
     }
-    if (!localPort || isNaN(Number(localPort)) || Number(localPort) < 1 || Number(localPort) > 65535) {
-      errors.localPort = "Local port must be 1-65535."
+    if (!localBackendPort || isNaN(Number(localBackendPort)) || Number(localBackendPort) < 1 || Number(localBackendPort) > 65535) {
+      errors.localBackendPort = "Local backend port must be 1-65535."
     }
-    if (!backendPort || isNaN(Number(backendPort)) || Number(backendPort) < 1 || Number(backendPort) > 65535) {
-      errors.backendPort = "Remote backend port must be 1-65535."
+    if (!remoteBackendPort || isNaN(Number(remoteBackendPort)) || Number(remoteBackendPort) < 1 || Number(remoteBackendPort) > 65535) {
+      errors.remoteBackendPort = "Remote backend port must be 1-65535."
+    }
+    if (!localDBPort || isNaN(Number(localDBPort)) || Number(localDBPort) < 1 || Number(localDBPort) > 65535) {
+      errors.localDBPort = "Local MongoDB port must be 1-65535."
+    }
+    if (!remoteDBPort || isNaN(Number(remoteDBPort)) || Number(remoteDBPort) < 1 || Number(remoteDBPort) > 65535) {
+      errors.remoteDBPort = "Remote MongoDB port must be 1-65535."
     }
     if (!keyGenerated || !publicKey || !privateKey) {
       errors.key = "SSH key must be generated."
     }
+    // Warn if localBackendPort matches the main server port
+    if (String(localBackendPort) === String(port)) {
+      warning = `Warning: Local backend port (${localBackendPort}) is the same as the main server port (${port}). This may cause conflicts if the local backend is running.`
+    }
     setInputErrors(errors)
     setInputValid(Object.keys(errors).length === 0)
-  }, [host, username, remotePort, localPort, backendPort, keyGenerated, publicKey, privateKey])
+    setLocalPortWarning(warning)
+  }, [host, username, remotePort, localBackendPort, remoteBackendPort, localDBPort, remoteDBPort, keyGenerated, publicKey, privateKey, port])
 
   return (
     <Dialog className="modal" visible={visible} style={{ width: "50vw" }} closable={closable} onHide={onClose}>
@@ -332,14 +359,23 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
           {inputErrors.remotePort && <div style={{ color: 'red', fontSize: 13 }}>{inputErrors.remotePort}</div>}
         </label>
         <label>
-          Local Port:
-          <input type="number" value={localPort} onChange={e => setLocalPort(e.target.value)} placeholder="8888" />
-          {inputErrors.localPort && <div style={{ color: 'red', fontSize: 13 }}>{inputErrors.localPort}</div>}
+          Local Backend Port:
+          <input type="number" value={localBackendPort} onChange={e => setLocalBackendPort(e.target.value)} placeholder="8888" />
+          {inputErrors.localBackendPort && <div style={{ color: 'red', fontSize: 13 }}>{inputErrors.localBackendPort}</div>}
+          {localPortWarning && <div style={{ color: 'orange', fontSize: 13, marginTop: 2 }}>{localPortWarning}</div>}
         </label>
         <label>
           Remote Backend Port:
-          <input type="number" value={backendPort} onChange={e => setBackendPort(e.target.value)} placeholder="8888" />
-          {inputErrors.backendPort && <div style={{ color: 'red', fontSize: 13 }}>{inputErrors.backendPort}</div>}
+          <input type="number" value={remoteBackendPort} onChange={e => setRemoteBackendPort(e.target.value)} placeholder="8888" />
+          {inputErrors.remoteBackendPort && <div style={{ color: 'red', fontSize: 13 }}>{inputErrors.remoteBackendPort}</div>}
+        </label>
+        <label>
+          Local MongoDB Port:
+          <input type="number" value={localDBPort} onChange={e => setLocalDBPort(e.target.value)} placeholder="54020" />
+        </label>
+        <label>
+          Remote MongoDB Port:
+          <input type="number" value={remoteDBPort} onChange={e => setRemoteDBPort(e.target.value)} placeholder="54017" />
         </label>
         <label>
           SSH Key Comment:

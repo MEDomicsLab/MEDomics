@@ -3,9 +3,11 @@ let tunnelInfo = {
   host: null,
   tunnelActive: false,
   localAddress: "localhost",
-  localPort: null,
+  localBackendPort: null,
+  remoteBackendPort: null,
+  localDBPort: null,
+  remoteDBPort: null,
   remotePort: null,
-  backendPort: null,
   username: null,
 };
 
@@ -18,9 +20,11 @@ export function clearTunnelState() {
     host: null,
     tunnelActive: false,
     localAddress: "localhost",
-    localPort: null,
+    localBackendPort: null,
+    remoteBackendPort: null,
+    localDBPort: null,
+    remoteDBPort: null,
     remotePort: null,
-    backendPort: null,
     username: null,
   };
 }

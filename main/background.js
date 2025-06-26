@@ -874,78 +874,99 @@ ipcMain.handle('get-ssh-key', async (_event, { username }) => {
 })
 
 let activeTunnel = null
-let activeTunnelServer = null // Track the TCP server for proper cleanup
-ipcMain.handle('start-ssh-tunnel', async (_event, { host, username, privateKey, password, remotePort, localPort, backendPort }) => {
+let activeBackendServer = null
+let activeDBServer = null
+
+ipcMain.handle('start-ssh-tunnel', async (_event, {
+  host,
+  username,
+  privateKey,
+  password,
+  localBackendPort,
+  remoteBackendPort,
+  localDBPort,
+  remoteDBPort
+}) => {
+  // Use ssh2 for robust multi-port forwarding
+  const { Client } = require('ssh2')
+  if (activeTunnel) {
+    try { activeTunnel.end() } catch (e) {}
+    activeTunnel = null
+  }
   return new Promise((resolve, reject) => {
-    if (activeTunnelServer) {
-      try { activeTunnelServer.close() } catch {}
-      activeTunnelServer = null
-    }
-    if (activeTunnel) {
-      try { activeTunnel.end() } catch {}
-      activeTunnel = null
-    }
-    const connConfig = {
-      host,
-      port: parseInt(remotePort),
-      username
-    };
-    if (privateKey) connConfig.privateKey = privateKey
-    if (password) connConfig.password = password
     const conn = new Client()
+    let backendServer, dbServer
     conn.on('ready', () => {
-      const net = require('net');
-      const server = net.createServer((socket) => {
+      // Forward backend port
+      backendServer = require('net').createServer((sock) => {
         conn.forwardOut(
-          socket.localAddress || '127.0.0.1',
-          socket.localPort || 0,
+          sock.remoteAddress,
+          sock.remotePort,
           '127.0.0.1',
-          parseInt(backendPort),
+          remoteBackendPort,
           (err, stream) => {
             if (err) {
-              socket.destroy();
-              return;
+              sock.destroy()
+              return
             }
-            socket.pipe(stream).pipe(socket)
+            sock.pipe(stream)
+            stream.pipe(sock)
           }
         )
+      }).listen(localBackendPort, '127.0.0.1')
+      // Forward MongoDB port
+      dbServer = require('net').createServer((sock) => {
+        conn.forwardOut(
+          sock.remoteAddress,
+          sock.remotePort,
+          '127.0.0.1',
+          remoteDBPort,
+          (err, stream) => {
+            if (err) {
+              sock.destroy()
+              return
+            }
+            sock.pipe(stream)
+            stream.pipe(sock)
+          }
+        )
+      }).listen(localDBPort, '127.0.0.1')
+      activeTunnel = conn
+      activeTunnelServer = { backendServer, dbServer }
+      resolve({
+        tunnelActive: true,
+        host,
+        username,
+        localBackendPort,
+        remoteBackendPort,
+        localDBPort,
+        remoteDBPort
       })
-      server.listen(localPort, '127.0.0.1', () => {
-        activeTunnel = conn
-        activeTunnelServer = server
-        resolve({ success: true })
-      })
-      server.on('error', (e) => {
-        conn.end()
-        reject(new Error('Local server error: ' + e.message))
-      })
-    }).on('error', (err) => {
-      reject(new Error('SSH connection error: ' + err.message))
-    }).connect(connConfig)
+    })
+    conn.on('error', (err) => {
+      reject(err)
+    })
+    const sshConfig = {
+      host,
+      port: 22,
+      username,
+      readyTimeout: 20000
+    }
+    if (privateKey) sshConfig.privateKey = privateKey
+    if (password) sshConfig.password = password
+    conn.connect(sshConfig)
   })
 })
+
 ipcMain.handle('stop-ssh-tunnel', async () => {
-  let success = false
-  let error = null
-  if (activeTunnelServer) {
-    try {
-      await new Promise((resolve, reject) => {
-        activeTunnelServer.close((err) => {
-          if (err) reject(err)
-          else resolve()
-        })
-      })
-      activeTunnelServer = null
-      success = true
-    } catch (e) {
-      error = e.message || String(e)
-    }
-  }
   if (activeTunnel) {
-    try { activeTunnel.end() } catch {}
+    try { activeTunnel.end() } catch (e) {}
     activeTunnel = null
-    success = true
   }
-  if (success) return { success: true }
-  return { success: false, error: error || 'No active tunnel' }
+  if (activeTunnelServer) {
+    try { activeTunnelServer.backendServer.close() } catch (e) {}
+    try { activeTunnelServer.dbServer.close() } catch (e) {}
+    activeTunnelServer = null
+  }
+  return { tunnelActive: false }
 })

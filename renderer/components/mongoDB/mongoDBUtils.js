@@ -1,8 +1,16 @@
 const { MongoClient } = require("mongodb")
 const fs = require("fs")
 const Papa = require("papaparse")
+import { getTunnelState } from "../../utilities/tunnelState"
 
-const uri = "mongodb://localhost:54017" // Remplacez par votre URI MongoDB
+function getMongoUri() {
+  const tunnel = getTunnelState()
+  if (tunnel && tunnel.tunnelActive && tunnel.localDBPort) {
+    return `mongodb://localhost:${tunnel.localDBPort}`
+  }
+  return "mongodb://localhost:54017"
+}
+
 const dbName = "data" // Remplacez par le nom de votre base de données
 
 let client
@@ -13,7 +21,7 @@ let client
  */
 export async function connectToMongoDB() {
   if (!client) {
-    client = new MongoClient(uri, { useNewUrlParser: true, useUnifiedTopology: true })
+    client = new MongoClient(getMongoUri(), { useNewUrlParser: true, useUnifiedTopology: true })
     await client.connect()
   }
   return client.db(dbName)
