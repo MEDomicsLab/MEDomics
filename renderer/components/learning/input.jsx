@@ -232,7 +232,7 @@ const Input = ({ name, settingInfos, currentValue, onInputChange, disabled = fal
         return (
           <>
             <FloatingLabel controlId={name} label={name} className=" input-hov">
-              <Form.Select
+              <Form.Control
                 disabled={disabled}
                 defaultValue={currentValue}
                 onChange={(e) => {
@@ -255,11 +255,7 @@ const Input = ({ name, settingInfos, currentValue, onInputChange, disabled = fal
                     type: settingInfos.type
                   })
                 }}
-              >
-                <option value="" hidden></option>
-                <option value="True">True</option>
-                <option value="False">False</option>
-              </Form.Select>
+              />
             </FloatingLabel>
             {createTooltip(settingInfos.tooltip, name)}
           </>
@@ -274,14 +270,13 @@ const Input = ({ name, settingInfos, currentValue, onInputChange, disabled = fal
                 {...customProps}
                 disabled={disabled}
                 value={{ name: currentValue }}
-                onChange={(e) =>{
+                onChange={(e) => {
                   setInputUpdate({
                     name: name,
                     value: e.target.value.name,
                     type: settingInfos.type
                   })
-                }
-                }
+                }}
                 options={Object.entries(settingInfos.choices).map(([option]) => {
                   return {
                     name: option
@@ -302,16 +297,14 @@ const Input = ({ name, settingInfos, currentValue, onInputChange, disabled = fal
               disabled={disabled}
               value={currentValue ? currentValue : []}
               filter
-              onChange={(newValue) =>
-              {
+              onChange={(newValue) => {
                 setInputUpdate({
                   name: name,
                   value: newValue.value,
                   type: settingInfos.type
                 })
-                currentValue = {name: newValue.value[0]}
-              }
-              }
+                currentValue = { name: newValue.value[0] }
+              }}
               options={Object.entries(settingInfos.choices).map(([option]) => {
                 return {
                   name: settingInfos.choices[option],
@@ -525,7 +518,33 @@ const Input = ({ name, settingInfos, currentValue, onInputChange, disabled = fal
             {createTooltip(settingInfos.tooltip, name)}
           </>
         )
-
+      case "dataframe":
+        return (
+          <>
+            <FloatingLabel id={name} controlId={name} label={name} className=" input-hov">
+              <WsSelect
+                disabled={disabled}
+                selectedPath={currentValue}
+                acceptedExtensions={["csv"]}
+                acceptFolder={settingInfos.acceptFolder ? settingInfos.acceptFolder : false}
+                onChange={(e, path) => {
+                  console.log("e", e, path)
+                  if (path == "") {
+                    setHasWarning({ state: true, tooltip: <p>No file selected</p> })
+                  } else {
+                    setHasWarning({ state: false })
+                  }
+                  setInputUpdate({
+                    name: name,
+                    value: { name: e.target.value, path: path },
+                    type: settingInfos.type
+                  })
+                }}
+              />
+            </FloatingLabel>
+            {createTooltip(settingInfos.tooltip, name)}
+          </>
+        )
       // for all the other types of input (basically a string input for now)
       default:
         return (

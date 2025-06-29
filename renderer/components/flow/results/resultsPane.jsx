@@ -109,6 +109,7 @@ const ResultsPane = () => {
         let isValid = true
         path.forEach((id) => {
           let node = flowContent.nodes.find((node) => node.id == id)
+          // this condition is here because a group node creates another path that is not valid
           if (node.type == "groupNode") {
             isValid = false
           }

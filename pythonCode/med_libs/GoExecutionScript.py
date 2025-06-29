@@ -17,19 +17,27 @@ def parse_arguments() -> tuple[dict, str]:
     parser = argparse.ArgumentParser()
     parser.add_argument('--json-param', type=str, default='.')
     parser.add_argument('--id', type=str, default='.')
+    parser.add_argument('--debug', type=bool, default=False)
     args = parser.parse_args()
-    json_params = json.loads(args.json_param)
-    id_ = args.id
-    return json_params, id_
+    if not args.debug:
+        json_params = json.loads(args.json_param)
+        id_ = args.id
+        return json_params, id_
+    else:
+        with open('json_params_dict.json', 'r') as f:
+            return json.load(f), '1234-4567-debug-id'
 
 
-def get_response_from_error(e=None, toast=None):
+def get_response_from_error(e=None, toast=None) -> dict:
     """
     Gets the response from an error
 
     Args:
         e: The error
         toast: The toast message to send to the client, ignored if e is not None
+    
+    Returns:
+        The response dictionary
     """
     if e is not None:
         print(e)
@@ -58,11 +66,16 @@ class GoExecutionScript(ABC):
         _id: The id of the process
     """
 
-    def __init__(self, json_params: dict, _id: str = "default_id"):
+    def __init__(self, json_params: dict, _id: str = "default_id", debug: bool = False):
         self._json_params = json_params
         self._error_handler = None
         self._progress = {"now": 0, "currentLabel": ""}
         self._id = _id
+        self._debug = debug
+        if self._debug:
+            # save json_params_dict to a file
+            with open('json_params_dict.json', 'w') as f:
+                json.dump(json_params, f, indent=4)
 
     def start(self):
         """
@@ -71,6 +84,9 @@ class GoExecutionScript(ABC):
         try:
             self.push_progress()
             results = self._custom_process(self._json_params)
+            if self._debug:
+                with open("results.json", "w") as f:
+                    f.write(json.dumps(results, indent=4))
             self.send_response(results)
         except BaseException as e:
             if self._error_handler is not None:

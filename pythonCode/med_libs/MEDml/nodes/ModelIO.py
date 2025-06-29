@@ -125,6 +125,6 @@ class ModelIO(Node):
                 "code",
                 f"pycaret_exp.load_model({self.CodeHandler.convert_dict_to_params(settings_copy)})"
             )
-            self._info_for_next_node = {'models': [trained_model]}
+            self._info_for_next_node = {'models': [trained_model], 'id': self.id}
 
         return return_val

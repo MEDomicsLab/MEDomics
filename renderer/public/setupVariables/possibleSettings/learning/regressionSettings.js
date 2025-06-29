@@ -1008,6 +1008,10 @@ const regressionSettings = {
         "ml_types": "classification regression",
         "code": "stack_models()",
         "default": {}
+    },
+    group_models: {
+        options: {},
+        code: ""
     }
 }; 
  export default regressionSettings;

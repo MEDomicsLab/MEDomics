@@ -74,6 +74,9 @@ class MEDexperimentLearning(MEDexperiment):
         elif node_type == "finalize":
             from med_libs.MEDml.nodes.Finalize import Finalize
             return Finalize(node_config['id'], self.global_json_config)
+        elif node_type == "group_models":
+            from med_libs.MEDml.nodes.GroupModels import GroupModels
+            return GroupModels(node_config['id'], self.global_json_config)
 
     def setup_dataset(self, node: Node):
         """Sets up the dataset for the experiment.\n
@@ -111,6 +114,12 @@ class MEDexperimentLearning(MEDexperiment):
             elif kwargs['use_gpu'] == "False":
                 kwargs['use_gpu'] = False
 
+        if 'index' in kwargs:
+            if kwargs['index'] == "True":
+                kwargs['index'] = True
+            elif kwargs['index'] == "False":
+                kwargs['index'] = False
+
         # add the imports
         node.CodeHandler.add_import("import numpy as np")
         node.CodeHandler.add_import("import pandas as pd")
@@ -135,9 +144,16 @@ class MEDexperimentLearning(MEDexperiment):
         medml_logger = MEDml_logger()
 
         # setup the experiment
-        pycaret_exp.setup(temp_df, log_experiment=medml_logger, **kwargs)
-        node.CodeHandler.add_line(
-            "code", f"pycaret_exp.setup(temp_df, {node.CodeHandler.convert_dict_to_params(kwargs)})")
+        if 'test_data' in kwargs:
+            test_data_df = pd.read_csv(kwargs['test_data']['path'])
+            node.CodeHandler.add_line("code", f"test_data_df = pd.read_csv('{kwargs['test_data']}'")
+            node.CodeHandler.add_line("code", f"pycaret_exp.setup(temp_df, test_data=test_data_df, {node.CodeHandler.convert_dict_to_params(kwargs)})")
+            del kwargs['test_data']
+            pycaret_exp.setup(temp_df, test_data=test_data_df, log_experiment=medml_logger, **kwargs)
+        else:
+            pycaret_exp.setup(temp_df, log_experiment=medml_logger, **kwargs)
+            node.CodeHandler.add_line("code", f"pycaret_exp.setup(temp_df, {node.CodeHandler.convert_dict_to_params(kwargs)})")
+        
         node.CodeHandler.add_line(
             "code", f"dataset = pycaret_exp.get_config('X').join(pycaret_exp.get_config('y'))")
         dataset_metaData = {
@@ -169,3 +185,32 @@ class MEDexperimentLearning(MEDexperiment):
             'df': temp_df
         }
 
+    def _make_save_ready_rec(self, next_nodes: dict):
+        for node_id, node_content in next_nodes.items():
+            saved_path = os.path.join(
+                self.global_json_config['internalPaths']['exp'], f"exp_{node_id.replace('*', '--')}.pycaretexp")
+            if 'exp_path' in node_content['experiment']:
+                saved_path = node_content['experiment']['exp_path']
+
+            data = node_content['experiment']['pycaret_exp'].data
+            self.sceneZipFile.write_to_zip(
+                custom_actions=lambda path: node_content['experiment']['pycaret_exp'].save_experiment(saved_path))
+            node_content['experiment']['exp_path'] = saved_path
+            node_content['experiment']['dataset'] = data
+            node_content['experiment']['pycaret_exp'] = None
+            self._make_save_ready_rec(node_content['next_nodes'])
+
+    def _init_obj_rec(self, next_nodes: dict):
+        for node_id, node_content in next_nodes.items():
+            data = node_content['experiment']['dataset']
+            pycaret_exp = create_pycaret_exp(
+                ml_type=self.global_json_config['MLType'])
+            saved_path = node_content['experiment']['exp_path']
+
+            def get_experiment(pycaret_exp, data, saved_path):
+                return pycaret_exp.load_experiment(saved_path, data=data)
+
+            node_content['experiment']['pycaret_exp'] = self.sceneZipFile.read_in_zip(
+                custom_actions=lambda path: get_experiment(pycaret_exp, data, saved_path))
+
+            self._init_obj_rec(node_content['next_nodes'])

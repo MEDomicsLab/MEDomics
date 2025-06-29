@@ -78,7 +78,7 @@ export const axiosPostJsonGo = async (port, topic, json2send, jsonReceivedCB, on
       try {
         cleanResponse = JSON.parse(nanToNull(response.data.response_message))
       } catch (error) {
-        cleanResponse = JSON.parse(parsingCleaning(nanToNull(response.data.response_message)))
+        cleanResponse = JSON.parse(parsingCleaning(nanToNull(response.data.response_message)).replaceAll("\\", ""))
       }
       jsonReceivedCB(cleanResponse)
     } else {
@@ -145,7 +145,10 @@ export const axiosPostJson = async (jsonData, pathName) => {
  * @returns the cleaned response
  */
 const parsingCleaning = (response) => {
-  return response.substring(response.indexOf("{"), response.lastIndexOf("}") + 1)
+  // console.log("Parsing cleaning (before):", response)
+  let newResponse = response.substring(response.indexOf("{"), response.lastIndexOf("}") + 1)
+  // console.log("Parsing cleaning (after):", newResponse)
+  return newResponse
 }
 
 /**

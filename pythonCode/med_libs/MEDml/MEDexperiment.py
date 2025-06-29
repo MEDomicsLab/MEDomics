@@ -68,9 +68,7 @@ class MEDexperiment(ABC):
         """Updates the experiment with the pipelines and the global configuration.
 
         Args:
-            pipelines (json, optional): The pipelines of the experiment. Defaults to None.
             global_json_config (json, optional): The global configuration of the experiment. Defaults to None.
-            nb_nodes (float, optional): The number of nodes in the experiment. Defaults to 0.
         """
         self.pipelines = global_json_config['pipelines']
         self.pipelines_to_execute = self.pipelines
@@ -97,14 +95,12 @@ class MEDexperiment(ABC):
         nodes = {}
         if next_nodes != {}:
             for current_node_id, next_nodes_id_json in next_nodes.items():
-                # if it is a create_model node, we need to point to the model node
+                # if it is a train_model node, we need to point to the model node
                 # To be consistent with the rest of the nodes,
                 # we create a new node with the same parameters but with the model id
                 tmp_subid_list = current_node_id.split('*')
                 if len(tmp_subid_list) > 1:
-                    self.global_json_config['nodes'][current_node_id] = \
-                        copy.deepcopy(
-                            self.global_json_config['nodes'][tmp_subid_list[0]])
+                    self.global_json_config['nodes'][current_node_id] = self.global_json_config['nodes'][tmp_subid_list[0]]
                     self.global_json_config['nodes'][current_node_id]['associated_id'] = tmp_subid_list[1]
                     self.global_json_config['nodes'][current_node_id]['id'] = current_node_id
                 # then, we create the node normally
@@ -113,6 +109,7 @@ class MEDexperiment(ABC):
                 nodes[current_node_id] = self.handle_node_creation(
                     node, pipelines_objects)
                 nodes[current_node_id]['obj'].just_run = False
+                # if the node has next nodes
                 if current_node_id in pipelines_objects:
                     nodes[current_node_id]['next_nodes'] = \
                         self.create_next_nodes(next_nodes_id_json,
@@ -234,15 +231,17 @@ class MEDexperiment(ABC):
         if next_nodes_to_execute != {}:
             for current_node_id, next_nodes_id_json in next_nodes_to_execute.items():
 
+                node_can_go = True
                 node_info = next_nodes[current_node_id]
+                node = node_info['obj']
                 experiment = self.copy_experiment(experiment)
                 exp_to_return = experiment
-                node = node_info['obj']
                 self._progress['currentLabel'] = node.username
                 if not node.has_run() or prev_node.has_changed():
+                    data = node.execute(experiment, **prev_node.get_info_for_next_node())
                     node_info['results'] = {
                         'prev_node_id': prev_node.id,
-                        'data': node.execute(experiment, **prev_node.get_info_for_next_node()),
+                        'data': data,
                     }
                     # Clean node return experiment
                     if "experiment" in node_info['results']['data']:
@@ -273,7 +272,7 @@ class MEDexperiment(ABC):
                     results=results[current_node_id]['next_nodes'],
                     experiment=exp_to_return
                 )
-                print(f'flag-{node.username}')
+                print(f'END-{node.username}')
 
     @abstractmethod
     def modify_node_info(self, node_info: dict, node: Node, experiment: dict):
@@ -378,3 +377,27 @@ class MEDexperiment(ABC):
             label = self._progress['currentLabel']
         self._progress = {'currentLabel': label, 'now': now}
 
+    def make_save_ready(self):
+        """Makes the experiment ready to be saved.
+        """
+        self._make_save_ready_rec(self.pipelines_objects)
+
+    @abstractmethod
+    def _make_save_ready_rec(self, next_nodes: dict):
+        """
+        Recursive function that makes the experiment ready to be saved.
+        """
+        pass
+
+    def init_obj(self):
+        """
+        Initializes the experiment object (pycaret) from a path.
+        """
+        self._init_obj_rec(self.pipelines_objects)
+
+    @abstractmethod
+    def _init_obj_rec(self, next_nodes: dict):
+        """
+        Recursive function that initializes the experiment object (pycaret) from a path.
+        """
+        pass
