@@ -12,8 +12,8 @@ import { Button } from "@blueprintjs/core"
  * @returns {JSX.Element} The connection modal used for establishing a connection to a remote server
  */
 const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
-  const [host, setHost] = useState("")
-  const [username, setUsername] = useState("user")
+  const [host, setHost] = useState("192.168.40.55")
+  const [username, setUsername] = useState("marc-alex")
   const [password, setPassword] = useState("")
   const [remotePort, setRemotePort] = useState("22")
   const [localBackendPort, setLocalBackendPort] = useState("54280")
@@ -113,10 +113,10 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
         setHost(tunnel.host || "")
         setUsername(tunnel.username || "")
         setRemotePort(tunnel.remotePort || "22")
-        setLocalBackendPort(tunnel.localPort || "54280")
-        setRemoteBackendPort(tunnel.backendPort || "54288")
-        setLocalDBPort(tunnel.mongoLocalPort || "54020")
-        setRemoteDBPort(tunnel.mongoRemotePort || "54017")
+        setLocalBackendPort(tunnel.localBackendPort || "54280")
+        setRemoteBackendPort(tunnel.remoteBackendPort || "54288")
+        setLocalDBPort(tunnel.localDBPort || "54020")
+        setRemoteDBPort(tunnel.remoteDBPort || "54017")
         setTunnelStatus("SSH tunnel is already established.")
         setTunnelInfo(tunnel) // Sync React context
       } else {
@@ -165,22 +165,22 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
         toast.error("Remote SSH port is invalid.")
         return
       }
-      if (!connInfo.localPort || isNaN(Number(connInfo.localPort))) {
+      if (!connInfo.localBackendPort || isNaN(Number(connInfo.localBackendPort))) {
         setTunnelStatus("Error: Local port is invalid.")
         toast.error("Local port is invalid.")
         return
       }
-      if (!connInfo.backendPort || isNaN(Number(connInfo.backendPort))) {
+      if (!connInfo.remoteBackendPort || isNaN(Number(connInfo.remoteBackendPort))) {
         setTunnelStatus("Error: Remote backend port is invalid.")
         toast.error("Remote backend port is invalid.")
         return
       }
-      if (!connInfo.mongoLocalPort || isNaN(Number(connInfo.mongoLocalPort))) {
+      if (!connInfo.localDBPort || isNaN(Number(connInfo.localDBPort))) {
         setTunnelStatus("Error: Local MongoDB port is invalid.")
         toast.error("Local MongoDB port is invalid.")
         return
       }
-      if (!connInfo.mongoRemotePort || isNaN(Number(connInfo.mongoRemotePort))) {
+      if (!connInfo.remoteDBPort || isNaN(Number(connInfo.remoteDBPort))) {
         setTunnelStatus("Error: Remote MongoDB port is invalid.")
         toast.error("Remote MongoDB port is invalid.")
         return
@@ -395,9 +395,8 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
         <div style={{ display: "flex", gap: "1rem", justifyContent: "flex-end" }}>
           <Button onClick={onClose}>Close</Button>
           <Button className="connect-btn" onClick={() => handleConnect()} style={{ background: "#007ad9", color: "white" }} disabled={!inputValid || tunnelActive}>Connect</Button>
-          {tunnelActive && (
-            <button onClick={handleDisconnect} style={{ background: "#d9534f", color: "white" }}>Disconnect</button>
-          )}
+          
+          <button onClick={handleDisconnect} style={{ background: "#d9534f", color: "white" }}>Disconnect</button>
         </div>
         {tunnelStatus && (
           <div style={{ marginTop: '0.5em', color: tunnelStatus.includes('established') ? 'green' : tunnelStatus.includes('Reconnecting') ? 'orange' : 'red' }}>{tunnelStatus}</div>
