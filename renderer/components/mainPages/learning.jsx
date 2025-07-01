@@ -1,4 +1,4 @@
-import { useContext, useEffect, useState } from "react"
+import { useContext, useEffect, useRef, useState } from "react"
 import { getCollectionData } from "../dbComponents/utils"
 import FlowPageBase from "../flow/flowPageBase"
 import Workflow from "../learning/workflow"
@@ -8,8 +8,16 @@ import ModulePage from "./moduleBasics/modulePage"
 
 const LearningPage = ({ pageId }) => {
   const [flowType, setFlowType] = useState("learning") // this state has been implemented because of subflows implementation
-  const [isExperiment, setIsExperiment] = useState(true) // This state is used to determine if the workflow is an experiment or not
+  const [isExperiment, setIsExperiment] = useState(false) // This state is used to determine if the workflow is an experiment or not
   const { globalData } = useContext(DataContext)
+
+  const workflowRef = useRef()
+
+  const runFromFlowPageBase = (modelToFinalize, modelName='') => {
+    if (workflowRef.current) {
+      workflowRef.current.triggerAction(modelToFinalize, modelName)
+    }
+  }
 
   useEffect(() => {
     const fetchData = async () => {
@@ -34,8 +42,8 @@ const LearningPage = ({ pageId }) => {
   return (
     <>
       <ModulePage pageId={pageId}>
-        <FlowPageBase workflowType={flowType} id={pageId} isExperiment={isExperiment}>
-          <Workflow id={pageId} workflowType={flowType} setWorkflowType={setFlowType} isExperiment={isExperiment}/>
+        <FlowPageBase workflowType={flowType} id={pageId} isExperiment={isExperiment} runFinalizeAndSave={runFromFlowPageBase}>
+          <Workflow id={pageId} workflowType={flowType} setWorkflowType={setFlowType} isExperiment={isExperiment} ref={workflowRef}/>
         </FlowPageBase>
       </ModulePage>
     </>

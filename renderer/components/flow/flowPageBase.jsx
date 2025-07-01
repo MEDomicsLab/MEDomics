@@ -1,5 +1,5 @@
 import "reactflow/dist/style.css"
-import React, { useContext, useEffect, useRef, useState } from "react"
+import { useContext, useEffect, useRef, useState } from "react"
 import SidebarAvailableNodes from "./sidebarAvailableNodes"
 import { ReactFlowProvider } from "reactflow"
 import { FlowInfosProvider, FlowInfosContext } from "./context/flowInfosContext"
@@ -17,7 +17,7 @@ import ResultsPane from "./results/resultsPane"
  * @description This component is the base for all the flow pages. It contains the sidebar, the flow and the results pane.
  *
  */
-const FlowPageBaseWithFlowInfos = ({ children, workflowType, id, isExperiment }) => {
+const FlowPageBaseWithFlowInfos = ({ children, workflowType, id, isExperiment, runFinalizeAndSave }) => {
   // here is the use of the context to update the flowInfos
   const [isDragging, setIsDragging] = useState(false)
   const { updateFlowInfos, showAvailableNodes } = useContext(FlowInfosContext)
@@ -95,7 +95,7 @@ const FlowPageBaseWithFlowInfos = ({ children, workflowType, id, isExperiment })
                 size > 5 ? setShowResultsPane(true) : setShowResultsPane(false)
               }}
             >
-              <ResultsPane />
+              <ResultsPane runFinalizeAndSave={runFinalizeAndSave} />
             </Panel>
           </PanelGroup>
         </Panel>

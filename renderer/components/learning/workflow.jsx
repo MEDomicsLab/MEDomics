@@ -1,4 +1,5 @@
-import React, { useState, useCallback, useMemo, useEffect, useContext } from "react"
+import { useState, useCallback, useMemo, useEffect, useContext, forwardRef, useImperativeHandle } from "react"
+import uuid from "react-native-uuid"
 import { toast } from "react-toastify"
 import Form from "react-bootstrap/Form"
 import { useNodesState, useEdgesState, useReactFlow, addEdge } from "reactflow"
@@ -22,10 +23,14 @@ import { insertMEDDataObjectIfNotExists } from "../mongoDB/mongoDBUtils.js"
 import StandardNode from "./nodesTypes/standardNode"
 import SelectionNode from "./nodesTypes/selectionNode"
 import GroupNode from "../flow/groupNode"
-import OptimizeIO from "./nodesTypes/optimizeIO"
 import DatasetNode from "./nodesTypes/datasetNode"
 import LoadModelNode from "./nodesTypes/loadModelNode"
 import TrainModelNode from "./nodesTypes/trainModelNode.jsx"
+import boxNode from "./nodesTypes/boxNode.jsx"
+import ResizableGroupNode from "./nodesTypes/resizableGroupNode.jsx"
+import analysisBoxNode from "./nodesTypes/analysisBoxNode.jsx"
+import CombineModelsNode from "./nodesTypes/combineModelsNode.jsx"
+import SplitNode from "./nodesTypes/splitNode.jsx"
 
 // here are the parameters of the nodes
 import nodesParams from "../../public/setupVariables/allNodesParams"
@@ -37,7 +42,6 @@ import { FlowInfosContext } from "../flow/context/flowInfosContext.jsx"
 import { overwriteMEDDataObjectContent } from "../mongoDB/mongoDBUtils.js"
 import { getCollectionData } from "../dbComponents/utils.js"
 import { MEDDataObject } from "../workspace/NewMedDataObject.js"
-import SplitNode from "./nodesTypes/splitNode.jsx"
 import { Tooltip } from "primereact/tooltip"
 import { Tag } from "primereact/tag"
 
@@ -53,16 +57,18 @@ const staticNodesParams = nodesParams // represents static nodes parameters
  * This component is used to display a workflow (ui, nodes, edges, etc.).
  *
  */
-const Workflow = ({ setWorkflowType, workflowType, isExperiment }) => {
+const Workflow = forwardRef(({ setWorkflowType, workflowType, isExperiment }, ref) => {
   const [nodes, setNodes, onNodesChange] = useNodesState([]) // nodes array, setNodes is used to update the nodes array, onNodesChange is a callback hook that is executed when the nodes array is changed
   const [edges, setEdges, onEdgesChange] = useEdgesState([]) // edges array, setEdges is used to update the edges array, onEdgesChange is a callback hook that is executed when the edges array is changed
   const [reactFlowInstance, setReactFlowInstance] = useState(null) // reactFlowInstance is used to get the reactFlowInstance object important for the reactFlow library
   const [MLType, setMLType] = useState("classification") // MLType is used to know which machine learning type is selected
   const [treeData, setTreeData] = useState({}) // treeData is used to set the data of the tree menu
   const [intersections, setIntersections] = useState([]) // intersections is used to store the intersecting nodes related to optimize nodes start and end
+  const [boxIntersections, setBoxIntersections] = useState({}) // boxIntersections is used to store the intersecting nodes related to box nodes
   const [isProgressUpdating, setIsProgressUpdating] = useState(false) // progress is used to store the progress of the workflow execution
   const [metadataFileID, setMetadataFileID] = useState(null) // the metadata file in the .medml folder containing the frontend workflow
   const [backendMetadataFileID, setBackendMetadataFileID] = useState(null) // the metadata file in the .medml folder containing the backend workflow
+  const [isInitialized, setIsInitialized] = useState(false)
   const [progress, setProgress] = useState({
     now: 0,
     currentLabel: ""
@@ -85,14 +91,24 @@ const Workflow = ({ setWorkflowType, workflowType, isExperiment }) => {
       standardNode: StandardNode,
       splitNode: SplitNode,
       selectionNode: SelectionNode,
+      boxNode, boxNode,
+      analysisBoxNode: analysisBoxNode,
+      ResizableGroupNode: ResizableGroupNode,
+      CombineModelsNode: CombineModelsNode,
       groupNode: GroupNode,
-      optimizeIO: OptimizeIO,
       datasetNode: DatasetNode,
       loadModelNode: LoadModelNode,
       trainModelNode: TrainModelNode
     }),
     []
   )
+
+  // Set initialized when isExperiment loads
+  useEffect(() => {
+    if (isExperiment !== undefined) {
+      setIsInitialized(true);
+    }
+  }, [isExperiment])
 
   // When config is changed, we update the workflow
   useEffect(() => {
@@ -139,6 +155,61 @@ const Workflow = ({ setWorkflowType, workflowType, isExperiment }) => {
     }
   }, [isResults])
 
+  // Example function you want to expose
+  const triggerAction = (modelToFinalize, modelName) => {
+    // Run experiment with finalize and save
+    onRun(null, null, true, modelToFinalize, modelName)
+  }
+
+  useImperativeHandle(ref, () => ({
+    triggerAction
+  }))
+
+  const createBoxNode = (position, node, id) => {
+    const { nodeType, name, draggable, selectable, image, size, borderColor, selectedBorderColor } = node
+    let newNode = {
+      id: id,
+      type: nodeType,
+      name: name,
+      draggable: draggable, // if draggable is not defined, it is set to true by default
+      selectable: selectable, // if selectable is not defined, it is set to true by default
+      position,
+      style: {
+        zIndex: -1
+      }, // style of the node, used to set the zIndex of the node
+      data: {
+        // here is the data accessible by children components
+        internal: {
+          name: name,
+          img: image,
+          type: name.toLowerCase().replaceAll(" ", "_"),
+          results: { checked: false, contextChecked: false },
+          borderColor: borderColor, // borderColor is used to set the border color of the node
+          selectedBorderColor: selectedBorderColor, // selectedBorderColor is used to set the border color of the node when it is selected
+          subflowId: "MAIN", // subflowId is used to know which group the node belongs to
+          hasRun: false
+        },
+        setupParam: {
+          possibleSettings: {}
+        },
+        size: size, // size of the node, used to set the width and height of the node
+        tooltipBy: "node" // this is a default value that can be changed in addSpecificToNode function see workflow.jsx for example
+      }
+    }
+    if (nodeType == "analysisBoxNode") {
+      newNode.data.setupParam = {
+        input: ["model"],
+        output: [],
+        classes: "action analyze run endNode",
+        possibleSettings: {
+          plot: "auc",
+          scale: "1"
+        }
+      }
+    }
+    return newNode
+  }
+
   // executed when the machine learning type is changed
   // it updates the possible settings of the nodes
   useEffect(() => {
@@ -148,7 +219,7 @@ const Workflow = ({ setWorkflowType, workflowType, isExperiment }) => {
         node.data = {
           ...node.data
         }
-        if (!node.id.includes("opt")) {
+        if (!node.id.includes("opt") && !node.id.startsWith("box-")) {
           let subworkflowType = node.data.internal.subflowId != "MAIN" ? "optimize" : "learning"
           node.data.setupParam.possibleSettings = deepCopy(staticNodesParams[subworkflowType][node.data.internal.type]["possibleSettings"][MLType])
           console.log(node.type)
@@ -170,11 +241,89 @@ const Workflow = ({ setWorkflowType, workflowType, isExperiment }) => {
 
   // executed when the nodes array and edges array are changed
   useEffect(() => {
+    const createDefaultBoxes = () => {
+      let boxes = []
+      let newId = ''
+      let initBox = createBoxNode(
+        { x: 0, y: 0 },
+        {
+          nodeType: "boxNode",
+          name: "Initialization",
+          draggable: false,
+          selectable: true,
+          image: "",
+          size: { width: 700, height: 1000 },
+          borderColor: "rgba(173, 230, 150, 0.8)",
+          selectedBorderColor: "rgb(255, 187, 0)",
+        },
+        "box-initialization"
+      )
+      let trainBox = createBoxNode(
+        { x: 800, y: 250 },
+        {
+          nodeType: "boxNode",
+          name: "Training",
+          draggable: false,
+          selectable: true,
+          image: "",
+          size: { width: 500, height: 500 },
+          borderColor: "rgba(173, 230, 150, 0.8)",
+          selectedBorderColor: "rgb(255, 187, 0)",
+        },
+        "box-training"
+      )
+      let analysisBox = createBoxNode(
+        { x: 1500, y: 350 },
+        {
+          nodeType: "analysisBoxNode",
+          name: "Analysis",
+          draggable: false,
+          selectable: true,
+          image: "",
+          size: { width: 500, height: 300 },
+          borderColor: "rgba(150, 201, 230, 0.8)",
+          selectedBorderColor: "rgb(255, 187, 0)",
+        },
+        "box-analysis"
+      )
+      const newBoxes = [initBox, trainBox, analysisBox]
+      newBoxes.forEach((box) => {
+        const exists = nodes.find((node) => node.name == box.name && (node.type == "boxNode" || node.type == "analysisBoxNode"))
+        if (exists && exists.type === "analysisBoxNode" && !exists.data.setupParam) {
+          // If the analysis box exists but does not have setupParam, we need to update it
+          setNodes((nds) =>
+            nds.map((node) => {
+              if (node.id === exists.id) {
+                node.data.setupParam = {
+                  input: ["model"],
+                  output: [],
+                  classes: "action analyze run endNode",
+                  possibleSettings: {
+                    plot: "auc",
+                    scale: "1"
+                  }
+                }
+              }
+              return node
+            })
+          )
+          return
+        }
+        if (exists) return
+        newId = `box-node_${uuid.v4()}`
+        box = addSpecificToNode(box)
+        boxes.push(box)
+      })
+      if (boxes.length > 0) setNodes((nds => [...nds, ...boxes])) // add the boxes to the nodes array
+    }
+    if (isInitialized) {
+      isExperiment ? [] : createDefaultBoxes() // create default boxes to add to the workflow
+    }
     setTreeData(createTreeFromNodes())
     updateTrainModelNode(nodes, edges)
     cleanTrainModelNode(nodes)
     updateSplitNodesColumns(nodes)
-  }, [nodes, edges])
+  }, [nodes, edges, isExperiment, isInitialized])
 
   // Update split node columns
   const updateSplitNodesColumns = (nodes) => {
@@ -549,6 +698,75 @@ const Workflow = ({ setWorkflowType, workflowType, isExperiment }) => {
     return treeMenuData
   }
 
+  useEffect(() => {
+    Object.keys(boxIntersections).map(((boxId) => {
+      const foundOutlier = boxIntersections[boxId].some((target => {
+        const targetNode = nodes.find((node) => node.id === target)
+        if (!targetNode) return // If the target node is not found, exit early
+        return targetNode.data.setupParam.section.toLowerCase() !== boxId.split("-")[1].split(".")[0]
+      }))
+      if (foundOutlier) {
+        // Update the box color to red if the section does not match
+        changeBoxColor(boxId, "rgba(255, 0, 0, 0.8)", "rgb(255, 0, 0)")
+      } else {
+        if (boxId.includes("analysis")) {
+          // If the box is an analysis box, we set the color to blue
+          changeBoxColor(boxId, "rgba(150, 201, 230, 0.8)", "rgb(255, 187, 0)")
+        } else {
+          // Update the box color to green if the section matches
+          changeBoxColor(boxId, "rgba(173, 230, 150, 0.8)", "rgb(255, 187, 0)")
+        }
+      }
+    }))
+  }, [boxIntersections])
+
+  const changeBoxColor = (nodeId, color, onSelectedColor) => {
+    // This function changes the color of the box node
+    setNodes((nds) =>
+      nds.map((node) => {
+        if (node.id === nodeId) {
+          node.data.internal.borderColor = color
+          node.data.internal.selectedBorderColor = onSelectedColor
+        }
+        return node
+      })
+    )
+  }
+
+  const handleIntersectionWithBox = (source, targets=[]) => {
+    // This function checks if the node is intersecting with a box node
+    // If it is, it adds the intersection to the intersections array
+    if (targets.length !== 0){
+      let newIntersections = targets.filter((int) => int.startsWith("box-"))
+      newIntersections.forEach((int) => {
+        if (!Object.keys(boxIntersections).includes(int) || boxIntersections[int].length == 0 || !boxIntersections[int].includes(source.id)) {
+          setBoxIntersections(prev => ({
+            ...prev,
+            [int]: [...new Set([...(prev[int] || []), source.id])]
+          }))
+        }
+      })
+      // Remove source.id from boxes not listed in targets
+      Object.keys(boxIntersections).forEach((boxId) => {
+        if (!newIntersections.includes(boxId) && boxIntersections[boxId]?.includes(source.id)) {
+          setBoxIntersections(prev => ({
+            ...prev,
+            [boxId]: prev[boxId].filter(item => item !== source.id)
+          }))
+        }
+      })
+    } else {
+      // Remove source.id from all box intersections
+      Object.keys(boxIntersections).forEach((boxId) => {
+        if (!boxIntersections[boxId]?.includes(source.id)) return
+        setBoxIntersections(prev => ({
+          ...prev,
+          [boxId]: prev[boxId].filter(item => item !== source.id)
+        }))
+      })
+    }
+  }
+
   /**
    * @param {Object} event event object
    * @param {Object} node node object
@@ -557,9 +775,14 @@ const Workflow = ({ setWorkflowType, workflowType, isExperiment }) => {
    * It checks if the node is intersecting with another node
    * If it is, it adds the intersection to the intersections array
    */
-  const onNodeDrag = useCallback(
-    (event, node) => {
-      let rawIntersects = getIntersectingNodes(node).map((n) => n.id)
+  const onNodeDrag = useCallback((event, node) => {
+      const intersectingNodes = getIntersectingNodes(node)
+      let rawIntersects = intersectingNodes.map((n) => n.id)
+
+      // Handle intersection with box nodes
+      handleIntersectionWithBox(node, rawIntersects)
+
+      // Filter out nodes that are not in the same subflow as the current node
       rawIntersects = rawIntersects.filter((n) => nodes.find((node) => node.id == n).data.internal.subflowId == node.data.internal.subflowId)
       let isNew = false
 
@@ -593,6 +816,44 @@ const Workflow = ({ setWorkflowType, workflowType, isExperiment }) => {
         } else {
           setIntersections((intersects) => intersects.filter((int) => int.sourceId !== node.id))
         }
+      }
+
+      if (!node.data.setupParam.section) return
+      const boxNode = nodes.find((n) => n.id.startsWith("box-") && n.name.toLowerCase() === node.data.setupParam.section.toLowerCase())
+      if (!boxNode) return
+      const maxPosX = boxNode ? boxNode.position.x + boxNode.width - node.width : 1000 // Default max position if no box node found
+      const minPosX = boxNode ? boxNode.position.x + 60 : 0 // Default min position if no box node  (60 is side bar width)
+      const maxPosY = boxNode ? boxNode.position.y + boxNode.height - node.height : 1000 // Default max position if no box node found
+      const minPosY = boxNode ? boxNode.position.y : 0 // Default min position if no box node found
+      if (node.position.x < minPosX || node.position.x > maxPosX) {
+        if (node.position.x - minPosX < maxPosX - node.position.x) {
+          node.position.x = Math.max(node.position.x, minPosX)
+        } else {
+          node.position.x = Math.min(node.position.x, maxPosX)
+        }
+        setNodes((nds) =>
+          nds.map((n) => {
+            if (n.id === node.id) {
+              n.position = { x: node.position.x, y: node.position.y }
+            }
+            return n
+          })
+        )
+      }
+      if (node.position.y < minPosY || node.position.y > maxPosY) {
+        if (node.position.y - minPosY < maxPosY - node.position.y) {
+          node.position.y = Math.max(node.position.y, minPosY)
+        } else {
+          node.position.y = Math.min(node.position.y, maxPosY)
+        }
+        setNodes((nds) =>
+          nds.map((n) => {
+            if (n.id === node.id) {
+              n.position = { x: node.position.x, y: node.position.y }
+            }
+            return n
+          })
+        )
       }
     },
     [nodes, intersections]
@@ -629,9 +890,10 @@ const Workflow = ({ setWorkflowType, workflowType, isExperiment }) => {
   const updateScene = (newScene) => {
     console.log("Scene updating", newScene)
     if (newScene) {
+      setBoxIntersections({})
       if (Object.keys(newScene).length > 0) {
         Object.values(newScene.nodes).forEach((node) => {
-          if (!node.id.includes("opt")) {
+          if (!node.id.includes("opt") && !node.id.startsWith("box-")) {
             let subworkflowType = node.data.internal.subflowId != "MAIN" ? "optimize" : "learning"
             let setupParams = deepCopy(staticNodesParams[subworkflowType][node.data.internal.type])
             setupParams.possibleSettings = setupParams["possibleSettings"][newScene.MLType]
@@ -641,6 +903,8 @@ const Workflow = ({ setWorkflowType, workflowType, isExperiment }) => {
               setupParams.possibleSettingsTuning = setupParamsTuning["possibleSettings"][newScene.MLType]
             }
             node.data.setupParam = setupParams
+          } else if (node.id.startsWith("box-")) {
+            node.draggable = false
           }
         })
         const { x = 0, y = 0, zoom = 1 } = newScene.viewport
@@ -649,6 +913,7 @@ const Workflow = ({ setWorkflowType, workflowType, isExperiment }) => {
         setEdges(newScene.edges || [])
         setViewport({ x, y, zoom })
         setIntersections(newScene.intersections || [])
+        setBoxIntersections(newScene.boxIntersections || {})
       }
     }
   }
@@ -696,7 +961,7 @@ const Workflow = ({ setWorkflowType, workflowType, isExperiment }) => {
   const addSpecificToNode = (newNode, associatedNode) => {
     // if the node is not a static node for a optimize subflow, it needs possible settings
     let setupParams = {}
-    if (!newNode.id.includes("opt")) {
+    if (!newNode.id.includes("opt") && !newNode.id.startsWith("box-")) {
       setupParams = deepCopy(staticNodesParams[workflowType][newNode.data.internal.type])
       setupParams.possibleSettings = setupParams["possibleSettings"][MLType]
       if (newNode.type == "trainModelNode") {
@@ -710,6 +975,19 @@ const Workflow = ({ setWorkflowType, workflowType, isExperiment }) => {
     newNode.hidden = newNode.type == "optimizeIO"
     newNode.zIndex = newNode.type == "optimizeIO" ? 1 : 1010
     newNode.data.tooltipBy = "type"
+    // if analysis box, add input and output
+    if (newNode.type == "analysisBoxNode") {
+      setupParams = {
+        ...newNode.data.setupParam,
+        input: ["model"],
+        output: [],
+        classes: "action analyze run endNode",
+        possibleSettings: {
+          plot: "auc",
+          scale: "1"
+        }
+      }
+    }
     newNode.data.setupParam = setupParams
     newNode.data.internal.code = ""
     newNode.className = setupParams.classes
@@ -800,7 +1078,6 @@ const Workflow = ({ setWorkflowType, workflowType, isExperiment }) => {
   const runNode = useCallback(
     (id) => {
       if (id) {
-        console.log("run node", id)
         console.log(reactFlowInstance)
         onRun(null, id)
       }
@@ -812,21 +1089,22 @@ const Workflow = ({ setWorkflowType, workflowType, isExperiment }) => {
    * Request the backend to run the experiment
    * @param {Number} port port of the backend
    * @param {Object} flowID id of the json object containing the backend workflow
-   * @param {Boolean} isValid boolean to know if the workflow is valid
+   * @param {Boolean} isValid boolean to know if the workflow is 
+   * @param {Boolean} saveAndFinalize boolean to know if the workflow should be saved and finalized
    * @returns {Object} results of the experiment
    */
-  function requestBackendRunExperiment(port, flowID, isValid) {
+  function requestBackendRunExperiment(port, flowID, isValid, saveAndFinalize = false, modelToFinalize = null, modelName = null) {
     if (isValid) {
       console.log("flow sent", flowID)
       setIsProgressUpdating(true)
       requestBackend(
         port,
         "/learning/run_experiment/" + pageId,
-        { DBName: "data", id: flowID },
+        { DBName: "data", id: flowID, saveAndFinalize: saveAndFinalize, modelToFinalize: modelToFinalize, modelName: modelName },
         (jsonResponse) => {
           console.log("received results:", jsonResponse)
           if (!jsonResponse.error) {
-            updateFlowResults(jsonResponse, globalData[pageId].parentID)
+            updateFlowResults(jsonResponse, globalData[pageId].parentID, saveAndFinalize, modelToFinalize)
             setProgress({
               now: 100,
               currentLabel: "Done!"
@@ -863,14 +1141,14 @@ const Workflow = ({ setWorkflowType, workflowType, isExperiment }) => {
    * execute the whole workflow
    */
   const onRun = useCallback(
-    async (e, up2Id = undefined) => {
+    async (e, up2Id = undefined, saveAndFinalize = false, modelToFinalize = null, modelName = null) => {
       if (reactFlowInstance) {
         let flow = deepCopy(reactFlowInstance.toObject())
         flow.MLType = MLType
         flow.nodes.forEach((node) => {
           node.data.setupParam = null
         })
-
+        flow.nodes = flow.nodes.filter((node) => node.type !== "boxNode")
         // Create results Folder
         let resultsFolder = new MEDDataObject({
           id: randomUUID(),
@@ -895,7 +1173,7 @@ const Workflow = ({ setWorkflowType, workflowType, isExperiment }) => {
         console.log("sending flow ", flow)
         let { success, isValid } = await cleanJson2Send(flow, up2Id, plotDirectoryID)
         if (success) {
-          requestBackendRunExperiment(port, backendMetadataFileID, isValid)
+          requestBackendRunExperiment(port, backendMetadataFileID, isValid, saveAndFinalize, modelToFinalize, modelName)
         } else {
           toast.error("Could not format metadata for backend")
         }
@@ -1067,6 +1345,7 @@ const Workflow = ({ setWorkflowType, workflowType, isExperiment }) => {
       const flow = deepCopy(reactFlowInstance.toObject())
       flow.MLType = MLType
       flow.intersections = intersections
+      flow.isExperiment = isExperiment
       console.log("scene saved", flow)
       flow.nodes.forEach((node) => {
         node.data.setupParam = null
@@ -1159,6 +1438,7 @@ const Workflow = ({ setWorkflowType, workflowType, isExperiment }) => {
         onDeleteNode={onDeleteNode}
         groupNodeHandlingDefault={groupNodeHandlingDefault}
         onNodeDrag={onNodeDrag}
+        isExperiment={isExperiment}
         // reprensents the visual over the workflow
         uiTopRight={
           <>
@@ -1166,9 +1446,9 @@ const Workflow = ({ setWorkflowType, workflowType, isExperiment }) => {
               <div className="d-flex align-items-center gap-2 p-1.5 rounded-3">
                 {isExperiment && <>
                   <Tooltip target=".experimenting-tag" position="bottom" className="tooltip-custom">
-                    <span>This an experiment scene, create a new scene to switch to main mode</span>
+                    <span>This scene is for experimentation. Set up a new scene to switch to the main mode.</span>
                   </Tooltip>
-                  <Tag className="experimenting-tag" severity="info" value="Experiment Mode"></Tag>
+                  <Tag className="experimenting-tag" severity="info" value="Experimental Mode"></Tag>
                 </>
                 }
                 <Form.Select className="margin-left-10" aria-label="Default select example" value={MLType} onChange={handleMlTypeChanged}>
@@ -1243,6 +1523,6 @@ const Workflow = ({ setWorkflowType, workflowType, isExperiment }) => {
       />
     </>
   )
-}
+})
 
 export default Workflow

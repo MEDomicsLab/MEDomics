@@ -38,7 +38,10 @@ class Analyze(Node):
         """
         This function is used to execute the node.
         """
+        self._info_for_next_node = kwargs  # Pass all kwargs to finalze and save models
         selection = self.config_json['data']['internal']['selection']
+        if selection not in ['interpret_model', 'plot_model', 'dashboard']:
+            selection = 'plot_model'  # Default to plot_model if not specified
         print()
         print(Fore.BLUE + "=== Analysing === " +
               Fore.YELLOW + f"({self.username})" + Fore.RESET)

@@ -119,9 +119,9 @@ const PipelineResult = ({ pipeline, selectionMode, flowContent }) => {
           toReturn = <DataParamResults selectedResults={selectedResults} type={type} />
         } else if (type == "split") {
           toReturn = <SplitResults selectedResults={selectedResults} />
-        } else if (["train_model", "compare_models", "stack_models", "ensemble_model", "tune_model", "blend_models", "calibrate_model"].includes(type)) {
+        } else if (["model", "train_model", "compare_models", "stack_models", "ensemble_model", "tune_model", "blend_models", "calibrate_model"].includes(type)) {
           toReturn = <ModelsResults selectedResults={selectedResults} />
-        } else if (type == "analyze") {
+        } else if (type == "analysis" || type == "analyze") {
           toReturn = <AnalyseResults selectedResults={selectedResults} />
         } else if (type == "save_model") {
           toReturn = <SaveModelResults selectedResults={selectedResults} />
@@ -147,8 +147,8 @@ const PipelineResult = ({ pipeline, selectionMode, flowContent }) => {
  * @description
  * This component takes all the selected pipelines and displays them in an accordion.
  */
-const PipelinesResults = ({ pipelines, selectionMode, flowContent }) => {
-  const { selectedResultsId, setSelectedResultsId, flowResults, showResultsPane, isResults } = useContext(FlowResultsContext)
+const PipelinesResults = ({ pipelines, selectionMode, flowContent, runFinalizeAndSave }) => {
+  const { selectedResultsId, setSelectedResultsId, flowResults, setShowResultsPane, showResultsPane, isResults } = useContext(FlowResultsContext)
   const { getBasePath } = useContext(WorkspaceContext)
   const { sceneName } = useContext(FlowInfosContext)
 
@@ -187,12 +187,12 @@ const PipelinesResults = ({ pipelines, selectionMode, flowContent }) => {
     }
     // check if the results are in the correct format
     const isValidFormat = (results) => {
-      let key = selectedResultsId ? selectedResultsId : Object.keys(results)[0]
+      let key = Object.keys(results)[0]
       return results[key].results ? true : false
     }
     // get the dataset id
     if (isValidFormat(results)) {
-      let key = selectedResultsId ? selectedResultsId : Object.keys(results)[0]
+      let key = Object.keys(results)[0]
       if (results[key].results && results[key].results.data && results[key].results.data.paths) {
         if (results[key].results.data.paths[0].id) {
           datasetId = results[key].results.data.paths[0].id
@@ -210,8 +210,7 @@ const PipelinesResults = ({ pipelines, selectionMode, flowContent }) => {
    * @description
    * This function is used to create the title of the accordion tab dynamically and with buttons control.
    */
-  const createTitleFromPipe = useCallback(
-    (pipeline) => {
+  const createTitleFromPipe = useCallback((pipeline, runFinalizeAndSave) => {
       let pipelineId = pipeline.join("-")
       const getName = (id, pipeline = null) => {
         let node = flowContent.nodes.find((node) => node.id == id)
@@ -222,6 +221,9 @@ const PipelinesResults = ({ pipelines, selectionMode, flowContent }) => {
           //   let prevIds = prevEdges.map((edge) => edge.source)
           //   return prevIds.map((id) => getName(id)).join(" & ")
           // }
+        }
+        if (node && node.name == "Model") {
+          return node.data.internal.name != "Model" ? node.data.internal.name : node.data.internal.selection ? node.data.internal.selection : "Model"
         }
         return node && node.data.internal.name
       }
@@ -248,6 +250,24 @@ const PipelinesResults = ({ pipelines, selectionMode, flowContent }) => {
       }
 
       /**
+       * 
+       */
+      const runFinalizeAndSaveWrapper = async (e) => {
+        e.preventDefault()
+        e.stopPropagation()
+        setShowResultsPane(false)
+
+        // Find model node
+        let modelNode = flowContent.nodes.find((node) => node.data.internal.type == "model" && pipeline.includes(node.id))
+        if (!modelNode || !modelNode.id) {
+          toast.error("No model node found in the pipeline")
+          return
+        }
+        const newName = modelNode.data.internal.name !== "Model" ? modelNode.data.internal.name : ''
+        runFinalizeAndSave(modelNode.id, newName)
+      }
+
+      /**
        *
        * @param {Event} e click event
        * @returns {void}
@@ -264,16 +284,17 @@ const PipelinesResults = ({ pipelines, selectionMode, flowContent }) => {
         console.log("code generation", pipeline)
         let resultsCopy = deepCopy(flowResults)
         console.log("resultsCopy", resultsCopy)
-        pipeline.forEach((id, index) => {
+        let nodeResults = null
+        pipeline.forEach((id) => {
           // check if next node is a group_models
-          let nextNode = index + 1 < pipeline.length ? flowContent.nodes.find((node) => node.id == pipeline[index + 1]) : null
+          let nextNode = flowContent.nodes.find((node) => node.id == id)
           console.log("nextNode", nextNode)
           let isNextGroupModels = nextNode && nextNode.data.internal.type == "combine_models"
           if (isNextGroupModels) {
             console.log("next node is a combine_models")
             console.log(checkIfObjectContainsId(resultsCopy, id))
           }
-          let nodeResults = checkIfObjectContainsId(resultsCopy, id)
+          nodeResults = checkIfObjectContainsId(resultsCopy, id)
           if (nodeResults) {
             if (!isNextGroupModels) {
               finalCode = [...finalCode, ...Object.values(nodeResults.results.code.content)]
@@ -286,7 +307,17 @@ const PipelinesResults = ({ pipelines, selectionMode, flowContent }) => {
             toast.error("Id not found in results")
           }
         })
-        console.log("final code:")
+        // Check if the last result has finalize and save code
+        if (Object.keys(nodeResults.next_nodes).length > 0 && Object.keys(nodeResults.next_nodes).includes("finalize")){
+          if (!Object.values(nodeResults.next_nodes.finalize?.results?.code)) return
+          finalCode = [...finalCode, ...Object.values(nodeResults.next_nodes.finalize.results.code.content)]
+          finalImports = [...finalImports, ...Object.values(nodeResults.next_nodes.finalize.results.code.imports)]
+        }
+        if (Object.keys(nodeResults.next_nodes).length > 0 && Object.keys(nodeResults.next_nodes).includes("save")){
+          if (!Object.values(nodeResults.next_nodes.save?.results?.code)) return
+          finalCode = [...finalCode, ...Object.values(nodeResults.next_nodes.save.results.code.content)]
+          finalImports = [...finalImports, ...Object.values(nodeResults.next_nodes.save.results.code.imports)]
+        }
         console.log(finalImports)
         let notebookID = await createNoteBookDoc(finalCode, finalImports)
         lockDataset(flowResults, notebookID) // Lock the dataset to avoid the user to modify or delete it
@@ -420,6 +451,7 @@ const PipelinesResults = ({ pipelines, selectionMode, flowContent }) => {
             })}
             itemTemplate={buttonTemplate}
           />
+          <FinalizeSaveBtn onClick={runFinalizeAndSaveWrapper} />
           <CodeGenBtn onClick={codeGeneration} />
         </>
       )
@@ -437,10 +469,29 @@ const PipelinesResults = ({ pipelines, selectionMode, flowContent }) => {
    */
   const CodeGenBtn = ({ onClick }) => {
     return (
-      <Button className="code-generation-button" onClick={onClick}>
+      <Button severity="info" className="code-generation-button" onClick={onClick} style={{ marginLeft: "10px" }}>
         <strong>
           Generate
           <Icon.CodeSlash style={{ marginLeft: "10px", fontSize: "1rem" }} />
+        </strong>
+      </Button>
+    )
+  }
+
+  /**
+   *
+   * @param {Function} onClick
+   * @returns {JSX.Element} A CodeGenBtn component
+   *
+   * @description
+   * This component is used to display a button to generate the notebook corresponding to the pipeline.
+   */
+  const FinalizeSaveBtn = ({ onClick }) => {
+    return (
+      <Button severity="info" className="code-generation-button" onClick={onClick}>
+        <strong>
+          Finalize & Save Model
+          <Icon.Floppy style={{ marginLeft: "10px", fontSize: "1rem" }} />
         </strong>
       </Button>
     )
@@ -451,7 +502,7 @@ const PipelinesResults = ({ pipelines, selectionMode, flowContent }) => {
       {pipelines.map((pipeline, index) => {
         
           return (
-            <AccordionTab disabled={!isResults} key={index} header={createTitleFromPipe(pipeline)}>
+            <AccordionTab disabled={!isResults} key={index} header={createTitleFromPipe(pipeline, runFinalizeAndSave, pipeline)}>
               <PipelineResult key={index} pipeline={pipeline} selectionMode={selectionMode} flowContent={flowContent} />
             </AccordionTab>
           )

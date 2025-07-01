@@ -68,7 +68,7 @@ class MEDexperimentLearning(MEDexperiment):
         elif node_type == "tune_model" or node_type == "ensemble_model" or node_type == "blend_models" or node_type == "stack_models" or node_type == "calibrate_model":
             from med_libs.MEDml.nodes.Optimize import Optimize
             return Optimize(node_config['id'], self.global_json_config)
-        elif node_type == "analyze":
+        elif node_type == "analysis" or node_type == "analyze":
             from med_libs.MEDml.nodes.Analyze import Analyze
             return Analyze(node_config['id'], self.global_json_config)
         elif node_type == "save_model" or node_type == "load_model":

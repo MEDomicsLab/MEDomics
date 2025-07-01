@@ -1,4 +1,4 @@
-import React, { createContext, useState, useContext } from "react"
+import { createContext, useState, useContext } from "react"
 import { FlowInfosContext } from "./flowInfosContext"
 import { MEDDataObject } from "../../workspace/NewMedDataObject"
 import { WorkspaceContext } from "../../workspace/workspaceContext"
@@ -22,15 +22,40 @@ function FlowResultsProvider({ children }) {
   const { sceneName } = useContext(FlowInfosContext)
   const { workspace } = useContext(WorkspaceContext)
 
+  // Helper function to recursively find and update a key
+  const updateKeyInObject = (obj, targetKey, newValue) => {
+    const updatedObj = { ...obj }
+    const updatedVal = { ...newValue }
+
+    for (const key in updatedObj) {
+      if (key.includes("*") && key.includes(targetKey)) {
+        updatedObj[key] = updatedVal[key] // Update if key matches
+      } else if (typeof updatedObj[key] === 'object' && updatedObj[key] !== undefined && updatedObj[key] !== null) {
+        // Recurse into nested objects/arrays
+        updatedObj[key] = updateKeyInObject(updatedObj[key], targetKey, updatedVal[key])
+      }
+    }
+
+    return updatedObj
+  }
+
   // This function is used to update the flowResults
-  const updateFlowResults = async (newResults, sceneFolderId) => {
+  const updateFlowResults = async (newResults, sceneFolderId, finalizing = false, finalizedNode = null) => {
     if (!newResults) return
     const isValidFormat = (results) => {
       let firstKey = Object.keys(results)[0]
       return results[firstKey].results ? true : false
     }
     if (isValidFormat(newResults)) {
-      setFlowResults({ ...newResults })
+      if (finalizing) {
+        // If we are finalizing the results, we only update the results of the finalized node
+        if (finalizedNode) {
+          newResults = updateKeyInObject(flowResults, finalizedNode, newResults)
+          setFlowResults((prevResults) => updateKeyInObject(prevResults, finalizedNode, newResults))
+        }
+      } else {
+        setFlowResults({ ...newResults })
+      }
       setIsResults(true)
       if (workspace.hasBeenSet && sceneName) {
         let resultsFolder = new MEDDataObject({

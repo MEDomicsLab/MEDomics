@@ -59,18 +59,10 @@ class CombineModels(Node):
         # read settings                                                      #
         # ------------------------------------------------------------------ #
         s: dict = self.settings
-
-        # Modern UI -------------------------------------------------------- #
-        self.method:       Optional[str]  = s.get("method")
-        self.method_params:Dict[str, Any] = s.get("method_params", {})
-
-        self.post_action:  Optional[str]  = s.get("post_action")
+        self.post_action:  Optional[str]  = s.get("post_action", None)
         self.post_params:  Dict[str, Any] = s.get("post_params", {})
-
-        # Legacy support ---------------------------------------------------- #
-        # (‘optimize_fct’ / ‘optimize_params’ still work)
-        self.method        = self.method or s.get("optimize_fct")
-        self.method_params = self.method_params or s.get("optimize_params", {})
+        self.method = s.get("optimize_fct")
+        self.method_params = s.get("optimize_params", {})
 
         # Validation -------------------------------------------------------- #
         if self.method:
@@ -83,19 +75,14 @@ class CombineModels(Node):
         self.CodeHandler.add_line("code", "# --- CombineModels ---")
         self.CodeHandler.add_line("code", "trained_models = []")
 
-        print(
-            Fore.MAGENTA + f"[CombineModels #{self.id}] waiting for → {self.upstream_ids}"
-            + Fore.RESET
-        )
-
     # ---------------------- execution (may be called several times) -------- #
     def _execute(self, experiment: dict = None, **kwargs) -> json:
         """
         Parameters forwarded by upstream nodes
         --------------------------------------
-        id      : str   – pattern ``"{nodeId}*{instance}"`` (legacy)
-        models  : list  – list of trained estimators
-        settings: dict  – (optional) – training settings for HTML export
+        id      : str - pattern ``"{nodeId}*{instance}"`` (legacy)
+        models  : list - list of trained estimators
+        settings: dict - (optional) - training settings for HTML export
         """
         branch_id = kwargs["id"].split("*")[0]
         self._received_ids.append(branch_id)
@@ -104,8 +91,7 @@ class CombineModels(Node):
             self._received_opts.append(kwargs["settings"])
 
         # Register code for the incoming batch
-        batch_repr = ", ".join(format_model(m).__class__.__name__
-                               for m in kwargs["models"])
+        batch_repr = ", ".join(format_model(m).__class__.__name__ for m in kwargs["models"])
         self.CodeHandler.add_line("code", f"trained_models += [{batch_repr}]")
 
         # ------------------------------------------------------------------ #
@@ -127,10 +113,7 @@ class CombineModels(Node):
         # ---------- Main combination (blend / stack) ----------------------- #
         if self.method:
             if len(full_list) < 2:
-                raise ValueError(
-                    f"[CombineModels] '{self.method}' needs ≥2 models "
-                    f"(received {len(full_list)})"
-                )
+                raise ValueError(f"CombineModels '{self.method}' needs ≥2 models (received {len(full_list)})")
             print(Fore.GREEN + f"→ {self.method}()" + Fore.RESET)
 
             pycaret_exp = experiment["pycaret_exp"]

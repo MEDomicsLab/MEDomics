@@ -1,4 +1,4 @@
-import React, { useContext, useState, useEffect } from "react"
+import { useContext, useState, useEffect } from "react"
 import Card from "react-bootstrap/Card"
 import { Col } from "react-bootstrap"
 import { FlowResultsContext } from "../context/flowResultsContext"
@@ -17,7 +17,7 @@ import { RadioButton } from "primereact/radiobutton"
  * This component is used to display the results of the pipeline according to the selected nodes.
  *
  */
-const ResultsPane = () => {
+const ResultsPane = ({ runFinalizeAndSave }) => {
   const { setShowResultsPane } = useContext(FlowResultsContext)
   const { flowContent } = useContext(FlowInfosContext)
   const { updateNode } = useContext(FlowFunctionsContext)
@@ -99,8 +99,30 @@ const ResultsPane = () => {
       if (!graph[source]) {
         graph[source] = []
       }
-
-      graph[source].push(target)
+      
+      const sourceNode = flowContent.nodes.find((node) => node.id == source)
+      const targetNode = flowContent.nodes.find((node) => node.id == target)
+      if (targetNode.type == "trainModelNode" && sourceNode.name !== "Model") {
+        const connectedNodes = flowContent.edges.filter(edge => edge.target === target && edge.source !== source).map(edge => edge.source)
+        const connectedModelNodes = flowContent.nodes.filter(node => node.name === "Model" && connectedNodes.includes(node.id))
+        // Link dataset node to model nodes
+        connectedModelNodes.forEach((modelNode) => {
+          if (!graph[source]) {
+            graph[source] = []
+          }
+          graph[source].push(modelNode.id)
+        })
+      } else if (sourceNode.type == "trainModelNode") {
+        const connectedNodes = flowContent.edges.filter(edge => edge.target === source && edge.source !== target).map(edge => edge.source)
+        const connectedModelNodes = flowContent.nodes.filter(node => node.name === "Model" && connectedNodes.includes(node.id))
+        // Link model nodes to dataset node
+        connectedModelNodes.forEach((modelNode) => {
+          if (!graph[modelNode.id]) {
+            graph[modelNode.id] = []
+          }
+          graph[modelNode.id].push(target)
+        })
+      }
     })
 
     function explore(node, path) {
@@ -176,7 +198,7 @@ const ResultsPane = () => {
             </Button>
           </Card.Header>
           <Card.Body>
-            <PipelinesResults pipelines={selectedPipelines} selectionMode={selectionMode} flowContent={flowContent} />
+            <PipelinesResults pipelines={selectedPipelines} selectionMode={selectionMode} flowContent={flowContent} runFinalizeAndSave={runFinalizeAndSave} />
           </Card.Body>
         </Card>
       </Col>

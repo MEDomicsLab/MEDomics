@@ -1,5 +1,5 @@
 /* eslint-disable react/prop-types */
-import React, { useRef, useCallback, useEffect, useContext, useState } from "react"
+import { useRef, useCallback, useEffect, useContext, useState } from "react"
 import { toast } from "react-toastify"
 import ReactFlow, { Controls, ControlButton, Background, MiniMap, addEdge, useReactFlow } from "reactflow"
 import { FlowFunctionsContext } from "./context/flowFunctionsContext"
@@ -46,7 +46,7 @@ import { ErrorRequestContext } from "../generalPurpose/errorRequestContext"
  * This component is used to display a workflow.
  * It manages base workflow functions such as node creation, node deletion, node connection, etc.
  */
-const WorkflowBase = ({ isGoodConnection, groupNodeHandlingDefault, onDeleteNode, onNodeDrag, mandatoryProps, ui, uiTopLeft, uiTopRight, uiTopCenter, customOnConnect }) => {
+const WorkflowBase = ({ isGoodConnection, groupNodeHandlingDefault, onDeleteNode, onNodeDrag, isExperiment, mandatoryProps, ui, uiTopLeft, uiTopRight, uiTopCenter, customOnConnect }) => {
   const { reactFlowInstance, setReactFlowInstance, addSpecificToNode, nodeTypes, nodes, setNodes, onNodesChange, edges, setEdges, onEdgesChange, runNode } = mandatoryProps
 
   const edgeUpdateSuccessful = useRef(true)
@@ -283,7 +283,7 @@ const WorkflowBase = ({ isGoodConnection, groupNodeHandlingDefault, onDeleteNode
         node.data = {
           ...node.data
         }
-        node.draggable = !showResultsPane
+        node.draggable = node.id.startsWith("box-") ? false : !showResultsPane
         return node
       })
     )
@@ -608,8 +608,8 @@ const WorkflowBase = ({ isGoodConnection, groupNodeHandlingDefault, onDeleteNode
                 className="btn-ctl-available-nodes"
               />
               <ToggleButton
-                onLabel="Results mode on"
-                offLabel="See results"
+                onLabel={isExperiment ? "Results mode on" : "Analysis mode on"}
+                offLabel={isExperiment ? "See results" : "Analysis mode"}
                 onIcon="pi pi-chart-bar"
                 offIcon="pi pi-eye"
                 disabled={!isResults}

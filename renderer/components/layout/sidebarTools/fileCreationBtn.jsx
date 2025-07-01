@@ -108,7 +108,7 @@ const FileCreationBtn = ({ createEmptyFile, label = "Create Page", piIcon = "pi-
               {
                 (type && type === "learning") &&
                   <div className="p-field-checkbox">
-                    <label htmlFor="medStandard">Experiment Scene</label>
+                    <label htmlFor="medStandard">Experimental Scene</label>
                     <InputSwitch id="medStandard" checked={experimentScene} onChange={(e) => setExperimentScene(e.value)} />
                   </div>
               }
