@@ -4,7 +4,7 @@ import { toast } from "react-toastify"
 import { ipcRenderer } from "electron"
 import { requestBackend } from "../../utilities/requests"
 import { ServerConnectionContext } from "../serverConnection/connectionContext"
-import { TunnelContext, useTunnel } from "../tunnel/TunnelContext"
+import { useTunnel } from "../tunnel/TunnelContext"
 import { getTunnelState, setTunnelState, clearTunnelState } from "../../utilities/tunnelState"
 import { Button } from "@blueprintjs/core"
 /**
@@ -32,13 +32,16 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
   const reconnectDelay = 3000 // ms
   const [connectionInfo, setConnectionInfo] = useState(null)
 
+  
+
   // Validation state
   const [inputErrors, setInputErrors] = useState({})
   const [inputValid, setInputValid] = useState(false)
   const [localPortWarning, setLocalPortWarning] = useState("")
 
   const { port } = useContext(ServerConnectionContext) // we get the port for server connexion
-  const { setTunnelInfo, clearTunnelInfo } = useTunnel()
+  const tunnelContext = useTunnel()
+
 
   const registerPublicKey = async (publicKeyToRegister, usernameToRegister) => {
     setRegisterStatus("Registering...")
@@ -118,7 +121,7 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
         setLocalDBPort(tunnel.localDBPort || "54020")
         setRemoteDBPort(tunnel.remoteDBPort || "54017")
         setTunnelStatus("SSH tunnel is already established.")
-        setTunnelInfo(tunnel) // Sync React context
+        tunnelContext.setTunnelInfo(tunnel) // Sync React context
       } else {
         setTunnelActive(false)
         setTunnelStatus("")
@@ -189,7 +192,7 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
       if (result && result.success) {
         setTunnelActive(true)
         setTunnelStatus("SSH tunnel established.")
-        setTunnelInfo({ ...connInfo, tunnelActive: true })
+        tunnelContext.setTunnelInfo(connInfo)
         setTunnelState({ ...connInfo, tunnelActive: true })
         setReconnectAttempts(0)
         if (onConnect) onConnect()
@@ -225,7 +228,7 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
       if (result && result.success) {
         setTunnelActive(false)
         setTunnelStatus("SSH tunnel disconnected.")
-        clearTunnelInfo()
+        tunnelContext.clearTunnelInfo()
         clearTunnelState()
         toast.success("SSH tunnel disconnected.")
       } else {
@@ -265,30 +268,30 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
   const sendTestRequest = async () => {
     console.log("Port: ", port)
     console.log("Tunnel state: ", getTunnelState())
-    console.log("Tunnel context: ", TunnelContext)
+    console.log("Tunnel context: ", tunnelContext)
     // if (!tunnelActive) {
     //   toast.error("SSH tunnel is not active. Please connect first.")
     //   return
     // }
-    await requestBackend(
-      port,
-      "/connection/connection_test_request",
-      { data: "" },
-      async (jsonResponse) => {
-        console.log("received results:", jsonResponse)
-        if (!jsonResponse.error) {
-          setRegisterStatus("Public key registered successfully!")
-          toast.success("Your SSH public key was registered successfully.")
-        } else {
-          setRegisterStatus("Failed to register public key: " + jsonResponse.error)
-          toast.error(jsonResponse.error)
-        }
-      },
-      (err) => {
-        setRegisterStatus("Failed to register public key: " + err)
-        toast.error(err)
-      }
-    )
+    // await requestBackend(
+    //   port,
+    //   "/connection/connection_test_request",
+    //   { data: "" },
+    //   async (jsonResponse) => {
+    //     console.log("received results:", jsonResponse)
+    //     if (!jsonResponse.error) {
+    //       setRegisterStatus("Public key registered successfully!")
+    //       toast.success("Your SSH public key was registered successfully.")
+    //     } else {
+    //       setRegisterStatus("Failed to register public key: " + jsonResponse.error)
+    //       toast.error(jsonResponse.error)
+    //     }
+    //   },
+    //   (err) => {
+    //     setRegisterStatus("Failed to register public key: " + err)
+    //     toast.error(err)
+    //   }
+    // )
   }
 
   // Input validation logic

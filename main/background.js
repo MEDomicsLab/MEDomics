@@ -875,10 +875,21 @@ ipcMain.handle('get-ssh-key', async (_event, { username }) => {
 
 let activeTunnel = null
 let activeTunnelServer = null // Track the TCP server for proper cleanup
-ipcMain.handle('start-ssh-tunnel', async (_event, { host, username, privateKey, password, remotePort, localBackendPort, remoteBackendPort, localDBPort, remoteDBPort }) => {
+ipcMain.handle('start-ssh-tunnel', async (_event, {
+  host,
+  username,
+  privateKey,
+  password,
+  remotePort,
+  localBackendPort,
+  remoteBackendPort,
+  localMongoPort,
+  remoteMongoPort
+}) => {
   return new Promise((resolve, reject) => {
     if (activeTunnelServer) {
-      try { activeTunnelServer.close() } catch {}
+      try { activeTunnelServer.backendServer.close() } catch {}
+      try { activeTunnelServer.mongoServer.close() } catch {}
       activeTunnelServer = null
     }
     if (activeTunnel) {
@@ -895,10 +906,11 @@ ipcMain.handle('start-ssh-tunnel', async (_event, { host, username, privateKey, 
     const conn = new Client()
     conn.on('ready', () => {
       const net = require('net');
-      const server = net.createServer((socket) => {
+      // Backend port forwarding
+      const backendServer = net.createServer((socket) => {
         conn.forwardOut(
           socket.localAddress || '127.0.0.1',
-          socket.localBackendPort || 0,
+          socket.localPort || 0,
           '127.0.0.1',
           parseInt(remoteBackendPort),
           (err, stream) => {
@@ -910,15 +922,38 @@ ipcMain.handle('start-ssh-tunnel', async (_event, { host, username, privateKey, 
           }
         )
       })
-      server.listen(localBackendPort, '127.0.0.1', () => {
-        activeTunnel = conn
-        activeTunnelServer = server
-        resolve({ success: true })
+      backendServer.listen(localBackendPort, '127.0.0.1')
+
+      // MongoDB port forwarding
+      const mongoServer = net.createServer((socket) => {
+        conn.forwardOut(
+          socket.localAddress || '127.0.0.1',
+          socket.localPort || 0,
+          '127.0.0.1',
+          parseInt(remoteMongoPort),
+          (err, stream) => {
+            if (err) {
+              socket.destroy();
+              return;
+            }
+            socket.pipe(stream).pipe(socket)
+          }
+        )
       })
-      server.on('error', (e) => {
+      mongoServer.listen(localMongoPort, '127.0.0.1')
+
+      backendServer.on('error', (e) => {
         conn.end()
-        reject(new Error('Local server error: ' + e.message))
+        reject(new Error('Backend local server error: ' + e.message))
       })
+      mongoServer.on('error', (e) => {
+        conn.end()
+        reject(new Error('Mongo local server error: ' + e.message))
+      })
+
+      activeTunnel = conn
+      activeTunnelServer = { backendServer: backendServer, mongoServer: mongoServer }
+      resolve({ success: true })
     }).on('error', (err) => {
       reject(new Error('SSH connection error: ' + err.message))
     }).connect(connConfig)

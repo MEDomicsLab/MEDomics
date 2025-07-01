@@ -8,6 +8,7 @@ import { Tooltip } from "primereact/tooltip"
 import { LayoutModelContext } from "./layoutContext"
 import { PiFlaskFill } from "react-icons/pi"
 import { FaMagnifyingGlassChart } from "react-icons/fa6"
+import { TbCloudDataConnection } from "react-icons/tb";
 import { FaDatabase } from "react-icons/fa6"
 import { LuNetwork } from "react-icons/lu"
 import { Button } from "primereact/button"
@@ -15,6 +16,11 @@ import { TbFileExport } from "react-icons/tb"
 import { VscChromeClose } from "react-icons/vsc"
 import { PiGraphFill } from "react-icons/pi"
 import { MdOutlineGroups3 } from "react-icons/md"
+import ConnectionModal from "../mainPages/connectionModal"
+import { toast } from "react-toastify"
+import { useTunnel } from "../tunnel/TunnelContext"
+import { FaCircle } from "react-icons/fa"
+
 /**
  * @description Sidebar component containing icons for each page
  * @param {function} onSidebarItemSelect - function to handle sidebar item selection
@@ -28,6 +34,9 @@ const IconSidebar = ({ onSidebarItemSelect }) => {
   const [developerModeNav, setDeveloperModeNav] = useState(true)
   const [extractionBtnstate, setExtractionBtnstate] = useState(false)
   const [buttonClass, setButtonClass] = useState("")
+  const [showConnectionModal, setShowConnectionModal] = useState(false)
+
+  const tunnel = useTunnel()
 
   const delayOptions = { showDelay: 750, hideDelay: 0 }
 
@@ -91,12 +100,17 @@ const IconSidebar = ({ onSidebarItemSelect }) => {
     setButtonClass(buttonClass === "" ? "show" : "")
   }
 
+  const handleRemoteConnect = () => {
+    toast.success("Connected to remote workspace!");
+  };
+
   return (
     <>
       <div className="icon-sidebar">
         {/* ------------------------------------------- Tooltips ----------------------------------------- */}
         <Tooltip target=".homeNavIcon" {...delayOptions} className="tooltip-icon-sidebar" />
         <Tooltip target=".explorerNav" {...delayOptions} className="tooltip-icon-sidebar" />
+        <Tooltip target=".connectionModalBtn" {...delayOptions} className="tooltip-icon-sidebar" />
         <Tooltip target=".inputNav" {...delayOptions} className="tooltip-icon-sidebar" />
         <Tooltip target=".extractionNav" {...delayOptions} className="tooltip-icon-sidebar" data-pr-disabled={extractionBtnstate} />
         <Tooltip target=".exploratoryNav" {...delayOptions} className="tooltip-icon-sidebar" />
@@ -139,6 +153,35 @@ const IconSidebar = ({ onSidebarItemSelect }) => {
             onClick={(event) => handleClick(event, "explorer")}
           >
             <Files size={"1.25rem"} width={"100%"} height={"100%"} style={{ scale: "0.65" }} />
+          </Nav.Link>
+
+          <Nav.Link
+            className="connectionModalBtn btnSidebar"
+            data-pr-at="right center"
+            data-pr-tooltip="ConnectionMenu"
+            data-pr-my="left center"
+            data-tooltip-id="tooltip-connection-menu"
+            onClick={() => {
+              setShowConnectionModal(true)
+              console.log("TunnelActive: " + tunnel.tunnelActive)
+            }}
+            style={{ position: "relative" }}
+          >
+            <TbCloudDataConnection style={{ height: "2.2rem", width: "100%", strokeWidth: "1" }} />
+            {/* SSH Tunnel status indicator */}
+            <FaCircle
+              style={{
+                position: "absolute",
+                bottom: 4,
+                right: 8,
+                fontSize: "0.7rem",
+                color: tunnel.tunnelActive ? "#4caf50" : "#bdbdbd",
+                border: "1.5px solid white",
+                borderRadius: "50%",
+                background: "white"
+              }}
+              title={tunnel.tunnelActive ? "SSH Tunnel Active" : "SSH Tunnel Inactive"}
+            />
           </Nav.Link>
 
           <NavDropdown.Divider className="icon-sidebar-divider" style={{ height: "3rem" }} />
@@ -351,7 +394,14 @@ const IconSidebar = ({ onSidebarItemSelect }) => {
 
           {/* div that puts the buttons to the bottom of the sidebar*/}
           <div className="d-flex icon-sidebar-divider" style={{ flexGrow: "1" }}></div>
-
+          
+          {showConnectionModal && <ConnectionModal
+            visible={showConnectionModal}
+            closable={false}
+            onClose={() => setShowConnectionModal(false)}
+            onConnect={handleRemoteConnect}
+          />}
+          
           {/* ------------------------------------------- SETTINGS BUTTON ----------------------------------------- */}
           <Nav.Link
             className="settingsNav btnSidebar"
