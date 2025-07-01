@@ -21,6 +21,7 @@ const nodesParams = {
     img: "dataset.png",
     title: "Dataset",
     experimenting: true,
+    section: "initialization",
     possibleSettings: {
       classification: classificationSettings["dataset"],
       regression: regressionSettings["dataset"]
@@ -36,6 +37,7 @@ const nodesParams = {
     img: "split.png",
     title: "Split",
     experimenting: false,
+    section: "initialization",
     possibleSettings: { classification: classificationSettings["split"], regression: regressionSettings["analyze"] }
   },
   clean: {
@@ -48,6 +50,7 @@ const nodesParams = {
     img: "clean.png",
     title: "Clean",
     experimenting: true,
+    section: "initialization",
     possibleSettings: { classification: classificationSettings["clean"], regression: regressionSettings["clean"] }
   },
   model: {
@@ -60,6 +63,7 @@ const nodesParams = {
     img: "model.png",
     title: "Model",
     experimenting: false,
+    section: "initialization",
     possibleSettings: { classification: classificationModelsSettings, regression: regressionModelsSettings }
   },
   train_model: {
@@ -72,6 +76,7 @@ const nodesParams = {
     img: "create_model.png",
     title: "Train model",
     experimenting: false,
+    section: "training",
     possibleSettings: { classification: classificationSettings["create_model"], regression: regressionSettings["create_model"] }
   },
   compare_models: {
@@ -84,10 +89,11 @@ const nodesParams = {
     img: "compare_models.png",
     title: "Compare models",
     experimenting: true,
+    section: "training",
     possibleSettings: { classification: classificationSettings["compare_models"], regression: regressionSettings["compare_models"] }
   },
   combine_models: {
-    type: "standardNode",
+    type: "CombineModelsNode",
     classes: "action combine_models",
     nbInput: 1,
     nbOutput: 1,
@@ -96,6 +102,7 @@ const nodesParams = {
     img: "group_models.png",
     title: "Combine models",
     experimenting: false,
+    section: "training",
     possibleSettings: { classification: classificationSettings["combine_models"], regression: regressionSettings["group_models"] }
   },
   load_model: {
@@ -108,6 +115,7 @@ const nodesParams = {
     img: "load_model.png",
     title: "Load model",
     experimenting: false,
+    section: "training",
     possibleSettings: { classification: classificationSettings["load_model"], regression: regressionSettings["load_model"] }
   },
   optimize: {
@@ -120,6 +128,7 @@ const nodesParams = {
     img: "optimize.png",
     title: "Optimize",
     experimenting: false,
+    section: "unknown",
     possibleSettings: { classification: classificationSettings["optimize"], regression: regressionSettings["optimize"] }
   },
   analyze: {
@@ -132,32 +141,9 @@ const nodesParams = {
     img: "analyze.png",
     title: "Analyze",
     experimenting: true,
+    section: "analysis",
     possibleSettings: { classification: classificationSettings["analyze"], regression: regressionSettings["analyze"] }
   },
-  finalize: {
-    type: "standardNode",
-    classes: "action finalize run",
-    nbInput: 1,
-    nbOutput: 1,
-    input: ["model"],
-    output: ["model"],
-    img: "finalize.png",
-    title: "Finalize",
-    experimenting: false,
-    possibleSettings: { classification: classificationSettings["finalize"], regression: regressionSettings["finalize"] }
-  },
-  save_model: {
-    type: "standardNode",
-    classes: "action save_model run endNode",
-    nbInput: 1,
-    nbOutput: 0,
-    input: ["model"],
-    output: [],
-    img: "save_model.png",
-    title: "Save model",
-    experimenting: false,
-    possibleSettings: { classification: classificationSettings["save_model"], regression: regressionSettings["save_model"] }
-  }
 }
 
 export default nodesParams
