@@ -184,6 +184,9 @@ const FlWorflowBase = ({ isGoodConnection, groupNodeHandlingDefault, onDeleteNod
       // check if sourceNode's outputs is compatible with targetNode's inputs
       let isValidConnection = false
       sourceNode.data.setupParam.output.map((output) => {
+        console.log("this ois the output ", sourceNode.data.setupParam.output)
+        console.log("this ois the input ", targetNode.data.setupParam.input)
+
         if (targetNode.data.setupParam.input.includes(output)) {
           isValidConnection = true
         }

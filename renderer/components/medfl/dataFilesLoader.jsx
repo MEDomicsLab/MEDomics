@@ -7,7 +7,7 @@ export default function DataFilesLoader(props) {
   //  loadCSVFromPath(config.path, whenDataLoaded)
   const [globalData, setGlobalData] = useState(null)
 
-  const dfd = require("danfojs-node")
+  const dfd = require("danfojs")
 
   const whenDataLoaded = (data) => {
     data = new dfd.DataFrame(data)

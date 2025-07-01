@@ -15,6 +15,7 @@ import { Stack } from "react-bootstrap"
  * @returns {void}
  */
 const onDragStart = (event, node) => {
+  console.log("onDragStart", node)
   const stringNode = JSON.stringify(node)
   event.dataTransfer.setData("application/reactflow", stringNode)
   event.dataTransfer.effectAllowed = "move"

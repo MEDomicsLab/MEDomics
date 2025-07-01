@@ -45,7 +45,11 @@ const TerminalPage = ({ pageId = "terminal", configPath = undefined }) => {
       <ModulePage pageId={pageId} configPath={configPath} style={{ backgroundColor: "#1f1f1f", top: "-20px" }}>
         <div className="terminal" style={{ backgroundColor: "#1f1f1f", padding: "1rem 1rem", top: "20px", width: "100%" }}>
           {/* Button for clearing the log */}
-          <button className="btn btn-outline-danger" style={{ position: "sticky", top: "20px", left: "calc(100% - 1rem)", zIndex: "3", backgroundColor: "#d55757", color: "white" }} onClick={() => setTerminalData([])}>
+          <button
+            className="btn btn-outline-danger"
+            style={{ position: "sticky", top: "20px", left: "calc(100% - 1rem)", zIndex: "3", backgroundColor: "#d55757", color: "white" }}
+            onClick={() => setTerminalData([])}
+          >
             Clear
           </button>
           {/* Button for downloading the whole log */}

@@ -178,6 +178,8 @@ const LayoutManager = (props) => {
         return <EvaluationSidebar />
       case "medfl":
         return <MEDflSidebar />
+      case "flClient":
+        return <MEDflSidebar />
       case "med3pa":
         return <MED3paSidebar />
 

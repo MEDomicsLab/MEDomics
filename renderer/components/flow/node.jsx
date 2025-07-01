@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext, useRef } from "react"
+import React, { useState, useEffect, useContext, useRef, use } from "react"
 import { Card } from "primereact/card"
 import { toast } from "react-toastify" // https://www.npmjs.com/package/react-toastify
 import EditableLabel from "react-simple-editlabel"
@@ -18,6 +18,8 @@ import { defaultValueFromType } from "../../utilities/learning/inputTypesUtils"
 import { deepCopy } from "../../utilities/staticFunctions"
 import { Tag } from "primereact/tag"
 import { shell } from "electron"
+import { FaWindows, FaLinux, FaApple } from "react-icons/fa"
+
 // keep this import for the code editor (to be implemented)
 // import dynamic from "next/dynamic"
 // const CodeEditor = dynamic(() => import("./codeEditor"), {
@@ -45,12 +47,28 @@ const NodeObject = ({ id, data, nodeSpecific, nodeBody, defaultSettings, onClick
   const { flowInfos, canRun } = useContext(FlowInfosContext) // used to get the flow infos
   const { showResultsPane } = useContext(FlowResultsContext) // used to get the flow results
   const { updateNode, onDeleteNode, runNode } = useContext(FlowFunctionsContext) // used to get the function to update the node
+  const [nodeStatus, setNodeStatus] = useState("") // used to store the status of the node
   const op = useRef(null)
 
   // update warnings when the node is loaded
   useEffect(() => {
     updateHasWarning(data)
   }, [])
+
+  useEffect(() => {
+    // if the node has run, we update the status of the node
+    if (data.device) {
+      const lastSeen = new Date(data.device.lastSeen)
+      const online = Date.now() - lastSeen.getTime() < 60 * 1000
+      if (online) {
+        setNodeStatus("Online")
+      } else {
+        setNodeStatus("Offline")
+      }
+    } else {
+      setNodeStatus("")
+    }
+  }, [data.device?.lastSeen])
 
   /**
    * @description
@@ -59,6 +77,7 @@ const NodeObject = ({ id, data, nodeSpecific, nodeBody, defaultSettings, onClick
    * It calls the parent function wich is defined in the workflow component
    */
   useEffect(() => {
+    console.log("Node name updated to: ", data)
     data.internal.name = nodeName
     updateNode({
       id: id,
@@ -96,6 +115,24 @@ const NodeObject = ({ id, data, nodeSpecific, nodeBody, defaultSettings, onClick
   return (
     <>
       <div className="node">
+          {data.device && (
+                <div
+                  style={{
+                  
+                   position: "absolute",
+                    display: "inline-block",
+                    marginRight: "0.5rem",
+                    marginTop: "0.2rem",
+                    top: "-25px"
+                  }}
+                >
+                  <img src={`/icon/${flowInfos.type}/` + `${data.internal.img.replaceAll(" ", "_")}`} alt={data.internal.img} style={{ width: "15px"  , marginRight : "5px"}} />
+                  {
+                    data.device.tags || [].includes("tag:server") ? "Central Server" : "Client"
+                  }
+                  
+                </div>
+              )}
         {data.internal.hasWarning.state && (
           <>
             <Tag className="node-warning-tag" icon="pi pi-exclamation-triangle" severity="warning" value="" rounded data-pr-position="left" data-pr-showdelay={200} />
@@ -117,11 +154,34 @@ const NodeObject = ({ id, data, nodeSpecific, nodeBody, defaultSettings, onClick
           onClick={(e) => (onClickCustom ? onClickCustom(e) : op.current.toggle(e))}
           // if the node has run and the results pane is displayed, the node is displayed normally
           // if the node has not run and the results pane is displayed, the node is displayed with a notRun class (see .css file)
-          className={`text-left ${data.internal.hasRun && showResultsPane ? "" : showResultsPane ? "notRun" : ""}`}
+          className={`text-left ${data.internal.hasRun && showResultsPane ? "" : showResultsPane ? "notRun" : ""} `}
+          style={{ backgroundColor: nodeStatus == "Online" ? "#C1E1C1" : nodeStatus == "Offline" ? "#F0808050" : "" }}
           header={
             <>
+            
+              {data.device && (
+                <span
+                  style={{
+                    backgroundColor: nodeStatus == "Online" ? "#4CBB17" : nodeStatus == "Offline" ? "#FF0000" : "",
+                    width: "0.5rem",
+                    height: "0.5rem",
+                    borderRadius: "50%",
+                    display: "inline-block",
+                    marginRight: "0.5rem",
+                    marginTop: "0.2rem"
+                  }}
+                ></span>
+              )}
               <div className="align-center">
-                <img src={`/icon/${flowInfos.type}/` + `${data.internal.img.replaceAll(" ", "_")}`} alt={data.internal.img} className="icon-nodes" />
+                {!data.device ? (
+                  <img src={`/icon/${flowInfos.type}/` + `${data.internal.img.replaceAll(" ", "_")}`} alt={data.internal.img} className="icon-nodes" />
+                ) : data.device.os === "windows" ? (
+                  <FaWindows className="me-2" />
+                ) : data.device.os === "linux" ? (
+                  <FaLinux className="me-2" />
+                ) : (
+                  <FaApple className="me-2" />
+                )}{" "}
                 {data.internal.name}
               </div>
 

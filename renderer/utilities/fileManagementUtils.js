@@ -4,7 +4,7 @@ const fs = require("fs")
 const Path = require("path")
 const { parse } = require("csv-parse")
 const dfd = require("danfojs")
-const dfdNode = require("danfojs-node")
+const dfdNode = require("danfojs")
 var Papa = require("papaparse")
 import { ipcRenderer } from "electron"
 

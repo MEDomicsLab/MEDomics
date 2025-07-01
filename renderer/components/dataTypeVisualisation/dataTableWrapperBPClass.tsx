@@ -9,8 +9,8 @@ import { Stack } from "react-bootstrap"
 import { ChevronRight, FiletypeCsv, FiletypeJson, FiletypeXlsx } from "react-bootstrap-icons"
 import { PiFloppyDisk } from "react-icons/pi"
 import { toast } from "react-toastify"
-const dfd = require("danfojs-node")
-import { DataFrame, Utils as danfoUtils } from "danfojs-node"
+const dfd = require("danfojs")
+import { DataFrame, Utils as danfoUtils } from "danfojs"
 import { DataTablePopoverBP } from "./dataTablePopoverBPClass"
 import { deepCopy } from "../../utilities/staticFunctions"
 const dfUtils = new danfoUtils()

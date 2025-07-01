@@ -1,6 +1,6 @@
 import MedDataObject from "../workspace/medDataObject"
 
-const dfd = require("danfojs-node")
+const dfd = require("danfojs")
 
 /**
  * Clean the dataset

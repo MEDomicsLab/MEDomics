@@ -16,7 +16,7 @@ import { toast } from "react-toastify"
 import { confirmDialog } from "primereact/confirmdialog"
 import { Spinner } from "react-bootstrap"
 import { Checkbox } from "primereact/checkbox"
-import * as dfd from "danfojs-node"
+import * as dfd from "danfojs"
 
 /**
  * @class MEDcohortFigureClass
@@ -1061,7 +1061,7 @@ class MEDcohortFigureClass extends React.Component {
    */
   timePointToCsv = (timePoint, timePointData, folderPath) => {
     // eslint-disable-next-line no-undef
-    const dfd = require("danfojs-node")
+    const dfd = require("danfojs")
     if (timePointData === undefined) return
     if (Object.keys(timePointData).length >= 1) {
       // If there is at least one attribute
