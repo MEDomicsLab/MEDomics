@@ -12,8 +12,8 @@ import { Button } from "@blueprintjs/core"
  * @returns {JSX.Element} The connection modal used for establishing a connection to a remote server
  */
 const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
-  const [host, setHost] = useState("dinf-medomi-07b.dinf.fsci.usherbrooke.ca")
-  const [username, setUsername] = useState("marp0049")
+  const [host, setHost] = useState("")
+  const [username, setUsername] = useState("")
   const [password, setPassword] = useState("")
   const [remotePort, setRemotePort] = useState("22")
   const [localBackendPort, setLocalBackendPort] = useState("54280")
@@ -273,25 +273,24 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
     //   toast.error("SSH tunnel is not active. Please connect first.")
     //   return
     // }
-    // await requestBackend(
-    //   port,
-    //   "/connection/connection_test_request",
-    //   { data: "" },
-    //   async (jsonResponse) => {
-    //     console.log("received results:", jsonResponse)
-    //     if (!jsonResponse.error) {
-    //       setRegisterStatus("Public key registered successfully!")
-    //       toast.success("Your SSH public key was registered successfully.")
-    //     } else {
-    //       setRegisterStatus("Failed to register public key: " + jsonResponse.error)
-    //       toast.error(jsonResponse.error)
-    //     }
-    //   },
-    //   (err) => {
-    //     setRegisterStatus("Failed to register public key: " + err)
-    //     toast.error(err)
-    //   }
-    // )
+    await requestBackend(
+      port,
+      "/connection/connection_test_request",
+      { data: "" },
+      async (jsonResponse) => {
+        console.log("received results:", jsonResponse)
+        if (!jsonResponse.error) {
+          setRegisterStatus("Test request successful!")
+        } else {
+          setRegisterStatus("Test request failed: " + jsonResponse.error)
+          toast.error(jsonResponse.error)
+        }
+      },
+      (err) => {
+        setRegisterStatus("Test request failed: " + err)
+        toast.error(err)
+      }
+    )
   }
 
   // Input validation logic

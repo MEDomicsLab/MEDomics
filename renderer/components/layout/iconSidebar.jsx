@@ -169,19 +169,31 @@ const IconSidebar = ({ onSidebarItemSelect }) => {
           >
             <TbCloudDataConnection style={{ height: "2.2rem", width: "100%", strokeWidth: "1" }} />
             {/* SSH Tunnel status indicator */}
-            <FaCircle
-              style={{
-                position: "absolute",
-                bottom: 4,
-                right: 8,
-                fontSize: "0.7rem",
-                color: tunnel.tunnelActive ? "#4caf50" : "#bdbdbd",
-                border: "1.5px solid white",
-                borderRadius: "50%",
-                background: "white"
-              }}
-              title={tunnel.tunnelActive ? "SSH Tunnel Active" : "SSH Tunnel Inactive"}
-            />
+            {tunnel.tunnelActive && (
+              <span
+                style={{
+                  position: "absolute",
+                  bottom: 8,
+                  right: 8,
+                  fontSize: "0.9rem",
+                  color: "#4caf50",
+                  background: "#3a3a3a",
+                  border: "1.5px solid #00ff00",
+                  borderRadius: "50%",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  width: 16,
+                  height: 16,
+                  boxSizing: "border-box"
+                }}
+                title="SSH Tunnel Active"
+              >
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M4.5 8.5L7 11L11.5 6.5" stroke="#00ff00" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              </span>
+            )}
           </Nav.Link>
 
           <NavDropdown.Divider className="icon-sidebar-divider" style={{ height: "3rem" }} />
