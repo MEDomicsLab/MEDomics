@@ -12,8 +12,8 @@ import { Button } from "@blueprintjs/core"
  * @returns {JSX.Element} The connection modal used for establishing a connection to a remote server
  */
 const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
-  const [host, setHost] = useState("192.168.40.55")
-  const [username, setUsername] = useState("marc-alex")
+  const [host, setHost] = useState("dinf-medomi-07b.dinf.fsci.usherbrooke.ca")
+  const [username, setUsername] = useState("marp0049")
   const [password, setPassword] = useState("")
   const [remotePort, setRemotePort] = useState("22")
   const [localBackendPort, setLocalBackendPort] = useState("54280")
@@ -192,8 +192,8 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
       if (result && result.success) {
         setTunnelActive(true)
         setTunnelStatus("SSH tunnel established.")
-        tunnelContext.setTunnelInfo(connInfo)
         setTunnelState({ ...connInfo, tunnelActive: true })
+        tunnelContext.setTunnelInfo(getTunnelState()) // Sync React context
         setReconnectAttempts(0)
         if (onConnect) onConnect()
         toast.success("SSH tunnel established.")
@@ -268,7 +268,7 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
   const sendTestRequest = async () => {
     console.log("Port: ", port)
     console.log("Tunnel state: ", getTunnelState())
-    console.log("Tunnel context: ", tunnelContext)
+    console.log("Tunnel context: ", tunnelContext.tunnelActive)
     // if (!tunnelActive) {
     //   toast.error("SSH tunnel is not active. Please connect first.")
     //   return

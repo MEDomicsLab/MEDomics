@@ -29,7 +29,9 @@ export const TunnelProvider = ({ children }) => {
   })
 
   const setTunnel = (info) => {
-    setTunnelInfo({ ...tunnelInfo, ...info, tunnelActive: true })
+    setTunnelInfo(prev => ({ ...prev, ...info, tunnelActive: true }));
+    console.log("Tunnel info updated:", tunnelInfo)
+    console.log("Tunnel info set:", info)
   }
 
   const clearTunnel = () => {

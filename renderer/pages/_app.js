@@ -14,6 +14,7 @@ import { MEDDataObject } from "../components/workspace/NewMedDataObject"
 import { WorkspaceProvider } from "../components/workspace/workspaceContext"
 import { loadMEDDataObjects, updateGlobalData } from "../utilities/appUtils/globalDataUtils"
 import { NotificationContextProvider } from "../components/generalPurpose/notificationContext"
+import { TunnelProvider } from "../components/tunnel/TunnelContext";
 
 // CSS
 import "bootstrap/dist/css/bootstrap.min.css"
@@ -258,15 +259,17 @@ function App() {
                   setRecentWorkspaces={setRecentWorkspaces}
                 >
                   <ServerConnectionProvider port={port} setPort={setPort}>
-                    <LayoutModelProvider // This is the LayoutContextProvider, which provides the layout model to all the children components of the LayoutManager
-                      layoutModel={layoutModel}
-                      setLayoutModel={setLayoutModel}
-                    >
-                      {/* This is the WorkspaceProvider, which provides the workspace model to all the children components of the LayoutManager */}
-                      {/* This is the LayoutContextProvider, which provides the layout model to all the children components of the LayoutManager */}
-                      <LayoutManager layout={initialLayout} />
-                      {/** We pass the initialLayout as a parameter */}
-                    </LayoutModelProvider>
+                    <TunnelProvider>
+                      <LayoutModelProvider // This is the LayoutContextProvider, which provides the layout model to all the children components of the LayoutManager
+                        layoutModel={layoutModel}
+                        setLayoutModel={setLayoutModel}
+                      >
+                        {/* This is the WorkspaceProvider, which provides the workspace model to all the children components of the LayoutManager */}
+                        {/* This is the LayoutContextProvider, which provides the layout model to all the children components of the LayoutManager */}
+                        <LayoutManager layout={initialLayout} />
+                        {/** We pass the initialLayout as a parameter */}
+                      </LayoutModelProvider>
+                    </TunnelProvider>
                   </ServerConnectionProvider>
                 </WorkspaceProvider>
               </DataContextProvider>
