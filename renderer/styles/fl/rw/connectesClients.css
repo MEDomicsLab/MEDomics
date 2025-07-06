@@ -1,0 +1,45 @@
+.client-panel-container {
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  border: 1px solid #eaeaea;
+}
+
+.clients-carousel::-webkit-scrollbar {
+  display: none;
+}
+
+.client-card {
+  transition: all 0.3s ease;
+  border: 1px solid #f0f0f0;
+  background: linear-gradient(to bottom, #ffffff, #f9f9f9);
+}
+
+.client-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.08);
+  border-color: #d0d0d0;
+}
+
+.client-icon {
+  font-size: 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+}
+
+.status-indicator {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+}
+
+.client-info {
+  border-top: 1px solid #f5f5f5;
+  padding-top: 12px;
+}
+
+.badge {
+  font-weight: 500;
+  letter-spacing: 0.5px;
+}

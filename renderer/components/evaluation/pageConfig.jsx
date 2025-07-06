@@ -82,7 +82,7 @@ const PageConfig = ({
           </div>
           <div>
             {datasetHasWarning.state && (
-              <>
+              <> 
                 <Tag className={`dataset-warning-tag-${pageId}`} icon="pi pi-exclamation-triangle" severity="warning" value="" rounded data-pr-position="left" data-pr-showdelay={200} />
                 <Tooltip target={`.dataset-warning-tag-${pageId}`} autoHide={false}>
                   <span>{datasetHasWarning.tooltip}</span>

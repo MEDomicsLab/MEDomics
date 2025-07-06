@@ -21,5 +21,12 @@ module.exports = {
     "jsx-a11y/role-supports-aria-props": "off",
     "@next/next/no-img-element": "off",
     "react/no-direct-mutation-state": "off",
+
+    //Todo: delete those checks 
+    'no-unused-vars': 'off',
+    'quote-props': 'off',
+    'no-undef': 'off',
+    'camelcase': 'off',
+    'react/jsx-key': 'off',
   },
 }

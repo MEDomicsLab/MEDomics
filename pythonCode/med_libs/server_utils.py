@@ -93,8 +93,8 @@ def get_model_from_path(path: str) -> sklearn.base.BaseEstimator:
     import joblib
     with open(path, "rb") as f:
         model = joblib.load(f)
-    if isinstance(model, Pipeline):
-        model = model.steps[-1][1]
+    # if isinstance(model, Pipeline):
+    #     model = model.steps[-1][1]
     return model
 
 

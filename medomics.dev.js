@@ -6,8 +6,8 @@ export const PORT_FINDING_METHOD = {
 const config = {
   runServerAutomatically: true,
   useReactDevTools: false,
-  defaultPort: 54288,
   mongoPort: 54017,
+  defaultPort: 3000,
   portFindingMethod: PORT_FINDING_METHOD.FIX
 }
 

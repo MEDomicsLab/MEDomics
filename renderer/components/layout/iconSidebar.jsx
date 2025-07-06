@@ -1,6 +1,6 @@
 /* eslint-disable no-unused-vars */
 import React, { useState, useContext, useEffect } from "react"
-import { Files, HouseFill, Gear, Server, Search, BandaidFill, Send } from "react-bootstrap-icons"
+import { Files, HouseFill, Gear, Server, Search, BandaidFill, Send, FileEarmarkCodeFill } from "react-bootstrap-icons"
 import Nav from "react-bootstrap/Nav"
 import { NavDropdown } from "react-bootstrap"
 import { WorkspaceContext } from "../workspace/workspaceContext"
@@ -11,10 +11,11 @@ import { FaMagnifyingGlassChart } from "react-icons/fa6"
 import { FaDatabase } from "react-icons/fa6"
 import { LuNetwork } from "react-icons/lu"
 import { Button } from "primereact/button"
-import { TbFileExport } from "react-icons/tb"
+import { TbFileExport, TbDeviceDesktopCog, TbServerCog } from "react-icons/tb"
 import { VscChromeClose } from "react-icons/vsc"
 import { PiGraphFill } from "react-icons/pi"
 import { MdOutlineGroups3 } from "react-icons/md"
+import { FaGlobeAfrica } from "react-icons/fa"
 /**
  * @description Sidebar component containing icons for each page
  * @param {function} onSidebarItemSelect - function to handle sidebar item selection
@@ -268,8 +269,20 @@ const IconSidebar = ({ onSidebarItemSelect }) => {
                 {" "}
                 <FaMagnifyingGlassChart style={{ height: "1.7rem", width: "auto" }} />
               </Nav.Link>
+                 <Nav.Link
+                className="medflNav btnSidebar align-center"
+                data-pr-at="right center"
+                data-pr-my="left center"
+                data-pr-tooltip="Run server"
+                eventKey="MEDfl"
+                onDoubleClick={(event) => handleDoubleClick(event, "MEDfl")}
+                onClick={(event) => handleClick(event, "medfl")}
+                disabled={disabledIcon}
+              >
+                <PiGraphFill style={{ height: "2.2rem", width: "auto" }} />
+              </Nav.Link>
             </div>
-            <div className="medomics-layer-text">Design</div>
+            <div className="medomics-layer-text">Simulation</div>
           </div>
           <NavDropdown.Divider style={{ height: "3rem" }} />
 
@@ -286,6 +299,56 @@ const IconSidebar = ({ onSidebarItemSelect }) => {
                 disabled={disabledIcon}
               >
                 <LuNetwork style={{ height: "1.7rem", width: "auto", rotate: "-90deg" }} />
+              </Nav.Link> 
+
+              <Nav.Link
+                className="medflNav btnSidebar align-center"
+                data-pr-at="right center"
+                data-pr-my="left center"
+                data-pr-tooltip="Config"
+                eventKey="RWconfig"
+                onDoubleClick={(event) => handleDoubleClick(event, "flrwConfig")}
+                onClick={(event) => handleClick(event, "flrwConfig")}
+                disabled={disabledIcon}
+              >
+                <FileEarmarkCodeFill style={{ height: "2em", width: "auto" }} />
+              </Nav.Link>
+              <Nav.Link
+                className="medflNav btnSidebar align-center"
+                data-pr-at="right center"
+                data-pr-my="left center"
+                data-pr-tooltip="Clients"
+                eventKey="FLclients"
+                onDoubleClick={(event) => handleDoubleClick(event, "FlClients")}
+                onClick={(event) => handleClick(event, "FlClients")}
+                disabled={disabledIcon}
+              >
+                <TbDeviceDesktopCog style={{ height: "2em", width: "auto" }} />
+              </Nav.Link>
+              <Nav.Link
+                className="medflNav btnSidebar align-center"
+                data-pr-at="right center"
+                data-pr-my="left center"
+                data-pr-tooltip="Central server"
+                eventKey="FLserver"
+                onDoubleClick={(event) => handleDoubleClick(event, "FlServer")}
+                onClick={(event) => handleClick(event, "FlServer")}
+                disabled={disabledIcon}
+              >
+                <TbServerCog style={{ height: "2em", width: "auto" }} />
+              </Nav.Link>
+                
+                <Nav.Link
+                className="medflNav btnSidebar align-center"
+                data-pr-at="right center"
+                data-pr-my="left center"
+                data-pr-tooltip="realworld"
+                eventKey="flRwWorkflow"
+                onDoubleClick={(event) => handleDoubleClick(event, "flRwWorkflow")}
+                onClick={(event) => handleClick(event, "flRwWorkflow")}
+                disabled={disabledIcon}
+              >
+                <FaGlobeAfrica style={{ height: "2em", width: "auto" }} />
               </Nav.Link>
 
               <Nav.Link
@@ -326,7 +389,7 @@ const IconSidebar = ({ onSidebarItemSelect }) => {
                 <MdOutlineGroups3 style={{ height: "2.2rem", width: "auto" }} />
               </Nav.Link>
             </div>
-            <div className="medomics-layer-text">Development</div>
+            <div className="medomics-layer-text">Real world</div>
           </div>
           <NavDropdown.Divider style={{ height: "3rem" }} />
 

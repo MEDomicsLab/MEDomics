@@ -1,0 +1,6 @@
+name: med_conda_env
+channels:
+  - defaults
+dependencies:
+  - python=3.9
+prefix: C:\anaconda3\envs\med_conda_env

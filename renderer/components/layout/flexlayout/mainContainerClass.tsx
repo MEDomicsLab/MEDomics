@@ -64,6 +64,14 @@ import { confirmDialog } from "primereact/confirmdialog"
 import JupyterNotebookViewer from "../../flow/JupyterNoteBookViewer"
 import { ipcRenderer } from "electron"
 
+import FLResultsPage from "../../medfl/flResultsPage"
+import OptimResultsPage from "../../medfl/optimResultsPage"
+import MEDflClientsPage from "../../mainPages/medflClients"
+import MEDflrwConfig from "../../mainPages/medflRwConfig"
+import MEDflSeverPage from "../../mainPages/medflServer"
+import MEDflrwFlowPage from "../../mainPages/medflrw"
+import RwResultsPage from "../../medfl/rw/rwResultsPage"
+
 const util = require("util")
 const exec = util.promisify(require("child_process").exec)
 const { spawn } = require('child_process')
@@ -970,6 +978,8 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
         else if (extension === "json") loadJSONFromPath(config.path, whenDataLoaded)
         else if (extension === "xlsx") loadXLSXFromPath(config.path, whenDataLoaded)
       }
+      console.log("this is the config", config)
+      console.log(node.getExtraData().data)
       return (
         <>
           <DataTableWrapperBPClass
@@ -1132,7 +1142,49 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
           return <MEDflPage pageId={"MEDflPage"} />
         }
       }
-    } else if (component === "med3paPage") {
+    }  else if (component === "flClientsPage") {
+      if (node.getExtraData().data == null) {
+        const config = node.getConfig()
+        if (config.path !== null) {
+          return <MEDflClientsPage pageId={config.uuid} configPath={config.path} />
+        } else {
+          return <MEDflClientsPage pageId={"flClientsPage"} />
+        }
+      }
+      
+    }  else if (component === "flServerPage") {
+      if (node.getExtraData().data == null) {
+        const config = node.getConfig()
+        if (config.path !== null) {
+          return <MEDflSeverPage pageId={config.uuid} configPath={config.path} />
+        } else {
+          return <MEDflSeverPage pageId={"flServerPage"} />
+        }
+      }
+      
+    } else if (component === "flrwConfigPage") {
+      
+      if (node.getExtraData().data == null) {
+        const config = node.getConfig()
+        if (config.path !== null) {
+          return <MEDflrwConfig pageId={config.uuid} configPath={config.path} />
+        } else {
+          return <MEDflrwConfig pageId={"flrwConfigPage"} />
+        }
+      }
+      
+    }else if (component === "flRwWorkflowPage") {
+      
+      if (node.getExtraData().data == null) {
+        const config = node.getConfig()
+        if (config.path !== null) {
+          return <MEDflrwFlowPage pageId={config.uuid} configPath={config.path} />
+        } else {
+          return <MEDflrwFlowPage pageId={"flRwWorkflowPage"} />
+        }
+      }
+      
+    }else if (component === "med3paPage") {
       if (node.getExtraData().data == null) {
         const config = node.getConfig()
         if (config.path !== null) {
@@ -1191,7 +1243,13 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
       }
     } else if (component === "Settings") {
       return <SettingsPage checkJupyterIsRunning={this.checkJupyterIsRunning} startJupyterServer={this.startJupyterServer} stopJupyterServer={this.stopJupyterServer} />
-    } else if (component !== "") {
+    } else if (component === "medflResultsPage") {
+      return <FLResultsPage url={node.getConfig().path} />
+    } else if (component === "medflOptResultsPage") {
+      return <OptimResultsPage url={node.getConfig().path} />
+    }else if (component === "medflRwResultsPage") {
+      return <RwResultsPage url={node.getConfig().path} />
+    }else if (component !== "") {
       if (node.getExtraData().data == null) {
         const config = node.getConfig()
         return <h4>{component?.toUpperCase()} - Not Implemented Yet</h4>
@@ -1264,6 +1322,8 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
           return <Icons.FiletypeXlsx />
         case "xls":
           return <Icons.FiletypeXls />
+        case "fl":
+          return <Icons.FiletypeXls />
       }
       let icon = <span style={{ marginRight: 3 }}>{iconToReturn}</span>
       return icon
@@ -1298,6 +1358,19 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
       if (component === "medflPage") {
         return <span style={{ marginRight: 3 }}>🌐</span>
       }
+       if (component === "flClientsPage") {
+        return <span style={{ marginRight: 3 }}>🖧</span>
+      }
+      if (component === "flServerPage") {
+        return <span style={{ marginRight: 3 }}>🖥</span>
+      }
+        if (component === "flRwWorkflowPage") {
+        return <span style={{ marginRight: 3 }}>🌐</span>
+      }
+      if (component === "flrwConfigPage") {
+        return <span style={{ marginRight: 3 }}>📄</span>
+      }
+     
       if (component === "med3paPage") {
         return <span style={{ marginRight: 3 }}>👥</span>
       }
@@ -1315,6 +1388,15 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
       }
       if (component === "Settings") {
         return <span style={{ marginRight: 3 }}>⚙️</span>
+      }
+      if (component === "medflResultsPage") {
+        return <span style={{ marginRight: 3 }}>📊</span>
+      }
+      if (component === "medflOptResultsPage") {
+        return <span style={{ marginRight: 3 }}>📊</span>
+      }
+        if (component === "medflRwResultsPage") {
+        return <span style={{ marginRight: 3 }}>📊</span>
       }
     }
   }

@@ -53,6 +53,7 @@ const MEDflHelloWorldPanel = () => {
         setIsUpdating(false)
         setProgressValue({ now: 0, currentLabel: "Message sending failed ❌" })
         toast.error("Sending failed", error)
+       
       }
     )
   }

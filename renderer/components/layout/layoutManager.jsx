@@ -28,6 +28,7 @@ import { toast } from "react-toastify"
 import NotificationOverlay from "../generalPurpose/notificationOverlay"
 
 import os from "os"
+import MEDflSidebar from "./sidebarTools/pageSidebar/medflSidebar"
 
 const LayoutManager = (props) => {
   const [activeSidebarItem, setActiveSidebarItem] = useState("home") // State to keep track of active nav item
@@ -197,6 +198,13 @@ const LayoutManager = (props) => {
         )
       case "evaluation":
         return <EvaluationSidebar />
+      case "medfl":
+        return < MEDflSidebar/>
+      case "flClient":
+        return <MEDflSidebar />
+      case "med3pa":
+        return <MED3paSidebar />
+
       default:
         return (
           <>

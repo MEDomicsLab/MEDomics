@@ -15,6 +15,8 @@ module.exports = {
 		
 		return config
 	},
-	images: { unoptimized : true }
-  }
-  
+	images: {unoptimized : true} , 
+	staticPageGenerationTimeout: 120, // Increase the timeout to 120 seconds
+
+
+};

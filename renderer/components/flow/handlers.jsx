@@ -26,6 +26,7 @@ const getConnPositionStyle = (length, i) => {
 const Handlers = ({ id, setupParam, tooltipBy="node" }) => {
 	const { flowInfos } = useContext(FlowInfosContext);		// used to get the flow infos
 
+
 	/**
 	 * 
 	 * @param {string} io input or output : the type of the tooltip to create
@@ -73,7 +74,7 @@ const Handlers = ({ id, setupParam, tooltipBy="node" }) => {
 					<Handle
 						id={`${i}_${id}`}
 						type="target"
-						position="left"
+						position={setupParam.type == "flServerNode" ? "top" : "left"}
 						style={getConnPositionStyle(setupParam["nbInput"], i)}
 						isConnectable
 					/>

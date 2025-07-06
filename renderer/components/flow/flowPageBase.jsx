@@ -65,6 +65,7 @@ const FlowPageBaseWithFlowInfos = ({ children, workflowType, id }) => {
         <Panel ref={sidebarPanelRef} id={"sidebar" + id} minSize={18.5} maxSize={18.5} defaultSize={0} order={1} collapsible={true} collapsibleSize={5} className="smooth-transition">
           <SidebarAvailableNodes title="Available Nodes" sidebarType={workflowType} />
         </Panel>
+        
         <PanelResizeHandle />
         {/* Panel is used to create the flow, used to be able to resize it on drag */}
         <Panel minSize={25} order={2} className="main-scene-panel">
@@ -99,6 +100,7 @@ const FlowPageBaseWithFlowInfos = ({ children, workflowType, id }) => {
             </Panel>
           </PanelGroup>
         </Panel>
+   
       </PanelGroup>
     </>
   )

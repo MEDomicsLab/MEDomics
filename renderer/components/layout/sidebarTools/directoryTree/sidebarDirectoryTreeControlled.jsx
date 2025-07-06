@@ -294,7 +294,15 @@ const SidebarDirectoryTreeControlled = ({ setExternalSelectedItems, setExternalD
         dispatchLayout({ type: "openHtmlViewer", payload: item })
       } else if (item.type == "medmodel") {
         dispatchLayout({ type: "openInModelViewer", payload: item })
-      } else {
+      } else if (item.type == "medflres") {
+        dispatchLayout({ type: "openInMEDflResultsViewer", payload: item })
+      } else if (item.type == "medflopt") {
+        dispatchLayout({ type: "openInMEDflOptResultsViewer", payload: item })
+      } else if (item.type == "medflrw") {
+        dispatchLayout({ type: "openInMEDflRwResultsViewer", payload: item })
+      }else if (item.type == "fl") {
+        dispatchLayout({ type: "openInFlModule", payload: item })
+      }  else {
         console.log("DBCLICKED", event, item)
       }
       setDbClickedItem(item)

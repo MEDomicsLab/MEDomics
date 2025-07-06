@@ -15,6 +15,8 @@ import { WorkspaceProvider } from "../components/workspace/workspaceContext"
 import { loadMEDDataObjects, updateGlobalData } from "../utilities/appUtils/globalDataUtils"
 import { NotificationContextProvider } from "../components/generalPurpose/notificationContext"
 
+import { MEDflContextProvider } from "../components/workspace/medflContext"
+
 // CSS
 import "bootstrap/dist/css/bootstrap.min.css"
 // import 'bootswatch/dist/lux/bootstrap.min.css';
@@ -186,6 +188,12 @@ function App() {
       setPort(data.newPort)
     })
 
+    ipcRenderer.on("openWorkspace", (event, data) => {MEDflContextProvider
+      console.log("openWorkspace from NEXT", data)
+      let workspace = { ...data }
+      setWorkspaceObject(workspace)
+    })
+
     ipcRenderer.on("toggleDarkMode", () => {
       console.log("toggleDarkMode")
       // setIsDarkMode(!isDarkMode)
@@ -246,6 +254,7 @@ function App() {
       </Head>
       <div style={{ height: "100%", width: "100%" }}>
         <HotkeysProvider>
+        <MEDflContextProvider>
           <ActionContextProvider>
             <NotificationContextProvider>
               <DataContextProvider globalData={globalData} setGlobalData={setGlobalData}>
@@ -272,6 +281,7 @@ function App() {
               </DataContextProvider>
             </NotificationContextProvider>
           </ActionContextProvider>
+          </MEDflContextProvider>
         </HotkeysProvider>
         <ConfirmPopup />
         <ConfirmDialog />

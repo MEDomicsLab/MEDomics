@@ -47,6 +47,7 @@ const NodeWrapperResults = ({ children, id, data }) => {
             onChange={(e) => setChecked(e.checked)}
             checked={data.internal.results.checked}
           />
+        
         </div>
       )}
 

@@ -25,7 +25,7 @@ const ModulePageWithProvider = ({ children, pageId, shadow = false, additionnalC
 
   return (
     <>
-      <div id={pageId} className={`module-page ${shadow ? "with-shadow" : ""} ${additionnalClassName}`}>
+      <div id={pageId} style={{ fontFamily: 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif',}} className={`module-page ${shadow ? "with-shadow" : ""} ${additionnalClassName}`}>
         {loader && (
           <>
             <div className="module-loading">

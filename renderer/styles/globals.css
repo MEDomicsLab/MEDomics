@@ -460,3 +460,42 @@ body {
 label[disabled] {
   color: #00000080 !important;
 }
+
+
+/* Remove default Drawflow node styles */
+.drawflow .drawflow-node {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  padding: 0;
+  overflow: visible;
+}
+
+/* Customize input/output dots (ports) */
+.drawflow .drawflow-node .input,
+.drawflow .drawflow-node .output {
+  width: 8px;
+  height: 8px;
+  background: #4caf50; /* Green dot */
+  border-radius: 50%;
+  border: none;
+
+}
+
+/* Remove selected node shadow */
+.drawflow .drawflow-node.selected {
+  box-shadow: none;
+}
+
+/* Remove internal default content overflow */
+.drawflow .drawflow-node .drawflow_content_node {
+  overflow: visible;
+  padding: 0;
+}
+
+.drawflow .connection .main-path {
+  stroke: #4caf50; /* Example: Green */
+  stroke-width: 3px; /* Make it thicker if needed */
+}
+
+

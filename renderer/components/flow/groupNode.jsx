@@ -19,7 +19,7 @@ const GroupNode = ({ id, data }) => {
 
   return (
     <>
-      <Node id={id} data={data} onClickCustom={() => changeSubFlow(id)} isGroupNode />
+      <Node id={id} data={data} onClickCustom={() => {changeSubFlow(id) ; console.log(id)}} isGroupNode />
     </>
   )
 }
