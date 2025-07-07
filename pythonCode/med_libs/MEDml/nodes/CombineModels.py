@@ -84,11 +84,9 @@ class CombineModels(Node):
         models  : list - list of trained estimators
         settings: dict - (optional) - training settings for HTML export
         """
-        branch_id = kwargs["id"].split("*")[0]
-        self._received_ids.append(branch_id)
+        #branch_id = kwargs["id"].split("*")[0]
+        #self._received_ids.append(branch_id)
         self._received_models.extend(kwargs["models"])
-        if "settings" in kwargs:
-            self._received_opts.append(kwargs["settings"])
 
         # Register code for the incoming batch
         batch_repr = ", ".join(format_model(m).__class__.__name__ for m in kwargs["models"])
@@ -104,8 +102,8 @@ class CombineModels(Node):
         }
 
         # If not every upstream branch has reported, stop here --------------
-        if sorted(self._received_ids) != self.upstream_ids:
-            return {"prev_node_complete": False}
+        #if sorted(self._received_ids) != self.upstream_ids:
+            #return {"prev_node_complete": False}
 
         # ========== LAST PASS – we have every model ======================== #
         full_list: List[Any] = self._received_models
@@ -114,7 +112,7 @@ class CombineModels(Node):
         if self.method:
             if len(full_list) < 2:
                 raise ValueError(f"CombineModels '{self.method}' needs ≥2 models (received {len(full_list)})")
-            print(Fore.GREEN + f"→ {self.method}()" + Fore.RESET)
+            print(Fore.GREEN + f" {self.method}()" + Fore.RESET)
 
             pycaret_exp = experiment["pycaret_exp"]
             combined = getattr(pycaret_exp, self.method)(
@@ -129,11 +127,11 @@ class CombineModels(Node):
             self.CodeHandler.add_line("code", "trained_models = [combined_model] + trained_models")
 
             # combined model goes to the front of the list
-            full_list = [combined] + full_list
+            full_list = [combined]
 
         # ---------- Optional post-processing (ensemble / calibrate) -------- #
         if self.post_action:
-            print(Fore.GREEN + f"→ post_action : {self.post_action}()" + Fore.RESET)
+            print(Fore.GREEN + f" post_action : {self.post_action}()" + Fore.RESET)
 
             pycaret_exp = experiment["pycaret_exp"]
             final_model = getattr(pycaret_exp, self.post_action)(
@@ -164,7 +162,7 @@ class CombineModels(Node):
 
         print(
             Fore.BLUE + f"[CombineModels #{self.id}] emits "
-            f"{len(full_list)} model(s) ↓" + Fore.RESET
+            f"{len(full_list)} model(s)" + Fore.RESET
         )
 
         return {

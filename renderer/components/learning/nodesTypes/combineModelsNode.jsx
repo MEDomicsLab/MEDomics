@@ -67,14 +67,13 @@ const CombineModelsNode = ({ id, data }) => {
   // render
   return (
     <>
-    {console.log("debug data", data)}
-    <Node
-      id={id}
-      data={data}
-      isGroupNode
-      nodeBody={nodeBody}
-      nodeSpecific={nodeSpecific}
-    />
+      <Node
+        id={id}
+        data={data}
+        isGroupNode
+        nodeBody={nodeBody}
+        nodeSpecific={nodeSpecific}
+      />
     </>
   )
 }

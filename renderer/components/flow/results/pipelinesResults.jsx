@@ -42,6 +42,118 @@ const checkIfObjectContainsId = (obj, id) => {
 
 /**
  *
+ * @param {Object} obj
+ * @param {string} id
+ * @returns the sub-object corresponding at the id in the obj
+ * @description equivalent to obj[id] but the id can be a substring of the key
+ */
+const fetchGroupModelsResults = (data, targetNodeId) => {
+  let lastValidResults = null
+
+  const traverse = (obj) => {
+    if (!obj || typeof obj !== 'object') return
+
+    // Check if current object has the target node in its keys
+    Object.entries(obj).forEach(([key, value]) => {
+      if (key.includes(targetNodeId)) {
+        if (Object.keys(value).length > 0 && Object.keys(value).includes("results")) {
+          lastValidResults = value.results
+          return
+        }
+      } else if (key === 'next_nodes' || (typeof value === 'object' && value !== null && Object.keys(value).includes('next_nodes'))) {
+        // Recursively check next_nodes and nested objects
+        traverse(value)
+      }
+    })
+  }
+
+  traverse(data)
+  return lastValidResults
+}
+
+/**
+ * Retrieves results for a given node ID by following a specific pipeline path
+ * @param {Object} flowResults - The complete results from experiment
+ * @param {Object} flowContent - The content of the scene
+ * @param {string} targetId - The ID to search for (can be part of a key or exact match)
+ * @param {Array<string>} pipeline - Array of keys to follow in order
+ * @returns {Object|null} - The results object if found, null otherwise
+ */
+function getNodeResults(flowResults, flowContent, pipeline, targetId) {
+  try {
+    // Check if flowResults is valid
+    if (!flowResults || typeof flowResults !== 'object') {
+      console.error('Invalid data provided')
+      return null
+    }
+
+    // If pipeline is provided, follow it first
+    if (pipeline && pipeline.length > 0) {
+      let current = flowResults
+      // Follow each key in the pipeline
+      for (const key of pipeline) {
+        if (!current || typeof current !== 'object') {
+          return null
+        }
+        if (key !== targetId) continue
+
+        // Recursive function to search through the nested structure
+        const findNode = (currentNode) => {
+          // Check if current node is valid
+          if (!currentNode || typeof currentNode !== 'object') {
+            return null
+          }
+
+          // Check if current node has the target ID in its key
+          const nodeKeys = Object.keys(currentNode)
+          for (const key of nodeKeys) {
+            if (key.includes(targetId)) {
+              // If this node has results, return them
+              if (currentNode[key]?.results) {
+                const previousNode = currentNode[key].results.prev_node_id
+                if (previousNode && !pipeline.some((p) => previousNode.includes(p))) continue // If the previous node is not in the pipeline, skip this result
+                return currentNode[key].results
+              }
+            }
+          }
+
+          // Check next_nodes recursively
+          for (const key of nodeKeys) {
+            if (currentNode[key]?.next_nodes) {
+              //const withinPipeline = pipeline.some(p => key.includes(p))
+              //if (!withinPipeline) continue
+              const foundInChild = findNode(currentNode[key].next_nodes)
+              if (foundInChild) {
+                return foundInChild
+              }
+            }
+          }
+
+          return null
+        }
+
+        // Find node type
+        const nodeType = flowContent.nodes.find(node => node.id === key)?.data?.internal?.type
+        
+        // For combine_models, we need to fetch results differently
+        if (nodeType === "combine_models") {
+          const groupResults = fetchGroupModelsResults(flowResults, key)
+          return groupResults || null
+        }
+
+        const results = findNode(current)
+        return results || null
+      }
+      return null
+    }
+  } catch (error) {
+    console.error('Error while searching for node results:', error)
+    return null
+  }
+}
+
+/**
+ *
  * @param {Array} pipeline Pipeline to display
  * @param {string} selectionMode "Compare Mode" or "Normal Mode"
  * @param {Object} flowContent Content of the flow
@@ -79,47 +191,16 @@ const PipelineResult = ({ pipeline, selectionMode, flowContent }) => {
     let toReturn = <></>
     if (selectedId) {
       let selectedNode = flowContent.nodes.find((node) => node.id == selectedId)
-      let resultsCopy = deepCopy(flowResults)
-      let selectedResults = false
-      let isGroupModelsFinal = true
-      let isAfterGroupModels = false
-      let passGroupModels = false
-      pipeline.forEach((id) => {
-        resultsCopy = checkIfObjectContainsId(resultsCopy, id)
-        if (resultsCopy) {
-          let curNode = flowContent.nodes.find((node) => node.id == id)
-          console.log("curNode", curNode, "type", curNode.data.internal.type)
-          if (curNode.data.internal.type == "combine_models") {
-            console.log("FLAG")
-            passGroupModels = true
-            console.log("passGroupModels", passGroupModels)
-          }
-          if (id == selectedId) {
-            selectedResults = resultsCopy.results
-            isAfterGroupModels = passGroupModels
-          }
-
-          console.log("resultsCopy", resultsCopy)
-          if (resultsCopy.results && resultsCopy.results.data && "prev_node_complete" in resultsCopy.results.data) {
-            console.log("prev_node_complete", resultsCopy.results.data.prev_node_complete, isAfterGroupModels)
-
-            isGroupModelsFinal = resultsCopy.results.data.prev_node_complete
-          }
-          resultsCopy = resultsCopy.next_nodes
-        } else {
-          !selectedNode.data.internal.hasRun && (toReturn = <div className="pipe-name-notRun">Has not been run yet !</div>)
-        }
-      })
-      console.log("isAfterGroupModels", isAfterGroupModels)
+      let selectedResults = getNodeResults(flowResults, flowContent, pipeline, selectedId)
       console.log("selectedResults", selectedResults)
-      if (selectedResults && (isGroupModelsFinal || !isAfterGroupModels)) {
+      if (selectedResults) {
         let type = selectedNode.data.internal.type
         console.log("type", type)
         if (type == "dataset" || type == "clean") {
           toReturn = <DataParamResults selectedResults={selectedResults} type={type} />
         } else if (type == "split") {
           toReturn = <SplitResults selectedResults={selectedResults} />
-        } else if (["model", "train_model", "compare_models", "stack_models", "ensemble_model", "tune_model", "blend_models", "calibrate_model"].includes(type)) {
+        } else if (["model", "train_model", "compare_models", "stack_models", "ensemble_model", "tune_model", "blend_models", "calibrate_model", "combine_models"].includes(type)) {
           toReturn = <ModelsResults selectedResults={selectedResults} />
         } else if (type == "analysis" || type == "analyze") {
           toReturn = <AnalyseResults selectedResults={selectedResults} />
@@ -223,7 +304,13 @@ const PipelinesResults = ({ pipelines, selectionMode, flowContent, runFinalizeAn
           // }
         }
         if (node && node.name == "Model") {
-          return node.data.internal.name != "Model" ? node.data.internal.name : node.data.internal.selection ? node.data.internal.selection : "Model"
+          if (node.data.internal.name != "Model") return node.data.internal.name
+          if (node.data.internal.selection) {
+            const selection = node.data.internal.selection
+            const modelName = node.data.setupParam.possibleSettings[selection]?.label
+            return modelName ? modelName : "Model"
+          }
+          return "Model"
         }
         return node && node.data.internal.name
       }

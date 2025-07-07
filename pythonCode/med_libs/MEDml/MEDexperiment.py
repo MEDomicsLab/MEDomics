@@ -191,8 +191,7 @@ class MEDexperiment(ABC):
                     experiment = self.experiment_setup(node_info, node)
                     node_info['experiment'] = experiment
                 else:
-                    print(
-                        f"already run {node.username} -----------------------------------------------------------------------------")
+                    print(f"already run {node.username} ------------------------")
                     experiment = node_info['experiment']
 
                 self._nb_nodes_done += 1.0
@@ -265,9 +264,28 @@ class MEDexperiment(ABC):
                 self._progress['currentLabel'] = node.username
                 if not node.has_run() or prev_node.has_changed():
                     if node.type == 'combine_models':
-                        print("combine_models")
-                        data = node.execute(experiment, **prev_node.get_info_for_next_node())
-                        node_can_go = data['prev_node_complete']
+                        # Assemble all trained models from previous nodes
+                        can_run = False
+                        train_model_id = prev_node.id.split('*')[0]
+                        trained_models = {"models": []}
+                        def find_models(trained_models, current_pipeline, can_run):
+                            """Recursively finds all models in the pipelines_objects."""
+                            for key, value in current_pipeline.items():
+                                if key.startswith(train_model_id + '*') and value['obj'].type == 'train_model':
+                                    node_info = value['obj'].get_info_for_next_node()
+                                    if 'models' in node_info:
+                                        trained_models['models'].extend(node_info['models'])
+                                        can_run = True
+                                    else:
+                                        can_run = False
+                                if 'next_nodes' in value:
+                                    can_run = find_models(trained_models, value['next_nodes'], can_run)
+                            return can_run
+                        can_run = find_models(trained_models, self.pipelines_objects, can_run)
+                        if can_run:
+                            data = node.execute(experiment, **{'models': trained_models['models']})
+                        else:
+                            continue
                     else:
                         data = node.execute(experiment, **prev_node.get_info_for_next_node())
 
@@ -286,13 +304,11 @@ class MEDexperiment(ABC):
                         self.modify_node_info(node_info, node, experiment)
                         node_info['experiment'] = experiment
                 else:
-                    print(
-                        f"already run {node.username} -----------------------------------------------------------------------------")
+                    print(f"already run {node.username} ------------------------")
                     experiment = node_info['experiment']
 
                 self._nb_nodes_done += 1
-                self._progress['now'] = round(
-                    self._nb_nodes_done / self._nb_nodes * 100, 2)
+                self._progress['now'] = round(self._nb_nodes_done / self._nb_nodes * 100, 2)
                 results[current_node_id] = {
                     'next_nodes': copy.deepcopy(next_nodes_id_json),
                     'results': node_info['results']

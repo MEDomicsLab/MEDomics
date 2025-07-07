@@ -103,16 +103,24 @@ const ResultsPane = ({ runFinalizeAndSave }) => {
       const sourceNode = flowContent.nodes.find((node) => node.id == source)
       const targetNode = flowContent.nodes.find((node) => node.id == target)
       if (targetNode.type == "trainModelNode" && sourceNode.name !== "Model") {
-        const connectedNodes = flowContent.edges.filter(edge => edge.target === target && edge.source !== source).map(edge => edge.source)
-        const connectedModelNodes = flowContent.nodes.filter(node => node.name === "Model" && connectedNodes.includes(node.id))
-        // Link dataset node to model nodes
-        connectedModelNodes.forEach((modelNode) => {
-          if (!graph[source]) {
-            graph[source] = []
-          }
-          graph[source].push(modelNode.id)
-        })
-      } else if (sourceNode.type == "trainModelNode") {
+        // Check if combine model node is the target
+        let trainModelTarget = flowContent.edges.filter(edge => edge.source === target)[0]?.target
+        trainModelTarget = flowContent.nodes.find(node => node.id === trainModelTarget )
+        if (trainModelTarget && trainModelTarget.type === "CombineModelsNode") {
+          // If the target is a CombineModelsNode, link the dataset node directly to it
+          graph[source].push(trainModelTarget.id)
+        }else {
+          const connectedNodes = flowContent.edges.filter(edge => edge.target === target && edge.source !== source).map(edge => edge.source)
+          const connectedModelNodes = flowContent.nodes.filter(node => node.name === "Model" && connectedNodes.includes(node.id))
+          // Link dataset node to model nodes
+          connectedModelNodes.forEach((modelNode) => {
+            if (!graph[source]) {
+              graph[source] = []
+            }
+            graph[source].push(modelNode.id)
+          })
+        }
+      } else if (sourceNode.type == "trainModelNode" && targetNode.type !== "CombineModelsNode") {
         const connectedNodes = flowContent.edges.filter(edge => edge.target === source && edge.source !== target).map(edge => edge.source)
         const connectedModelNodes = flowContent.nodes.filter(node => node.name === "Model" && connectedNodes.includes(node.id))
         // Link model nodes to dataset node
@@ -122,6 +130,12 @@ const ResultsPane = ({ runFinalizeAndSave }) => {
           }
           graph[modelNode.id].push(target)
         })
+      } else if (sourceNode.type == "trainModelNode" && targetNode.type == "CombineModelsNode") {
+        graph[source] = graph[source] || []
+        graph[source].push(target)
+      } else {
+        // For other nodes, just link them normally
+        graph[source].push(target)
       }
     })
 

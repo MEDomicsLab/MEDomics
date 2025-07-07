@@ -291,6 +291,7 @@ class ModelHandler(Node):
         trained_models_copy = trained_models.copy()
         settings_for_next = copy.deepcopy(settings)
         settings_for_next['fct_type'] = self.type
+        trained_models_json['models'] = trained_models
         self._info_for_next_node = {'models': trained_models, 'id': self.id, 'settings': settings_for_next}
         for model in trained_models_copy:
             model_copy = copy.deepcopy(model)
