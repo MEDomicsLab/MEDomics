@@ -7,6 +7,8 @@ import { ServerConnectionContext } from "../serverConnection/connectionContext"
 import { useTunnel } from "../tunnel/TunnelContext"
 import { getTunnelState, setTunnelState, clearTunnelState } from "../../utilities/tunnelState"
 import { Button } from "@blueprintjs/core"
+import { GoFile, GoFileDirectoryFill } from "react-icons/go"
+
 /**
  *
  * @returns {JSX.Element} The connection modal used for establishing a connection to a remote server
@@ -42,6 +44,9 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
   const { port } = useContext(ServerConnectionContext) // we get the port for server connexion
   const tunnelContext = useTunnel()
 
+  // Directory browser state
+  const [directoryContents, setDirectoryContents] = useState([])
+  const [remoteDirPath, setRemoteDirPath] = useState("")
 
   const registerPublicKey = async (publicKeyToRegister, usernameToRegister) => {
     setRegisterStatus("Registering...")
@@ -197,6 +202,27 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
         setReconnectAttempts(0)
         if (onConnect) onConnect()
         toast.success("SSH tunnel established.")
+
+        // Fetch home directory contents via IPC and update directoryContents and remoteDirPath
+        try {
+          const res = await ipcRenderer.invoke('list-remote-directory', { path: '~' })
+          // res: { path, contents }
+          if (res && typeof res === 'object') {
+            if (typeof res.path === 'string') setRemoteDirPath(res.path)
+            if (Array.isArray(res.contents)) {
+              setDirectoryContents(res.contents.map(item => ({
+                name: item.name,
+                type: item.type === 'directory' || item.type === 'dir' ? 'dir' : 'file'
+              })))
+            } else {
+              setDirectoryContents([])
+            }
+          } else {
+            setDirectoryContents([])
+          }
+        } catch (err) {
+          setDirectoryContents([])
+        }
       } else if (result && result.error) {
         setTunnelStatus("Failed to establish SSH tunnel: " + result.error)
         setTunnelActive(false)
@@ -231,6 +257,8 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
         tunnelContext.clearTunnelInfo()
         clearTunnelState()
         toast.success("SSH tunnel disconnected.")
+        setDirectoryContents([])
+        setRemoteDirPath("")
       } else {
         setTunnelStatus("Failed to disconnect tunnel: " + (result?.error || 'Unknown error'))
         toast.error("Disconnect Failed: " + result?.error || 'Unknown error')
@@ -292,6 +320,34 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
       }
     )
   }
+
+  // DirectoryBrowser component
+const DirectoryBrowser = ({ directoryContents, onDirClick }) => {
+  if (!directoryContents || directoryContents.length === 0) {
+    return <div style={{ color: '#888', fontSize: 14 }}>No files or folders to display.</div>
+  }
+  return (
+    <ul className="dir-browser-list">
+      {directoryContents.map((item, idx) => (
+        <li
+          className="dir-browser-item"
+          key={item.name + idx}
+          style={item.type === 'dir' ? { cursor: 'pointer', fontWeight: 500 } : {}}
+          onClick={item.type === 'dir' ? () => onDirClick && onDirClick(item.name) : undefined}
+        >
+          <span className="dir-browser-icon">
+            {item.type === 'dir' ? (
+              <GoFileDirectoryFill size={20} style={{ color: '#2222ff' }} />
+            ) : (
+              <GoFile size={20} style={{ color: '#6b7a90' }} />
+            )}
+          </span>
+          <span>{item.name}</span>
+        </li>
+      ))}
+    </ul>
+  )
+}
 
   // Input validation logic
   useEffect(() => {
@@ -404,6 +460,76 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
           <div style={{ marginTop: '0.5em', color: tunnelStatus.includes('established') ? 'green' : tunnelStatus.includes('Reconnecting') ? 'orange' : 'red' }}>{tunnelStatus}</div>
         )}
         <Button onClick={sendTestRequest} style={{ background: "#d9534f", color: "white" }}>Send test request</Button>
+        {/* Directory Browser Section */}
+        <div style={{ marginTop: '2rem', borderTop: '1px solid #eee', paddingTop: '1rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+            <h3 style={{ fontSize: '1.1rem', margin: 0 }}>Remote Directory Browser</h3>
+            <Button
+              icon="refresh"
+              style={{ marginLeft: 8, fontSize: 16, padding: '2px 8px' }}
+              onClick={async () => {
+                try {
+                  // Use new backend navigation handler
+                  const navResult = await ipcRenderer.invoke('navigate-remote-directory', {
+                    action: 'list',
+                    path: remoteDirPath
+                  })
+                  if (navResult && navResult.path) setRemoteDirPath(navResult.path)
+                  if (Array.isArray(navResult?.contents)) {
+                    setDirectoryContents(navResult.contents.map(item => ({
+                      name: item.name,
+                      type: item.type === 'dir' ? 'dir' : 'file'
+                    })))
+                  } else {
+                    setDirectoryContents([])
+                  }
+                } catch {
+                  setDirectoryContents([])
+                }
+              }}
+              title="Refresh directory contents"
+            ></Button>
+          </div>
+          <div style={{ color: '#666', fontSize: 13, marginBottom: 8, marginLeft: 2 }}>
+            Path: <span style={{ fontFamily: 'monospace' }}>{remoteDirPath}</span>
+          </div>
+          <DirectoryBrowser
+            directoryContents={
+              // Add parent dir '..' if not at root
+              remoteDirPath !== '' && remoteDirPath !== '/'
+                ? [{ name: '..', type: 'dir' }, ...directoryContents]
+                : directoryContents
+            }
+            onDirClick={async (dirName) => {
+              try {
+                let navResult
+                if (dirName === '..') {
+                  navResult = await ipcRenderer.invoke('navigate-remote-directory', {
+                    action: 'up',
+                    path: remoteDirPath
+                  })
+                } else {
+                  navResult = await ipcRenderer.invoke('navigate-remote-directory', {
+                    action: 'into',
+                    path: remoteDirPath,
+                    dirName
+                  })
+                }
+                if (navResult && navResult.path) setRemoteDirPath(navResult.path)
+                if (Array.isArray(navResult?.contents)) {
+                  setDirectoryContents(navResult.contents.map(item => ({
+                    name: item.name,
+                    type: item.type === 'dir' ? 'dir' : 'file'
+                  })))
+                } else {
+                  setDirectoryContents([])
+                }
+              } catch {
+                setDirectoryContents([])
+              }
+            }}
+          />
+        </div>
       </div>
       <style>
           {`
@@ -411,6 +537,22 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
               opacity: 0.5
               color: #666
               cursor: default
+            }
+            .dir-browser-list {
+              list-style: none
+              padding-left: 0
+              margin: 0
+              min-height: 30em
+            }
+            .dir-browser-item {
+              display: flex
+              align-items: center
+              gap: 0.5em
+              font-size: 1rem
+              margin-bottom: 0.25em
+            }
+            .dir-browser-icon {
+              display: inline-block
             }
           `}
         </style>

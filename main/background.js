@@ -900,12 +900,12 @@ ipcMain.handle('start-ssh-tunnel', async (_event, {
       host,
       port: parseInt(remotePort),
       username
-    };
+    }
     if (privateKey) connConfig.privateKey = privateKey
     if (password) connConfig.password = password
     const conn = new Client()
     conn.on('ready', () => {
-      const net = require('net');
+      const net = require('net')
       // Backend port forwarding
       const backendServer = net.createServer((socket) => {
         conn.forwardOut(
@@ -915,8 +915,8 @@ ipcMain.handle('start-ssh-tunnel', async (_event, {
           parseInt(remoteBackendPort),
           (err, stream) => {
             if (err) {
-              socket.destroy();
-              return;
+              socket.destroy()
+              return
             }
             socket.pipe(stream).pipe(socket)
           }
@@ -933,8 +933,8 @@ ipcMain.handle('start-ssh-tunnel', async (_event, {
           parseInt(remoteMongoPort),
           (err, stream) => {
             if (err) {
-              socket.destroy();
-              return;
+              socket.destroy()
+              return
             }
             socket.pipe(stream).pipe(socket)
           }
@@ -984,4 +984,194 @@ ipcMain.handle('stop-ssh-tunnel', async () => {
   }
   if (success) return { success: true }
   return { success: false, error: error || 'No active tunnel' }
+})
+
+// List remote directory via SSH tunnel
+const { Client: SSHClient } = require('ssh2')
+const os = require('os')
+
+/**
+ * IPC handler to list files and directories in a remote path via the active SSH tunnel
+ * Returns [{ name, type }]
+ */
+
+// SFTP-based directory listing (cross-platform)
+const normalizeSftpList = (entries) => {
+  // entries: Array of { filename, longname, attrs }
+  return entries
+    .filter(e => e.filename !== '.' && e.filename !== '..')
+    .map(e => ({
+      name: e.filename,
+      type: e.attrs.isDirectory() ? 'dir' : 'file'
+    }))
+}
+
+ipcMain.handle('list-remote-directory', async (_event, { path: remotePath }) => {
+  return new Promise((resolve, reject) => {
+    if (!activeTunnel) {
+      return resolve({ path: remotePath, contents: [], error: 'No active SSH tunnel' })
+    }
+    try {
+      activeTunnel.sftp((err, sftp) => {
+        if (err || !sftp) return resolve({ path: remotePath, contents: [], error: err ? err.message : 'No SFTP' })
+        // Normalize path for SFTP: always use absolute, default to home dir as '.'
+        function normalizePath(p) {
+          if (!p || p === '') return '.' // SFTP: '.' means home dir
+          if (p === '~') return '.'
+          if (p.startsWith('~/')) return p.replace(/^~\//, '')
+          return p
+        }
+        const targetPath = normalizePath(remotePath)
+        // First, resolve canonical/absolute path
+        sftp.realpath(targetPath, (err2, absPath) => {
+          const canonicalPath = (!err2 && absPath) ? absPath : targetPath
+          sftp.readdir(canonicalPath, (err3, list) => {
+            // Always close SFTP session after use
+            if (sftp && typeof sftp.end === 'function') {
+              try { sftp.end() } catch (e) {}
+            } else if (sftp && typeof sftp.close === 'function') {
+              try { sftp.close() } catch (e) {}
+            }
+            if (err3) return resolve({ path: canonicalPath, contents: [], error: err3.message })
+            const contents = Array.isArray(list)
+              ? list.filter(e => e.filename !== '.' && e.filename !== '..').map(e => ({
+                  name: e.filename,
+                  type: e.attrs.isDirectory() ? 'dir' : 'file'
+                }))
+              : []
+            resolve({ path: canonicalPath, contents })
+          })
+        })
+      })
+    } catch (e) {
+      resolve({ path: remotePath, contents: [], error: e.message })
+    }
+  })
+})
+
+// IPC handler to resolve canonical/absolute path via SFTP realpath
+ipcMain.handle('resolve-remote-path', async (_event, { path: remotePath }) => {
+  return new Promise((resolve, reject) => {
+    if (!activeTunnel || !activeTunnel.sshClient) {
+      return resolve({ error: 'No active SSH tunnel' })
+    }
+    activeTunnel.sshClient.sftp((err, sftp) => {
+      if (err) return resolve({ error: 'SFTP error: ' + err.message })
+      sftp.realpath(remotePath, (err, absPath) => {
+        if (err) return resolve({ error: 'realpath error: ' + err.message })
+        resolve({ path: absPath })
+      })
+    })
+  })
+})
+
+// Unified remote directory navigation handler
+ipcMain.handle('navigate-remote-directory', async (_event, { action, path: currentPath, dirName }) => {
+  // Helper to get SFTP client
+  function getSftp(cb) {
+    if (!activeTunnel) return cb(new Error('No active SSH tunnel'))
+    if (activeTunnel.sftp) {
+      // ssh2 v1.15+ attaches sftp method directly
+      return activeTunnel.sftp(cb)
+    } else if (activeTunnel.sshClient && activeTunnel.sshClient.sftp) {
+      return activeTunnel.sshClient.sftp(cb)
+    } else {
+      return cb(new Error('No SFTP available'))
+    }
+  }
+
+  // Promisified SFTP realpath
+  function sftpRealpath(sftp, p) {
+    return new Promise((resolve, reject) => {
+      sftp.realpath(p, (err, absPath) => {
+        if (err) return reject(err)
+        resolve(absPath)
+      })
+    })
+  }
+
+  // Promisified SFTP readdir
+  function sftpReaddir(sftp, p) {
+    return new Promise((resolve, reject) => {
+      sftp.readdir(p, (err, list) => {
+        if (err) return reject(err)
+        resolve(list)
+      })
+    })
+  }
+
+  // Normalize path for SFTP: always use absolute, default to home dir as '.'
+  function normalizePath(p) {
+    if (!p || p === '') return '.' // SFTP: '.' means home dir
+    if (p === '~') return '.'
+    if (p.startsWith('~/')) return p.replace(/^~\//, '')
+    return p
+  }
+
+  return new Promise((resolve) => {
+    getSftp(async (err, sftp) => {
+      if (err) return resolve({ path: currentPath, contents: [], error: err.message })
+      let targetPath = normalizePath(currentPath)
+      let sftpClosed = false
+      // Helper to close SFTP session safely
+      function closeSftp() {
+        if (sftp && !sftpClosed) {
+          if (typeof sftp.end === 'function') {
+            try { sftp.end() } catch (e) {}
+          } else if (typeof sftp.close === 'function') {
+            try { sftp.close() } catch (e) {}
+          }
+          sftpClosed = true
+        }
+      }
+      try {
+        // Step 1: resolve canonical path (absolute)
+        let canonicalPath = await sftpRealpath(sftp, targetPath).catch(() => targetPath)
+        // Step 2: handle navigation action
+        if (action === 'up') {
+          // Go up one directory
+          if (canonicalPath === '/' || canonicalPath === '' || canonicalPath === '.') {
+            // Already at root/home
+            // List current
+          } else {
+            let parts = canonicalPath.split('/').filter(Boolean)
+            if (parts.length > 1) {
+              parts.pop()
+              canonicalPath = '/' + parts.join('/')
+            } else {
+              canonicalPath = '/'
+            }
+          }
+        } else if (action === 'into' && dirName) {
+          // Always join using absolute path
+          if (canonicalPath === '/' || canonicalPath === '') {
+            canonicalPath = '/' + dirName
+          } else if (canonicalPath === '.') {
+            // Home dir: get its absolute path
+            canonicalPath = await sftpRealpath(sftp, '.').catch(() => '/')
+            canonicalPath = canonicalPath.replace(/\/$/, '') + '/' + dirName
+          } else {
+            canonicalPath = canonicalPath.replace(/\/$/, '') + '/' + dirName
+          }
+          // Re-resolve in case of symlinks
+          canonicalPath = await sftpRealpath(sftp, canonicalPath).catch(() => canonicalPath)
+        } else if (action === 'list') {
+          // Just list current
+        }
+        // Step 3: list directory
+        let entries = await sftpReaddir(sftp, canonicalPath).catch(() => [])
+        let contents = Array.isArray(entries)
+          ? entries.filter(e => e.filename !== '.' && e.filename !== '..').map(e => ({
+              name: e.filename,
+              type: e.attrs.isDirectory() ? 'dir' : 'file'
+            }))
+          : []
+        closeSftp()
+        resolve({ path: canonicalPath, contents })
+      } catch (e) {
+        closeSftp()
+        resolve({ path: currentPath, contents: [], error: e.message })
+      }
+    })
+  })
 })
