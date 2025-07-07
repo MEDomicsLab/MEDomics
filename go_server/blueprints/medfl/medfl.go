@@ -32,7 +32,7 @@ func AddHandleFunc() {
 }
 
 var (
-    apiKey    = "tskey-api-kWSTR44ZoH11CNTRL-47uggCMtTpKEQvtVbyjhpKdmBm9e1fpX"
+    apiKey    = "tskey-api-kvWdGNGyik11CNTRL-ZCURS2f5Lm8D4MgsN5yzk8noK54Looi33"
     tailnet   = "taild030b7.ts.net"
 )
 

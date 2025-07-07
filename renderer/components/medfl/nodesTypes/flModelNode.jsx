@@ -85,6 +85,7 @@ const FlModelNode = ({ id, data }) => {
       data.internal.settings["Number of layers"] = { value: "" }
       data.internal.settings["optimizer"] = ""
       data.internal.settings["Model type"] = ""
+      data.internal.settings["activateTl"] = tlActivated
 
       updateNode({
         id: id,

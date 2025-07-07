@@ -794,7 +794,7 @@ const MedflrwWorkflow = ({ setWorkflowType, workflowType, mode = "fl" }) => {
     <>
       {/* RUN the fl pipeline modal  */}
       <ServerLogosModal
-        configs={nodes.filter((node) => node.type == "flRunServerNode") || []}
+        nodes={nodes}
         show={serverRunning}
         onHide={() => {
           setServerRunning(false)

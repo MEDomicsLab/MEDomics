@@ -51,12 +51,12 @@ const nodesParams = {
   //   nbInput: 1,
   //   nbOutput: 1,
   //   input: ["model"],
-  //   output: ["run_server"],
+  //   output: ["server_strategy"],
   //   img: "strategy.png",
   //   title: "FL Strategy",
   //   possibleSettings: {}
   // },
-  run_server: {
+  server_strategy: {
     type: "flRunServerNode",
     classes: "object",
     nbInput: 1,
@@ -64,7 +64,7 @@ const nodesParams = {
     input: ["network"],
     output: ["results"],
     img: "server.png",
-    title: "Run Server",
+    title: "Server Strategy",
     possibleSettings: {}
   },
 

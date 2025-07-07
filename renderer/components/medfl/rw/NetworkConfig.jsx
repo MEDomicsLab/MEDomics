@@ -3,7 +3,7 @@ import { PageInfosContext } from "../../mainPages/moduleBasics/pageInfosContext"
 import { WorkspaceContext } from "../../workspace/workspaceContext"
 import { requestBackend } from "../../../utilities/requests"
 import { FaLinux, FaWindows, FaApple, FaServer, FaLaptop, FaNetworkWired, FaSyncAlt } from "react-icons/fa"
-import { FcLinux } from "react-icons/fc"
+import { FcLinux, FcSettings } from "react-icons/fc"
 
 function getOSIcon(os) {
   const osName = os?.toLowerCase()
@@ -14,7 +14,7 @@ function getOSIcon(os) {
   return <FaLaptop className="text-secondary" />
 }
 
-export default function FederatedNetworkConfigView({ strategy, rounds, setDevices }) {
+export default function FederatedNetworkConfigView({ config, setDevices }) {
   const { pageId } = useContext(PageInfosContext)
   const { port } = useContext(WorkspaceContext)
 
@@ -22,6 +22,7 @@ export default function FederatedNetworkConfigView({ strategy, rounds, setDevice
   const [server, setServer] = useState(null)
   const [isLoading, setIsLoading] = useState(true)
 
+  console.log("FederatedNetworkConfigView config:", config)
   useEffect(() => {
     const fetchDevices = () => {
       setIsLoading(true)
@@ -120,23 +121,37 @@ export default function FederatedNetworkConfigView({ strategy, rounds, setDevice
           {/* Strategy Info */}
           <div className="card ">
             <div className="card-header  d-flex align-items-center">
-              <FaSyncAlt className="me-2" />
-              <span>Aggregation Configuration</span>
+              <FcSettings className="me-2" />
+              <span> Configuration</span>
             </div>
             <div className="card-body">
               <div className="row">
                 <div className="col-md-6">
                   <div className="d-flex align-items-center mb-2">
                     <span className="fw-bold me-2">Strategy:</span>
-                    <span className="badge bg-primary">{strategy}</span>
+                    <span className="badge bg-primary">{config.server.strategy}</span>
                   </div>
                 </div>
                 <div className="col-md-6">
                   <div className="d-flex align-items-center">
                     <span className="fw-bold me-2">Rounds:</span>
-                    <span className="badge bg-success">{rounds}</span>
+                    <span className="badge bg-success">{config.server.rounds}</span>
                   </div>
                 </div>
+                <div className="col-md-6">
+                  <div className="d-flex align-items-center">
+                    <span className="fw-bold me-2">Activate transfer learning:</span>
+                    <span className="badge bg-success">{config.model.activateTl}</span>
+                  </div>
+                </div>
+                {config.model.activateTl == "true" && (
+                  <div className="col-md-6">
+                    <div className="d-flex align-items-center">
+                      <span className="fw-bold me-2">Pretrained model:</span>
+                      <span className="">{config.model.file?.name}</span>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>

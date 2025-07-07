@@ -137,17 +137,16 @@ const ServerClientFlow = ({ connectedClients, isAggregating, runningClients, fin
   }, [connectedClients, isAggregating, runningClients])
 
   return (
-    <div
-      ref={drawflowRef}
-      id="drawflow"
-      style={{
-        width: "100%",
-        height: "500px",
-        border: "1px solid #ddd",
-        borderRadius: "8px",
-        background: "#fafafa"
-      }}
-    ></div>
+    <div style={{ border: "1px solid #ddd", borderRadius: "8px", background: "#fafafa" }}>
+      <div
+        ref={drawflowRef}
+        id="drawflow"
+        style={{
+          width: "100%",
+          height: "500px"
+        }}
+      ></div>
+    </div>
   )
 }
 
