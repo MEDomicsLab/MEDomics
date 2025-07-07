@@ -13,7 +13,8 @@ import pandas as pd
 from colorama import Fore
 from MEDDataObject import MEDDataObject
 from mongodb_utils import (insert_med_data_object_if_not_exists, overwrite_med_data_object_content)
-from PIL import Image
+from PIL import Image, ImageFile
+ImageFile.LOAD_TRUNCATED_IMAGES = True  # To handle truncated images
 
 from .NodeObj import Node, format_model
 
