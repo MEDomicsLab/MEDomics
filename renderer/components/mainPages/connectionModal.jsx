@@ -7,13 +7,15 @@ import { ServerConnectionContext } from "../serverConnection/connectionContext"
 import { useTunnel } from "../tunnel/TunnelContext"
 import { getTunnelState, setTunnelState, clearTunnelState } from "../../utilities/tunnelState"
 import { Button } from "@blueprintjs/core"
-import { GoFile, GoFileDirectoryFill } from "react-icons/go"
+import { GoFile, GoFileDirectoryFill, GoChevronDown, GoChevronUp } from "react-icons/go"
+import { FaFolderPlus } from "react-icons/fa"
 
 /**
  *
  * @returns {JSX.Element} The connection modal used for establishing a connection to a remote server
  */
 const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
+  const [showAdvanced, setShowAdvanced] = useState(false)
   const [host, setHost] = useState("")
   const [username, setUsername] = useState("")
   const [password, setPassword] = useState("")
@@ -77,7 +79,7 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
 
   const handleGenerateKey = async () => {
     try {
-      const result = await ipcRenderer.invoke('generate-ssh-key', { comment: keyComment, username })
+      const result = await ipcRenderer.invoke('generateSSHKey', { comment: keyComment, username })
       if (result && result.publicKey && result.privateKey) {
         setPublicKey(result.publicKey)
         setPrivateKey(result.privateKey)
@@ -193,7 +195,7 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
         toast.error("Remote MongoDB port is invalid.")
         return
       }
-      const result = await ipcRenderer.invoke('start-ssh-tunnel', connInfo)
+      const result = await ipcRenderer.invoke('startSSHTunnel', connInfo)
       if (result && result.success) {
         setTunnelActive(true)
         setTunnelStatus("SSH tunnel established.")
@@ -205,7 +207,7 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
 
         // Fetch home directory contents via IPC and update directoryContents and remoteDirPath
         try {
-          const res = await ipcRenderer.invoke('list-remote-directory', { path: '~' })
+          const res = await ipcRenderer.invoke('listRemoteDirectory', { path: '~' })
           // res: { path, contents }
           if (res && typeof res === 'object') {
             if (typeof res.path === 'string') setRemoteDirPath(res.path)
@@ -250,7 +252,7 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
     setTunnelStatus("Disconnecting...")
     toast.info("Disconnecting SSH tunnel...")
     try {
-      const result = await ipcRenderer.invoke('stop-ssh-tunnel')
+      const result = await ipcRenderer.invoke('stopSSHTunnel')
       if (result && result.success) {
         setTunnelActive(false)
         setTunnelStatus("SSH tunnel disconnected.")
@@ -274,7 +276,7 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
     if (visible && username) {
       (async () => {
         try {
-          const result = await ipcRenderer.invoke('get-ssh-key', { username })
+          const result = await ipcRenderer.invoke('getSSHKey', { username })
           if (result && result.publicKey && result.privateKey) {
             setPublicKey(result.publicKey)
             setPrivateKey(result.privateKey)
@@ -393,6 +395,44 @@ const DirectoryBrowser = ({ directoryContents, onDirClick }) => {
     setLocalPortWarning(warning)
   }, [host, username, remotePort, localBackendPort, remoteBackendPort, localDBPort, remoteDBPort, keyGenerated, publicKey, privateKey, port])
 
+  // New folder modal state
+  const [showNewFolderModal, setShowNewFolderModal] = useState(false)
+  const [newFolderName, setNewFolderName] = useState("")
+  const [creatingFolder, setCreatingFolder] = useState(false)
+
+  const handleCreateFolder = async () => {
+    setCreatingFolder(true)
+    try {
+      const result = await ipcRenderer.invoke('createRemoteFolder', {
+        path: remoteDirPath,
+        folderName: newFolderName.trim()
+      })
+      if (result && result.success) {
+        const navResult = await ipcRenderer.invoke('navigateRemoteDirectory', {
+          action: 'list',
+          path: remoteDirPath
+        })
+        if (navResult && navResult.path) setRemoteDirPath(navResult.path)
+        if (Array.isArray(navResult?.contents)) {
+          setDirectoryContents(navResult.contents.map(item => ({
+            name: item.name,
+            type: item.type === 'dir' ? 'dir' : 'file'
+          })))
+        } else {
+          setDirectoryContents([])
+        }
+        setShowNewFolderModal(false)
+        setNewFolderName("")
+      } else {
+        toast.error('Failed to create folder: ' + (result && result.error ? result.error : 'Unknown error'))
+      }
+    } catch (err) {
+      toast.error('Failed to create folder: ' + (err && err.message ? err.message : String(err)))
+    } finally {
+      setCreatingFolder(false)
+    }
+  }
+
   return (
     <Dialog className="modal" visible={visible} style={{ width: "50vw" }} closable={closable} onHide={onClose}>
       <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
@@ -411,34 +451,76 @@ const DirectoryBrowser = ({ directoryContents, onDirClick }) => {
           Password:
           <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="SSH password" />
         </label>
-        <label>
-          Remote SSH Port:
-          <input type="number" value={remotePort} onChange={e => setRemotePort(e.target.value)} placeholder="22" />
-          {inputErrors.remotePort && <div style={{ color: 'red', fontSize: 13 }}>{inputErrors.remotePort}</div>}
-        </label>
-        <label>
-          Local Backend Port:
-          <input type="number" value={localBackendPort} onChange={e => setLocalBackendPort(e.target.value)} placeholder="8888" />
-          {inputErrors.localBackendPort && <div style={{ color: 'red', fontSize: 13 }}>{inputErrors.localBackendPort}</div>}
-          {localPortWarning && <div style={{ color: 'orange', fontSize: 13, marginTop: 2 }}>{localPortWarning}</div>}
-        </label>
-        <label>
-          Remote Backend Port:
-          <input type="number" value={remoteBackendPort} onChange={e => setRemoteBackendPort(e.target.value)} placeholder="8888" />
-          {inputErrors.remoteBackendPort && <div style={{ color: 'red', fontSize: 13 }}>{inputErrors.remoteBackendPort}</div>}
-        </label>
-        <label>
-          Local MongoDB Port:
-          <input type="number" value={localDBPort} onChange={e => setLocalDBPort(e.target.value)} placeholder="54020" />
-        </label>
-        <label>
-          Remote MongoDB Port:
-          <input type="number" value={remoteDBPort} onChange={e => setRemoteDBPort(e.target.value)} placeholder="54017" />
-        </label>
-        <label>
-          SSH Key Comment:
-          <input type="text" value={keyComment} onChange={e => setKeyComment(e.target.value)} placeholder="medomicslab-app" />
-        </label>
+        <div style={{ marginBottom: 8 }}>
+          <button
+            type="button"
+            onClick={() => setShowAdvanced(v => !v)}
+            style={{
+              color: '#0000FF',
+              background: 'transparent',
+              border: 'none',
+              cursor: 'pointer',
+              fontSize: 14,
+              textDecoration: 'underline',
+              marginBottom: 4
+            }}
+            aria-expanded={showAdvanced}
+          >
+            {showAdvanced ? 'Hide Advanced Settings' : 'Show Advanced Settings'}
+            {showAdvanced ? <GoChevronUp style={{ fontSize: 20, marginLeft: '5px' }}></GoChevronUp> : <GoChevronDown style={{ fontSize: 20, marginLeft: '5px' }}></GoChevronDown>}
+          </button>
+          <div
+            style={{
+              display: 'flex',
+              maxHeight: showAdvanced ? 1000 : 0,
+              overflow: 'hidden',
+              transition: 'max-height 0.35s cubic-bezier(0.4,0,0.2,1)',
+              opacity: showAdvanced ? 1 : 0,
+              transitionProperty: 'max-height, opacity',
+              border: showAdvanced ? '1px solid #eee' : '1px solid transparent',
+              borderRadius: 4,
+              padding: showAdvanced ? 12 : 0,
+              marginTop: showAdvanced ? 6 : 0,
+              background: showAdvanced ? '#fafbfc' : 'transparent',
+            }}
+            aria-hidden={!showAdvanced}
+          >
+            {showAdvanced && <>
+            <div>
+              <label>
+                Remote SSH Port:
+                <input type="number" style={{ marginLeft: '5px' }} value={remotePort} onChange={e => setRemotePort(e.target.value)} placeholder="22" />
+                {inputErrors.remotePort && <div style={{ color: 'red', fontSize: 13 }}>{inputErrors.remotePort}</div>}
+              </label>
+              <label>
+                Local Backend Port:
+                <input type="number" style={{ marginLeft: '5px' }} value={localBackendPort} onChange={e => setLocalBackendPort(e.target.value)} placeholder="8888" />
+                {inputErrors.localBackendPort && <div style={{ color: 'red', fontSize: 13 }}>{inputErrors.localBackendPort}</div>}
+                {localPortWarning && <div style={{ color: 'orange', fontSize: 13, marginTop: 2 }}>{localPortWarning}</div>}
+              </label>
+              <label>
+                Remote Backend Port:
+                <input type="number" style={{ marginLeft: '5px' }} value={remoteBackendPort} onChange={e => setRemoteBackendPort(e.target.value)} placeholder="8888" />
+                {inputErrors.remoteBackendPort && <div style={{ color: 'red', fontSize: 13 }}>{inputErrors.remoteBackendPort}</div>}
+              </label>
+            </div>
+            <div>
+              <label>
+                Local MongoDB Port:
+                <input type="number" style={{ marginLeft: '5px' }} value={localDBPort} onChange={e => setLocalDBPort(e.target.value)} placeholder="54020" />
+              </label>
+              <label>
+                Remote MongoDB Port:
+                <input type="number" style={{ marginLeft: '5px' }} value={remoteDBPort} onChange={e => setRemoteDBPort(e.target.value)} placeholder="54017" />
+              </label>
+              <label>
+                SSH Key Comment:
+                <input type="text" style={{ marginLeft: '5px' }} value={keyComment} onChange={e => setKeyComment(e.target.value)} placeholder="medomicslab-app" />
+              </label>
+            </div>
+            </>}
+          </div>
+        </div>
         <button onClick={handleGenerateKey} disabled={keyGenerated} style={{ background: keyGenerated ? '#ccc' : '#007ad9', color: 'white' }}>
           {keyGenerated ? 'Key Generated' : 'Generate SSH Key'}
         </button>
@@ -454,7 +536,7 @@ const DirectoryBrowser = ({ directoryContents, onDirClick }) => {
           <Button onClick={onClose}>Close</Button>
           <Button className="connect-btn" onClick={() => handleConnect()} style={{ background: "#007ad9", color: "white" }} disabled={!inputValid || tunnelActive}>Connect</Button>
           
-          <button onClick={handleDisconnect} style={{ background: "#d9534f", color: "white" }}>Disconnect</button>
+          <Button onClick={handleDisconnect} style={{ background: "#d9534f", color: "white" }}>Disconnect</Button>
         </div>
         {tunnelStatus && (
           <div style={{ marginTop: '0.5em', color: tunnelStatus.includes('established') ? 'green' : tunnelStatus.includes('Reconnecting') ? 'orange' : 'red' }}>{tunnelStatus}</div>
@@ -465,12 +547,12 @@ const DirectoryBrowser = ({ directoryContents, onDirClick }) => {
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
             <h3 style={{ fontSize: '1.1rem', margin: 0 }}>Remote Directory Browser</h3>
             <Button
+              className="refresh-btn"
               icon="refresh"
-              style={{ marginLeft: 8, fontSize: 16, padding: '2px 8px' }}
               onClick={async () => {
                 try {
                   // Use new backend navigation handler
-                  const navResult = await ipcRenderer.invoke('navigate-remote-directory', {
+                  const navResult = await ipcRenderer.invoke('navigateRemoteDirectory', {
                     action: 'list',
                     path: remoteDirPath
                   })
@@ -489,6 +571,38 @@ const DirectoryBrowser = ({ directoryContents, onDirClick }) => {
               }}
               title="Refresh directory contents"
             ></Button>
+            <Button
+              className="new-folder-btn"
+              onClick={() => {
+                setNewFolderName("")
+                setShowNewFolderModal(true)
+              }}
+              title="Create new folder"
+              disabled={!tunnelActive}
+            >
+              <FaFolderPlus style={{ height: '21px', width: '18px', color: '#5f6b7c' }} />
+            </Button>
+            <Button
+              id="set-workspace-btn"
+              className="set-workspace-btn"
+              icon="folder-open"
+              onClick={async () => {
+                try {
+                  const result = await ipcRenderer.invoke('set-remote-workspace', { path: remoteDirPath })
+                  if (result && result.success) {
+                    toast.success('Workspace set to: ' + remoteDirPath)
+                  } else {
+                    toast.error('Failed to set workspace: ' + (result && result.error ? result.error : 'Unknown error'))
+                  }
+                } catch (err) {
+                  toast.error('Failed to set workspace: ' + (err && err.message ? err.message : String(err)))
+                }
+              }}
+              title="Set this directory as workspace on remote app"
+              disabled={!tunnelActive}
+            >
+              Set as Workspace
+            </Button>
           </div>
           <div style={{ color: '#666', fontSize: 13, marginBottom: 8, marginLeft: 2 }}>
             Path: <span style={{ fontFamily: 'monospace' }}>{remoteDirPath}</span>
@@ -504,12 +618,12 @@ const DirectoryBrowser = ({ directoryContents, onDirClick }) => {
               try {
                 let navResult
                 if (dirName === '..') {
-                  navResult = await ipcRenderer.invoke('navigate-remote-directory', {
+                  navResult = await ipcRenderer.invoke('navigateRemoteDirectory', {
                     action: 'up',
                     path: remoteDirPath
                   })
                 } else {
-                  navResult = await ipcRenderer.invoke('navigate-remote-directory', {
+                  navResult = await ipcRenderer.invoke('navigateRemoteDirectory', {
                     action: 'into',
                     path: remoteDirPath,
                     dirName
@@ -531,26 +645,143 @@ const DirectoryBrowser = ({ directoryContents, onDirClick }) => {
           />
         </div>
       </div>
+      {/* New Folder Modal */}
+      {showNewFolderModal && (
+        <Dialog
+          visible={showNewFolderModal}
+          style={{ width: 400 }}
+          header="Create New Folder"
+          onHide={() => setShowNewFolderModal(false)}
+          closable
+          footer={
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+              <Button onClick={() => setShowNewFolderModal(false)} disabled={creatingFolder}>Cancel</Button>
+              <Button
+                intent="primary"
+                onClick={async () => {
+                  if (!newFolderName.trim()) return
+                  setCreatingFolder(true)
+                  try {
+                    const result = await ipcRenderer.invoke('createRemoteFolder', {
+                      path: remoteDirPath,
+                      folderName: newFolderName.trim()
+                    })
+                    if (result && result.success) {
+                      // Refresh directory after creation
+                      const navResult = await ipcRenderer.invoke('navigateRemoteDirectory', {
+                        action: 'list',
+                        path: remoteDirPath
+                      })
+                      if (navResult && navResult.path) setRemoteDirPath(navResult.path)
+                      if (Array.isArray(navResult?.contents)) {
+                        setDirectoryContents(navResult.contents.map(item => ({
+                          name: item.name,
+                          type: item.type === 'dir' ? 'dir' : 'file'
+                        })))
+                      } else {
+                        setDirectoryContents([])
+                      }
+                      setShowNewFolderModal(false)
+                      setNewFolderName("")
+                    } else {
+                      toast.error('Failed to create folder: ' + (result && result.error ? result.error : 'Unknown error'))
+                    }
+                  } catch (err) {
+                    toast.error('Failed to create folder: ' + (err && err.message ? err.message : String(err)))
+                  } finally {
+                    setCreatingFolder(false)
+                  }
+                }}
+                disabled={!newFolderName.trim() || creatingFolder}
+              >
+                Create
+              </Button>
+            </div>
+          }
+        >
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <label htmlFor="new-folder-name">Folder Name:</label>
+            <input
+              id="new-folder-name"
+              type="text"
+              value={newFolderName}
+              onChange={e => setNewFolderName(e.target.value)}
+              autoFocus
+              disabled={creatingFolder}
+              onKeyDown={e => {
+                if (e.key === 'Enter' && newFolderName.trim() && !creatingFolder) {
+                  e.preventDefault()
+                  handleCreateFolder()
+                }
+              }}
+              placeholder="e.g. my_new_folder"
+            />
+          </div>
+        </Dialog>
+      )}
       <style>
           {`
-            .connect-btn:disabled {
-              opacity: 0.5
-              color: #666
+            .refresh-btn {
+              marginLeft: 8px;
+              fontSize: 16px;
+              padding: 2px 8px;
+              color: gray
+            }
+
+            .new-folder-btn {
+              marginLeft: 8px;
+              fontSize: 16px;
+              padding: 2px 2px;
+              color: gray
+            }
+
+            .new-folder-btn:disabled {
+              opacity: 0.5;
+              color: white;
               cursor: default
             }
-            .dir-browser-list {
-              list-style: none
-              padding-left: 0
-              margin: 0
-              min-height: 30em
+
+            #set-workspace-btn {
+              marginLeft: 8px;
+              fontSize: 16px;
+              padding: 2px 8px;
+              background: #007ad9;
+              color: white
             }
+
+            #set-workspace-btn > span {
+              color: white
+            }
+
+            .set-workspace-btn:disabled {
+              opacity: 0.5;
+              color: white;
+              cursor: default
+            }
+
+            .connect-btn:disabled {
+              opacity: 0.5;
+              color: #666;
+              cursor: default
+            }
+
+            .dir-browser-list {
+              list-style: none;
+              padding-left: 0;
+              margin: 0;
+              min-height: 30em;
+              max-height: 30em;
+              overflow-y: scroll
+            }
+
             .dir-browser-item {
-              display: flex
-              align-items: center
-              gap: 0.5em
-              font-size: 1rem
+              display: flex;
+              align-items: center;
+              gap: 0.5em;
+              font-size: 1rem;
               margin-bottom: 0.25em
             }
+
             .dir-browser-icon {
               display: inline-block
             }

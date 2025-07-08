@@ -833,7 +833,7 @@ export function getMongoDBPath() {
   }
 }
 
-ipcMain.handle('generate-ssh-key', async (_event, { comment, username }) => {
+ipcMain.handle('generateSSHKey', async (_event, { comment, username }) => {
   try {
     const userDataPath = app.getPath('userData')
     const privKeyPath = path.join(userDataPath, `${username || 'user'}_id_rsa`)
@@ -855,7 +855,7 @@ ipcMain.handle('generate-ssh-key', async (_event, { comment, username }) => {
   }
 })
 
-ipcMain.handle('get-ssh-key', async (_event, { username }) => {
+ipcMain.handle('getSSHKey', async (_event, { username }) => {
   try {
     const userDataPath = app.getPath('userData')
     const privKeyPath = path.join(userDataPath, `${username || 'user'}_id_rsa`)
@@ -875,7 +875,7 @@ ipcMain.handle('get-ssh-key', async (_event, { username }) => {
 
 let activeTunnel = null
 let activeTunnelServer = null // Track the TCP server for proper cleanup
-ipcMain.handle('start-ssh-tunnel', async (_event, {
+ipcMain.handle('startSSHTunnel', async (_event, {
   host,
   username,
   privateKey,
@@ -960,7 +960,7 @@ ipcMain.handle('start-ssh-tunnel', async (_event, {
   })
 })
 
-ipcMain.handle('stop-ssh-tunnel', async () => {
+ipcMain.handle('stopSSHTunnel', async () => {
   let success = false
   let error = null
   if (activeTunnelServer) {
@@ -1006,7 +1006,7 @@ const normalizeSftpList = (entries) => {
     }))
 }
 
-ipcMain.handle('list-remote-directory', async (_event, { path: remotePath }) => {
+ipcMain.handle('listRemoteDirectory', async (_event, { path: remotePath }) => {
   return new Promise((resolve, reject) => {
     if (!activeTunnel) {
       return resolve({ path: remotePath, contents: [], error: 'No active SSH tunnel' })
@@ -1049,24 +1049,8 @@ ipcMain.handle('list-remote-directory', async (_event, { path: remotePath }) => 
   })
 })
 
-// IPC handler to resolve canonical/absolute path via SFTP realpath
-ipcMain.handle('resolve-remote-path', async (_event, { path: remotePath }) => {
-  return new Promise((resolve, reject) => {
-    if (!activeTunnel || !activeTunnel.sshClient) {
-      return resolve({ error: 'No active SSH tunnel' })
-    }
-    activeTunnel.sshClient.sftp((err, sftp) => {
-      if (err) return resolve({ error: 'SFTP error: ' + err.message })
-      sftp.realpath(remotePath, (err, absPath) => {
-        if (err) return resolve({ error: 'realpath error: ' + err.message })
-        resolve({ path: absPath })
-      })
-    })
-  })
-})
-
 // Unified remote directory navigation handler
-ipcMain.handle('navigate-remote-directory', async (_event, { action, path: currentPath, dirName }) => {
+ipcMain.handle('navigateRemoteDirectory', async (_event, { action, path: currentPath, dirName }) => {
   // Helper to get SFTP client
   function getSftp(cb) {
     if (!activeTunnel) return cb(new Error('No active SSH tunnel'))
@@ -1171,6 +1155,61 @@ ipcMain.handle('navigate-remote-directory', async (_event, { action, path: curre
       } catch (e) {
         closeSftp()
         resolve({ path: currentPath, contents: [], error: e.message })
+      }
+    })
+  })
+})
+
+ipcMain.handle('createRemoteFolder', async (_event, { path: parentPath, folderName }) => {
+  // Helper to get SFTP client
+  function getSftp(cb) {
+    if (!activeTunnel) return cb(new Error('No active SSH tunnel'))
+    if (activeTunnel.sftp) {
+      return activeTunnel.sftp(cb)
+    } else if (activeTunnel.sshClient && activeTunnel.sshClient.sftp) {
+      return activeTunnel.sshClient.sftp(cb)
+    } else {
+      return cb(new Error('No SFTP available'))
+    }
+  }
+  // Normalize path for SFTP: always use absolute, default to home dir as '.'
+  function normalizePath(p) {
+    if (!p || p === '') return '.'
+    if (p === '~') return '.'
+    if (p.startsWith('~/')) return p.replace(/^~\//, '')
+    return p
+  }
+  return new Promise((resolve) => {
+    getSftp(async (err, sftp) => {
+      if (err) return resolve({ success: false, error: err.message })
+      let sftpClosed = false
+      function closeSftp() {
+        if (sftp && !sftpClosed) {
+          if (typeof sftp.end === 'function') {
+            try { sftp.end() } catch (e) {}
+          } else if (typeof sftp.close === 'function') {
+            try { sftp.close() } catch (e) {}
+          }
+          sftpClosed = true
+        }
+      }
+      try {
+        const parent = normalizePath(parentPath)
+        // Step 1: resolve canonical parent path
+        let canonicalParent = await new Promise((res, rej) => {
+          sftp.realpath(parent, (e, abs) => e ? res(parent) : res(abs))
+        })
+        // Step 2: build new folder path
+        let newFolderPath = canonicalParent.replace(/\/$/, '') + '/' + folderName
+        // Step 3: create directory
+        await new Promise((res, rej) => {
+          sftp.mkdir(newFolderPath, (e) => e ? rej(e) : res())
+        })
+        closeSftp()
+        resolve({ success: true })
+      } catch (e) {
+        closeSftp()
+        resolve({ success: false, error: e.message })
       }
     })
   })
