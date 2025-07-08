@@ -333,7 +333,7 @@ export default class MedDataObject {
     // let path = this.path
     let data = undefined
     // eslint-disable-next-line no-undef
-    const dfd = require("danfojs-node")
+    const dfd = require("danfojs")
     if (extension === "xlsx") {
       data = await dfd.readExcel(filePath)
     } else if (extension === "csv") {
@@ -999,7 +999,7 @@ export default class MedDataObject {
    */
   static async saveDatasetToDisk({ data = undefined, df = undefined, filePath = undefined, extension = undefined }) {
     // eslint-disable-next-line no-undef
-    const dfd = require("danfojs-node")
+    const dfd = require("danfojs")
     if (filePath === undefined || filePath === null || filePath === "") {
       toast.error("No file path specified")
       return
@@ -1227,7 +1227,7 @@ export default class MedDataObject {
     console.log("extension: ", extension)
     let data = undefined
     // eslint-disable-next-line no-undef
-    const dfd = require("danfojs-node")
+    const dfd = require("danfojs")
     if (extension === "xlsx") {
       data = await dfd.readExcel(filePath)
     } else if (extension === "csv") {

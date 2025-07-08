@@ -57,6 +57,11 @@ import NotebookEditor from "../../mainPages/notebookEditor"
 import Iframe from "react-iframe"
 import FLResultsPage from "../../medfl/flResultsPage"
 import OptimResultsPage from "../../medfl/optimResultsPage"
+import MEDflClientsPage from "../../mainPages/medflClients"
+import MEDflrwConfig from "../../mainPages/medflRwConfig"
+import MEDflSeverPage from "../../mainPages/medflServer"
+import MEDflrwFlowPage from "../../mainPages/medflrw"
+import RwResultsPage from "../../medfl/rw/rwResultsPage"
 
 var fields = ["Name", "Field1", "Field2", "Field3", "Field4", "Field5"]
 
@@ -602,7 +607,7 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
     } else if (component === "dataTable") {
       const config = node.getConfig()
       if (node.getExtraData().data == null) {
-        const dfd = require("danfojs-node")
+        const dfd = require("danfojs")
         const whenDataLoaded = (data) => {
           const { globalData, setGlobalData } = this.props as DataContextType
           let globalDataCopy = globalData
@@ -750,7 +755,49 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
           return <MEDflPage pageId={"MEDflPage"} />
         }
       }
-    } else if (component === "med3paPage") {
+    }  else if (component === "flClientsPage") {
+      if (node.getExtraData().data == null) {
+        const config = node.getConfig()
+        if (config.path !== null) {
+          return <MEDflClientsPage pageId={config.uuid} configPath={config.path} />
+        } else {
+          return <MEDflClientsPage pageId={"flClientsPage"} />
+        }
+      }
+      
+    }  else if (component === "flServerPage") {
+      if (node.getExtraData().data == null) {
+        const config = node.getConfig()
+        if (config.path !== null) {
+          return <MEDflSeverPage pageId={config.uuid} configPath={config.path} />
+        } else {
+          return <MEDflSeverPage pageId={"flServerPage"} />
+        }
+      }
+      
+    } else if (component === "flrwConfigPage") {
+      
+      if (node.getExtraData().data == null) {
+        const config = node.getConfig()
+        if (config.path !== null) {
+          return <MEDflrwConfig pageId={config.uuid} configPath={config.path} />
+        } else {
+          return <MEDflrwConfig pageId={"flrwConfigPage"} />
+        }
+      }
+      
+    }else if (component === "flRwWorkflowPage") {
+      
+      if (node.getExtraData().data == null) {
+        const config = node.getConfig()
+        if (config.path !== null) {
+          return <MEDflrwFlowPage pageId={config.uuid} configPath={config.path} />
+        } else {
+          return <MEDflrwFlowPage pageId={"flRwWorkflowPage"} />
+        }
+      }
+      
+    }else if (component === "med3paPage") {
       if (node.getExtraData().data == null) {
         const config = node.getConfig()
         if (config.path !== null) {
@@ -810,6 +857,8 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
       return <FLResultsPage url={node.getConfig().path} />
     } else if (component === "medflOptResultsPage") {
       return <OptimResultsPage url={node.getConfig().path} />
+    }else if (component === "medflRwResultsPage") {
+      return <RwResultsPage url={node.getConfig().path} />
     }else if (component !== "") {
       if (node.getExtraData().data == null) {
         const config = node.getConfig()
@@ -917,6 +966,19 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
       if (component === "medflPage") {
         return <span style={{ marginRight: 3 }}>🌐</span>
       }
+       if (component === "flClientsPage") {
+        return <span style={{ marginRight: 3 }}>🖧</span>
+      }
+      if (component === "flServerPage") {
+        return <span style={{ marginRight: 3 }}>🖥</span>
+      }
+        if (component === "flRwWorkflowPage") {
+        return <span style={{ marginRight: 3 }}>🌐</span>
+      }
+      if (component === "flrwConfigPage") {
+        return <span style={{ marginRight: 3 }}>📄</span>
+      }
+     
       if (component === "med3paPage") {
         return <span style={{ marginRight: 3 }}>👥</span>
       }
@@ -939,6 +1001,9 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
         return <span style={{ marginRight: 3 }}>📊</span>
       }
       if (component === "medflOptResultsPage") {
+        return <span style={{ marginRight: 3 }}>📊</span>
+      }
+        if (component === "medflRwResultsPage") {
         return <span style={{ marginRight: 3 }}>📊</span>
       }
     }

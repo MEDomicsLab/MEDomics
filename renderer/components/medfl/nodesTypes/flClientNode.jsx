@@ -7,6 +7,7 @@ import { DataContext } from "../../workspace/dataContext"
 import { LoaderContext } from "../../generalPurpose/loaderContext"
 import MedDataObject from "../../workspace/medDataObject"
 import DataFilesLoader from "../dataFilesLoader"
+import ClientInfos from "../rw/ClientInfos"
 
 export default function FlClientNode({ id, data }) {
   //states
@@ -82,30 +83,36 @@ export default function FlClientNode({ id, data }) {
         }
         // default settings are the default settings of the node, so mandatory settings
         defaultSettings={
-          <>
-            <FlInput
-              name="Node's type"
-              settingInfos={{
-                type: "list",
-                tooltip: "Specify the number of federated rounds",
-                choices: [{ name: "Train node" }, { name: "Test Node" }, { name: "Hybrid (Train + Test)" }]
-              }}
-              currentValue={clientType}
-              onInputChange={onNodeTypeChange}
-              setHasWarning={() => {}}
-            />
-            <FlInput
-              name="Node_Dataset"
-              settingInfos={{
-                type: "data-input",
-                tooltip: "<p>Specify a data file (xlsx, csv, json)</p>"
-              }}
-              currentValue={data.internal.settings.Node_Dataset || {}}
-              onInputChange={onFileSelection}
-              setHasWarning={() => {}}
-              acceptedExtensions={["csv"]}
-            />
-          </>
+          !data.device ? (
+            <>
+              <FlInput
+                name="Node's type"
+                settingInfos={{
+                  type: "list",
+                  tooltip: "Specify the number of federated rounds",
+                  choices: [{ name: "Train node" }, { name: "Test Node" }, { name: "Hybrid (Train + Test)" }]
+                }}
+                currentValue={clientType}
+                onInputChange={onNodeTypeChange}
+                setHasWarning={() => {}}
+              />
+              <FlInput
+                name="Node_Dataset"
+                settingInfos={{
+                  type: "data-input",
+                  tooltip: "<p>Specify a data file (xlsx, csv, json)</p>"
+                }}
+                currentValue={data.internal.settings.Node_Dataset || {}}
+                onInputChange={onFileSelection}
+                setHasWarning={() => {}}
+                acceptedExtensions={["csv"]}
+              />
+            </>
+          ) : (
+            <>
+              <ClientInfos device={data.device} onClose={() => {}} />
+            </>
+          )
         }
         // node specific is the body of the node, so optional settings
         nodeSpecific={

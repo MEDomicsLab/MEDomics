@@ -104,8 +104,12 @@ function LayoutModelProvider({ children, layoutModel, setLayoutModel }) {
           return openInMEDflresults(action)
         case "openInMEDflOptResultsViewer":
           return openInMEDflOptresults(action)
+        case "openInMEDflRwResultsViewer":
+          return openInMEDflRwresults(action)
         case "openInFlModule":
             return openInFlModule(action)
+        case "openInFlClientsModule":
+            return openInFlClientsModule(action)
           
 
         /*********** OPEN *****************/
@@ -131,8 +135,17 @@ function LayoutModelProvider({ children, layoutModel, setLayoutModel }) {
           return openMEDprofilesViewer(action)
         case "openMEDflModule":
           return openMEDfl(action)
+        case "openFlClientsModule":
+          return openFlCLients(action)
+        case "openFlServerModule":
+          return openFlServer(action)
+        case "openflrwConfigModule":
+          return openFlrwConfig(action)
+          case "openflRwWorkflowModule":
+          return openflRwWorkflow(action)
         case "openMED3paModule":
           return openMED3pa(action)
+          
         case "openSettings":
           return openGeneric(action, "Settings", "Settings")
 
@@ -298,6 +311,25 @@ function LayoutModelProvider({ children, layoutModel, setLayoutModel }) {
     openGeneric(action, "MEDfl", "medflPage")
   }
 
+  /**
+   * @summary Function that adds a tab of the MEDfl Clients Module to the layout model
+   * @params {Object} action - The action passed on by the dispatchLayout function
+   */
+  const openFlCLients = (action) => {
+    openGeneric(action, "Manage clients", "flClientsPage")
+  }
+
+  const openFlServer = (action) => {
+    openGeneric(action, "Manage Server", "flServerPage")
+  }
+
+  const openFlrwConfig = (action) => {
+    openGeneric(action, "Generate scripts", "flrwConfigPage")
+  }
+  
+  const openflRwWorkflow = (action) => {
+    openGeneric(action, "Run workflow", "flRwWorkflowPage")
+  }
   /**
    * @summary Function that adds a tab of the MED3pa Module to the layout model
    * @params {Object} action - The action passed on by the dispatchLayout function
@@ -475,6 +507,11 @@ function LayoutModelProvider({ children, layoutModel, setLayoutModel }) {
     openInDotDotDot(action, "medflOptResultsPage")
   }
 
+
+  const openInMEDflRwresults = (action) => {
+    openInDotDotDot(action, "medflRwResultsPage")
+  }
+
    /**
    * @summary Function that adds a tab of MEDfl page
    * @params {Object} action - The action passed on by the dispatchLayout function, it uses the payload in the action as a JSON object to add a new child to the layout model
@@ -482,6 +519,16 @@ function LayoutModelProvider({ children, layoutModel, setLayoutModel }) {
    const openInFlModule = (action) => {
     openInDotDotDot(action, "medflPage")
   }
+
+  /**
+   * @summary Function that adds a tab of MEDfl clients page
+   * @params {Object} action - The action passed on by the dispatchLayout function, it uses the payload in the action as a JSON object to add a new child to the layout model
+   */
+  const openInFlClientsModule = (action) => {
+    openInDotDotDot(action, "flClientsPage")
+  }
+
+  
 
   
 

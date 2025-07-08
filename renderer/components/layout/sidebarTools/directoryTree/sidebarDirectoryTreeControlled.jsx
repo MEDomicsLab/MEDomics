@@ -333,6 +333,8 @@ const SidebarDirectoryTreeControlled = ({ setExternalSelectedItems, setExternalD
         dispatchLayout({ type: "openInMEDflResultsViewer", payload: item })
       } else if (item.type == "medflopt") {
         dispatchLayout({ type: "openInMEDflOptResultsViewer", payload: item })
+      } else if (item.type == "medflrw") {
+        dispatchLayout({ type: "openInMEDflRwResultsViewer", payload: item })
       }else if (item.type == "fl") {
         dispatchLayout({ type: "openInFlModule", payload: item })
       }  else {

@@ -11,11 +11,11 @@ import { Column } from "@blueprintjs/table"
 import { toast } from "react-toastify"
 import { FilterMatchMode, FilterOperator } from "primereact/api"
 import { MultiSelect } from "primereact/multiselect"
-import { Utils as danfoUtils } from "danfojs-node"
+import { Utils as danfoUtils } from "danfojs"
 import SaveDataset from "../generalPurpose/saveDataset"
 import { cleanDataset, getColumnDataType, getData, getColumnOptions, getParentIDfolderPath, handleSelectedDatasetChange, updateListOfDatasets, updateTheColumnsTypes } from "./simpleToolsUtils"
 
-const dfd = require("danfojs-node")
+const dfd = require("danfojs")
 const dfdUtils = new danfoUtils()
 
 /**

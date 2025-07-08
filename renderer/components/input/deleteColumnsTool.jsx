@@ -20,7 +20,7 @@ import {
   updateTheColumnsTypes
 } from "./simpleToolsUtils"
 
-const dfd = require("danfojs-node")
+const dfd = require("danfojs")
 
 /**
  * Component that renders the delete columns tool

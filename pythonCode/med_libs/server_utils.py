@@ -6,7 +6,7 @@ import traceback
 import os
 from pathlib import Path
 
-from pycaret.internal.pipeline import Pipeline
+# from pycaret.internal.pipeline import Pipeline
 
 
 def get_json_from_request(request):
@@ -98,8 +98,8 @@ def get_model_from_medmodel(medmodel_path: str) -> sklearn.base.BaseEstimator:
         pkl_path = os.path.join(path, "model.pkl")
         with open(pkl_path, "rb") as f:
             model = joblib.load(f)
-        if isinstance(model, Pipeline):
-            model = model.steps[-1][1]
+        # if isinstance(model, Pipeline):
+        #     model = model.steps[-1][1]
         return model
 
     return cust_zip_file_model.read_in_zip(
@@ -113,8 +113,8 @@ def get_model_from_path(path: str) -> sklearn.base.BaseEstimator:
     import joblib
     with open(path, "rb") as f:
         model = joblib.load(f)
-    if isinstance(model, Pipeline):
-        model = model.steps[-1][1]
+    # if isinstance(model, Pipeline):
+    #     model = model.steps[-1][1]
     return model
 
 
