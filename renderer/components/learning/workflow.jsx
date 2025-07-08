@@ -699,25 +699,38 @@ const Workflow = forwardRef(({ setWorkflowType, workflowType, isExperiment }, re
   }
 
   useEffect(() => {
-    Object.keys(boxIntersections).map(((boxId) => {
-      const foundOutlier = boxIntersections[boxId].some((target => {
-        const targetNode = nodes.find((node) => node.id === target)
-        if (!targetNode) return // If the target node is not found, exit early
-        return targetNode.data.setupParam.section.toLowerCase() !== boxId.split("-")[1].split(".")[0]
-      }))
-      if (foundOutlier) {
-        // Update the box color to red if the section does not match
-        changeBoxColor(boxId, "rgba(255, 0, 0, 0.8)", "rgb(255, 0, 0)")
-      } else {
-        if (boxId.includes("analysis")) {
-          // If the box is an analysis box, we set the color to blue
-          changeBoxColor(boxId, "rgba(150, 201, 230, 0.8)", "rgb(255, 187, 0)")
+    if (Object.keys(boxIntersections).length > 0) {
+      Object.keys(boxIntersections).map(((boxId) => {
+        const foundOutlier = boxIntersections[boxId].some((target => {
+          const targetNode = nodes.find((node) => node.id === target)
+          if (!targetNode) return // If the target node is not found, exit early
+          return targetNode.data.setupParam.section.toLowerCase() !== boxId.split("-")[1].split(".")[0]
+        }))
+        if (foundOutlier) {
+          // Update the box color to red if the section does not match
+          changeBoxColor(boxId, "rgba(255, 0, 0, 0.8)", "rgb(255, 0, 0)")
         } else {
-          // Update the box color to green if the section matches
-          changeBoxColor(boxId, "rgba(173, 230, 150, 0.8)", "rgb(255, 187, 0)")
+          if (boxId.includes("analysis")) {
+            // If the box is an analysis box, we set the color to blue
+            changeBoxColor(boxId, "rgba(150, 201, 230, 0.8)", "rgb(255, 187, 0)")
+          } else {
+            // Update the box color to green if the section matches
+            changeBoxColor(boxId, "rgba(173, 230, 150, 0.8)", "rgb(255, 187, 0)")
+          }
         }
-      }
-    }))
+      }))
+    } else {
+      // Ensure all boxes are green if no intersections are found
+      setNodes((nds) =>
+        nds.map((node) => {
+          if (node.id.startsWith("box-")) {
+            // Update the box color to green if the section matches
+            changeBoxColor(node.id, "rgba(173, 230, 150, 0.8)", "rgb(255, 187, 0)")
+          }
+          return node
+        })
+      )
+    }
   }, [boxIntersections])
 
   const changeBoxColor = (nodeId, color, onSelectedColor) => {
@@ -825,35 +838,10 @@ const Workflow = forwardRef(({ setWorkflowType, workflowType, isExperiment }, re
       const minPosX = boxNode ? boxNode.position.x + 60 : 0 // Default min position if no box node  (60 is side bar width)
       const maxPosY = boxNode ? boxNode.position.y + boxNode.height - node.height : 1000 // Default max position if no box node found
       const minPosY = boxNode ? boxNode.position.y : 0 // Default min position if no box node found
-      if (node.position.x < minPosX || node.position.x > maxPosX) {
-        if (node.position.x - minPosX < maxPosX - node.position.x) {
-          node.position.x = Math.max(node.position.x, minPosX)
-        } else {
-          node.position.x = Math.min(node.position.x, maxPosX)
-        }
-        setNodes((nds) =>
-          nds.map((n) => {
-            if (n.id === node.id) {
-              n.position = { x: node.position.x, y: node.position.y }
-            }
-            return n
-          })
-        )
-      }
-      if (node.position.y < minPosY || node.position.y > maxPosY) {
-        if (node.position.y - minPosY < maxPosY - node.position.y) {
-          node.position.y = Math.max(node.position.y, minPosY)
-        } else {
-          node.position.y = Math.min(node.position.y, maxPosY)
-        }
-        setNodes((nds) =>
-          nds.map((n) => {
-            if (n.id === node.id) {
-              n.position = { x: node.position.x, y: node.position.y }
-            }
-            return n
-          })
-        )
+      if (node.position.x < minPosX || node.position.x > maxPosX || node.position.y < minPosY || node.position.y > maxPosY) {
+        node.data.className = "misplaced"
+      } else {
+        node.data.className = ""
       }
     },
     [nodes, intersections]
@@ -950,6 +938,17 @@ const Workflow = forwardRef(({ setWorkflowType, workflowType, isExperiment }, re
         return filteredInts
       }, [])
     )
+    // Handle box intersections
+    setBoxIntersections((prev) => {
+      const newBoxIntersections = { ...prev }
+      Object.keys(newBoxIntersections).forEach((boxId) => {
+        newBoxIntersections[boxId] = newBoxIntersections[boxId].filter((item) => item !== id)
+        if (newBoxIntersections[boxId].length === 0) {
+          delete newBoxIntersections[boxId]
+        }
+      })
+      return newBoxIntersections
+    })
   }, [])
 
   /**
@@ -1142,6 +1141,16 @@ const Workflow = forwardRef(({ setWorkflowType, workflowType, isExperiment }, re
    */
   const onRun = useCallback(
     async (e, up2Id = undefined, saveAndFinalize = false, modelToFinalize = null, modelName = null) => {
+      // Check if all nodes are in place
+      const misPlacedNode = nodes.find(node => node.data.className === "misplaced")
+      if (misPlacedNode) {
+        if (misPlacedNode?.data?.setupParam?.section) {
+          toast.warn(`Node "${misPlacedNode.data.internal.name}" is misplaced. Please place it inside the "${misPlacedNode.data.setupParam.section}" box.`)
+        } else {
+          toast.warn(`Node "${misPlacedNode.data.internal.name}" is misplaced. Please place them inside their designated boxes.`)
+        }
+        return
+      }
       if (reactFlowInstance) {
         let flow = deepCopy(reactFlowInstance.toObject())
         flow.MLType = MLType
