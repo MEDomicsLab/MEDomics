@@ -1,4 +1,4 @@
-import React, { useContext, useEffect, useState } from "react"
+import React, { use, useContext, useEffect, useState } from "react"
 import Node from "../../flow/node"
 import FlInput from "../flInput"
 import { Button, Form } from "react-bootstrap"
@@ -93,6 +93,24 @@ const FlModelNode = ({ id, data }) => {
       })
     }
   }, [optimFile?.path])
+
+  useEffect(() => {
+    if (tlActivated == "true" && (!data.internal.settings.file || data.internal.settings.file.path == "")) {
+      data.internal.hasWarning.state = true
+      data.internal.hasWarning.tooltip = "You need to specify a file for the transfer learning"
+      updateNode({
+        id: id,
+        updatedData: data.internal
+      })
+    } else {
+      data.internal.hasWarning.state = false
+      data.internal.hasWarning.tooltip = ""
+      updateNode({
+        id: id,
+        updatedData: data.internal
+      })
+    }
+  }, [tlActivated, data.internal.settings.file])
 
   return (
     <>

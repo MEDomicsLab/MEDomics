@@ -91,10 +91,10 @@ const ServerLogosModal = ({ show, onHide, nodes }) => {
         clientEvalMetrics
       }
 
-      await MedDataObject.writeFileSync({ data, date: Date.now() }, path + "/FL/RW", "fileName", "json")
-      await MedDataObject.writeFileSync({ data, date: Date.now() }, path + "/FL/RW", "fileName", "medflrw")
+      await MedDataObject.writeFileSync({ data, date: Date.now() }, path + "/FL/RW", fileName, "json")
+      await MedDataObject.writeFileSync({ data, date: Date.now() }, path + "/FL/RW", fileName, "medflrw")
 
-      toast.success("Optimization results saved successfuly ")
+      toast.success("Optimization results saved under /FL/RW/")
     } catch {
       toast.error("Something went wrong ")
     }
@@ -197,6 +197,15 @@ const ServerLogosModal = ({ show, onHide, nodes }) => {
             setClientTrainMetrics((prev) => {
               const exists = prev.some((item) => item.clientId === cid && item.round === round)
               return exists ? prev : [...prev, trainResult]
+            })
+
+            setConnectedClients((prev) => {
+              return prev.map((client) => {
+                if (client.id === cid && (!client.hostname || client.hostname === "")) {
+                  return { ...client, hostname: metrics.hostname, os: metrics.os_type || "unknown" }
+                }
+                return client
+              })
             })
 
             console.log("Parsed CTM:", trainResult)
@@ -697,7 +706,7 @@ const ServerLogosModal = ({ show, onHide, nodes }) => {
                         </Tabs>
                       </Tab.Pane>
                       <Tab.Pane eventKey="third">
-                        <CommunicationFlow connectedClients={connectedClients} isAggregating={isAggregating} runningClients={runningClients} finished={finishedruning} />
+                        <CommunicationFlow connectedClients={connectedClients} isAggregating={isAggregating} runningClients={runningClients} finished={finishedruning} currentRound={currentRound} />
                       </Tab.Pane>
                     </Tab.Content>
                   </Col>
@@ -725,20 +734,31 @@ const ServerLogosModal = ({ show, onHide, nodes }) => {
         </Modal.Body>
         <Modal.Footer>
           {serverRunning ? (
-            <>
+            <div className="d-flex gap-3">
               {finishedruning ? (
-                <button className="btn btn-success" onClick={saveResults}>
-                  <span className="me-2">Save results</span>
-                  <FaSave />
-                </button>
+                !isFileName ? (
+                  <button className="btn btn-success text-nowrap" onClick={() => showFileName(true)}>
+                    <span className="me-2">Save results</span>
+                    <FaSave />
+                  </button>
+                ) : (
+                  <div class="input-group">
+                    <input type="text" class="form-control" placeholder="File name" value={fileName} onChange={(e) => setFileName(e.target.value)} />
+                    <div class="input-group-append">
+                      <button class="btn btn-success" type="button" onClick={saveResults}>
+                        <FaSave />
+                      </button>
+                    </div>
+                  </div>
+                )
               ) : null}
-              <button className="btn btn-secondary" onClick={stopServer}>
+              <button className="btn btn-secondary text-nowrap" onClick={stopServer}>
                 <span className="me-2">Stop Server</span>
                 <FaPause />
               </button>{" "}
-            </>
+            </div>
           ) : (
-            <button className="btn btn-secondary" onClick={runServer}>
+            <button className="btn btn-success" onClick={runServer}>
               <span className="me-2">Run Server</span>
               <FaPlay />
             </button>
