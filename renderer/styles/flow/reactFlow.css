@@ -1,5 +1,6 @@
 :root {
   --not-run-color: #ff9700b0;
+  --misplaced-color: #ff0000b0;
   --size-top-panel: 2.5rem;
   --num-controls-btn: 6;
 }
@@ -615,6 +616,10 @@ input.node-editableLabel {
 
 .notRun {
   border: 0.15rem solid var(--not-run-color);
+}
+
+.misplaced {
+  border: 0.15rem solid var(--misplaced-color);
 }
 
 path {

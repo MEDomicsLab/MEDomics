@@ -121,7 +121,7 @@ const NodeObject = ({ id, data, nodeSpecific, color = null, nodeBody, defaultSet
           onClick={(e) => (op.current.toggle(e))}
           // if the node has run and the results pane is displayed, the node is displayed normally
           // if the node has not run and the results pane is displayed, the node is displayed with a notRun class (see .css file)
-          className={`text-left ${data.internal.hasRun && showResultsPane ? "" : showResultsPane ? "notRun" : ""}`}
+          className={`text-left ${data.internal.hasRun && showResultsPane ? "" : showResultsPane ? "notRun" : ""}  ${data.className}`}
           header={
             <>
               <div className="align-center">
