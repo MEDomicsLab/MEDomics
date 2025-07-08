@@ -74,6 +74,11 @@ class CombineModels(Node):
         self.CodeHandler = NodeCodeHandler()
         self.CodeHandler.add_line("code", "# --- CombineModels ---")
         self.CodeHandler.add_line("code", "trained_models = []")
+        
+        # Check if calibrate is activated
+        if s.get("calibrate", False):
+            self.post_action = "calibrate_model"
+            self.post_params = {}
 
     # ---------------------- execution (may be called several times) -------- #
     def _execute(self, experiment: dict = None, **kwargs) -> json:
