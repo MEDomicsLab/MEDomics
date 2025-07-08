@@ -33,6 +33,16 @@ const iconExtension = {
   ini: <span className="emoji">⚙️ </span>,
   pth: <span className="emoji">🧬 </span>,
   medflres: <span className="emoji">📊</span>,
+  db: (
+    <span>
+      <Icon.Server className="icon-offset" style={{ color: "#5b95ff" }} />
+    </span>
+  ),
+  fl: (
+    <span>
+      <Icon.HddNetworkFill className="icon-offset" style={{ color: "#5b95ff" }} />
+    </span>
+  ),
   medmodel: (
     <span>
       <PiGraph className="icon-offset" style={{ color: "#97edfb" }} />

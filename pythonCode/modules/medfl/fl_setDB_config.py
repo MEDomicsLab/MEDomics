@@ -12,6 +12,8 @@ from med_libs.server_utils import go_print
 
 #  MEDfl imports 
 from MEDfl.LearningManager.utils import *
+from MEDfl.NetManager.database_connector import DatabaseManager
+
 
 json_params_dict, id_ = parse_arguments()
 go_print(json_params_dict['path'])
@@ -41,6 +43,10 @@ class GoExecScriptDBconfigFromMEDfl(GoExecutionScript):
       
 
         set_db_config(json_config['path'])
+
+        db_manager = DatabaseManager()
+        db_manager.connect()
+        db_manager.get_connection()
 
         db_config = load_db_config()
 

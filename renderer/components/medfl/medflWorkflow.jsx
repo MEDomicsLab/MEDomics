@@ -86,7 +86,7 @@ const MedflWorkflow = ({ setWorkflowType, workflowType }) => {
 
   const [flConfigFile, setConfigFile] = useState({ path: "" })
   const [showDBconfigModal, setDBModal] = useState(false)
-  const [showConfigModal, setconfigModal] = useState(true)
+  // const [showConfigModal, setconfigModal] = useState(true)
 
   const [optimResults, setOptimResults] = useState(null)
   const [optimType, setOptimType] = useState("")
@@ -106,7 +106,6 @@ const MedflWorkflow = ({ setWorkflowType, workflowType }) => {
   const [allConfigResults, setAllresults] = useState([])
 
   const { updatePipelineConfigs } = useMEDflContext()
-
 
   let ALL_CONFIGS = [
     {
@@ -740,35 +739,38 @@ const MedflWorkflow = ({ setWorkflowType, workflowType }) => {
   /**
    * save the workflow as a json file
    */
-  const onSave = useCallback(async (scean) => {
-    if (reactFlowInstance) {
-      const flow = deepCopy(reactFlowInstance.toObject())
-      flow.MLType = MLType
-      console.log("flow debug", flow)
-      flow.nodes.forEach((node) => {
-        node.data.setupParam = null
-      })
-      flow.intersections = intersections
-      if (configPath != "") {
-        console.log("Heeeeeeere")
-        modifyZipFileSync(configPath , async (path) => {
-          // do custom actions in the folder while it is unzippsed
-          await MedDataObject.writeFileSync(flow, path, "metadata", "json")
-          toast.success("Scene has been saved successfully")
+  const onSave = useCallback(
+    async (scean) => {
+      if (reactFlowInstance) {
+        const flow = deepCopy(reactFlowInstance.toObject())
+        flow.MLType = MLType
+        console.log("flow debug", flow)
+        flow.nodes.forEach((node) => {
+          node.data.setupParam = null
         })
-      } else {
-        console.log('here' , scean)
-        let configPath = "C:\\Users\\HP User\\Desktop\\medfl_workspace\\EXPERIMENTS\\FL\\Sceans"
-        createSceneContent(configPath, scean, "fl", null).then(() =>
-          modifyZipFileSync(configPath + "\\" + scean + ".fl", async (path) => {
-            // do custom actions in the folder while it is unzipped
+        flow.intersections = intersections
+        if (configPath != "") {
+          console.log("Heeeeeeere")
+          modifyZipFileSync(configPath, async (path) => {
+            // do custom actions in the folder while it is unzippsed
             await MedDataObject.writeFileSync(flow, path, "metadata", "json")
             toast.success("Scene has been saved successfully")
           })
-        )
+        } else {
+          console.log("here", scean)
+          let configPath = globalData[UUID_ROOT].path + "\\EXPERIMENTS\\FL\\Sceans"
+          createSceneContent(configPath, scean, "fl", null).then(() =>
+            modifyZipFileSync(configPath + "\\" + scean + ".fl", async (path) => {
+              // do custom actions in the folder while it is unzipped
+              await MedDataObject.writeFileSync(flow, path, "metadata", "json")
+              toast.success("Scene has been saved successfully")
+            })
+          )
+        }
       }
-    }
-  }, [reactFlowInstance, MLType, intersections])
+    },
+    [reactFlowInstance, MLType, intersections]
+  )
 
   /**
    * Clear the canvas if the user confirms
@@ -782,7 +784,7 @@ const MedflWorkflow = ({ setWorkflowType, workflowType }) => {
     }
   }, [])
 
-  useEffect(() =>{
+  useEffect(() => {
     console.log(scenName)
   }, [scenName])
 
@@ -933,6 +935,10 @@ const MedflWorkflow = ({ setWorkflowType, workflowType }) => {
     )
   }
 
+  const createDBfile = (file) => {
+      setDBConfig(file.path)
+  }
+
   const setDBConfig = (filePath) => {
     let JSONToSend = { path: filePath }
 
@@ -1051,19 +1057,21 @@ const MedflWorkflow = ({ setWorkflowType, workflowType }) => {
   }
 
   useEffect(() => {
-    if (flConfigFile?.path != "") {
-      setDBConfig(flConfigFile?.path)
-    }
-  }, [flConfigFile?.path])
-
-  useEffect(() => {
     console.log(allConfigResults)
   }, [allConfigResults.length])
 
   return (
     <>
       {/* DB config modal */}
-      <DBCOnfigFileModal show={showDBconfigModal} onHide={() => setDBModal(false)} setFile={setConfigFile} configFile={flConfigFile} />
+      <DBCOnfigFileModal
+        show={showDBconfigModal}
+        onHide={() => setDBModal(false)}
+        setFile={setConfigFile}
+        configFile={flConfigFile}
+        onConfirm={() => {
+           createDBfile(flConfigFile)
+        }}
+      />
       <Modal show={isSaveModal} onHide={() => openSaveModal(false)} centered>
         <Modal.Header>
           <Modal.Title> Save scean</Modal.Title>
@@ -1077,22 +1085,26 @@ const MedflWorkflow = ({ setWorkflowType, workflowType }) => {
               tooltip: "<p>Specify a data file (xlsx, csv, json)</p>"
             }}
             currentValue={scenName}
-            onInputChange={(e) =>{ setSceanName(e.value) ; console.log(e.value) ; console.log(scenName)}}
+            onInputChange={(e) => {
+              setSceanName(e.value)
+              console.log(e.value)
+              console.log(scenName)
+            }}
             setHasWarning={() => {}}
           />
         </Modal.Body>
         <Modal.Footer>
-          <Button label="Save Scean" icon="pi pi-save" className="p-button-primary" onClick={()=>onSave(scenName)} disabled={!scenName || scenName == ""}></Button>
+          <Button label="Save Scean" icon="pi pi-save" className="p-button-primary" onClick={() => onSave(scenName)} disabled={!scenName || scenName == ""}></Button>
         </Modal.Footer>
       </Modal>
       {/* set the fl config file  */}
 
-      <FlConfigModal
+      {/* <FlConfigModal
         show={showConfigModal}
         onHide={() => {
           setconfigModal(false)
         }}
-      />
+      /> */}
       <OptimResultsModal
         show={optimResults}
         onHide={() => {
@@ -1147,7 +1159,7 @@ const MedflWorkflow = ({ setWorkflowType, workflowType }) => {
         groupNodeHandlingDefault={() => {}}
         onNodeDrag={onNodeDrag}
         uiTopLeft={
-          <Button onClick={() => setDBModal(true)} label="DB Config file" icon="pi pi-cog" severity="primary" outlined badge={flConfigFile?.path == "" ? "!" : ""} badgeClassName="p-badge-warning" />
+          <Button onClick={() => setDBModal(true)} label="Select a DB file" icon="pi pi-cog" severity="primary" outlined badge={flConfigFile?.path == "" ? "!" : ""} badgeClassName="p-badge-warning" />
         }
         // reprensents the visual over the workflow
         uiTopRight={
