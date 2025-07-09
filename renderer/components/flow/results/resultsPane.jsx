@@ -18,7 +18,7 @@ import { RadioButton } from "primereact/radiobutton"
  *
  */
 const ResultsPane = ({ runFinalizeAndSave }) => {
-  const { setShowResultsPane } = useContext(FlowResultsContext)
+  const { setShowResultsPane, flowResults } = useContext(FlowResultsContext)
   const { flowContent } = useContext(FlowInfosContext)
   const { updateNode } = useContext(FlowFunctionsContext)
   const [selectedPipelines, setSelectedPipelines] = useState([])
@@ -68,7 +68,7 @@ const ResultsPane = ({ runFinalizeAndSave }) => {
       })
 
       // find all pipelines
-      let pipelines = findAllPaths(flowContent)
+      let pipelines = findBoxAnalysisPaths(flowResults)
 
       // find pipelines that includes all the selected ids
       let selectedPipelines = []
@@ -86,6 +86,47 @@ const ResultsPane = ({ runFinalizeAndSave }) => {
       setSelectedPipelines(selectedPipelines)
     }
   }, [flowContent])
+
+  /**
+   * Finds all paths to 'box-analysis' nodes in a nested dictionary structure
+   * @param {Object} dict - The nested dictionary to search
+   * @returns {Array<Array<string>>} - List of paths (each path is an array of keys)
+   */
+  const findBoxAnalysisPaths = (dict) => {
+    const paths = []
+
+    const traverse = (currentDict, currentPath = []) => {
+      if (!currentDict || typeof currentDict !== 'object') return
+
+      // Check if current level has 'box-analysis' in next_nodes
+      if (currentDict.next_nodes && 'box-analysis' in currentDict.next_nodes) {
+        paths.push([...currentPath, 'box-analysis'])
+      }
+
+      // Recursively search through next_nodes
+      if (currentDict.next_nodes) {
+        Object.entries(currentDict.next_nodes).forEach(([key, value]) => {
+          if (key.includes("*")) {
+            // Drop train model node
+            key.split("*").forEach((part) => {
+              const nodeType = flowContent.nodes.find(node => node.id === part)?.data?.internal?.type
+              if (nodeType !== "train_model") {
+                traverse(value, [...currentPath, part])
+              }
+            })
+          } else {            
+            traverse(value, [...currentPath, key])
+          }
+        })
+      }
+    }
+
+    Object.entries(dict).forEach(([key, value]) => {
+      traverse(value, [key])
+    })
+
+    return paths
+}
 
   function findAllPaths(flowContent) {
     let links = flowContent.edges

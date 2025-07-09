@@ -19,6 +19,7 @@ import { MEDDataObject } from "../../workspace/NewMedDataObject"
 import { EXPERIMENTS, WorkspaceContext } from "../../workspace/workspaceContext"
 import { FlowInfosContext } from "../context/flowInfosContext"
 import { FlowResultsContext } from "../context/flowResultsContext"
+import { has } from "lodash"
 
 /**
  *
@@ -81,71 +82,34 @@ const fetchGroupModelsResults = (data, targetNodeId) => {
  */
 function getNodeResults(flowResults, flowContent, pipeline, targetId) {
   try {
-    // Check if flowResults is valid
-    if (!flowResults || typeof flowResults !== 'object') {
-      console.error('Invalid data provided')
-      return null
-    }
+    const traverse = (currentDict, currentKey) => {
+      if (!currentDict || typeof currentDict !== 'object') return
 
-    // If pipeline is provided, follow it first
-    if (pipeline && pipeline.length > 0) {
-      let current = flowResults
-      // Follow each key in the pipeline
-      for (const key of pipeline) {
-        if (!current || typeof current !== 'object') {
-          return null
-        }
-        if (key !== targetId) continue
-
-        // Recursive function to search through the nested structure
-        const findNode = (currentNode) => {
-          // Check if current node is valid
-          if (!currentNode || typeof currentNode !== 'object') {
-            return null
-          }
-
-          // Check if current node has the target ID in its key
-          const nodeKeys = Object.keys(currentNode)
-          for (const key of nodeKeys) {
-            if (key.includes(targetId)) {
-              // If this node has results, return them
-              if (currentNode[key]?.results) {
-                const previousNode = currentNode[key].results.prev_node_id
-                if (previousNode && !pipeline.some((p) => previousNode.includes(p))) continue // If the previous node is not in the pipeline, skip this result
-                return currentNode[key].results
-              }
-            }
-          }
-
-          // Check next_nodes recursively
-          for (const key of nodeKeys) {
-            if (currentNode[key]?.next_nodes) {
-              //const withinPipeline = pipeline.some(p => key.includes(p))
-              //if (!withinPipeline) continue
-              const foundInChild = findNode(currentNode[key].next_nodes)
-              if (foundInChild) {
-                return foundInChild
-              }
-            }
-          }
-
-          return null
-        }
-
-        // Find node type
-        const nodeType = flowContent.nodes.find(node => node.id === key)?.data?.internal?.type
-        
-        // For combine_models, we need to fetch results differently
-        if (nodeType === "combine_models") {
-          const groupResults = fetchGroupModelsResults(flowResults, key)
-          return groupResults || null
-        }
-
-        const results = findNode(current)
-        return results || null
+      // Skip train model node
+      const nodeType = flowContent.nodes.find(node => node.id === currentKey)?.data?.internal?.type 
+      if (nodeType !== "train_model" && currentKey.includes(targetId) && currentDict.results) {
+        return currentDict.results // Return found results immediately
       }
-      return null
+
+      // Recursively search through next_nodes
+      if (currentDict.next_nodes) {
+        for (const [key, value] of Object.entries(currentDict.next_nodes)) {
+          const isInPipeline = pipeline.some(p => key.includes(p))
+          if (isInPipeline) {
+            const results = traverse(value, key)
+            if (results) return results // Bubble up found results
+          }
+        }
+      }
     }
+
+    let nodeResults = null
+
+    Object.entries(flowResults).forEach(([key, value]) => {
+      nodeResults = traverse(value, key)
+      
+    })
+    return nodeResults
   } catch (error) {
     console.error('Error while searching for node results:', error)
     return null
@@ -512,6 +476,17 @@ const PipelinesResults = ({ pipelines, selectionMode, flowContent, runFinalizeAn
         return notebookID
       }
 
+      /**
+       * @param {List} pipeline The pipeline to check if it has group_models
+       * @returns {boolean} true if the pipeline has group_models, false otherwise
+       */
+      const hasGroupModels = (pipeline) => {
+        return pipeline.some((id) => {
+          let node = flowContent.nodes.find((node) => node.id == id)
+          return node && node.data.internal.type == "combine_models"
+        })
+      }
+
       return (
         <>
           <SelectButton
@@ -529,14 +504,21 @@ const PipelinesResults = ({ pipelines, selectionMode, flowContent, runFinalizeAn
               }
             }}
             optionLabel="name"
-            options={pipeline.map((id) => {
-              return {
+            options={pipeline
+              .filter(id => {
+                // Only keep non-model nodes if group models exist
+                if (hasGroupModels(pipeline)) {
+                  const node = flowContent.nodes.find(node => node.id === id);
+                  return !(node && node.data.internal.type === "model");
+                }
+                return true; // Keep all if no group models
+              })
+              .map(id => ({
                 name: getName(id),
                 value: id,
                 class: `${isChecked(id) ? "checked" : "unchecked"} ${!hasRun(id) ? "pipe-name-notRun" : ""}`
-              }
-            })}
-            itemTemplate={buttonTemplate}
+              }))}
+              itemTemplate={buttonTemplate}
           />
           <FinalizeSaveBtn onClick={runFinalizeAndSaveWrapper} />
           <CodeGenBtn onClick={codeGeneration} />
