@@ -4,7 +4,14 @@ import fs from "fs"
 import path from "path"
 import { toast } from "react-toastify"
 import { getPathSeparator } from "../../utilities/fileManagementUtils"
-import { deleteMEDDataObject, downloadCollectionToFile, insertMEDDataObjectIfNotExists, overwriteMEDDataObjectProperties, updateMEDDataObjectName, updateMEDDataObjectPath } from "../mongoDB/mongoDBUtils"
+import {
+  deleteMEDDataObject,
+  downloadCollectionToFile,
+  insertMEDDataObjectIfNotExists,
+  overwriteMEDDataObjectProperties,
+  updateMEDDataObjectName,
+  updateMEDDataObjectPath
+} from "../mongoDB/mongoDBUtils"
 
 /**
  * @description class definition of a MEDDataObject
@@ -154,7 +161,7 @@ export class MEDDataObject {
    * @description Creates an empty folder in the file system.
    * @param {string} name
    * @param {string} path
-  */
+   */
   static createFolderFSsync(path) {
     // eslint-disable-next-line no-undef
     let fs = require("fs")
@@ -328,7 +335,7 @@ export class MEDDataObject {
   /**
    * @description Lock a MEDDataObject to prevent it from being deleted
    * @param {String} id - the id of the MEDDataObject to lock
-   * 
+   *
    * @returns {void}
    */
   static async lockMedDataObject(id) {
@@ -344,7 +351,7 @@ export class MEDDataObject {
   /**
    * @description Unlock a MEDDataObject to allow it to be deleted
    * @param {String} id - the id of the MEDDataObject to unlock
-   * 
+   *
    * @returns {void}
    */
   static async unlockMedDataObject(id) {
@@ -356,11 +363,11 @@ export class MEDDataObject {
     }
     this.updateWorkspaceDataObject()
   }
-  
+
   /**
    * @description Verify locked objects in the workspace and unlock them if not linked to any other object
    * @param {Dictionary} dict - dictionary of all MEDDataObjects
-   * 
+   *
    * @returns {void}
    */
   static verifyLockedObjects(dict) {
@@ -464,6 +471,7 @@ export class MEDDataObject {
     // Download the content based on the type
     try {
       if (medDataObject.type != "directory" && medDataObject.type != "medml" && medDataObject.type != "medeval" && medDataObject.type != "medmlres" && medDataObject.type != "medmodel") {
+        console.log(`Downloading ${medDataObject.type} object with id ${id} to ${filePath}`)
         await downloadCollectionToFile(id, filePath, medDataObject.type)
       }
 

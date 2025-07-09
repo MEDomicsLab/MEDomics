@@ -1,6 +1,6 @@
 import { randomUUID } from "crypto"
 import { DataFrame } from "../../../utilities/danfo.js"
-import { Button } from 'primereact/button'
+import { Button } from "primereact/button"
 import { DataView } from "primereact/dataview"
 import { Dropdown } from "primereact/dropdown"
 import { InputText } from "primereact/inputtext"
@@ -19,6 +19,7 @@ import { insertMEDDataObjectIfNotExists } from "../../mongoDB/mongoDBUtils"
 import { DataContext } from "../../workspace/dataContext"
 import { MEDDataObject } from "../../workspace/NewMedDataObject"
 import { WorkspaceContext } from "../../workspace/workspaceContext"
+import path from "path"
 
 /**
  *
@@ -55,7 +56,6 @@ const MEDprofilesPrepareData = () => {
   const { port } = useContext(WorkspaceContext) // we get the port for server connexion
   const { pageId } = useContext(PageInfosContext) // used to get the pageId
   const { setError } = useContext(ErrorRequestContext) // used to diplay the errors
-
 
   /**
    * @description This functions gets the MEDclasses folder if found in globalData and update generatedClassesFolder.
@@ -112,16 +112,14 @@ const MEDprofilesPrepareData = () => {
    * Open the MEDprofilesViewerPage, depending on generatedClassesFolder and generatedMEDprofilesFile
    */
   function openMEDprofilesViewer() {
-    dispatchLayout(
-      { 
-        type: `openMEDprofilesViewerModule`, 
-        payload: { 
-          pageId: "MEDprofilesViewer", 
-          MEDclassesFolder: generatedClassesFolder, 
-          MEDprofilesBinaryFile: generatedMEDprofilesFile 
-        } 
+    dispatchLayout({
+      type: `openMEDprofilesViewerModule`,
+      payload: {
+        pageId: "MEDprofilesViewer",
+        MEDclassesFolder: generatedClassesFolder,
+        MEDprofilesBinaryFile: generatedMEDprofilesFile
       }
-    )
+    })
   }
 
   /**
@@ -179,7 +177,8 @@ const MEDprofilesPrepareData = () => {
       id: id,
       name: masterFilename,
       type: "csv",
-      parentID: (getMastersTablesFolderId() === null) ? "ROOT" : getMastersTablesFolderId(),
+      parentID: getMastersTablesFolderId() === null ? "ROOT" : getMastersTablesFolderId(),
+      path: getMastersTablesFolderId() === null ? path.join("ROOT", masterFilename) : path.join(globalData[getMastersTablesFolderId()].path, masterFilename),
       childrenIDs: [],
       inWorkspace: false
     })
@@ -197,7 +196,7 @@ const MEDprofilesPrepareData = () => {
       "/MEDprofiles/create_master_table/" + pageId,
       {
         id: id,
-        csvCollections: csvCollections,
+        csvCollections: csvCollections
       },
       (jsonResponse) => {
         console.log("createMasterTable received results:", jsonResponse)
@@ -232,7 +231,7 @@ const MEDprofilesPrepareData = () => {
       "/MEDprofiles/create_MEDclasses/" + pageId,
       {
         masterTableID: selectedMasterTable.id,
-        MEDprofilesFolderPath: MEDprofilesFolderPath,
+        MEDprofilesFolderPath: MEDprofilesFolderPath
       },
       (jsonResponse) => {
         console.log("received results:", jsonResponse)
@@ -284,7 +283,6 @@ const MEDprofilesPrepareData = () => {
     })
     return folderId
   }
-
   /**
    * @description
    * This function checks if the MEDprofiles folder exists and creates it if it doesn't.
@@ -317,7 +315,7 @@ const MEDprofilesPrepareData = () => {
         port,
         "/MEDprofiles/create_MEDprofiles_folder/" + pageId,
         {
-          rootDataFolder: rootDataFolder.path,
+          rootDataFolder: rootDataFolder.path
         },
         async (jsonResponse) => {
           console.log("received results:", jsonResponse)
@@ -365,7 +363,7 @@ const MEDprofilesPrepareData = () => {
    */
   const getMasterSubMasterCsv = () => {
     // Get IDs of the csv files in the database
-    let  csvEntries = Object.values(globalData).filter((entry) => entry.type === "csv")
+    let csvEntries = Object.values(globalData).filter((entry) => entry.type === "csv")
     let csvCollections = csvEntries.map((entry) => entry.id)
 
     // Run extraction process
@@ -373,7 +371,7 @@ const MEDprofilesPrepareData = () => {
       port,
       "/MEDprofiles/get_master_csv/" + pageId,
       {
-        csvCollections: csvCollections,
+        csvCollections: csvCollections
       },
       (jsonResponse) => {
         if (!jsonResponse.error) {
@@ -417,7 +415,7 @@ const MEDprofilesPrepareData = () => {
         "/MEDprofiles/initialize_MEDprofiles_instantiation/" + pageId,
         {
           masterTableID: selectedMasterTable.id,
-          MEDprofilesFolderPath: MEDprofilesFolderPath,
+          MEDprofilesFolderPath: MEDprofilesFolderPath
         },
         (response) => resolve(response),
         (error) => reject(error)
@@ -433,7 +431,7 @@ const MEDprofilesPrepareData = () => {
    * @returns extractedData
    */
   async function runMEDprofilesInstantiation(processingList) {
-    // Check if a pickle file already 
+    // Check if a pickle file already
     if (binaryFilename) {
       let pklFileExists = false
       Object.keys(globalData).forEach((key) => {
@@ -453,6 +451,7 @@ const MEDprofilesPrepareData = () => {
       type: "pkl",
       parentID: getMEDprofilesFolderId(),
       childrenIDs: [],
+      path: path.join(MEDprofilesFolderPath, binaryFilename),
       inWorkspace: false
     })
     let progress = 10
@@ -468,9 +467,13 @@ const MEDprofilesPrepareData = () => {
       if (subList === chunks[chunks.length - 1]) {
         lastChunk = true
       }
-      // Check if generated classes folder is defined
-      if (!generatedClassesFolder.path) {
+      // Ensure generatedClassesFolder is defined and has a path
+      if (!generatedClassesFolder || !generatedClassesFolder.path) {
         await getGeneratedClassesFolder()
+      }
+      if (!generatedClassesFolder || !generatedClassesFolder.path) {
+        toast.error("Generated MEDclasses folder not found. Please ensure it exists before proceeding.")
+        return
       }
       try {
         const jsonResponse = await new Promise((resolve, reject) => {
@@ -485,7 +488,7 @@ const MEDprofilesPrepareData = () => {
               pickleFileObject: object,
               patientList: subList,
               rootDir: getRootWorkspacePath(),
-              lastChunk: lastChunk,
+              lastChunk: lastChunk
             },
             (response) => resolve(response),
             (error) => reject(error)
@@ -558,18 +561,15 @@ const MEDprofilesPrepareData = () => {
       boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
       textAlign: "center",
       transition: "background-color 0.3s ease",
-      cursor: "pointer",
+      cursor: "pointer"
     }
-    if (name){
+    if (name) {
       if (name.includes(".")) {
-        return <div 
-          style={style}
-          onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "#e0f7fa")}
-          onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "#f9f9f9")}>
-            <span style={{ fontWeight: "bold", fontSize: "16px", color: "#333" }}>
-              {name.split(".").slice(0, -1).join(".")}
-            </span>
+        return (
+          <div style={style} onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "#e0f7fa")} onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "#f9f9f9")}>
+            <span style={{ fontWeight: "bold", fontSize: "16px", color: "#333" }}>{name.split(".").slice(0, -1).join(".")}</span>
           </div>
+        )
       } else {
         return
       }
@@ -605,7 +605,7 @@ const MEDprofilesPrepareData = () => {
       let keys = Object.keys(globalData)
       keys.forEach((key) => {
         if (globalData[key].type == "directory" && globalData[key].name == "DATA" && (globalData[key].parentID == "UUID_ROOT" || globalData[key].parentID == "ROOT")) {
-          if (globalData[key] !== rootDataFolder){
+          if (globalData[key] !== rootDataFolder) {
             setRootDataFolder(globalData[key])
           }
         }
@@ -616,7 +616,7 @@ const MEDprofilesPrepareData = () => {
   // Called while rootDataFolder is updated in order to create the MEDprofiles folder
   useEffect(() => {
     if (rootDataFolder) {
-      if (!checkMEDprofilesFolder()){
+      if (!checkMEDprofilesFolder()) {
         createMEDprofilesFolder()
       }
     }
@@ -634,7 +634,12 @@ const MEDprofilesPrepareData = () => {
         return new Promise((resolve) => {
           loadCSVPath(MEDdata.path, (data) => {
             let dataframe = new DataFrame(data)
-            idTypes.push(dataframe.$dtypes[0])
+            if (dataframe.$dtypes && dataframe.$dtypes.length > 0) {
+              idTypes.push(dataframe.$dtypes[0])
+            } else {
+              console.warn("DataFrame has no dtypes or is empty for", MEDdata.path)
+              idTypes.push(undefined)
+            }
             resolve()
           })
         })
@@ -691,7 +696,7 @@ const MEDprofilesPrepareData = () => {
           </div>
           <div className="align-center">{!matchingIdColumns && <Message severity="warn" text="Your selected csv for master table creation contains different types for identifier columns" />}</div>
         </div>
-        <div className="margin-top-15 flex-container"> 
+        <div className="margin-top-15 flex-container">
           <div className="mergeToolMultiSelect">
             {subMasterTableFileList?.length > 0 ? (
               <MultiSelect
@@ -714,26 +719,24 @@ const MEDprofilesPrepareData = () => {
             Save master table as : &nbsp;
             <InputText value={masterFilename} onChange={(e) => handleMasterFilenameChange(e.target.value)} />
           </div>
-            <div>
-                <Button 
-                  label="Create Master Table"
-                  raised 
-                  loading={loadingMasterTables}
-                  disabled={!selectedSubMasterTableFiles || selectedSubMasterTableFiles?.length < 1 || !matchingIdColumns} 
-                  onClick={createMasterTable}
-                  />
-              </div>
+          <div>
+            <Button
+              label="Create Master Table"
+              raised
+              loading={loadingMasterTables}
+              disabled={!selectedSubMasterTableFiles || selectedSubMasterTableFiles?.length < 1 || !matchingIdColumns}
+              onClick={createMasterTable}
+            />
+          </div>
           <div className="vertical-divider"></div>
           <div>{loadingMasterTables == true && <ProgressSpinner style={{ width: "40px", height: "40px" }} />}</div>
           <div>
             {masterTableFileList.length > 0 ? (
-              <Dropdown 
-                value={selectedMasterTable} 
-                options={masterTableFileList} 
-                optionLabel="name" 
-                onChange={(event) => setSelectedMasterTable(event.value)} 
-                placeholder="Select a master table" />) : loadingMasterTables == true ? (
-              <Dropdown placeholder="Loading..." disabled /> ) : ( <Dropdown placeholder="No CSV files to show" disabled />
+              <Dropdown value={selectedMasterTable} options={masterTableFileList} optionLabel="name" onChange={(event) => setSelectedMasterTable(event.value)} placeholder="Select a master table" />
+            ) : loadingMasterTables == true ? (
+              <Dropdown placeholder="Loading..." disabled />
+            ) : (
+              <Dropdown placeholder="No CSV files to show" disabled />
             )}
           </div>
         </div>
@@ -750,11 +753,7 @@ const MEDprofilesPrepareData = () => {
           <InputText value={binaryFilename} onChange={(e) => handleBinaryFilenameChange(e.target.value)} />
         </div>
         <div>
-          <Button 
-            label='Instantiate MEDprofiles' 
-            raised disabled={!selectedMasterTable || instantiatingMEDprofiles} 
-            onClick={instantiateMEDprofiles}
-          />
+          <Button label="Instantiate MEDprofiles" raised disabled={!selectedMasterTable || instantiatingMEDprofiles} onClick={instantiateMEDprofiles} />
         </div>
       </div>
       <div className="margin-top-15 extraction-progress">
@@ -784,7 +783,7 @@ const MEDprofilesPrepareData = () => {
           )}
         </div>
         <div>
-          <Button raised disabled={!generatedMEDprofilesFile} onClick={openMEDprofilesViewer} label="Open MEDprofiles Viewer"/>
+          <Button raised disabled={!generatedMEDprofilesFile} onClick={openMEDprofilesViewer} label="Open MEDprofiles Viewer" />
         </div>
       </div>
     </>

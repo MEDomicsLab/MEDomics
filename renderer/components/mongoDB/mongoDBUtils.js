@@ -1,4 +1,6 @@
-const { MongoClient } = require("mongodb")
+import path from "path"
+
+const { MongoClient, GridFSBucket } = require("mongodb")
 const fs = require("fs")
 const Papa = require("papaparse")
 
@@ -485,7 +487,26 @@ export async function downloadCollectionToFile(collectionId, filePath, type) {
   const documents = await collection.find({}, { projection: { _id: 0 } }).toArray()
 
   if (documents.length === 0) {
-    console.error(`No documents found in collection ${collectionId}`)
+    console.error(`No documents found in collection ${collectionId} (${filePath})`)
+    // Check GridFS for the collection
+    const gridFSBucket = new GridFSBucket(db)
+    let filename = filePath.split(path.sep).pop() // Get the filename from the path
+    // Get the name of the file in GridFS by poping the last part of the collectionId
+    if (filename.includes(".")) {
+      const fileCursor = gridFSBucket.find({ filename: filename })
+      const file = await fileCursor.next()
+      if (file) {
+        // If the file exists in GridFS, download it
+        const downloadStream = gridFSBucket.openDownloadStream(file._id)
+        const writeStream = fs.createWriteStream(filePath)
+        downloadStream.pipe(writeStream)
+        writeStream.on("finish", () => {
+          console.log(`Collection ${collectionId} has been downloaded as file to ${filePath}`)
+        })
+      } else {
+        console.error(`No documents found in collection ${collectionId} and no file found in GridFS with name ${filename}`)
+      }
+    }
     return
   }
 
