@@ -2,11 +2,9 @@
 import { randomUUID } from "crypto"
 import * as d3 from "d3"
 import * as dfd from "../../../utilities/danfo.js"
-import dynamic from 'next/dynamic'
+import * as echarts from "echarts"
+import ReactECharts from "echarts-for-react"
 
-// Import echarts only on client side
-const ReactECharts = dynamic(() => import("echarts-for-react"), { ssr: false })
-let echarts = null;
 import { Button } from "primereact/button"
 import { Checkbox } from "primereact/checkbox"
 import { confirmDialog } from "primereact/confirmdialog"
@@ -169,13 +167,14 @@ class MEDcohortFigureClass extends React.Component {
    */
   componentDidUpdate(prevProps, prevState) {
     // Only run on client-side
-    if (typeof window !== 'undefined') {
-      // Dynamically import echarts if not already loaded
-      if (!echarts) {
-        echarts = require('echarts');
-      }
-      echarts.registerTheme("dark", require("../../../styles/input/medCohortFigureDark.json"))
-    }
+    // if (typeof window !== 'undefined') {
+    //   // Dynamically import echarts if not already loaded
+    //   if (!echarts) {
+    //     echarts = require('echarts');
+    //   }
+    //   echarts.registerTheme("dark", require("../../../styles/input/medCohortFigureDark.json"))
+    // }
+    echarts.registerTheme("dark", require("../../../styles/input/medCohortFigureDark.json"))
 
     // Respond to changes in props or state
     if (prevProps.jsonData !== this.props.jsonData) {
