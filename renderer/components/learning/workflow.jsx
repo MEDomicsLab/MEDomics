@@ -724,8 +724,13 @@ const Workflow = forwardRef(({ setWorkflowType, workflowType, isExperiment }, re
       setNodes((nds) =>
         nds.map((node) => {
           if (node.id.startsWith("box-")) {
-            // Update the box color to green if the section matches
-            changeBoxColor(node.id, "rgba(173, 230, 150, 0.8)", "rgb(255, 187, 0)")
+            if (node.type === "analysisBoxNode") {
+              // If the box is an analysis box, we set the color to blue
+              changeBoxColor(node.id, "rgba(150, 201, 230, 0.8)", "rgb(255, 187, 0)")
+            } else {
+              // If not, we set the color to green
+              changeBoxColor(node.id, "rgba(173, 230, 150, 0.8)", "rgb(255, 187, 0)")
+            }
           }
           return node
         })
