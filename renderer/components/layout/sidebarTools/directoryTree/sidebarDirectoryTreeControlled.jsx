@@ -14,7 +14,7 @@ import { WorkspaceContext } from "../../../workspace/workspaceContext"
 import { rename, onPaste, onDeleteSequentially, onDrop, createFolder, fromJSONtoTree, evaluateIfTargetIsAChild } from "./utils"
 import { MEDDataObject } from "../../../workspace/NewMedDataObject"
 import { PiImage, PiNotebook, PiPen } from "react-icons/pi"
-const fs = require("fs")
+import fs from "fs"  
 
 /**
  * @description - This component is the sidebar tools component that will be used in the sidebar component
@@ -43,7 +43,7 @@ const SidebarDirectoryTreeControlled = ({ setExternalSelectedItems, setExternalD
   const [isDropping, setIsDropping] = useState(false) // Set if the item is getting dropped something in (for elements outside of the tree)
   const [isDirectoryTreeFocused, setIsDirectoryTreeFocused] = useState(false); // New state to track focus
 
-  const { globalData, setGlobalData } = useContext(DataContext) // We get the global data from the context to retrieve the directory tree of the workspace, thus retrieving the data files
+  const { globalData } = useContext(DataContext) // We get the global data from the context to retrieve the directory tree of the workspace, thus retrieving the data files
   const { dispatchLayout, developerMode, isEditorOpen } = useContext(LayoutModelContext)
   const { workspace } = useContext(WorkspaceContext)
 
@@ -525,7 +525,7 @@ const SidebarDirectoryTreeControlled = ({ setExternalSelectedItems, setExternalD
                 canDragAndDrop={true}
                 onRenameItem={handleNameChange}
                 onDrop={(items, target) => {
-                  onDrop(items, target, tree.current, globalData, setGlobalData, workspace.workingDirectory.path, setIsDropping)
+                  onDrop(items, target, tree.current, globalData, workspace.workingDirectory.path, setIsDropping)
                 }}
                 isHovering={isHovering}
               >

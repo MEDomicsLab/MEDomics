@@ -42,22 +42,22 @@ export function fromJSONtoTree(data, showHiddenFiles) {
   const namesYouCantRename = ["DATA", "EXPERIMENTS", "ROOT"] // These names cannot be renamed
   Object.keys(data).forEach((key) => {
     let element = data[key]
-    // if (element.name != ".medomics" && element.name != ".ipynb_checkpoints" && element.name != ".DS_Store") {
-    let ableToRename = !namesYouCantRename.includes(element.name)
-    let isRoot = element.parentID == null
-    tree[element.id] = {
-      index: element.id,
-      canMove: ableToRename && !isRoot,
-      isFolder: element.type === "directory",
-      children: element.childrenIDs ? reorderArrayOfFoldersAndFiles(element.childrenIDs, data, showHiddenFiles) : [],
-      data: element.name,
-      canRename: ableToRename && !isRoot,
-      type: element.type,
-      isLocked: element.isLocked,
-      usedIn: element.usedIn,
-      path: element.path
+    if (showHiddenFiles || (element.name != ".ipynb_checkpoints" && element.name != ".DS_Store")) {
+      let ableToRename = !namesYouCantRename.includes(element.name)
+      let isRoot = element.parentID == null
+      tree[element.id] = {
+        index: element.id,
+        canMove: ableToRename && !isRoot,
+        isFolder: element.type === "directory",
+        children: element.childrenIDs ? reorderArrayOfFoldersAndFiles(element.childrenIDs, data, showHiddenFiles) : [],
+        data: element.name,
+        canRename: ableToRename && !isRoot,
+        type: element.type,
+        isLocked: element.isLocked,
+        usedIn: element.usedIn,
+        path: element.path
+      }
     }
-    // }
   })
   return tree
 }
@@ -247,7 +247,7 @@ export async function createFolder(globalData, selectedItems, workspacePath) {
  * @returns {void}
  * @note - This function is called when the user drops an item in the directory tree.
  */
-export const onDrop = async (items, target, tree, globalData, setGlobalData, workspacePath) => {
+export const onDrop = async (items, target, tree, globalData, workspacePath) => {
   console.log("HERE", items, target)
 
   const currentItems = tree.treeEnvironmentContext.items

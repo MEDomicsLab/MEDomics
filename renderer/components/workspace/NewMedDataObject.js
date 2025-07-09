@@ -533,7 +533,7 @@ export class MEDDataObject {
    * @param {String} workspacePath - the root path of the workspace
    * @returns {void}
    */
-  static async updatePathRecursively(dict, id, newPath, workspacePath) {
+  static async updatePathRecursively(dict, id, newPath) {
     // Get the object to update
     const object = dict[id]
     if (!object) {
@@ -551,7 +551,7 @@ export class MEDDataObject {
         const child = dict[childID]
         if (child) {
           const childNewPath = path.join(newPath, child.name)
-          await this.updatePathRecursively(dict, childID, childNewPath, workspacePath)
+          await this.updatePathRecursively(dict, childID, childNewPath)
         }
       }
     }
@@ -588,7 +588,13 @@ export class MEDDataObject {
         toast.error(`Cannot move ${dataObject.name} to ${newParent.name} because a file with the same name already exists`)
         return
       } else {
-        fs.moveSync(oldPath, newPath, { overwrite: false, recursive: true })
+        try {
+          await fs.move(oldPath, newPath, { overwrite: false, recursive: true })
+        } catch (error) {
+          console.error(`Failed to move ${dataObject.name}:`, error)
+          toast.error(`Failed to move ${dataObject.name}: ${error.message}`)
+          return
+        }
       }
     } else {
       console.log(`MEDDataObject with id ${id} is not in the workspace`)
