@@ -19,7 +19,7 @@ import { MEDDataObject } from "../../workspace/NewMedDataObject"
 import { EXPERIMENTS, WorkspaceContext } from "../../workspace/workspaceContext"
 import { FlowInfosContext } from "../context/flowInfosContext"
 import { FlowResultsContext } from "../context/flowResultsContext"
-import { has } from "lodash"
+import { FlowFunctionsContext } from "../context/flowFunctionsContext"
 
 /**
  *
@@ -126,8 +126,9 @@ function getNodeResults(flowResults, flowContent, pipeline, targetId) {
  * @description
  * This component takes a pipeline and displays the results related to the selected node.
  */
-const PipelineResult = ({ pipeline, selectionMode, flowContent }) => {
+const PipelineResult = ({ index, pipeline, selectionMode, flowContent,highlightPipeline }) => {
   const { flowResults, selectedResultsId } = useContext(FlowResultsContext)
+  const { updateNode } = useContext(FlowFunctionsContext)
   const [body, setBody] = useState(<></>)
   const [selectedId, setSelectedId] = useState(null)
 
@@ -139,6 +140,23 @@ const PipelineResult = ({ pipeline, selectionMode, flowContent }) => {
     if (pipeline.length == 0) {
       setBody(<></>)
     } else {
+      // Switch back all nodes to their original className
+      flowContent.nodes.forEach((node) => {
+        if (node.className === "beenSelected" && selectedId !== node.id) {
+          highlightPipeline(index)
+        }
+      })
+      // Highlight the selected node in the flow
+      if (selectedId) {
+        const node = flowContent.nodes.find((node) => node.id == selectedId)
+        if (node && node.className !== "beenSelected" && node.className !== "misplaced") {
+          node.className = "beenSelected"
+          updateNode({
+            id: node.id,
+            updatedData: node.data.internal
+          })
+        }
+      }
       setBody(createBody())
     }
   }, [pipeline, selectedId])
@@ -192,10 +210,11 @@ const PipelineResult = ({ pipeline, selectionMode, flowContent }) => {
  * @description
  * This component takes all the selected pipelines and displays them in an accordion.
  */
-const PipelinesResults = ({ pipelines, selectionMode, flowContent, runFinalizeAndSave }) => {
+const PipelinesResults = ({ pipelines, fullPipelines, selectionMode, flowContent, runFinalizeAndSave }) => {
   const { selectedResultsId, setSelectedResultsId, flowResults, setShowResultsPane, showResultsPane, isResults } = useContext(FlowResultsContext)
   const { getBasePath } = useContext(WorkspaceContext)
   const { sceneName } = useContext(FlowInfosContext)
+  const { updateNode, updateEdge } = useContext(FlowFunctionsContext)
 
   const [accordionActiveIndexStore, setAccordionActiveIndexStore] = useState([])
   const [accordionActiveIndex, setAccordionActiveIndex] = useState([])
@@ -566,15 +585,81 @@ const PipelinesResults = ({ pipelines, selectionMode, flowContent, runFinalizeAn
     )
   }
 
+  const highlightPipeline = (index) => {
+    if (index.length == 0 || index < 0 || index >= pipelines.length) {
+      // Remove all highlighted nodes
+      flowContent.nodes.forEach((node) => {
+        if (node.className === "highlighted" || node.className === "beenSelected") {
+          node.className = ""
+          updateNode({
+            id: node.id,
+            updatedData: node.data.internal
+          })
+        }
+      })
+      // Remove all highlighted edges
+      flowContent.edges.forEach((edge) => {
+        if (edge.className === "stroke-highlighted") {
+          edge.className = ""
+          updateEdge({
+            id: edge.id,
+            updatedData: edge.data
+          })
+        }
+      })
+      return
+    }
+    const pipeline = fullPipelines[index]
+    pipeline && flowContent.nodes.forEach((node) => {
+      if (node.className !== "highlighted" && node.className !== "misplaced" && pipeline.includes(node.id)) {
+        node.className = "highlighted"
+        updateNode({
+          id: node.id,
+          updatedData: node.data.internal
+        })
+      }
+    })
+    pipeline && flowContent.edges.forEach((edge) => {
+      if (pipeline.includes(edge.source) && pipeline.includes(edge.target)) {
+        if (edge.target === "box-analysis") {
+          const linked = pipeline.some((item, index) => item === edge.source && pipeline[index + 1] === edge.target)
+          if (!linked) return
+        }
+        edge.className = "stroke-highlighted"
+        updateNode({
+          id: edge.id,
+          updatedData: edge.data
+        })
+      } else {
+        edge.className = ""
+        updateEdge({
+          id: edge.id,
+          updatedData: edge.data
+        })
+      }
+    })
+  }
+
   return (
-    <Accordion multiple activeIndex={accordionActiveIndex} onTabChange={(e) => setAccordionActiveIndex(e.index)} className="pipeline-results-accordion">
+    <Accordion 
+      multiple 
+      activeIndex={accordionActiveIndex} 
+      onTabChange={(e) => {
+        setAccordionActiveIndex(e.index)
+        highlightPipeline(e.index)
+      }}
+      className="pipeline-results-accordion"
+    >
       {pipelines.map((pipeline, index) => {
-        
-          return (
-            <AccordionTab disabled={!isResults} key={index} header={createTitleFromPipe(pipeline, runFinalizeAndSave, pipeline)}>
-              <PipelineResult key={index} pipeline={pipeline} selectionMode={selectionMode} flowContent={flowContent} />
-            </AccordionTab>
-          )
+        return (
+          <AccordionTab 
+            disabled={!isResults}
+            key={index} 
+            header={createTitleFromPipe(pipeline, runFinalizeAndSave, pipeline)}
+            >
+            <PipelineResult key={index} index={index} pipeline={pipeline} selectionMode={selectionMode} flowContent={flowContent} highlightPipeline={highlightPipeline}/>
+          </AccordionTab>
+        )
       })}
     </Accordion>
   )
