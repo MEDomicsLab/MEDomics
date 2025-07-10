@@ -1,6 +1,8 @@
 :root {
   --not-run-color: #ff9700b0;
   --misplaced-color: #ff0000b0;
+  --selected-color: #00ff00b0;
+  --highlighted-color: #001aff7c;
   --size-top-panel: 2.5rem;
   --num-controls-btn: 6;
 }
@@ -622,6 +624,14 @@ input.node-editableLabel {
   border: 0.15rem solid var(--misplaced-color);
 }
 
+.beenSelected {
+  border: 0.15rem solid var(--selected-color);
+}
+
+.highlighted {
+  border: 0.15rem solid var(--highlighted-color);
+}
+
 path {
   transition: stroke 0.25s ease-in-out;
 }
@@ -632,6 +642,10 @@ path {
 
 .stroke-hasRun path {
   stroke: #000000e1;
+}
+
+.stroke-highlighted path {
+  stroke: var(--highlighted-color);
 }
 
 .pipe-name-notRun {

@@ -22,6 +22,7 @@ const ResultsPane = ({ runFinalizeAndSave }) => {
   const { flowContent } = useContext(FlowInfosContext)
   const { updateNode } = useContext(FlowFunctionsContext)
   const [selectedPipelines, setSelectedPipelines] = useState([])
+  const [fullPipelines, setFullPipelines] = useState([])
   const [selectionMode, setSelectionMode] = useState("Compare Mode")
 
   const handleClose = () => setShowResultsPane(false)
@@ -68,11 +69,12 @@ const ResultsPane = ({ runFinalizeAndSave }) => {
       })
 
       // find all pipelines
-      let pipelines = findBoxAnalysisPaths(flowResults)
+      let [correctedPipelines, fullPipelines] = findBoxAnalysisPaths(flowResults)
+      setFullPipelines(fullPipelines)
 
       // find pipelines that includes all the selected ids
       let selectedPipelines = []
-      pipelines.forEach((pipeline) => {
+      correctedPipelines.forEach((pipeline) => {
         let found = true
         selectedIds.forEach((id) => {
           if (!pipeline.includes(id)) {
@@ -94,26 +96,32 @@ const ResultsPane = ({ runFinalizeAndSave }) => {
    */
   const findBoxAnalysisPaths = (dict) => {
     const paths = []
+    const fullPaths = []
 
     const traverse = (currentDict, currentPath = []) => {
       if (!currentDict || typeof currentDict !== 'object') return
 
       // Check if current level has 'box-analysis' in next_nodes
       if (currentDict.next_nodes && 'box-analysis' in currentDict.next_nodes) {
-        paths.push([...currentPath, 'box-analysis'])
+        let correctedPath = []
+        let fullPath = []
+        currentPath.forEach((part) => {
+          fullPath.push(part)
+          const nodeType = flowContent.nodes.find(node => node.id === part)?.data?.internal?.type
+          if (nodeType !== "train_model") {
+            correctedPath.push(part)
+          } else {
+          }
+        })
+        paths.push([...correctedPath, 'box-analysis'])
+        fullPaths.push([...fullPath, 'box-analysis'])
       }
 
       // Recursively search through next_nodes
       if (currentDict.next_nodes) {
         Object.entries(currentDict.next_nodes).forEach(([key, value]) => {
           if (key.includes("*")) {
-            // Drop train model node
-            key.split("*").forEach((part) => {
-              const nodeType = flowContent.nodes.find(node => node.id === part)?.data?.internal?.type
-              if (nodeType !== "train_model") {
-                traverse(value, [...currentPath, part])
-              }
-            })
+            traverse(value, [...currentPath, ...key.split("*").reverse()])
           } else {            
             traverse(value, [...currentPath, key])
           }
@@ -125,7 +133,7 @@ const ResultsPane = ({ runFinalizeAndSave }) => {
       traverse(value, [key])
     })
 
-    return paths
+    return [paths, fullPaths]
 }
 
   function findAllPaths(flowContent) {
@@ -253,7 +261,7 @@ const ResultsPane = ({ runFinalizeAndSave }) => {
             </Button>
           </Card.Header>
           <Card.Body>
-            <PipelinesResults pipelines={selectedPipelines} selectionMode={selectionMode} flowContent={flowContent} runFinalizeAndSave={runFinalizeAndSave} />
+            <PipelinesResults pipelines={selectedPipelines} fullPipelines={fullPipelines} selectionMode={selectionMode} flowContent={flowContent} runFinalizeAndSave={runFinalizeAndSave} />
           </Card.Body>
         </Card>
       </Col>
