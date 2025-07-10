@@ -115,10 +115,10 @@ const nodesParams = {
     img: "load_model.png",
     title: "Load model",
     experimenting: false,
-    section: "training",
+    section: "unknown",
     possibleSettings: { classification: classificationSettings["load_model"], regression: regressionSettings["load_model"] }
   },
-  optimize: {
+  /*optimize: {
     type: "groupNode",
     classes: "action optimize run",
     nbInput: 1,
@@ -130,7 +130,7 @@ const nodesParams = {
     experimenting: false,
     section: "unknown",
     possibleSettings: { classification: classificationSettings["optimize"], regression: regressionSettings["optimize"] }
-  },
+  },*/
   analyze: {
     type: "selectionNode",
     classes: "action analyze run endNode",
