@@ -19,6 +19,7 @@ function FlowResultsProvider({ children }) {
   const [showResultsPane, setShowResultsPane] = useState(false) // Initial state
   const [isResults, setIsResults] = useState(false) // Initial state
   const [selectedResultsId, setSelectedResultsId] = useState(null) // Initial state
+  const [pipelineNames, setPipelineNames] = useState([]) // Initial state for pipeline names
   const { sceneName } = useContext(FlowInfosContext)
   const { workspace } = useContext(WorkspaceContext)
 
@@ -97,6 +98,8 @@ function FlowResultsProvider({ children }) {
         updateFlowResults,
         showResultsPane,
         setShowResultsPane,
+        pipelineNames,
+        setPipelineNames,
         isResults,
         setIsResults,
         selectedResultsId,
