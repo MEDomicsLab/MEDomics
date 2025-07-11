@@ -8,6 +8,11 @@ import Button from "react-bootstrap/Button"
 import * as Icon from "react-bootstrap-icons"
 import PipelinesResults from "./pipelinesResults"
 import { RadioButton } from "primereact/radiobutton"
+import { Dialog } from 'primereact/dialog';
+import { DataTable } from 'primereact/datatable';
+import { Column } from 'primereact/column';
+import { InputText } from 'primereact/inputtext'
+
 
 /**
  *
@@ -18,12 +23,13 @@ import { RadioButton } from "primereact/radiobutton"
  *
  */
 const ResultsPane = ({ runFinalizeAndSave }) => {
-  const { setShowResultsPane, flowResults } = useContext(FlowResultsContext)
+  const { setShowResultsPane, flowResults, pipelineNames, setPipelineNames } = useContext(FlowResultsContext)
   const { flowContent } = useContext(FlowInfosContext)
   const { updateNode } = useContext(FlowFunctionsContext)
   const [selectedPipelines, setSelectedPipelines] = useState([])
   const [fullPipelines, setFullPipelines] = useState([])
   const [selectionMode, setSelectionMode] = useState("Compare Mode")
+  const [visible, setVisible] = useState(false)
 
   const handleClose = () => setShowResultsPane(false)
 
@@ -71,6 +77,12 @@ const ResultsPane = ({ runFinalizeAndSave }) => {
       // find all pipelines
       let [correctedPipelines, fullPipelines] = findBoxAnalysisPaths(flowResults)
       setFullPipelines(fullPipelines)
+
+      // Set pipeline names
+      let names = correctedPipelines.map((pipeline, index) => { return `Pipeline ${index + 1}` })
+      if (names && names.length > 0 && (pipelineNames.length === 0 || pipelineNames.length !== names.length)) {
+        setPipelineNames(names)
+      }
 
       // find pipelines that includes all the selected ids
       let selectedPipelines = []
@@ -228,6 +240,88 @@ const ResultsPane = ({ runFinalizeAndSave }) => {
     return result
   }
 
+  const getName = (id) => {
+    let node = flowContent.nodes.find((node) => node.id == id)
+    if (node && node.name == "Model") {
+      if (node.data.internal.name != "Model") return node.data.internal.name
+      if (node.data.internal.selection) {
+        const selection = node.data.internal.selection
+        const modelName = node.data.setupParam.possibleSettings[selection]?.label
+        return modelName ? modelName : "Model"
+      }
+      return "Model"
+    }
+    return node && node.data.internal.name
+  }
+
+  const PipelineManager = ({ pipelines }) => {
+    const [editedPipelines, setEditedPipelines] = useState(
+      pipelines.map((pipeline, index) => ({
+        id: index,
+        nodes: pipeline,
+        name: pipelineNames[index]
+      }))
+    )
+
+    const handleNameChange = (id, newName) => {
+      setEditedPipelines(prev => 
+        prev.map(p => p.id === id ? { ...p, name: newName } : p)
+      )
+    }
+
+    const handleSave = () => {
+      const newNames = editedPipelines.map(p => p.name)
+      setPipelineNames(newNames)
+      setVisible(false)
+    }
+
+    return (
+      <Dialog 
+        header="Manage Pipelines" 
+        visible={visible} 
+        style={{ width: '50vw' }}
+        onHide={() => setVisible(false)}
+      >
+        <div className="p-2">
+          <DataTable value={editedPipelines}>
+            <Column field="name" header="Pipeline Name" body={(rowData) => (
+              <InputText
+                value={rowData.name}
+                onChange={(e) => handleNameChange(rowData.id, e.target.value)}
+              />
+            )} />
+            <Column header="Nodes" body={(rowData) => (
+              <div className="text-sm">
+                {rowData.nodes.map((nodeId, index) => (
+                  <span key={index}>
+                    {getName(nodeId)}
+                    {index < rowData.nodes.length - 1 && (<span className="opacity-50 mx-1">→</span>)}
+                  </span>
+                ))}
+              </div>
+            )} />
+          </DataTable>
+
+          <div className="flex justify-content-end mt-4">
+            <Button 
+              variant="danger" 
+              onClick={() => setVisible(false)} 
+              style={{ marginRight: '10px' }}
+            >
+              Cancel
+            </Button>
+            <Button 
+              variant="primary" 
+              onClick={handleSave} 
+            >
+              Save Changes
+            </Button>
+          </div>
+        </div>
+      </Dialog>
+    )
+  }
+
   return (
     <>
       <Col className=" padding-0 results-Panel">
@@ -252,16 +346,25 @@ const ResultsPane = ({ runFinalizeAndSave }) => {
                         Single Selection
                       </label>
                     </div>
+                    <div className="flex align-items-center">
+                      <Button severity="info" size="sm" className="manage-pipelines-button" onClick={() => setVisible(true)} >
+                          <Icon.ArrowLeftRight style={{ marginRight: "10px", fontSize: "1rem" }} />
+                          Manage Pipelines
+                      </Button>
+                    </div>
                   </>
                 )}
               </div>
             </div>
+            <PipelineManager 
+              pipelines={fullPipelines} 
+            />
             <Button variant="outline closeBtn closeBtn-resultsPane end-5" onClick={handleClose}>
               <Icon.X width="30px" height="30px" />
             </Button>
           </Card.Header>
           <Card.Body>
-            <PipelinesResults pipelines={selectedPipelines} fullPipelines={fullPipelines} selectionMode={selectionMode} flowContent={flowContent} runFinalizeAndSave={runFinalizeAndSave} />
+            <PipelinesResults pipelines={selectedPipelines} fullPipelines={fullPipelines} pipelineNames={pipelineNames} selectionMode={selectionMode} flowContent={flowContent} runFinalizeAndSave={runFinalizeAndSave} />
           </Card.Body>
         </Card>
       </Col>

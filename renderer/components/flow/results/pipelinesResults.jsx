@@ -211,7 +211,8 @@ const PipelineResult = ({ index, pipeline, selectionMode, flowContent,highlightP
  * This component takes all the selected pipelines and displays them in an accordion.
  */
 const PipelinesResults = ({ pipelines, fullPipelines, selectionMode, flowContent, runFinalizeAndSave }) => {
-  const { selectedResultsId, setSelectedResultsId, flowResults, setShowResultsPane, showResultsPane, isResults } = useContext(FlowResultsContext)
+  const { selectedResultsId, setSelectedResultsId, flowResults, setShowResultsPane, showResultsPane, isResults, pipelineNames } = useContext(FlowResultsContext)
+  console.log("debug pipelineNames", pipelineNames)
   const { getBasePath } = useContext(WorkspaceContext)
   const { sceneName } = useContext(FlowInfosContext)
   const { updateNode, updateEdge } = useContext(FlowFunctionsContext)
@@ -274,7 +275,7 @@ const PipelinesResults = ({ pipelines, fullPipelines, selectionMode, flowContent
    * @description
    * This function is used to create the title of the accordion tab dynamically and with buttons control.
    */
-  const createTitleFromPipe = useCallback((pipeline, runFinalizeAndSave) => {
+  const createTitleFromPipe = useCallback((index, pipeline, runFinalizeAndSave) => {
       let pipelineId = pipeline.join("-")
       const getName = (id, pipeline = null) => {
         let node = flowContent.nodes.find((node) => node.id == id)
@@ -405,7 +406,7 @@ const PipelinesResults = ({ pipelines, fullPipelines, selectionMode, flowContent
        */
       const createNoteBookDoc = async (code, imports) => {
         let newLineChar = "\n" // before was process.platform === "linux" ? "\n" : ""
-        let notebook = loadJsonPath([getBasePath(EXPERIMENTS), sceneName, "notebooks", pipeline.map((id) => getName(id, pipeline)).join("-")].join(getPathSeparator()) + ".ipynb")
+        let notebook = loadJsonPath([getBasePath(EXPERIMENTS), sceneName, "notebooks", pipelineNames[index]].join(getPathSeparator()) + ".ipynb")
         notebook = notebook ? deepCopy(notebook) : deepCopy(loadJsonPath(isProd ? Path.join(process.resourcesPath, "baseFiles", "emptyNotebook.ipynb") : "./baseFiles/emptyNotebook.ipynb"))
         notebook.cells = []
         let lastType = "md"
@@ -446,7 +447,7 @@ const PipelinesResults = ({ pipelines, fullPipelines, selectionMode, flowContent
         addMarkdown([
           "## Notebook automatically generated\n\n",
           "**Scene:** " + sceneName + "\n\n",
-          "**Pipeline:** " + pipeline.map((id) => getName(id, pipeline)).join(" ➡️ ") + "\n\n",
+          "**Pipeline " + pipelineNames[index] + ":** " + fullPipelines[index].map((id) => getName(id, fullPipelines[index])).join(" ➡️ ") + "\n\n",
           "**Date:** " + new Date().toLocaleString() + "\n\n"
         ])
         // IMPORTS
@@ -465,7 +466,7 @@ const PipelinesResults = ({ pipelines, fullPipelines, selectionMode, flowContent
         compileLines(linesOfSameType)
 
         // Save the notebook locally
-        const pathToCreate = MEDDataObject.writeFileSync(notebook, [getBasePath(EXPERIMENTS), sceneName, "notebooks"], pipeline.map((id) => getName(id, pipeline)).join("-"), "ipynb")
+        const pathToCreate = MEDDataObject.writeFileSync(notebook, [getBasePath(EXPERIMENTS), sceneName, "notebooks"], pipelineNames[index], "ipynb")
 
         // Update the notebooks MEDDATAObject path
         const db = await connectToMongoDB()
@@ -476,7 +477,7 @@ const PipelinesResults = ({ pipelines, fullPipelines, selectionMode, flowContent
         // Save the notebook in the database
         const notebookObj = new MEDDataObject({
           id: randomUUID(),
-          name: pipeline.map((id) => getName(id, pipeline)).join("-") + ".ipynb",
+          name: pipelineNames[index] + ".ipynb",
           type: "ipynb",
           parentID: notebooksFolder.id,
           childrenIDs: [],
@@ -655,7 +656,7 @@ const PipelinesResults = ({ pipelines, fullPipelines, selectionMode, flowContent
           <AccordionTab 
             disabled={!isResults}
             key={index} 
-            header={createTitleFromPipe(pipeline, runFinalizeAndSave, pipeline)}
+            header={createTitleFromPipe(index, pipeline, runFinalizeAndSave)}
             >
             <PipelineResult key={index} index={index} pipeline={pipeline} selectionMode={selectionMode} flowContent={flowContent} highlightPipeline={highlightPipeline}/>
           </AccordionTab>
