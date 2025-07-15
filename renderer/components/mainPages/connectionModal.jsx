@@ -589,7 +589,7 @@ const DirectoryBrowser = ({ directoryContents, onDirClick }) => {
               icon="folder-open"
               onClick={async () => {
                 const tunnelState = getTunnelState()
-                axios.post(`${tunnelState.host}:3000/api/connection/set_workspace`, { workspacePath: remoteDirPath })
+                axios.post(`http://${tunnelState.host}:3000/set-working-directory`, { workspacePath: remoteDirPath })
                   .then(response => {
                     if (response.data.success) {
                       toast.success("Workspace set successfully on remote app.")

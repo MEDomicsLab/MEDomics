@@ -32,6 +32,13 @@ import bodyParser from "body-parser";
 
 const expressApp = express();
 expressApp.use(bodyParser.json());
+
+const EXPRESS_PORT = 3000;
+expressApp.listen(EXPRESS_PORT, () => {
+  console.log(`Express server listening on port ${EXPRESS_PORT}`);
+});
+
+
 const fs = require("fs")
 var path = require("path")
 let mongoProcess = null
@@ -571,12 +578,7 @@ if (isProd) {
       serverProcess.kill()
     }
     console.log("Received Python path: ", pythonPath)
-    if (MEDconfig.runServerAutomatically) {
-      const EXPRESS_PORT = 3000;
-      expressApp.listen(EXPRESS_PORT, () => {
-        console.log(`Express server listening on port ${EXPRESS_PORT}`);
-      });
-      
+    if (MEDconfig.runServerAutomatically) {   
       runServer(isProd, serverPort, serverProcess, serverState, pythonPath)
         .then((process) => {
           serverProcess = process
