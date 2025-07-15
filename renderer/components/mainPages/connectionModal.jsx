@@ -5,10 +5,11 @@ import { ipcRenderer } from "electron"
 import { requestBackend } from "../../utilities/requests"
 import { ServerConnectionContext } from "../serverConnection/connectionContext"
 import { useTunnel } from "../tunnel/TunnelContext"
-import { getTunnelState, setTunnelState, clearTunnelState } from "../../utilities/tunnelState"
+import { getTunnelState, setTunnelState, clearTunnelState, setTunnelObject } from "../../utilities/tunnelState"
 import { Button } from "@blueprintjs/core"
 import { GoFile, GoFileDirectoryFill, GoChevronDown, GoChevronUp } from "react-icons/go"
 import { FaFolderPlus } from "react-icons/fa"
+import axios from "axios"
 
 /**
  *
@@ -587,16 +588,18 @@ const DirectoryBrowser = ({ directoryContents, onDirClick }) => {
               className="set-workspace-btn"
               icon="folder-open"
               onClick={async () => {
-                try {
-                  const result = await ipcRenderer.invoke('set-remote-workspace', { path: remoteDirPath })
-                  if (result && result.success) {
-                    toast.success('Workspace set to: ' + remoteDirPath)
-                  } else {
-                    toast.error('Failed to set workspace: ' + (result && result.error ? result.error : 'Unknown error'))
-                  }
-                } catch (err) {
-                  toast.error('Failed to set workspace: ' + (err && err.message ? err.message : String(err)))
-                }
+                const tunnelState = getTunnelState()
+                axios.post(`${tunnelState.host}:3000/api/connection/set_workspace`, { workspacePath: remoteDirPath })
+                  .then(response => {
+                    if (response.data.success) {
+                      toast.success("Workspace set successfully on remote app.")
+                    } else {
+                      toast.error("Failed to set workspace: " + response.data.error)
+                    }
+                  })
+                  .catch(err => {
+                    toast.error("Failed to set workspace: " + (err && err.message ? err.message : String(err)))
+                  })
               }}
               title="Set this directory as workspace on remote app"
               disabled={!tunnelActive}

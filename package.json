@@ -47,6 +47,7 @@
     "eslint-config-next": "^13.5.3",
     "eslint-config-prettier": "^8.10.0",
     "eslint-plugin-prettier": "^5.2.3",
+    "express": "^5.1.0",
     "file-saver": "^2.0.5",
     "flexlayout-react": "^0.7.7",
     "html-react-parser": "^3.0.12",

@@ -5,7 +5,16 @@ import { createWindow } from "./helpers"
 import { installExtension, REACT_DEVELOPER_TOOLS } from "electron-extension-installer"
 import MEDconfig from "../medomics.dev"
 import { runServer, findAvailablePort } from "./utils/server"
-import { setWorkingDirectory, getRecentWorkspacesOptions, loadWorkspaces, createMedomicsDirectory, updateWorkspace, createWorkingDirectory } from "./utils/workspace"
+import {
+  setWorkingDirectory,
+  getRecentWorkspacesOptions,
+  loadWorkspaces,
+  createMedomicsDirectory,
+  createRemoteMedomicsDirectory,
+  updateWorkspace,
+  createWorkingDirectory,
+  createRemoteWorkingDirectory
+} from "./utils/workspace"
 import {
   getBundledPythonEnvironment,
   getInstalledPythonPackages,
@@ -17,7 +26,12 @@ import {
 import { installMongoDB, checkRequirements } from "./utils/installation"
 import { generateSSHKeyPair } from './sshKeygen.js'
 import { Client } from 'ssh2'
+import { setTunnelObject } from "../renderer/utilities/tunnelState.js"
+import express from "express"; // or: const express = require("express");
+import bodyParser from "body-parser";
 
+const expressApp = express();
+expressApp.use(bodyParser.json());
 const fs = require("fs")
 var path = require("path")
 let mongoProcess = null
@@ -342,6 +356,10 @@ if (isProd) {
   })
 
   ipcMain.handle("setWorkingDirectory", async (event, data) => {
+    return setWorkingDirectory(data)
+  })
+
+  const setWorkingDirectory = async (data) => {
     app.setPath("sessionData", data)
     createWorkingDirectory() // Create DATA & EXPERIMENTS directories
     console.log(`setWorkingDirectory : ${data}`)
@@ -376,7 +394,69 @@ if (isProd) {
     } catch (error) {
       console.error("Failed to change workspace: ", error)
     }
+  }
+
+  ipcMain.handle("setRemoteWorkingDirectory", async (event, data) => {
+    app.setPath("remoteSessionData", data)
+    createRemoteWorkingDirectory() // Create DATA & EXPERIMENTS directories
+    console.log(`setWorkingDirectory (remote) : ${data}`)
+    createRemoteMedomicsDirectory(data)
+    hasBeenSet = true
+    try {
+      // Stop MongoDB if it's running
+      await stopMongoDB(mongoProcess)
+      // Kill mongod on remote via SSH exec
+      if (activeTunnel && typeof activeTunnel.exec === 'function') {
+        // 1. Detect remote OS
+        const remoteOS = await detectRemoteOS()
+        // 2. Run the appropriate kill command
+        let killCmd
+        if (remoteOS === 'unix' | remoteOS === 'linux' || remoteOS === 'darwin') {
+          killCmd = 'pkill -f mongod || killall mongod || true'
+        } else {
+          // Windows: try taskkill
+          killCmd = 'taskkill /IM mongod.exe /F'
+        }
+        await new Promise((resolve) => {
+          activeTunnel.exec(killCmd, (err, stream) => {
+            if (err) return resolve()
+            stream.on('close', () => resolve())
+            stream.on('data', () => {})
+            stream.stderr.on('data', () => {})
+          })
+        })
+      } else {
+        // Fallback: local logic if no tunnel
+        if (process.platform === "win32") {
+          // Kill the process on the port
+          // killProcessOnPort(serverPort)
+        } else if (process.platform === "darwin") {
+          await new Promise((resolve) => {
+            exec("pkill -f mongod", (error, stdout, stderr) => {
+              resolve()
+            })
+          })
+        } else {
+          try {
+            execSync("killall mongod")
+          } catch (error) {
+            console.warn("Failed to kill mongod: ", error)
+          }
+        }
+      }
+      // Start MongoDB with the new configuration
+      startMongoDB(data, mongoProcess)
+      return {
+        workingDirectory: dirTree(app.getPath("remoteSessionData")),
+        hasBeenSet: hasBeenSet,
+        newPort: serverPort,
+        success: true
+      }
+    } catch (error) {
+      console.error("Failed to change workspace: ", error)
+    }
   })
+
 
   /**
    * @description Returns the path of the specified directory of the app
@@ -492,6 +572,11 @@ if (isProd) {
     }
     console.log("Received Python path: ", pythonPath)
     if (MEDconfig.runServerAutomatically) {
+      const EXPRESS_PORT = 3000;
+      expressApp.listen(EXPRESS_PORT, () => {
+        console.log(`Express server listening on port ${EXPRESS_PORT}`);
+      });
+      
       runServer(isProd, serverPort, serverProcess, serverState, pythonPath)
         .then((process) => {
           serverProcess = process
@@ -833,6 +918,141 @@ export function getMongoDBPath() {
   }
 }
 
+export function getRemoteMongoDBPath() {
+  const remotePlatform = getRemoteOS()
+
+  if (remotePlatform === "win32") {
+    // Check if mongod is in the process.env.PATH
+    const paths = process.env.PATH.split(path.delimiter)
+    for (let i = 0; i < paths.length; i++) {
+      const binPath = path.join(paths[i], "mongod.exe")
+      if (fs.existsSync(binPath)) {
+        console.log("mongod found in PATH")
+        return binPath
+      }
+    }
+    // Check if mongod is in the default installation path on Windows - C:\Program Files\MongoDB\Server\<version to establish>\bin\mongod.exe
+    const programFilesPath = process.env["ProgramFiles"]
+    if (programFilesPath) {
+      const mongoPath = path.join(programFilesPath, "MongoDB", "Server")
+      // Check if the MongoDB directory exists
+      if (!fs.existsSync(mongoPath)) {
+        console.error("MongoDB directory not found")
+        return null
+      }
+      const dirs = fs.readdirSync(mongoPath)
+      for (let i = 0; i < dirs.length; i++) {
+        const binPath = path.join(mongoPath, dirs[i], "bin", "mongod.exe")
+        if (fs.existsSync(binPath)) {
+          return binPath
+        }
+      }
+    }
+    console.error("mongod not found")
+    return null
+  } else if (process.platform === "darwin") {
+    // Check if it is installed in the .medomics directory
+    const binPath = path.join(process.env.HOME, ".medomics", "mongodb", "bin", "mongod")
+    if (fs.existsSync(binPath)) {
+      console.log("mongod found in .medomics directory")
+      return binPath
+    }
+    if (process.env.NODE_ENV !== "production") {
+      // Check if mongod is in the process.env.PATH
+      const paths = process.env.PATH.split(path.delimiter)
+      for (let i = 0; i < paths.length; i++) {
+        const binPath = path.join(paths[i], "mongod")
+        if (fs.existsSync(binPath)) {
+          console.log("mongod found in PATH")
+          return binPath
+        }
+      }
+      // Check if mongod is in the default installation path on macOS - /usr/local/bin/mongod
+      const binPath = "/usr/local/bin/mongod"
+      if (fs.existsSync(binPath)) {
+        return binPath
+      }
+    }
+    console.error("mongod not found")
+    return null
+  } else if (process.platform === "linux") {
+    // Check if mongod is in the process.env.PATH
+    const paths = process.env.PATH.split(path.delimiter)
+    for (let i = 0; i < paths.length; i++) {
+      const binPath = path.join(paths[i], "mongod")
+      if (fs.existsSync(binPath)) {
+        return binPath
+      }
+    }
+    console.error("mongod not found in PATH" + paths)
+    // Check if mongod is in the default installation path on Linux - /usr/bin/mongod
+    if (fs.existsSync("/usr/bin/mongod")) {
+      return "/usr/bin/mongod"
+    }
+    console.error("mongod not found in /usr/bin/mongod")
+
+    if (fs.existsSync("/home/" + process.env.USER + "/.medomics/mongodb/bin/mongod")) {
+      return "/home/" + process.env.USER + "/.medomics/mongodb/bin/mongod"
+    }
+    return null
+  } else {
+    return "mongod"
+  }
+}
+
+export function checkRemoteFolderExists(folderPath) {
+  // Ensure tunnel is active and SSH client is available
+  const tunnel = getTunnelState()
+  if (!tunnel || !tunnel.tunnelActive || !tunnel.tunnelObject || !tunnel.tunnelObject.sshClient) {
+    const errMsg = 'No active SSH tunnel for remote folder creation.'
+    console.error(errMsg)
+    return "tunnel inactive"
+  }
+  tunnel.tunnelObject.sshClient.sftp((err, sftp) => {
+    if (err) {
+      console.error('SFTP error:', err)
+      return "sftp error"
+    }
+
+    // Check if folder exists
+    sftp.stat(folderPath, (statErr, stats) => {
+      if (!statErr && stats && stats.isDirectory && stats.isDirectory()) {
+        // Folder exists
+        sftp.end && sftp.end()
+        return "exists"
+      }
+    })
+  })
+  return "does not exist"
+}
+
+async function detectRemoteOS() {
+  return new Promise((resolve, reject) => {
+    activeTunnel.exec('uname -s', (err, stream) => {
+      if (err) {
+        // Assume Windows if uname fails
+        resolve('win32')
+        return
+      }
+      let output = ''
+      stream.on('data', (outputData) => { output += outputData.toString() })
+      stream.on('close', () => {
+        const out = output.trim().toLowerCase()
+        if (out.includes('linux')) {
+          resolve('linux')
+        } else if (out.includes('darwin')) {
+          resolve('darwin')
+        } else if (out.includes('bsd')) {
+          resolve('unix')
+        } else {
+          resolve('win32')
+        }
+      })
+      stream.stderr.on('data', () => resolve('win32'))
+    })
+  })
+}
+
 ipcMain.handle('generateSSHKey', async (_event, { comment, username }) => {
   try {
     const userDataPath = app.getPath('userData')
@@ -952,6 +1172,7 @@ ipcMain.handle('startSSHTunnel', async (_event, {
       })
 
       activeTunnel = conn
+      setTunnelObject(conn)
       activeTunnelServer = { backendServer: backendServer, mongoServer: mongoServer }
       resolve({ success: true })
     }).on('error', (err) => {
@@ -985,26 +1206,6 @@ ipcMain.handle('stopSSHTunnel', async () => {
   if (success) return { success: true }
   return { success: false, error: error || 'No active tunnel' }
 })
-
-// List remote directory via SSH tunnel
-const { Client: SSHClient } = require('ssh2')
-const os = require('os')
-
-/**
- * IPC handler to list files and directories in a remote path via the active SSH tunnel
- * Returns [{ name, type }]
- */
-
-// SFTP-based directory listing (cross-platform)
-const normalizeSftpList = (entries) => {
-  // entries: Array of { filename, longname, attrs }
-  return entries
-    .filter(e => e.filename !== '.' && e.filename !== '..')
-    .map(e => ({
-      name: e.filename,
-      type: e.attrs.isDirectory() ? 'dir' : 'file'
-    }))
-}
 
 ipcMain.handle('listRemoteDirectory', async (_event, { path: remotePath }) => {
   return new Promise((resolve, reject) => {
@@ -1214,3 +1415,21 @@ ipcMain.handle('createRemoteFolder', async (_event, { path: parentPath, folderNa
     })
   })
 })
+
+// Remote express requests
+expressApp.post("/set-working-directory", (req, res) => {
+  const { workspacePath } = req.body;
+  try {
+    const result = setWorkingDirectory(workspacePath);
+    if (result && result.hasBeenSet) {
+      toast.success('Workspace set to: ' + remoteDirPath)
+      res.json({ success: true });
+    } else {
+      toast.error('Failed to set workspace: ' + (result && result.error ? result.error : 'Unknown error'))
+      res.status(500).json({ success: false, error: err.message });
+    }
+  } catch (err) {
+    toast.error('Failed to set workspace: ' + (err && err.message ? err.message : String(err)))
+    res.status(500).json({ success: false, error: err.message });
+  }
+});

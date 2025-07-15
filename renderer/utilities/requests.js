@@ -15,12 +15,10 @@ export const requestBackend = (port, topic, json2send, jsonReceivedCB, onError) 
   // Use tunnel state if available
   const tunnel = getTunnelState()
   let finalPort = port
-  let finalHost = "localhost"
   if (tunnel && tunnel.tunnelActive && tunnel.localBackendPort) {
     finalPort = tunnel.localBackendPort // Use the local port forwarded by the tunnel
-    finalHost = "localhost"     // Always use localhost for tunnel
   }
-  axiosPostJsonGo(finalPort, topic, json2send, jsonReceivedCB, onError, finalHost)
+  axiosPostJsonGo(finalPort, topic, json2send, jsonReceivedCB, onError)
 }
 
 /**
@@ -74,9 +72,9 @@ export const requestJson = (port, topic, json2send, jsonReceivedCB, onError) => 
  * @param {Function} jsonReceivedCB executed when the json is received
  * @param {Function} onError executed when an error occurs
  */
-export const axiosPostJsonGo = async (port, topic, json2send, jsonReceivedCB, onError, hostOverride) => {
+export const axiosPostJsonGo = async (port, topic, json2send, jsonReceivedCB, onError) => {
   try {
-    let url = "http://" + (hostOverride || "localhost") + ":" + port + (topic[0] != "/" ? "/" : "") + topic
+    let url = "http://localhost" + ":" + port + (topic[0] != "/" ? "/" : "") + topic
     if (topic.includes("http")) {
       url = topic
     }
