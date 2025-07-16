@@ -30,9 +30,16 @@ import { setTunnelObject } from "../renderer/utilities/tunnelState.js"
 import express from "express"; // or: const express = require("express");
 import bodyParser from "body-parser";
 
+const cors = require("cors");
 const expressApp = express();
 expressApp.use(bodyParser.json());
+expressApp.use(cors());
 
+expressApp.use(function(req, res, next) {
+  res.header("Access-Control-Allow-Origin", "*");
+  res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept");
+  next();
+});
 const EXPRESS_PORT = 3000;
 expressApp.listen(EXPRESS_PORT, () => {
   console.log(`Express server listening on port ${EXPRESS_PORT}`);
@@ -1419,7 +1426,7 @@ ipcMain.handle('createRemoteFolder', async (_event, { path: parentPath, folderNa
 })
 
 // Remote express requests
-expressApp.post("/set-working-directory", (req, res) => {
+expressApp.post("/set-working-directory", function (req, res, next) {
   const { workspacePath } = req.body;
   try {
     const result = setWorkingDirectory(workspacePath);
