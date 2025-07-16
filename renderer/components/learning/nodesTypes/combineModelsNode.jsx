@@ -10,7 +10,8 @@ import { FlowFunctionsContext } from "../../flow/context/flowFunctionsContext"
 const CombineModelsNode = ({ id, data }) => {
   const { updateNode } = useContext(FlowFunctionsContext)
   const [modalShow, setModalShow] = useState(false)
-
+  const [calibrateEnabled, setCalibrateEnabled] = useState(!!data.internal.settings.calibrate)
+  const [calibrateModalShow, setCalibrateModalShow] = useState(false)
 
   useEffect(() => {
     if (!data.internal.settings) data.internal.settings = {}
@@ -38,13 +39,10 @@ const CombineModelsNode = ({ id, data }) => {
     updateNode({ id, updatedData: data.internal })
   }
 
-
-  // Switch blend/stack
+  // Section switch blend/stack
   const nodeBody = (
     <Stack direction="horizontal" className="align-items-center justify-content-between">
-      <span style={{ fontWeight: !isBlend ? 'bold' : 'normal' }}>
-        Stack
-      </span>
+      <span style={{ fontWeight: !isBlend ? 'bold' : 'normal' }}>Stack</span>
       <InputSwitch
         checked={isBlend}
         onChange={(e) => {
@@ -54,12 +52,10 @@ const CombineModelsNode = ({ id, data }) => {
         }}
         className="mx-2"
       />
-      <span style={{ fontWeight: isBlend ? 'bold' : 'normal' }}>
-        Blend
-      </span>
+      <span style={{ fontWeight: isBlend ? 'bold' : 'normal' }}>Blend</span>
     </Stack>
   )
-  
+
   return (
     <>
       <Node
@@ -71,7 +67,7 @@ const CombineModelsNode = ({ id, data }) => {
         defaultSettings={null}
         nodeSpecific={
           <>
-            {/* button for parameters selection */}
+            {/* Bouton pour afficher les options de blend/stack */}
             <Button
               variant="light"
               className="width-100 btn-contour"
@@ -80,7 +76,7 @@ const CombineModelsNode = ({ id, data }) => {
               <Icon.Plus width="30px" height="30px" className="img-fluid" />
             </Button>
 
-            {/* Modal based on blend/stack */}
+            {/* Modal paramètres blend/stack */}
             <ModalSettingsChooser
               show={modalShow}
               onHide={() => setModalShow(false)}
@@ -89,7 +85,17 @@ const CombineModelsNode = ({ id, data }) => {
               id={id}
             />
 
-            {/* selected parameters */}
+            {/* Modal paramètres calibrate (indépendant) */}
+            <ModalSettingsChooser
+              show={calibrateModalShow}
+              onHide={() => setCalibrateModalShow(false)}
+              options={data.setupParam.possibleSettings.options?.calibrate?.options || {}}
+              data={data}
+              id={id}
+              parentKey="calibrate"
+            />
+
+            {/* Affichage des paramètres blend/stack */}
             {data.internal.checkedOptions?.map((optionName) => {
               const setting = data.setupParam.possibleSettings.options?.[currentAlgo]?.options?.[optionName]
               return setting ? (
@@ -104,7 +110,37 @@ const CombineModelsNode = ({ id, data }) => {
               ) : null
             })}
 
+            {/* Switch Calibrate */}
+            <Stack direction="horizontal" className="align-items-center justify-content-between mt-2">
+              <span style={{ fontWeight: 'normal' }}>Calibrate</span>
+              <InputSwitch
+                checked={calibrateEnabled}
+                onChange={(e) => {
+                  const newState = e.value
+                  setCalibrateEnabled(newState)
+                  data.internal.settings.calibrate = newState
+                  updateNode({ id, updatedData: data.internal })
+
+                  if (newState) setCalibrateModalShow(true)
+                }}
+                className="mx-2"
+              />
+            </Stack>
             
+            {/* Affichage des paramètres calibrate */}
+            {data.internal.checkedOptions?.map((optionName) => {
+              const setting = data.setupParam.possibleSettings.options?.calibrate?.options?.[optionName]
+              return setting ? (
+                <Input
+                  key={optionName}
+                  name={optionName}
+                  settingInfos={setting}
+                  currentValue={data.internal.settings?.[optionName]}
+                  onInputChange={onInputChange}
+                  setHasWarning={handleWarning}
+                />
+              ) : null
+            })}
           </>
         }
         nodeLink={"https://medomics-udes.gitbook.io/medomicslab-docs/tutorials/development/learning-module"}

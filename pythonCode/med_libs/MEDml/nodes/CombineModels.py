@@ -78,7 +78,9 @@ class CombineModels(Node):
         # Check if calibrate is activated
         if s.get("calibrate", False):
             self.post_action = "calibrate_model"
-            self.post_params = {}
+            method_cal = s.get("calibration_method", "sigmoid")
+            self.post_params = {"method": method_cal}
+
 
     # ---------------------- execution (may be called several times) -------- #
     def _execute(self, experiment: dict = None, **kwargs) -> json:
