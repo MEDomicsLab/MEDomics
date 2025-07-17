@@ -373,10 +373,30 @@ if (isProd) {
     return setWorkspaceDirectory(data)
   })
 
+  // Remote express requests
+  expressApp.post("/set-working-directory", async (req, res, next) =>{
+    console.log(`received set-working-directory : `, req.body)
+    const workspacePath = req.body.workspacePath.startsWith("/") ? req.body.workspacePath.slice(1) : req.body.workspacePath;
+    try {
+      const result = await setWorkspaceDirectory(workspacePath);
+      console.log(`post setWorkspaceDirectory : ${workspacePath}`)
+      if (result && result.hasBeenSet) {
+        toast.success('Workspace set to: ' + workspacePath)
+        res.json({ success: true });
+      } else {
+        console.log('error1, ', err)
+        res.status(500).json({ success: false, error: err.message });
+      }
+    } catch (err) {
+      console.log('error2, ', err)
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
   const setWorkspaceDirectory = async (data) => {
     app.setPath("sessionData", data)
-    createWorkingDirectory() // Create DATA & EXPERIMENTS directories
     console.log(`setWorkspaceDirectory : ${data}`)
+    createWorkingDirectory() // Create DATA & EXPERIMENTS directories
     createMedomicsDirectory(data)
     hasBeenSet = true
     try {
@@ -1424,21 +1444,3 @@ ipcMain.handle('createRemoteFolder', async (_event, { path: parentPath, folderNa
     })
   })
 })
-
-// Remote express requests
-expressApp.post("/set-working-directory", function (req, res, next) {
-  const { workspacePath } = req.body;
-  try {
-    const result = setWorkspaceDirectory(workspacePath);
-    if (result && result.hasBeenSet) {
-      toast.success('Workspace set to: ' + remoteDirPath)
-      res.json({ success: true });
-    } else {
-      toast.error('Failed to set workspace: ' + (result && result.error ? result.error : 'Unknown error'))
-      res.status(500).json({ success: false, error: err.message });
-    }
-  } catch (err) {
-    toast.error('Failed to set workspace: ' + (err && err.message ? err.message : String(err)))
-    res.status(500).json({ success: false, error: err.message });
-  }
-});
