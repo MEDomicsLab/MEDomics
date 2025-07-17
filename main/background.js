@@ -370,13 +370,13 @@ if (isProd) {
   })
 
   ipcMain.handle("setWorkingDirectory", async (event, data) => {
-    return setWorkingDirectory(data)
+    return setWorkspaceDirectory(data)
   })
 
-  const setWorkingDirectory = async (data) => {
+  const setWorkspaceDirectory = async (data) => {
     app.setPath("sessionData", data)
     createWorkingDirectory() // Create DATA & EXPERIMENTS directories
-    console.log(`setWorkingDirectory : ${data}`)
+    console.log(`setWorkspaceDirectory : ${data}`)
     createMedomicsDirectory(data)
     hasBeenSet = true
     try {
@@ -413,7 +413,7 @@ if (isProd) {
   ipcMain.handle("setRemoteWorkingDirectory", async (event, data) => {
     app.setPath("remoteSessionData", data)
     createRemoteWorkingDirectory() // Create DATA & EXPERIMENTS directories
-    console.log(`setWorkingDirectory (remote) : ${data}`)
+    console.log(`setWorkspaceDirectory (remote) : ${data}`)
     createRemoteMedomicsDirectory(data)
     hasBeenSet = true
     try {
@@ -1429,7 +1429,7 @@ ipcMain.handle('createRemoteFolder', async (_event, { path: parentPath, folderNa
 expressApp.post("/set-working-directory", function (req, res, next) {
   const { workspacePath } = req.body;
   try {
-    const result = setWorkingDirectory(workspacePath);
+    const result = setWorkspaceDirectory(workspacePath);
     if (result && result.hasBeenSet) {
       toast.success('Workspace set to: ' + remoteDirPath)
       res.json({ success: true });
