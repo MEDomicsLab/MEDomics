@@ -70,7 +70,7 @@ const DropDuplicatesToolsDB = ({ currentCollection }) => {
         "/input/find_duplicate_columns_DB",
         requestBody,
         (response) => {
-          console.log(" Réponse backend :", response)
+          console.log("Backend response:", response)
 
           if (response?.duplicates) {
             // Store duplicated columns into a state for future deletion
