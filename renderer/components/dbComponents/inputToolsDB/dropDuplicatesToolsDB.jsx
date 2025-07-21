@@ -88,7 +88,7 @@ const DropDuplicatesToolsDB = ({ currentCollection }) => {
           setLoadingDuplicates(false)
         },
         (error) => {
-          console.log("erreur: ", error)
+          console.log("error: ", error)
           toast.error("Error finding duplicate columns.")
           setLoadingDuplicates(false)
         }
