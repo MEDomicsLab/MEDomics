@@ -42,7 +42,7 @@ def main():
             print(json.dumps({"duplicates": []}))
             return
 
-         # Transform into dataFrame
+        # Transform into DataFrame
         df = pd.DataFrame(docs).drop(columns=["_id"], errors="ignore")
 
         column_hashes = {}
