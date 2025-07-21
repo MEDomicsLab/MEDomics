@@ -3,6 +3,7 @@ import ModulePage from "./moduleBasics/modulePage"
 import { Col, Row, Stack } from "react-bootstrap"
 import Input from "../learning/input"
 import { Button } from "primereact/button"
+import { SelectButton } from "primereact/selectbutton"
 import { requestBackend } from "../../utilities/requests"
 import { useContext } from "react"
 import { WorkspaceContext } from "../workspace/workspaceContext"
@@ -18,7 +19,7 @@ import { getCollectionColumns, insertMEDDataObjectIfNotExists } from "../mongoDB
 import DataTableFromDB from "../dbComponents/dataTableFromDB"
 import { randomUUID } from "crypto"
 import { toast } from "react-toastify"
-
+import { shell } from "electron"
 /**
  *
  * @param {string} pageId The id of the page
@@ -34,27 +35,24 @@ import { toast } from "react-toastify"
  *
  * @returns {React.Component} The entry component
  */
+
 const Entry = ({ pageId, setRequestSettings, chosenModel, modelMetadata, updateWarnings, mode, setMode, setIsValid2Predict, inputsData, setInputsData }) => {
-  const [inputTypeChecked, setInputTypeChecked] = useState(false)
   const [chosenDataset, setChosenDataset] = useState(null)
   const [datasetHasWarning, setDatasetHasWarning] = useState({ state: true, tooltip: "No dataset selected" })
   const [isColsValid, setIsColsValid] = useState(false)
 
-  // when the inputs data change, update the isValid2Predict
+  const inputOptions = [
+    { label: "Manual Sample Entry", value: "unique" },
+    { label: "Test File Input", value: "table" }
+  ]
+
   useEffect(() => {
     if (modelMetadata) {
-      let columns = modelMetadata.columns
+      const columns = modelMetadata.columns
       let isValid = true
-
       columns.forEach((columnName) => {
-        if (columnName != modelMetadata.target) {
-          if (inputsData[columnName]) {
-            if (typeof inputsData[columnName] == "object") {
-              if (!inputsData[columnName][0]) {
-                isValid = false
-              }
-            }
-          } else {
+        if (columnName !== modelMetadata.target) {
+          if (!inputsData[columnName] || (typeof inputsData[columnName] === "object" && !inputsData[columnName][0])) {
             isValid = false
           }
         }
@@ -63,34 +61,23 @@ const Entry = ({ pageId, setRequestSettings, chosenModel, modelMetadata, updateW
     }
   }, [inputsData])
 
-  // when the chosen dataset changes, update the warnings
   useEffect(() => {
     updateWarnings(chosenDataset, setDatasetHasWarning)
   }, [chosenDataset])
 
-  // when inputTypeChecked changes, update the mode
   useEffect(() => {
-    setMode(inputTypeChecked ? "table" : "unique")
-    inputTypeChecked ? setIsValid2Predict(!datasetHasWarning.state) : setIsValid2Predict(isColsValid)
-  }, [inputTypeChecked])
+    if (mode === "table") {
+      setIsValid2Predict(!datasetHasWarning.state)
+    } else {
+      setIsValid2Predict(isColsValid)
+    }
+  }, [mode, datasetHasWarning, isColsValid])
 
-  // when the datasetHasWarning changes, update the isValid2Predict
-  useEffect(() => {
-    mode == "table" && setIsValid2Predict(!datasetHasWarning.state)
-  }, [datasetHasWarning])
-
-  // when the isColsValid changes, update the isValid2Predict
-  useEffect(() => {
-    mode == "unique" && setIsValid2Predict(isColsValid)
-  }, [isColsValid])
-
-  // when the chosen model changes, update the model metadata
   useEffect(() => {
     setInputsData({})
     updateWarnings(chosenDataset, setDatasetHasWarning)
   }, [chosenModel])
 
-  // when the inputs data change, update the request settings
   useEffect(() => {
     setRequestSettings({
       model: chosenModel,
@@ -100,44 +87,54 @@ const Entry = ({ pageId, setRequestSettings, chosenModel, modelMetadata, updateW
     })
   }, [chosenModel, chosenDataset, inputsData, mode])
 
-  /**
-   *
-   * @param {Object} inputUpdate The input update
-   */
   const handleInputUpdate = (inputUpdate) => {
-    let newInputsData = { ...inputsData }
-    newInputsData[inputUpdate.name] = [inputUpdate.value]
+    const newInputsData = { ...inputsData, [inputUpdate.name]: [inputUpdate.value] }
     setInputsData(newInputsData)
   }
 
-  /**
-   *
-   * @param {Object} inputUpdate The input update
-   */
   const onDatasetChange = (inputUpdate) => {
     setChosenDataset(inputUpdate.value)
   }
 
   return (
     <>
-      <ToggleButton onLabel="File entry" offLabel="Columns entry" onIcon="pi pi-file-import" offIcon="pi pi-th-large" checked={inputTypeChecked} onChange={(e) => setInputTypeChecked(e.value)} />
-      {!inputTypeChecked ? (
+      <div className="mb-3" style={{ width: "100%" }}>
+      <div style={{ width: "100%", display: "flex" }}>
+        <SelectButton
+          className="select-button-full"
+          value={mode}
+          onChange={(e) => setMode(e.value)}
+          options={inputOptions}
+          optionLabel="label"
+          dataKey="value"
+          unselectable={false}
+          style={{ width: "100%" }}
+        />
+      </div>
+        <div className="mt-2" style={{ fontStyle: "italic", fontSize: "0.9rem" }}>
+          {inputOptions.find((opt) => opt.value === mode)?.description}
+        </div>
+      </div>
+
+      {mode === "unique" && (
         <div className="columns-filling">
           {modelMetadata.columns.map((columnName, index) => {
-            if (columnName != modelMetadata.target) {
+            if (columnName !== modelMetadata.target) {
               return (
                 <Input
                   key={index}
                   name={columnName}
                   settingInfos={{ type: "string", tooltip: "" }}
-                  currentValue={inputsData[columnName] ? inputsData[columnName] : ""}
+                  currentValue={inputsData[columnName] ?? ""}
                   onInputChange={handleInputUpdate}
                 />
               )
             }
           })}
         </div>
-      ) : (
+      )}
+
+      {mode === "table" && (
         <div className="data-input-tag-right">
           {datasetHasWarning.state && (
             <>
@@ -162,6 +159,7 @@ const Entry = ({ pageId, setRequestSettings, chosenModel, modelMetadata, updateW
     </>
   )
 }
+
 
 /**
  *
@@ -357,7 +355,40 @@ const ApplicationPageWithModulePage = ({ pageId = "application-456" }) => {
     <>
       <ModulePage pageId={pageId} shadow>
         <div style={{ padding: "0.5rem" }}>
+
+          <div className="application-introduction">
+
+            <h2>🚀 Model Deployment</h2>
+
+            <p>
+              This module allows users to deploy a machine learning model for inference.
+              First, you'll have to choose a model. Then, you can select between two input methods:
+            </p>
+
+            <p>
+              <span className="app-tool-name">→ Manual Sample Entry:</span> Fill in the required feature values manually to test a single sample.
+            </p>
+
+            <p>
+              <span className="app-tool-name">→ Test File Input:</span> Upload a dataset file (CSV format) to run batch predictions on multiple samples.
+            </p>
+
+            <div>
+              <p>
+                📖 Learn more about this tool in our{' '}
+                <u
+                  onClick={() => shell.openExternal("https://medomics-udes.gitbook.io/medomicslab-docs/tutorials/deployment/application-module")}
+                  style={{ color: "#0056b3", textDecoration: "none", cursor: "pointer" }}
+                >
+                  documentation. 🔗
+                </u>
+              </p>
+            </div>
+
+          </div>
+
           <ApplicationPage pageId={pageId} />
+
         </div>
       </ModulePage>
     </>

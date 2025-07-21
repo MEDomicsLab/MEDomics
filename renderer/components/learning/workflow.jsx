@@ -484,6 +484,13 @@ const Workflow = ({ setWorkflowType, workflowType }) => {
     newNode.data.internal.subflowId = !associatedNode ? groupNodeId.id : associatedNode
     newNode.data.internal.hasWarning = { state: false }
 
+    setTimeout(() => {
+      if (nodes.length === 0 && reactFlowInstance) {
+        setViewport({ x: 200, y: 300, zoom: 0.9 }); // reduce the zoom when drag and droping first nodes
+      }
+    }, 0);
+    
+
     return newNode
   }
 

@@ -16,6 +16,7 @@ import SimpleCleaningToolsDB from "./inputToolsDB/simpleCleaningToolsDB"
 import SubsetCreationToolsDB from "./inputToolsDB/subsetCreationToolsDB"
 import TransformColumnToolsDB from "./inputToolsDB/transformColumnToolsDB"
 import { getCollectionSize } from "../mongoDB/mongoDBUtils.js"
+import { shell } from "electron"
 
 /**
  * @description
@@ -68,6 +69,22 @@ const InputToolsComponent = ({ exportOptions }) => {
     <div style={panelContainerStyle}>
       <div style={{ textAlign: "center", marginTop: "20px", marginBottom: "20px" }}>
         <h1>Database Input Tools</h1>
+        <div style={{ textAlign: "center", marginBottom: "20px", maxWidth: "800px", margin: "0 auto" }}>
+        <p>
+          This module provides essential tools for preprocessing and structuring datasets 
+          before machine learning. It allows users to clean, transform, and organize data efficiently.
+        </p>
+        <p className="gitbook-link">
+          📖 Learn how to use these tools in our
+          <u
+            onClick={() => shell.openExternal("https://medomics-udes.gitbook.io/medomicslab-docs/tutorials/design/input-module")}
+            style={{ color: "#0056b3", textDecoration: "none", cursor: "pointer" }}
+          > documentation. 🔗
+          </u>
+        </p>
+
+      </div>
+
       </div>
       <Card
         className="cute-box"
