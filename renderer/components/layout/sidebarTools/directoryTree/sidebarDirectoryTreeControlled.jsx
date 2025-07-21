@@ -11,9 +11,10 @@ import { useContextMenu, Menu, Item, Submenu } from "react-contexify"
 import renderItem from "./renderItem"
 import { Tooltip } from "primereact/tooltip"
 import { WorkspaceContext } from "../../../workspace/workspaceContext"
-import { rename, onPaste, onDeleteSequentially, createFolder, onDrop, fromJSONtoTree, evaluateIfTargetIsAChild } from "./utils"
+import { rename, onPaste, onDeleteSequentially, onDrop, createFolder, fromJSONtoTree, evaluateIfTargetIsAChild } from "./utils"
 import { MEDDataObject } from "../../../workspace/NewMedDataObject"
 import { PiImage, PiNotebook, PiPen } from "react-icons/pi"
+import fs from "fs"  
 
 /**
  * @description - This component is the sidebar tools component that will be used in the sidebar component
@@ -53,8 +54,10 @@ const SidebarDirectoryTreeControlled = ({ setExternalSelectedItems, setExternalD
    */
   useEffect(() => {
     if (globalData) {
-      let newTree = fromJSONtoTree({ ...globalData })
+      let newTree = fromJSONtoTree({ ...globalData }, showHiddenFiles)
       setDirTree(newTree)
+      console.log("NEW TREE", newTree)
+      console.log("REF", environment.current, tree.current)
     }
   }, [globalData, showHiddenFiles])
 
@@ -62,6 +65,7 @@ const SidebarDirectoryTreeControlled = ({ setExternalSelectedItems, setExternalD
     setExternalSelectedItems && setExternalSelectedItems(selectedItems)
   }, [selectedItems])
 
+  
   /**
    * This useEffect hook sets the external double click item when the double click item changes.
    */
@@ -249,7 +253,16 @@ const SidebarDirectoryTreeControlled = ({ setExternalSelectedItems, setExternalD
           if (globalData[props.index]) {
             if (globalData[props.index].path) {
               // eslint-disable-next-line no-undef
-              require("electron").shell.showItemInFolder(globalData[props.index].path)
+              if (fs.existsSync(globalData[props.index].path)) {
+                require("electron").shell.showItemInFolder(globalData[props.index].path)
+              } else {
+                if (fs.existsSync(globalData[globalData[props.index].parentID].path)) {
+                  require("electron").shell.showItemInFolder(globalData[globalData[props.index].parentID].path)
+                  toast.warn("Warning: The item is not saved locally, opening the folder in the workspace")
+                } else {
+                  toast.error("Error: No path found. The item is not saved locally")
+                }
+              }
             } else {
               toast.error("Error: No path found. The item is not saved locally")
             }
@@ -411,6 +424,7 @@ const SidebarDirectoryTreeControlled = ({ setExternalSelectedItems, setExternalD
     })
   }
 
+
   /**
    * Add event listener to handle if the user clicks outside the directory tree and, if so, deselect the selected items.
    */
@@ -509,13 +523,18 @@ const SidebarDirectoryTreeControlled = ({ setExternalSelectedItems, setExternalD
                 onFocusItem={(item) => setFocusedItem(item.index)}
                 onExpandItem={(item) => setExpandedItems([...expandedItems, item.index])}
                 onCollapseItem={(item) => setExpandedItems(expandedItems.filter((expandedItemIndex) => expandedItemIndex !== item.index))}
-                onSelectItems={(items) => setSelectedItems(items)}
-                canReorderItems={true}
+                onSelectItems={(items) => {
+                  setSelectedItems(items)
+                }}
+                canReorderItems={false}
                 canDropOnFolder={true}
+                canDropOnNonFolder={false}
                 canRename={true}
-                canDragAndDrop={false}
+                canDragAndDrop={true}
                 onRenameItem={handleNameChange}
-                onDrop={onDrop}
+                onDrop={(items, target) => {
+                  onDrop(items, target, tree.current, globalData, workspace.workingDirectory.path, setIsDropping)
+                }}
                 isHovering={isHovering}
               >
                 <Tree treeId="tree-2" rootItem="ROOT" treeLabel="Tree Example" ref={tree} />
