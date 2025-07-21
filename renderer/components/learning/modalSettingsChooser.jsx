@@ -18,7 +18,7 @@ import { FlowFunctionsContext } from "../flow/context/flowFunctionsContext"
  * This component is used to display a ModalSettingsChooser modal.
  * it handles the display of the modal and the available options
  */
-const ModalSettingsChooser = ({ show, onHide, options, id, data, optionsTuning = null }) => {
+const ModalSettingsChooser = ({ show, onHide, options, id, data, optionsTuning = null, title }) => {
   const [checkedUpdate, setCheckedUpdate] = useState(null)
   const [checkedUpdateTuning, setCheckedUpdateTuning] = useState(null)
   const { updateNode } = useContext(FlowFunctionsContext)
@@ -74,7 +74,7 @@ const ModalSettingsChooser = ({ show, onHide, options, id, data, optionsTuning =
     // Base modal component built from react-bootstrap
     <Modal show={show} onHide={onHide} size="lg" aria-labelledby="contained-modal-title-vcenter" centered className="modal-settings-chooser">
       <Modal.Header closeButton>
-        <Modal.Title id="contained-modal-title-vcenter">{data.setupParam.title + " options"}</Modal.Title>
+        <Modal.Title id="contained-modal-title-vcenter">{title || (data.setupParam?.title + " options") || " Options"} </Modal.Title>
       </Modal.Header>
       {/* Display all the options available for the node */}
       <Modal.Body>

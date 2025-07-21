@@ -6,6 +6,7 @@ import Input from "../input"
 import ModalSettingsChooser from "../modalSettingsChooser"
 import { useContext, useEffect, useState } from "react"
 import { FlowFunctionsContext } from "../../flow/context/flowFunctionsContext"
+import { SelectButton } from 'primereact/selectbutton'
 
 const CombineModelsNode = ({ id, data }) => {
   const { updateNode } = useContext(FlowFunctionsContext)
@@ -40,21 +41,26 @@ const CombineModelsNode = ({ id, data }) => {
   }
 
   // Section switch blend/stack
+  const algoOptions = [
+    { label: 'Stack', value: 'stack_models' },
+    { label: 'Blend', value: 'blend_models' }
+  ]
+  
   const nodeBody = (
-    <Stack direction="horizontal" className="align-items-center justify-content-between">
-      <span style={{ fontWeight: !isBlend ? 'bold' : 'normal' }}>Stack</span>
-      <InputSwitch
-        checked={isBlend}
+    <div className="d-flex justify-content-center">
+      <SelectButton
+        value={currentAlgo}
+        options={algoOptions}
         onChange={(e) => {
-          const newAlgo = e.value ? 'blend_models' : 'stack_models'
-          data.internal.settings.optimize_fct = newAlgo
+          data.internal.settings.optimize_fct = e.value
           updateNode({ id, updatedData: data.internal })
         }}
         className="mx-2"
+        unselectable={false}
       />
-      <span style={{ fontWeight: isBlend ? 'bold' : 'normal' }}>Blend</span>
-    </Stack>
+    </div>
   )
+  
 
   return (
     <>
@@ -67,25 +73,31 @@ const CombineModelsNode = ({ id, data }) => {
         defaultSettings={null}
         nodeSpecific={
           <>
-            {/* Bouton pour afficher les options de blend/stack */}
+            {/* blend/stack options */}
+            <Stack direction="horizontal" className="justify-content-between align-items-center my-2">
+            <span className="text-muted" style={{ fontSize: "0.9rem" }}>
+              Select function options
+            </span>
             <Button
               variant="light"
-              className="width-100 btn-contour"
+              className="btn-contour"
               onClick={() => setModalShow(true)}
             >
-              <Icon.Plus width="30px" height="30px" className="img-fluid" />
+              <Icon.Plus width="20px" height="20px" className="img-fluid" />
             </Button>
+          </Stack>
 
-            {/* Modal paramètres blend/stack */}
+            {/* Modal blend/stack */}
             <ModalSettingsChooser
               show={modalShow}
               onHide={() => setModalShow(false)}
               options={data.setupParam.possibleSettings.options?.[currentAlgo]?.options || {}}
               data={data}
               id={id}
+              title={isBlend ? "Blend Options" : "Stack Options"}
             />
 
-            {/* Modal paramètres calibrate (indépendant) */}
+            {/* Modal calibrate */}
             <ModalSettingsChooser
               show={calibrateModalShow}
               onHide={() => setCalibrateModalShow(false)}
@@ -95,7 +107,7 @@ const CombineModelsNode = ({ id, data }) => {
               parentKey="calibrate"
             />
 
-            {/* Affichage des paramètres blend/stack */}
+            {/* Blend/stack parameters */}
             {data.internal.checkedOptions?.map((optionName) => {
               const setting = data.setupParam.possibleSettings.options?.[currentAlgo]?.options?.[optionName]
               return setting ? (
@@ -126,6 +138,7 @@ const CombineModelsNode = ({ id, data }) => {
                 className="mx-2"
               />
             </Stack>
+
             
             {/* Affichage des paramètres calibrate */}
             {data.internal.checkedOptions?.map((optionName) => {
