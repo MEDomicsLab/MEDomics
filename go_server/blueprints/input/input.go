@@ -291,7 +291,7 @@ func handleFindDuplicateColumnsDB(jsonConfig string, id string) (string, error) 
 	log.Println(">> [DEBUG] route /input/find_duplicate_columns_DB hit", id)
 	log.Println("Finding duplicate columns...", id)
 
-	// Appelle le script Python
+	// Call the Python script
 	response, err := Utils.StartPythonScripts(jsonConfig, "../pythonCode/modules/input/find_duplicate_columnsDB.py", id)
 	log.Println(">>> PYTHON RESPONSE:\n", response)
 	Utils.RemoveIdFromScripts(id)
