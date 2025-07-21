@@ -82,7 +82,7 @@ const DropDuplicatesToolsDB = ({ currentCollection }) => {
             )
           } else {
             toast.warn("No duplicates found or response format incorrect.")
-            console.warn(" Format inattendu :", response)
+            console.warn("Unexpected format:", response)
           }
 
           setLoadingDuplicates(false)
