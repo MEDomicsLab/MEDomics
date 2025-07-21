@@ -212,7 +212,6 @@ const PipelineResult = ({ index, pipeline, selectionMode, flowContent,highlightP
  */
 const PipelinesResults = ({ pipelines, fullPipelines, selectionMode, flowContent, runFinalizeAndSave }) => {
   const { selectedResultsId, setSelectedResultsId, flowResults, setShowResultsPane, showResultsPane, isResults, pipelineNames } = useContext(FlowResultsContext)
-  console.log("debug pipelineNames", pipelineNames)
   const { getBasePath } = useContext(WorkspaceContext)
   const { sceneName } = useContext(FlowInfosContext)
   const { updateNode, updateEdge } = useContext(FlowFunctionsContext)
@@ -509,6 +508,7 @@ const PipelinesResults = ({ pipelines, fullPipelines, selectionMode, flowContent
 
       return (
         <>
+          <label className="mr-2">{pipelineNames[index]}</label>
           <SelectButton
             className="results-select-button"
             value={selectionMode == "Compare Mode" ? selectedResultsId : selectedResultsId && selectedResultsId[pipelineId]}
@@ -545,7 +545,7 @@ const PipelinesResults = ({ pipelines, fullPipelines, selectionMode, flowContent
         </>
       )
     },
-    [selectedResultsId, setSelectedResultsId, selectionMode, flowContent]
+    [selectedResultsId, setSelectedResultsId, selectionMode, flowContent, pipelineNames]
   )
 
   /**

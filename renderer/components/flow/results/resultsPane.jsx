@@ -109,6 +109,7 @@ const ResultsPane = ({ runFinalizeAndSave }) => {
   const findBoxAnalysisPaths = (dict) => {
     const paths = []
     const fullPaths = []
+    const modelsTrained = {}
 
     const traverse = (currentDict, currentPath = []) => {
       if (!currentDict || typeof currentDict !== 'object') return
@@ -122,11 +123,25 @@ const ResultsPane = ({ runFinalizeAndSave }) => {
           const nodeType = flowContent.nodes.find(node => node.id === part)?.data?.internal?.type
           if (nodeType !== "train_model") {
             correctedPath.push(part)
+            if (nodeType === "combine_models") {
+              const trainModelNodeId = fullPath[fullPath.length - 2]
+              let trainModelNodeIdIndex = fullPath.indexOf(trainModelNodeId)
+              if (Object.keys(modelsTrained).length > 0 && modelsTrained[trainModelNodeId]) {
+                // Add all models trained in the previous train_model node to the fullPath if it does not already exist
+                modelsTrained[trainModelNodeId].forEach(model => {
+                  if (!fullPath.includes(model)) {
+                    fullPath.splice(trainModelNodeIdIndex, 0, model)
+                  }
+                })
+              }
+            }
           } else {
+            modelsTrained[part] = Array.from(new Set([...(modelsTrained[part] || []), correctedPath[correctedPath.length - 1]]))
           }
+          
         })
         paths.push([...correctedPath, 'box-analysis'])
-        fullPaths.push([...fullPath, 'box-analysis'])
+        fullPaths.push(Array.from(new Set([...fullPath, 'box-analysis'])))
       }
 
       // Recursively search through next_nodes
@@ -254,6 +269,16 @@ const ResultsPane = ({ runFinalizeAndSave }) => {
     return node && node.data.internal.name
   }
 
+  const getArrowIcon = (rowData, index, nodeId) => {
+    const nextNodeId = rowData.nodes[index + 1]
+    const nextNodeType = nextNodeId ?flowContent.nodes.find(node => node.id === nextNodeId)?.data?.internal?.type : ""
+    const currentNodeType = flowContent.nodes.find(node => node.id === nodeId)?.data?.internal?.type
+    if (currentNodeType === "model" && nextNodeType === "model") {
+      return <span className="opacity-50 mx-1">+</span>
+    }
+    return <span className="opacity-50 mx-1">→</span>
+  }
+
   const PipelineManager = ({ pipelines }) => {
     const [editedPipelines, setEditedPipelines] = useState(
       pipelines.map((pipeline, index) => ({
@@ -295,7 +320,7 @@ const ResultsPane = ({ runFinalizeAndSave }) => {
                 {rowData.nodes.map((nodeId, index) => (
                   <span key={index}>
                     {getName(nodeId)}
-                    {index < rowData.nodes.length - 1 && (<span className="opacity-50 mx-1">→</span>)}
+                    {index < rowData.nodes.length - 1 && (getArrowIcon(rowData, index, nodeId))}
                   </span>
                 ))}
               </div>
