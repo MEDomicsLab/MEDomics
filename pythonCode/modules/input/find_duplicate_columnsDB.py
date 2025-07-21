@@ -9,7 +9,7 @@ import xxhash
 MAX_ROWS = 5000
 
 def hash_column(column):
-    # Round floats to accelerate the processus
+    # Round floats to accelerate the process
     if pd.api.types.is_float_dtype(column):
         column = column.round(5)
     # Return a non cryptographic hash
