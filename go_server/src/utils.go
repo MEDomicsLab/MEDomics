@@ -224,6 +224,7 @@ func copyOutput(r io.Reader, response *string) {
 			Mu.Unlock()
 		} else {
 			log.Println(lineText)
+			*response = lineText
 		}
 	}
 }
