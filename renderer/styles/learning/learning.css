@@ -9,6 +9,11 @@
   height: 20px;
 }
 
+/* Dark mode inversion for icon nodes */
+[data-theme="dark"] .icon-nodes {
+  filter: invert(1);
+}
+
 .btn-contour {
   border: 1px solid #1a1a1a7a;
   cursor: pointer;

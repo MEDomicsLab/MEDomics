@@ -49,7 +49,9 @@ import ModelViewer from "../../mainPages/modelViewer"
 import ModulePage from "../../mainPages/moduleBasics/modulePage"
 import OutputPage from "../../mainPages/output"
 import SettingsPage from "../../mainPages/settings"
+import LoggingPage from "../../mainPages/logging"
 import TerminalPage from "../../mainPages/terminal"
+import IPythonPage from "../../mainPages/ipython"
 import { getCollectionSize, updateMEDDataObjectName, updateMEDDataObjectPath, updateMEDDataObjectType } from "../../mongoDB/mongoDBUtils"
 import { DataContext } from "../../workspace/dataContext"
 import { MEDDataObject } from "../../workspace/NewMedDataObject"
@@ -1150,11 +1152,20 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
           return <ApplicationPage pageId={"EvaluationPage"} />
         }
       }
+    } else if (component === "logging") {
+      if (node.getExtraData().data == null) {
+        const config = node.getConfig()
+        return <LoggingPage />
+      }
     } else if (component === "terminal") {
       if (node.getExtraData().data == null) {
         const config = node.getConfig()
-
         return <TerminalPage />
+      }
+    } else if (component === "ipython") {
+      if (node.getExtraData().data == null) {
+        const config = node.getConfig()
+        return <IPythonPage />
       }
     } else if (component === "output") {
       if (node.getExtraData().data == null) {
@@ -1304,8 +1315,15 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
       if (component === "MEDprofilesViewer") {
         return <span style={{ marginRight: 3 }}>📊</span>
       }
-      if (component === "terminal") {
+      if (component === "terminal" || component === "logging") {
         return <span style={{ marginRight: 3 }}>🖥️</span>
+      }
+      if (component === "ipython") {
+        return (
+          <span style={{ marginRight: 3 }}>
+            <img src="/images/python.svg" alt="Python" style={{ width: "1.15em", height: "1.15em" }} />
+          </span>
+        )
       }
       if (component === "output") {
         return <span style={{ marginRight: 3 }}>🏁</span>

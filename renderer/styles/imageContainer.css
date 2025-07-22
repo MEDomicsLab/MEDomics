@@ -10,13 +10,11 @@ width: 100% !important;
 height: 100% !important;
 }
 
-@media (prefers-color-scheme: dark) {
-    .react-transform-wrapper {
-    background-color: #161616;
-    margin: auto !important;
-    width: 100% !important;
-    height: 100% !important;
-  }
+[data-theme="dark"] .react-transform-wrapper {
+  background-color: #161616;
+  margin: auto !important;
+  width: 100% !important;
+  height: 100% !important;
 }
 
 .tools {

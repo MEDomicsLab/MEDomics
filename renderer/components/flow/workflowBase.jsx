@@ -12,6 +12,7 @@ import Row from "react-bootstrap/Row"
 import Col from "react-bootstrap/Col"
 import { Button } from "primereact/button"
 import { ErrorRequestContext } from "../generalPurpose/errorRequestContext"
+import { useTheme } from "../theme/themeContext"
 
 /**
  *
@@ -55,6 +56,7 @@ const WorkflowBase = ({ isGoodConnection, groupNodeHandlingDefault, onDeleteNode
   const { showAvailableNodes, setShowAvailableNodes, updateFlowContent } = useContext(FlowInfosContext) // used to update the flow infos
   const { showResultsPane, setShowResultsPane, isResults, flowResults } = useContext(FlowResultsContext) // used to update the flow infos
   const { showError, setShowError } = useContext(ErrorRequestContext) // used to get the flow infos
+  const { isDarkMode } = useTheme() // used to get the current theme mode
   const [hasBeenAnError, setHasBeenAnError] = useState(false) // used to get the flow infos
   const [miniMapState, setMiniMapState] = useState(true) // used to get the flow infos
   const [numberOfNodes, setNumberOfNodes] = useState(0) // used to get the flow infos
@@ -584,6 +586,7 @@ const WorkflowBase = ({ isGoodConnection, groupNodeHandlingDefault, onDeleteNode
         onEdgeUpdate={onEdgeUpdate}
         onEdgeUpdateStart={onEdgeUpdateStart}
         onEdgeUpdateEnd={onEdgeUpdateEnd}
+        colorMode={isDarkMode ? 'dark' : 'light'}
         fitView
       >
         <Background />
