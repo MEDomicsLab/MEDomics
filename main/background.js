@@ -388,8 +388,8 @@ if (isProd) {
       const result = await setWorkspaceDirectory(workspacePath);
       console.log(`post setWorkspaceDirectory : ${workspacePath}`)
       if (result && result.hasBeenSet) {
-        toast.success('Workspace set to: ' + workspacePath)
-        res.json({ success: true });
+        console.log('Workspace set to: ' + workspacePath)
+        res.json({ success: true, workspace: result });
       } else {
         console.log('error1, ', err)
         res.status(500).json({ success: false, error: err.message });

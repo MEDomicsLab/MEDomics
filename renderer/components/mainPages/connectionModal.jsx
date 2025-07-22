@@ -9,6 +9,7 @@ import { getTunnelState, setTunnelState, clearTunnelState, setTunnelObject } fro
 import { Button } from "@blueprintjs/core"
 import { GoFile, GoFileDirectoryFill, GoChevronDown, GoChevronUp } from "react-icons/go"
 import { FaFolderPlus } from "react-icons/fa"
+import { WorkspaceContext } from "../workspace/workspaceContext"
 import axios from "axios"
 
 /**
@@ -36,6 +37,8 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
   const maxReconnectAttempts = 3
   const reconnectDelay = 3000 // ms
   const [connectionInfo, setConnectionInfo] = useState(null)
+  const { workspace, setWorkspace } = useContext(WorkspaceContext)
+  
 
   
 
@@ -593,6 +596,10 @@ const DirectoryBrowser = ({ directoryContents, onDirClick }) => {
                   .then(response => {
                     if (response.data.success) {
                       toast.success("Workspace set successfully on remote app.")
+                      if (response.data.workspace !== workspace) {
+                        let workspaceToSet = { ...response.data.workspace }
+                        setWorkspace(workspaceToSet)
+                      }
                     } else {
                       toast.error("Failed to set workspace: " + response.data.error)
                     }
