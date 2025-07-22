@@ -2,8 +2,8 @@ import React from "react"
 import dynamic from "next/dynamic"
 import ModulePage from "./moduleBasics/modulePage"
 
-// Dynamically import TerminalManager with SSR disabled
-const TerminalManager = dynamic(() => import("../terminal/TerminalManager"), {
+// Dynamically import TerminalManager with SSR disabled, but configure for IPython
+const IPythonTerminalManager = dynamic(() => import("../terminal/TerminalManager"), {
   ssr: false,
   loading: () => (
     <div style={{ 
@@ -14,25 +14,26 @@ const TerminalManager = dynamic(() => import("../terminal/TerminalManager"), {
       backgroundColor: '#1f1f1f',
       color: '#ffffff'
     }}>
-      Loading Terminal...
+      Loading IPython...
     </div>
   )
 })
 
 /**
- * @description Terminal page component that provides multiple terminal instances
+ * @description IPython page component that provides IPython terminal instances
+ * Uses the Python environment from .medomics home folder
  * @param {String} pageId The id of the page
- * @returns The terminal page component with multiple terminal support
+ * @returns The IPython page component using terminal infrastructure
  */
-const TerminalPage = ({ pageId = "terminal" }) => {
+const IPythonPage = ({ pageId = "ipython" }) => {
 
   return (
     <>
       <ModulePage pageId={pageId} style={{ backgroundColor: "#1f1f1f", top: "-20px" }}>
-        <TerminalManager pageId={pageId} />
+        <IPythonTerminalManager pageId={pageId} useIPython={true} />
       </ModulePage>
     </>
   )
 }
 
-export default TerminalPage
+export default IPythonPage

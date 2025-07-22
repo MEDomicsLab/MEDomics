@@ -14,6 +14,7 @@ import { MEDDataObject } from "../components/workspace/NewMedDataObject"
 import { WorkspaceProvider } from "../components/workspace/workspaceContext"
 import { loadMEDDataObjects, updateGlobalData } from "../utilities/appUtils/globalDataUtils"
 import { NotificationContextProvider } from "../components/generalPurpose/notificationContext"
+import { ThemeProvider } from "../components/theme/themeContext"
 
 // CSS
 import "bootstrap/dist/css/bootstrap.min.css"
@@ -25,7 +26,7 @@ import "react-tooltip/dist/react-tooltip.css"
 // --primereact
 import "primeicons/primeicons.css"
 import "primereact/resources/primereact.min.css"
-import "primereact/resources/themes/lara-light-indigo/theme.css"
+// Theme will be loaded dynamically via themeUtils.js
 
 // blueprintjs
 import "@blueprintjs/core/lib/css/blueprint.css"
@@ -56,6 +57,7 @@ import "../styles/learning/sidebar.css"
 import "../styles/output.css"
 import "../styles/sidebarTree.css"
 import "../styles/workspaceSidebar.css"
+import "../styles/theme.css"
 
 /**
  * This is the main app component. It is the root component of the app.
@@ -63,27 +65,8 @@ import "../styles/workspaceSidebar.css"
  * It is the parent of the LayoutContextProvider, which provides the layout model to all components.
  * @constructor
  */
-function App() {
-  /* TODO: Add a dark mode toggle button  
-  const [isDarkMode, setIsDarkMode] = useState(false)
-  const [theme, setTheme] = useState("light-mode")
-  const darkMode = useDarkMode(false)
-
-  useEffect(() => {
-    console.log("isDarkMode", isDarkMode)
-    if (isDarkMode) {
-      darkMode.enable
-    } else {
-      darkMode.disable
-    }
-  }, [isDarkMode])
-
-  useEffect(() => {
-    document.documentElement.className = theme
-    // localStorage.setItem("theme", themeName)
-  }, [theme])
-  */
-
+function App({ Component, pageProps }) {
+  // Note: Component and pageProps are required by Next.js but not used in this layout-based app
   let initialLayout = {
     // this is the intial layout model for flexlayout model that is passed to the LayoutManager -- See flexlayout-react docs for more info
     global: {
@@ -104,8 +87,8 @@ function App() {
         children: [
           {
             type: "tab",
-            name: "Terminal",
-            component: "terminal"
+            name: "Logging",
+            component: "logging"
           }
         ]
       }
@@ -245,34 +228,36 @@ function App() {
         {/* Uncomment if you want to use React Dev tools */}
       </Head>
       <div style={{ height: "100%", width: "100%" }}>
-        <HotkeysProvider>
-          <ActionContextProvider>
-            <NotificationContextProvider>
-              <DataContextProvider globalData={globalData} setGlobalData={setGlobalData}>
-                <WorkspaceProvider
-                  workspace={workspaceObject}
-                  setWorkspace={setWorkspaceObject}
-                  port={port}
-                  setPort={setPort}
-                  recentWorkspaces={recentWorkspaces}
-                  setRecentWorkspaces={setRecentWorkspaces}
-                >
-                  <ServerConnectionProvider port={port} setPort={setPort}>
-                    <LayoutModelProvider // This is the LayoutContextProvider, which provides the layout model to all the children components of the LayoutManager
-                      layoutModel={layoutModel}
-                      setLayoutModel={setLayoutModel}
-                    >
-                      {/* This is the WorkspaceProvider, which provides the workspace model to all the children components of the LayoutManager */}
-                      {/* This is the LayoutContextProvider, which provides the layout model to all the children components of the LayoutManager */}
-                      <LayoutManager layout={initialLayout} />
-                      {/** We pass the initialLayout as a parameter */}
-                    </LayoutModelProvider>
-                  </ServerConnectionProvider>
-                </WorkspaceProvider>
-              </DataContextProvider>
-            </NotificationContextProvider>
-          </ActionContextProvider>
-        </HotkeysProvider>
+        <ThemeProvider>
+          <HotkeysProvider>
+            <ActionContextProvider>
+              <NotificationContextProvider>
+                <DataContextProvider globalData={globalData} setGlobalData={setGlobalData}>
+                  <WorkspaceProvider
+                    workspace={workspaceObject}
+                    setWorkspace={setWorkspaceObject}
+                    port={port}
+                    setPort={setPort}
+                    recentWorkspaces={recentWorkspaces}
+                    setRecentWorkspaces={setRecentWorkspaces}
+                  >
+                    <ServerConnectionProvider port={port} setPort={setPort}>
+                      <LayoutModelProvider // This is the LayoutContextProvider, which provides the layout model to all the children components of the LayoutManager
+                        layoutModel={layoutModel}
+                        setLayoutModel={setLayoutModel}
+                      >
+                        {/* This is the WorkspaceProvider, which provides the workspace model to all the children components of the LayoutManager */}
+                        {/* This is the LayoutContextProvider, which provides the layout model to all the children components of the LayoutManager */}
+                        <LayoutManager layout={initialLayout} />
+                        {/** We pass the initialLayout as a parameter */}
+                      </LayoutModelProvider>
+                    </ServerConnectionProvider>
+                  </WorkspaceProvider>
+                </DataContextProvider>
+              </NotificationContextProvider>
+            </ActionContextProvider>
+          </HotkeysProvider>
+        </ThemeProvider>
         <ConfirmPopup />
         <ConfirmDialog />
         <ToastContainer // This is the ToastContainer, which is used to display toast notifications
