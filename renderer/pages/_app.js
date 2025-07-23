@@ -141,7 +141,8 @@ function App() {
   const [layoutModel, setLayoutModel] = useState(initialLayout)
   const [workspaceObject, setWorkspaceObject] = useState({
     hasBeenSet: false,
-    workingDirectory: ""
+    workingDirectory: "",
+    isRemote: false 
   })
   const [recentWorkspaces, setRecentWorkspaces] = useState([]) // The list of recent workspaces
   const [port, setPort] = useState() // The port of the server

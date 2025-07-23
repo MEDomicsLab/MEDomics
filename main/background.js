@@ -25,14 +25,14 @@ import {
 } from "./utils/pythonEnv"
 import { installMongoDB, checkRequirements } from "./utils/installation"
 import { generateSSHKeyPair } from './sshKeygen.js'
-import { Client } from 'ssh2'
 import {
   startSSHTunnel,
   getActiveTunnel,
   getActiveTunnelServer,
   stopSSHTunnel,
   setTunnelObject,
-  detectRemoteOS
+  detectRemoteOS,
+  startMongoTunnel
 } from './utils/remoteFunctions.js'
 import express from "express"
 import bodyParser from "body-parser"
@@ -389,6 +389,7 @@ if (isProd) {
       console.log(`post setWorkspaceDirectory : ${workspacePath}`)
       if (result && result.hasBeenSet) {
         console.log('Workspace set to: ' + workspacePath)
+        result.isRemote = true;
         res.json({ success: true, workspace: result });
       } else {
         console.log('error1, ', err)
@@ -491,6 +492,7 @@ if (isProd) {
         workingDirectory: dirTree(app.getPath("remoteSessionData")),
         hasBeenSet: hasBeenSet,
         newPort: serverPort,
+        isRemote: false,
         success: true
       }
     } catch (error) {
@@ -996,6 +998,10 @@ ipcMain.handle('getSSHKey', async (_event, { username }) => {
 
 ipcMain.handle('startSSHTunnel', async (_event, params) => {
   return startSSHTunnel(params);
+});
+
+ipcMain.handle('startMongoTunnel', async () => {
+  return startMongoTunnel();
 });
 
 ipcMain.handle('stopSSHTunnel', async () => {

@@ -2,6 +2,9 @@
 export let activeTunnel = null
 export let activeTunnelServer = null
 
+let mongoDBLocalPort = null
+let mongoDBRemotePort = null
+
 export function setActiveTunnel(tunnel) {
   activeTunnel = tunnel
 }
@@ -19,7 +22,8 @@ import { Client } from 'ssh2'
 const net = require('net')
 
 /**
- * Starts an SSH tunnel with backend and MongoDB port forwarding.
+ * Starts an SSH tunnel and creates the backend port forwarding server only.
+ * MongoDB tunnel can be created later by calling startMongoTunnel.
  * @param {Object} params - SSH and port config.
  * @param {string} params.host
  * @param {string} params.username
@@ -28,12 +32,11 @@ const net = require('net')
  * @param {number|string} params.remotePort
  * @param {number|string} params.localBackendPort
  * @param {number|string} params.remoteBackendPort
- * @param {number|string} params.localMongoPort
- * @param {number|string} params.remoteMongoPort
- * @param {function} setTunnelObject - callback to set tunnel object in main process
+ * @param {number|string} params.localDBPort
+ * @param {number|string} params.remoteDBPort
  * @returns {Promise<{success: boolean}>}
  */
-export function startSSHTunnel({
+export async function startSSHTunnel({
   host,
   username,
   privateKey,
@@ -41,13 +44,16 @@ export function startSSHTunnel({
   remotePort,
   localBackendPort,
   remoteBackendPort,
-  localMongoPort,
-  remoteMongoPort
+  localDBPort,
+  remoteDBPort
 }) {
   return new Promise((resolve, reject) => {
+    mongoDBLocalPort = localDBPort
+    mongoDBRemotePort = remoteDBPort
+
     if (activeTunnelServer) {
       try { activeTunnelServer.backendServer.close() } catch {}
-      try { activeTunnelServer.mongoServer.close() } catch {}
+      try { activeTunnelServer.mongoServer && activeTunnelServer.mongoServer.close() } catch {}
       setActiveTunnelServer(null)
     }
     if (activeTunnel) {
@@ -63,7 +69,7 @@ export function startSSHTunnel({
     if (password) connConfig.password = password
     const conn = new Client()
     conn.on('ready', () => {
-      // Backend port forwarding
+      // Backend port forwarding only
       const backendServer = net.createServer((socket) => {
         conn.forwardOut(
           socket.localAddress || '127.0.0.1',
@@ -82,44 +88,137 @@ export function startSSHTunnel({
       })
       backendServer.listen(localBackendPort, '127.0.0.1')
 
-      // MongoDB port forwarding
-      const mongoServer = net.createServer((socket) => {
-        conn.forwardOut(
-          socket.localAddress || '127.0.0.1',
-          socket.localPort || 0,
-          '127.0.0.1',
-          parseInt(remoteMongoPort),
-          (err, stream) => {
-            if (err) {
-              console.error(err)
-              socket.destroy()
-              return
-            }
-            socket.pipe(stream).pipe(socket)
-          }
-        )
-      })
-      mongoServer.listen(localMongoPort, '127.0.0.1')
-
       backendServer.on('error', (e) => {
         conn.end()
         reject(new Error('Backend local server error: ' + e.message))
       })
-      mongoServer.on('error', (e) => {
-        conn.end()
-        reject(new Error('Mongo local server error: ' + e.message))
-      })
 
       setActiveTunnel(conn)
       setTunnelObject(conn)
-      setActiveTunnelServer({ backendServer: backendServer, mongoServer: mongoServer })
+      setActiveTunnelServer({ backendServer: backendServer })
       console.log(backendServer)
-      console.log(mongoServer)
       resolve({ success: true })
     }).on('error', (err) => {
       reject(new Error('SSH connection error: ' + err.message))
     }).connect(connConfig)
   })
+}
+
+
+/**
+ * Checks if a port is open on the remote host via SSH.
+ * @param {Client} conn - The active SSH2 Client connection.
+ * @param {number|string} port - The port to check.
+ * @returns {Promise<boolean>}
+ */
+async function checkRemotePortOpen(conn, port) {
+  // Use detectRemoteOS to determine the remote OS and select the right command
+  const remoteOS = await detectRemoteOS();
+  let checkCmd;
+  if (remoteOS === 'win32') {
+    // Windows: use netstat and findstr
+    checkCmd = `netstat -an | findstr :${port}`;
+  } else {
+    // Linux/macOS: use ss or netstat/grep
+    checkCmd = `bash -c "command -v ss >/dev/null 2>&1 && ss -ltn | grep :${port} || netstat -an | grep LISTEN | grep :${port}" || netstat -an | grep :${port}`;
+  }
+  return new Promise((resolve, reject) => {
+    conn.exec(checkCmd, (err, stream) => {
+      if (err) {
+        console.log("SSH exec error:", err);
+        return reject(err);
+      }
+      let found = false;
+      let stdout = '';
+      let stderr = '';
+      stream.on('data', (data) => {
+        console.log("STDOUT:", data.toString());
+        stdout += data.toString();
+        if (data.toString().includes(port)) found = true;
+      });
+      stream.stderr.on('data', (data) => {
+        console.log("STDERR:", data.toString());
+        stderr += data.toString();
+      });
+      stream.on('close', (code, signal) => {
+        console.log("Stream closed. Code:", code, ", Signal:", signal);
+        console.log("Full STDOUT:", stdout);
+        console.log("Full STDERR:", stderr);
+        resolve(found);
+      });
+    });
+  });
+}
+
+/**
+ * Starts the MongoDB port forwarding tunnel using an existing SSH connection.
+ * Checks if the remote port is open before creating the tunnel, with retries.
+ * @returns {Promise<{success: boolean}>}
+ */
+export async function startMongoTunnel() {
+  const conn = getActiveTunnel();
+  if (!conn) {
+    throw new Error('No active SSH connection for MongoDB tunnel.');
+  }
+
+  // Retry logic: up to 3 times, 5s delay
+  let portOpen = false;
+  let attempts = 0;
+  const maxAttempts = 3;
+  const delayMs = 5000;
+  while (attempts < maxAttempts && !portOpen) {
+    try {
+      console.log(`Checking if remote MongoDB port ${mongoDBRemotePort} is open...`);
+      portOpen = await checkRemotePortOpen(conn, mongoDBRemotePort);
+    } catch (e) {
+      // If SSH command fails, treat as not open
+      portOpen = false;
+    }
+    if (!portOpen) {
+      attempts++;
+      if (attempts < maxAttempts) {
+        await new Promise(res => setTimeout(res, delayMs));
+      }
+    }
+  }
+  if (!portOpen) {
+    throw new Error(`MongoDB server is not listening on remote port ${mongoDBRemotePort} after ${maxAttempts} attempts.`);
+  }
+
+  // If mongoServer already exists, close it first
+  if (activeTunnelServer && activeTunnelServer.mongoServer) {
+    try { activeTunnelServer.mongoServer.close() } catch {}
+  }
+  const mongoServer = net.createServer((socket) => {
+    conn.forwardOut(
+      socket.localAddress || '127.0.0.1',
+      socket.localPort || 0,
+      '127.0.0.1',
+      parseInt(mongoDBRemotePort),
+      (err, stream) => {
+        if (err) {
+          console.error(err)
+          socket.destroy()
+          return
+        }
+        socket.pipe(stream).pipe(socket)
+      }
+    )
+  })
+  mongoServer.listen(mongoDBLocalPort, '127.0.0.1')
+
+  mongoServer.on('error', (e) => {
+    conn.end()
+    throw new Error('Mongo local server error: ' + e.message)
+  })
+
+  // Update activeTunnelServer to include mongoServer
+  setActiveTunnelServer({
+    ...(activeTunnelServer || {}),
+    mongoServer: mongoServer
+  })
+  console.log(mongoServer)
+  return { success: true }
 }
 
 /**

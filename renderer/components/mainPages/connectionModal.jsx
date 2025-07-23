@@ -5,7 +5,7 @@ import { ipcRenderer } from "electron"
 import { requestBackend } from "../../utilities/requests"
 import { ServerConnectionContext } from "../serverConnection/connectionContext"
 import { useTunnel } from "../tunnel/TunnelContext"
-import { getTunnelState, setTunnelState, clearTunnelState, setTunnelObject } from "../../utilities/tunnelState"
+import { getTunnelState, setTunnelState, clearTunnelState } from "../../utilities/tunnelState"
 import { Button } from "@blueprintjs/core"
 import { GoFile, GoFileDirectoryFill, GoChevronDown, GoChevronUp } from "react-icons/go"
 import { FaFolderPlus } from "react-icons/fa"
@@ -38,9 +38,6 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
   const reconnectDelay = 3000 // ms
   const [connectionInfo, setConnectionInfo] = useState(null)
   const { workspace, setWorkspace } = useContext(WorkspaceContext)
-  
-
-  
 
   // Validation state
   const [inputErrors, setInputErrors] = useState({})
@@ -108,7 +105,7 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
       setTunnelStatus(`Reconnecting... (attempt ${reconnectAttempts} of ${maxReconnectAttempts})`)
       toast.warn(`Attempt ${reconnectAttempts} of ${maxReconnectAttempts} to reconnect SSH tunnel.`)
       const timer = setTimeout(() => {
-        handleConnect(connectionInfo, true)
+        handleConnectBackend(connectionInfo, true)
       }, reconnectDelay)
       return () => clearTimeout(timer)
     }
@@ -141,7 +138,7 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
   }, [visible])
 
   // Updated connect handler with error handling and auto-reconnect
-  const handleConnect = async (info, isReconnect = false) => {
+  const handleConnectBackend = async (info, isReconnect = false) => {
     setTunnelStatus(isReconnect ? "Reconnecting..." : "Connecting...")
     toast.info(isReconnect ? "Reconnecting SSH tunnel..." : "Establishing SSH tunnel...")
     const connInfo = info || { host, username, privateKey, password, remotePort, localBackendPort, remoteBackendPort, localDBPort, remoteDBPort }
@@ -249,6 +246,25 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
       setTunnelActive(false)
       setReconnectAttempts((prev) => prev + 1)
       toast.error("Tunnel Failed: " + errorMsg)
+    }
+  }
+
+  const handleConnectMongoDB = async () => {
+    try {
+      const result = await ipcRenderer.invoke('startMongoTunnel')
+      if (result && result.success) {
+        toast.success("MongoDB tunnel established.")
+      } else if (result && result.error) {
+        toast.error("MongoDB Tunnel failed: " + result.error)
+      } else {
+        toast.error("MongoDB Tunnel Failed, Unknown error.")
+      }
+    } catch (err) {
+      let errorMsg = err && err.message ? err.message : String(err)
+      if (err && err.stack) {
+        errorMsg += "\nStack: " + err.stack
+      }
+      toast.error("MongoDB Tunnel Failed: " + errorMsg)
     }
   }
 
@@ -538,8 +554,7 @@ const DirectoryBrowser = ({ directoryContents, onDirClick }) => {
         )}
         <div style={{ display: "flex", gap: "1rem", justifyContent: "flex-end" }}>
           <Button onClick={onClose}>Close</Button>
-          <Button className="connect-btn" onClick={() => handleConnect()} style={{ background: "#007ad9", color: "white" }} disabled={!inputValid || tunnelActive}>Connect</Button>
-          
+          <Button className="connect-btn" onClick={() => handleConnectBackend()} style={{ background: "#007ad9", color: "white" }} disabled={!inputValid || tunnelActive}>Connect</Button>
           <Button onClick={handleDisconnect} style={{ background: "#d9534f", color: "white" }}>Disconnect</Button>
         </div>
         {tunnelStatus && (
@@ -599,6 +614,7 @@ const DirectoryBrowser = ({ directoryContents, onDirClick }) => {
                       if (response.data.workspace !== workspace) {
                         let workspaceToSet = { ...response.data.workspace }
                         setWorkspace(workspaceToSet)
+                        handleConnectMongoDB()
                       }
                     } else {
                       toast.error("Failed to set workspace: " + response.data.error)
