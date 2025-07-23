@@ -18,9 +18,10 @@ import { FlowFunctionsContext } from "../flow/context/flowFunctionsContext"
  * This component is used to display a ModalSettingsChooser modal.
  * it handles the display of the modal and the available options
  */
-const ModalSettingsChooser = ({ show, onHide, options, id, data, optionsTuning = null, title }) => {
+const ModalSettingsChooser = ({ show, onHide, options, id, data, optionsTuning = null,  optionsEnsemble = null, title }) => {
   const [checkedUpdate, setCheckedUpdate] = useState(null)
   const [checkedUpdateTuning, setCheckedUpdateTuning] = useState(null)
+  const [checkedUpdateEnsemble, setCheckedUpdateEnsemble] = useState(null)
   const { updateNode } = useContext(FlowFunctionsContext)
 
   // update the node when a setting is checked or unchecked from the modal
@@ -70,6 +71,28 @@ const ModalSettingsChooser = ({ show, onHide, options, id, data, optionsTuning =
     }
   }, [checkedUpdateTuning])
 
+  useEffect(() => {
+    if (checkedUpdateEnsemble != null) {
+      if (checkedUpdateEnsemble.checked) {
+        if (!data.internal.checkedOptionsEnsemble.includes(checkedUpdateEnsemble.optionName)) {
+          data.internal.checkedOptionsEnsemble.push(checkedUpdateEnsemble.optionName)
+        }
+      } else {
+        data.internal.checkedOptionsEnsemble = data.internal.checkedOptionsEnsemble.filter(
+          (optionName) => optionName !== checkedUpdateEnsemble.optionName
+        )
+        delete data.internal.settings[checkedUpdateEnsemble.optionName]
+      }
+  
+      updateNode({
+        id,
+        updatedData: data.internal
+      })
+    }
+  }, [checkedUpdateEnsemble])
+  
+  
+
   return (
     // Base modal component built from react-bootstrap
     <Modal show={show} onHide={onHide} size="lg" aria-labelledby="contained-modal-title-vcenter" centered className="modal-settings-chooser">
@@ -98,6 +121,21 @@ const ModalSettingsChooser = ({ show, onHide, options, id, data, optionsTuning =
                 />
               )
             })}
+          </>
+        )}
+        {/* Ensemble options */}
+        {optionsEnsemble && (
+          <>
+            <h3>Ensemble options</h3>
+            {Object.entries(optionsEnsemble).map(([optionName, optionInfos], i) => (
+              <CheckOption
+                key={optionName + i}
+                optionName={optionName}
+                optionInfos={optionInfos}
+                updateCheckState={setCheckedUpdateEnsemble}
+                defaultState={data.internal.checkedOptionsEnsemble.includes(optionName)}
+              />
+            ))}
           </>
         )}
       </Modal.Body>

@@ -30,6 +30,10 @@ class ModelHandler(Node):
             if self.isTuningEnabled:
                 self.settingsTuning = self.config_json['data']['internal'].get('settingsTuning', {})
                 self.useTuningGrid = self.config_json['data']['internal'].get('useTuningGrid', False)
+            
+            self.ensembleEnabled = self.config_json['data']['internal'].get('ensembleEnabled', False)
+            self.calibrateEnabled = self.config_json['data']['internal'].get('calibrateEnabled', False)
+            
             self.model_id = self.config_json['associated_id']
             model_obj = self.global_config_json['nodes'][self.model_id]
             self.config_json['data']['estimator'] = {
@@ -285,6 +289,15 @@ class ModelHandler(Node):
             if self.isTuningEnabled:
                 trained_models = [experiment['pycaret_exp'].tune_model(trained_models[0], **self.settingsTuning)]
                 self.CodeHandler.add_line("code", f"trained_models = [pycaret_exp.tune_model(trained_models[0], {self.CodeHandler.convert_dict_to_params(self.settingsTuning)})]")
+                
+                if self.ensembleEnabled:
+                    trained_models = [experiment['pycaret_exp'].ensemble_model(trained_models[0], **self.settingsEnsemble)]
+                    self.CodeHandler.add_line("code", f"trained_models = [pycaret_exp.ensemble_model(trained_models[0], {self.CodeHandler.convert_dict_to_params(self.settingsEnsemble)})]")
+
+                if self.calibrateEnabled:
+                    trained_models = [experiment['pycaret_exp'].calibrate_model(trained_models[0], **self.settingsCalibrate)]
+                    self.CodeHandler.add_line("code", f"trained_models = [pycaret_exp.calibrate_model(trained_models[0], {self.CodeHandler.convert_dict_to_params(self.settingsCalibrate)})]")
+
 
         else:
             raise ValueError(f"Unsupported type: {self.type}. Expected 'compare_models' or 'train_model'.")

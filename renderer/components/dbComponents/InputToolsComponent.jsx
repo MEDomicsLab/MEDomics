@@ -102,7 +102,7 @@ const InputToolsComponent = ({ exportOptions }) => {
           <Panel header="Drop Duplicates Tools" toggleable collapsed={true}>
             <DropDuplicatesToolsDB exportOptions={exportOptions} currentCollection={!collectionId ? null : collectionId} />
           </Panel>
-          <Panel header="Transform Column Tools" toggleable collapsed={true}>
+          <Panel header="Encode Column Tools" toggleable collapsed={true}>
             <TransformColumnToolsDB currentCollection={!collectionId ? null : collectionId} />
           </Panel>
           <Panel header="Merge Tools" toggleable collapsed={true}>

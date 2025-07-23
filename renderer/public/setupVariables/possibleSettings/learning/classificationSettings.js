@@ -758,11 +758,30 @@ const classificationSettings = {
         tooltip:
           "<p>The execution engine to use for the model, e.g. for Logistic Regression (\u201clr\u201d), users can\nswitch between \u201csklearn\u201d and \u201csklearnex\u201d by specifying\n<cite>engine=\u201dsklearnex\u201d</cite>.</p>\n",
         default_val: ""
-      }
+      },
     },
     code: "",
     default: {}
   },
+  ensemble_model: {
+    options: {
+        "n_estimators": {
+            "type": "int",
+            "tooltip": "Number of estimators in the ensemble",
+            "default_val": 10,
+            "min": 1,
+            "max": 100
+        },
+        "method": {
+            "type": "string",
+            "tooltip": "Ensemble method",
+            "default_val": "auto",
+            "allowed": ["bagging", "boosting"]
+        }
+    },
+    code: "",
+    default: {}
+},
   analyze: {
     plot_model: {
       options: {
@@ -1341,12 +1360,7 @@ const classificationSettings = {
                     "type": "bool",
                     "tooltip": "<p>If False, returns the CV Validation scores only.\nIf True, returns the CV training scores along with the CV validation scores.\nThis is useful when the user wants to do bias-variance tradeoff. A high CV\ntraining score with a low corresponding CV validation score indicates overfitting.</p>\n",
                     "default_val": "False"
-                },
-                "calibrate": {
-                "type": "bool",
-                "tooltip": "<p>If True, applies probability calibration to the final model output.</p>",
-                "default_val": "False"
-              }
+                }
             } },
       "stack_models": {
             "options": {
@@ -1413,11 +1427,6 @@ const classificationSettings = {
               "return_train_score": {
                 "type": "bool",
                 "tooltip": "<p>If True, returns both training and validation scores to help diagnose overfitting.</p>",
-                "default_val": "False"
-              },
-              "calibrate": {
-                "type": "bool",
-                "tooltip": "<p>If True, applies probability calibration to the final model output.</p>",
                 "default_val": "False"
               }
             }
