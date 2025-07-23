@@ -24,9 +24,13 @@ import ModalSettingsChooser from "../modalSettingsChooser"
  */
 const TrainModelNode = ({ id, data }) => {
   const [modalShow, setModalShow] = useState(false) // state of the modal
+  const [ensembleModalShow, setEnsembleModalShow] = useState(false)
+  const [calibrateModalShow, setCalibrateModalShow] = useState(false)
   const [usePycaretSearchSpace, setUsePycaretSearchSpace] = useState(false) // state of the checkbox
   const { updateNode } = useContext(FlowFunctionsContext)
   const [IntegrateTuning, setIntegrateTuning] = useState(data.internal.isTuningEnabled ?? false)
+  const [ensembleEnabled, setEnsembleEnabled] = useState(data.internal.settings.ensemble ?? false)
+  const [calibrateEnabled, setCalibrateEnabled] = useState(data.internal.settings.calibrate ?? false)
 
   // Check if isTuningEnabled exists in data.internal, if not initialize it
   useEffect(() => {
@@ -49,6 +53,31 @@ const TrainModelNode = ({ id, data }) => {
         id: id,
         updatedData: data.internal
       })
+    }
+
+    if (!("ensembleEnabled" in Object.keys(data.internal))) {
+      data.internal.ensembleEnabled = false
+      updateNode({
+        id: id,
+        updatedData: data.internal
+      })
+    }
+  
+    if (!("calibrateEnabled" in Object.keys(data.internal))) {
+      data.internal.calibrateEnabled = false
+      updateNode({
+        id: id,
+        updatedData: data.internal
+      })
+    }
+  
+    if (!("checkedOptionsEnsemble" in data.internal)) {
+      data.internal.checkedOptionsEnsemble = []
+    }
+  
+    // saving it for later
+    if (!("settingsCalibrate" in data.internal)) {
+      data.internal.settingsCalibrate = {}
     }
   }, [])
 
@@ -160,20 +189,34 @@ const TrainModelNode = ({ id, data }) => {
         // node specific is the body of the node, so optional settings
         nodeSpecific={
           <>
-            <div className="p-2 mb-3" style={{ border: "1px solid #ccc", borderRadius: "8px" }}>
-              <div className="mb-1 d-flex align-items-center justify-content-between">
-                <label htmlFor="integrateTuning" className="me-2">Integrate Tuning</label>
-                <InputSwitch
-                  className="integrateTuning"
-                  checked={IntegrateTuning}
-                  onChange={(e) => handleIntegration(e)}
-                />
-              </div>
+             {/* === TRAINING OPTIONS SECTION === */}
+            <div className="p-2 mb-3 d-flex justify-content-between align-items-center"
+                style={{ border: "1px solid #ccc", borderRadius: "8px" }}>
+              <span className="text-muted" style={{ fontSize: "0.9rem" }}>Training Options</span>
+              <Button
+                variant="light"
+                className="btn-contour ms-2"
+                onClick={() => setModalShow(true)}
+              >
+                <Icon.Plus width="20px" height="20px" />
+              </Button>
             </div>
-            {/* the button to open the modal (the plus sign)*/}
-            <Button variant="light" className="width-100 btn-contour" onClick={() => setModalShow(true)}>
-              <Icon.Plus width="30px" height="30px" className="img-fluid" />
-            </Button>
+            
+            {/* === INTEGRATE TUNING SECTION === */}
+            <div className="p-2 mb-3 d-flex justify-content-between align-items-center"
+                style={{ border: "1px solid #ccc", borderRadius: "8px" }}>
+              <label htmlFor="integrateTuning" className="me-2 mb-0">Integrate Tuning</label>
+              <InputSwitch
+                className="integrateTuning"
+                checked={IntegrateTuning}
+                onChange={(e) => {
+                  setIntegrateTuning(e.value)
+                  data.internal.isTuningEnabled = e.value
+                  updateNode({ id, updatedData: data.internal })
+                }}
+              />
+            </div>
+            
             {/* the modal component*/}
             <ModalSettingsChooser
               show={modalShow}
@@ -226,6 +269,14 @@ const TrainModelNode = ({ id, data }) => {
                 {!usePycaretSearchSpace && (
                   <>
                   <hr />
+                  <div style={{ 
+                    backgroundColor: "#e7f3ff",  // bleu clair doux
+                    border: "1px solid #b6daff", // bordure bleu clair
+                    border: "1px solid #ccc", 
+                    borderRadius: "8px", 
+                    padding: "12px", 
+                    marginBottom: "12px" 
+                  }}>
                   <div style={{ fontWeight: "bold", margin: "10px 0" }}>Custom Tuning Grid</div>
                   {Object.keys(data.internal.tuningGrid).map((model) => {
                     return (
@@ -247,6 +298,7 @@ const TrainModelNode = ({ id, data }) => {
                     </Panel>
                   )
                   })}
+                  </div>
                   </>
                 )}
               </>
@@ -268,7 +320,118 @@ const TrainModelNode = ({ id, data }) => {
                 })}
               </>
             )}
+
+            {/* ENSEMBLE SECTION */}
+            <div className="p-2 mb-3" style={{ border: "1px solid #ccc", borderRadius: "8px" }}>
+              <div className="mb-1 d-flex align-items-center justify-content-between">
+                <label className="me-2">Apply Ensemble</label>
+                <InputSwitch
+                  checked={ensembleEnabled}
+                  onChange={(e) => {
+                    const newState = e.value
+                    setEnsembleEnabled(newState)
+                    data.internal.settings.ensemble = newState
+                    updateNode({ id, updatedData: data.internal })
+                  }}
+                />
+              </div>
+
+              {/* the button to open the modal (the plus sign) */}
+              {ensembleEnabled && (
+                <div className="d-flex justify-content-end">
+                  <Button
+                    variant="light"
+                    className="width-100 btn-contour"
+                    onClick={() => {
+                      data.internal.selection = "ensemble"
+                      setEnsembleModalShow(true)
+                    }}
+                  >
+                    <Icon.Plus width="30px" height="30px" className="img-fluid" />
+                  </Button>
+                </div>
+              )}
+              {console.log("test pass data****", data)}
+              {/* Show selected options when ensemble is enabled */}
+              {ensembleEnabled && data.internal.checkedOptionsEnsemble?.map((optionName) => {
+                const setting = data.setupParam.possibleSettings.options?.ensemble?.options?.[optionName]
+                return setting ? (
+                  <Input
+                    key={optionName}
+                    name={optionName}
+                    settingInfos={setting}
+                    currentValue={data.internal.settings?.[optionName]}
+                    onInputChange={onInputChange}
+                    setHasWarning={handleWarning}
+                  />
+                ) : null
+              })}
+            </div>
+
+            <ModalSettingsChooser
+              show={ensembleModalShow}
+              onHide={() => setEnsembleModalShow(false)}
+              options={data.setupParam.possibleSettings.options?.ensemble?.options || {}}
+              data={data}
+              id={id}
+              title="Ensemble options"
+            />
+
+
+            {/* CALIBRATE SECTION */}
+            <div className="p-2 mb-3" style={{ border: "1px solid #ccc", borderRadius: "8px" }}>
+              <div className="mb-1 d-flex align-items-center justify-content-between">
+                <label className="me-2">Calibrate Model</label>
+                <InputSwitch
+                  checked={calibrateEnabled}
+                  onChange={(e) => {
+                    const newState = e.value
+                    setCalibrateEnabled(newState)
+                    data.internal.settings.calibrate = newState
+                    updateNode({ id, updatedData: data.internal })
+                  }}
+                />
+              </div>
+
+              {/* bouton + pour calibration */}
+              {calibrateEnabled && (
+                <div className="d-flex justify-content-end">
+                  <Button
+                    variant="light"
+                    className="width-100 btn-contour"
+                    onClick={() => setCalibrateModalShow(true)}
+                  >
+                    <Icon.Plus width="30px" height="30px" className="img-fluid" />
+                  </Button>
+                </div>
+              )}
+
+              {/* champs dynamiques calibrate */}
+              {calibrateEnabled && data.internal.checkedOptionsCalibrate?.map((optionName) => {
+                const setting = data.setupParam.possibleSettings.options?.calibrate?.options?.[optionName]
+                return setting ? (
+                  <Input
+                    key={optionName}
+                    name={optionName}
+                    settingInfos={setting}
+                    currentValue={data.internal.settings?.[optionName]}
+                    onInputChange={onInputChange}
+                    setHasWarning={handleWarning}
+                  />
+                ) : null
+              })}
+            </div>
+            <ModalSettingsChooser
+              show={calibrateModalShow}
+              onHide={() => setCalibrateModalShow(false)}
+              options={data.setupParam.possibleSettings.options?.calibrate?.options || {}}
+              data={data}
+              id={id}
+              title="Calibrate options"
+            />
+
           </>
+          
         }
         // Link to documentation
         nodeLink={"https://medomics-udes.gitbook.io/medomicslab-docs/tutorials/development/learning-module"}
