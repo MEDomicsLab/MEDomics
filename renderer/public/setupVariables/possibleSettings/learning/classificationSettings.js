@@ -763,25 +763,6 @@ const classificationSettings = {
     code: "",
     default: {}
   },
-  ensemble_model: {
-    options: {
-        "n_estimators": {
-            "type": "int",
-            "tooltip": "Number of estimators in the ensemble",
-            "default_val": 10,
-            "min": 1,
-            "max": 100
-        },
-        "method": {
-            "type": "string",
-            "tooltip": "Ensemble method",
-            "default_val": "auto",
-            "allowed": ["bagging", "boosting"]
-        }
-    },
-    code: "",
-    default: {}
-},
   analyze: {
     plot_model: {
       options: {
@@ -1045,59 +1026,18 @@ const classificationSettings = {
   ensemble_model: {
     options: {
       method: {
-        type: "string",
+        type: "list",
         tooltip: "<p>Method for ensembling base estimator. It can be \u2018Bagging\u2019 or \u2018Boosting\u2019.</p>\n",
-        default_val: "Bagging"
-      },
-      fold: {
-        type: "int",
-        tooltip:
-          "<p>Controls cross-validation. If None, the CV generator in the fold_strategy\nparameter of the setup function is used. When an integer is passed,\nit is interpreted as the \u2018n_splits\u2019 parameter of the CV generator in the\nsetup function.</p>\n",
-        default_val: "None",
-        min: 2,
-        max: 20
+        default_val: "Bagging",
+        choices: {"Bagging": "Bagging", "Boosting": "Boosting"}
       },
       n_estimators: {
         type: "int",
         tooltip: "<p>The number of base estimators in the ensemble. In case of perfect fit, the\nlearning procedure is stopped early.</p>\n",
-        default_val: "10",
+        default_val: 10,
         min: 1,
         max: 200
       },
-      round: {
-        type: "int",
-        tooltip: "<p>Number of decimal places the metrics in the score grid will be rounded to.</p>\n",
-        default_val: "4",
-        min: 0,
-        max: 6
-      },
-      choose_better: {
-        type: "bool",
-        tooltip: "<p>When set to True, the returned object is always better performing. The\nmetric used for comparison is defined by the optimize parameter.</p>\n",
-        default_val: "False"
-      },
-      optimize: {
-        type: "string",
-        tooltip: "<p>Metric to compare for model selection when choose_better is True.</p>\n",
-        default_val: "Accuracy"
-      },
-      fit_kwargs: {
-        type: "dict",
-        tooltip: "<p>Dictionary of arguments passed to the fit method of the model.</p>\n",
-        default_val: "{} (empty dict)"
-      },
-      groups: {
-        type: "string",
-        tooltip:
-          "<p>Optional group labels when GroupKFold is used for the cross validation.\nIt takes an array with shape (n_samples, ) where n_samples is the number\nof rows in training dataset. When string is passed, it is interpreted as\nthe column name in the dataset containing group labels.</p>\n",
-        default_val: "None"
-      },
-      probability_threshold: {
-        type: "float",
-        tooltip:
-          "<p>Threshold for converting predicted probability to class label.\nIt defaults to 0.5 for all classifiers unless explicitly defined\nin this parameter. Only applicable for binary classification.</p>\n",
-        default_val: "None"
-      }
     },
     ml_types: "classification regression",
     code: "ensemble_model()",
@@ -1260,43 +1200,13 @@ const classificationSettings = {
   calibrate_model: {
     options: {
       method: {
-        type: "string",
+        type: "list",
         tooltip: "<p>The method to use for calibration. Can be \u2018sigmoid\u2019 which corresponds to\nPlatt\u2019s method or \u2018isotonic\u2019 which is a non-parametric approach.</p>\n",
-        default_val: "sigmoid"
-      },
-      calibrate_fold: {
-        type: "int",
-        tooltip:
-          "<p>Controls internal cross-validation. Can be an integer or a scikit-learn\nCV generator. If set to an integer, will use (Stratifed)KFold CV with\nthat many folds. See scikit-learn documentation on Stacking for\nmore details.</p>\n",
-        default_val: "5",
-        min: 2,
-        max: 20
-      },
-      fold: {
-        type: "int",
-        tooltip:
-          "<p>Controls cross-validation. If None, the CV generator in the fold_strategy\nparameter of the setup function is used. When an integer is passed,\nit is interpreted as the \u2018n_splits\u2019 parameter of the CV generator in the\nsetup function.</p>\n",
-        default_val: "None",
-        min: 2,
-        max: 20
-      },
-      round: {
-        type: "int",
-        tooltip: "<p>Number of decimal places the metrics in the score grid will be rounded to.</p>\n",
-        default_val: "4",
-        min: 0,
-        max: 6
-      },
-      fit_kwargs: {
-        type: "dict",
-        tooltip: "<p>Dictionary of arguments passed to the fit method of the model.</p>\n",
-        default_val: "{} (empty dict)"
-      },
-      groups: {
-        type: "string",
-        tooltip:
-          "<p>Optional group labels when GroupKFold is used for the cross validation.\nIt takes an array with shape (n_samples, ) where n_samples is the number\nof rows in training dataset. When string is passed, it is interpreted as\nthe column name in the dataset containing group labels.</p>\n",
-        default_val: "None"
+        default_val: "sigmoid",
+        choices: {
+          sigmoid: "sigmoid",
+          isotonic: "isotonic"
+        }
       }
     },
     ml_types: "classification",

@@ -34,6 +34,7 @@ import SplitNode from "./nodesTypes/splitNode.jsx"
 
 // here are the parameters of the nodes
 import nodesParams from "../../public/setupVariables/allNodesParams"
+import classificationSettings from "../../public/setupVariables/possibleSettings/learning/classificationSettings.js"
 
 // here are static functions used in the workflow
 import { removeDuplicates, deepCopy } from "../../utilities/staticFunctions"
@@ -227,6 +228,8 @@ const Workflow = forwardRef(({ setWorkflowType, workflowType, isExperiment }, re
             node.data.setupParam.possibleSettingsTuning = deepCopy(staticNodesParams["optimize"]["tune_model"]["possibleSettings"][MLType])
             node.data.internal.checkedOptionsTuning = []
             node.data.internal.settingsTuning = {}
+            node.data.internal.settingsCalibration = {}
+            node.data.internal.settingsEnsembling = {}
           }
           node.data.internal.settings = {}
           node.data.internal.checkedOptions = []
@@ -471,7 +474,8 @@ const Workflow = forwardRef(({ setWorkflowType, workflowType, isExperiment }, re
 
   const updateTrainModelNode = (nodes) => {
     const trainModelNode = nodes.find((node) => node.type == "trainModelNode" && node.data.internal.subflowId == groupNodeId.id)
-    if (trainModelNode){
+    if (trainModelNode) {
+      // Update tuning related settings
       let tuneModel = trainModelNode.data.internal.hasOwnProperty("isTuningEnabled") ? trainModelNode.data.internal.isTuningEnabled : false
       const listModelSelectionNode = nodes.filter((node) => node.type == "selectionNode" && node.data.internal.subflowId == groupNodeId.id&& node.data.internal.type == "model")
       for (const modelSelectionNode of listModelSelectionNode) {
@@ -539,6 +543,43 @@ const Workflow = forwardRef(({ setWorkflowType, workflowType, isExperiment }, re
           }
         }
       }
+      // Update ensemble related settings
+      if (trainModelNode.data.internal.hasOwnProperty("ensembleOptions") && trainModelNode.data.internal.ensembleOptions) return
+      const ensembleOptions = classificationSettings.ensemble_model.options
+      trainModelNode.data.internal.ensembleOptions = ensembleOptions
+      trainModelNode.data.internal.hasOwnProperty("settingsEnsembling") || (trainModelNode.data.internal.settingsEnsembling = {})
+      Object.keys(ensembleOptions).forEach((option) => {
+        if (!trainModelNode.data.internal.settingsEnsembling.hasOwnProperty(option)) {
+          trainModelNode.data.internal.settingsEnsembling[option] = ensembleOptions[option].default_val
+        }
+      })
+      setNodes((nds) =>
+        nds.map((node) => {
+          if (node.id == trainModelNode.id) {
+            node.data.internal = trainModelNode.data.internal
+          }
+          return node
+        })
+      )
+
+      // Update calibration related settings
+      if (trainModelNode.data.internal.hasOwnProperty("calibrateOptions") && trainModelNode.data.internal.calibrateOptions) return
+      const calibrateOptions = classificationSettings.calibrate_model.options
+      trainModelNode.data.internal.calibrateOptions = calibrateOptions
+      trainModelNode.data.internal.hasOwnProperty("settingsCalibration") || (trainModelNode.data.internal.settingsCalibration = {})
+      Object.keys(calibrateOptions).forEach((option) => {
+        if (!trainModelNode.data.internal.settingsCalibration.hasOwnProperty(option)) {
+          trainModelNode.data.internal.settingsCalibration[option] = calibrateOptions[option].default_val
+        }
+      })
+      setNodes((nds) =>
+        nds.map((node) => {
+          if (node.id == trainModelNode.id) {
+            node.data.internal = trainModelNode.data.internal
+          }
+          return node
+        })
+      )
     }
   }
 
@@ -973,6 +1014,8 @@ const Workflow = forwardRef(({ setWorkflowType, workflowType, isExperiment }, re
         setupParams.possibleSettingsTuning = setupParamsTuning["possibleSettings"][MLType]
         newNode.data.internal.checkedOptionsTuning = []
         newNode.data.internal.settingsTuning = {}
+        newNode.data.internal.settingsCalibration = {}
+        newNode.data.internal.settingsEnsembling = {}
       }
     }
     newNode.id = `${newNode.id}${associatedNode ? `.${associatedNode}` : ""}` // if the node is a sub-group node, it has the id of the parent node seperated by a dot. useful when processing only ids
