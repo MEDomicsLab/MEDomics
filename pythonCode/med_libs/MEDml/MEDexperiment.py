@@ -55,13 +55,14 @@ class MEDexperiment(ABC):
             nb_nodes (float, optional): The number of nodes in the experiment. Defaults to 0.
         """
         self.id = global_json_config['pageId']
+        self.global_json_config = global_json_config
         self.experiment_name = "Default experiment name"
         self.experiment = {}
         self.finalize = global_json_config['finalize']
         self.finalize_node = global_json_config.get('modelToFinalize', None)
+        self.finalize_is_combine = self.__get_node_type(self.finalize_node) == 'combine_models' if self.finalize_node is not None else False
         self.pipelines = self.__init_pipelines(global_json_config['pipelines'])
         self.pipelines_to_execute = self.pipelines
-        self.global_json_config = global_json_config
         self._results_pipeline = {}
         self._progress = {'currentLabel': '', 'now': 0.0}
         self._nb_nodes = global_json_config['nbNodes2Run']
@@ -87,10 +88,24 @@ class MEDexperiment(ABC):
                     if clean_finalize_pipeline(value):
                         return True
             return False
-        if self.finalize and self.finalize_node is not None:
+        if self.finalize and self.finalize_node is not None and not self.finalize_is_combine:
             clean_finalize_pipeline(pipelines)
         return pipelines
 
+    def __get_node_type(self, node_id: str) -> str:
+        """Returns the type of the node.
+
+        Args:
+            node_id (str): The id of the node.
+
+        Returns:
+            str: The type of the node.
+        """
+        if node_id in self.global_json_config['nodes']:
+            return self.global_json_config['nodes'][node_id]['data']['internal']['type']
+        else:
+            raise ValueError(f"Node {node_id} not found in global json config.")
+        
     def update(self, global_json_config: json = None):
         """Updates the experiment with the pipelines and the global configuration.
 
@@ -286,6 +301,8 @@ class MEDexperiment(ABC):
                             data = node.execute(experiment, **{'models': trained_models['models']})
                         else:
                             continue
+                    elif node.type == 'train_model' and self.finalize:
+                        data = node.execute(experiment, **{**prev_node.get_info_for_next_node(), 'finalize': True})
                     else:
                         data = node.execute(experiment, **prev_node.get_info_for_next_node())
 
@@ -322,8 +339,15 @@ class MEDexperiment(ABC):
                 )
                 print(f'END-{node.username}')
             
-            if self.finalize:
-                self.finalize_and_save(
+            if self.finalize and self.finalize_is_combine and prev_node.type == 'combine_models':
+                self.save_model(
+                    node_info,
+                    prev_node=node,
+                    results=results[current_node_id]['next_nodes'],
+                    experiment=self.copy_experiment(experiment)
+                )
+            elif self.finalize and not self.finalize_is_combine:
+                self.save_model(
                     node_info,
                     prev_node=node,
                     results=results[current_node_id]['next_nodes'],
@@ -437,68 +461,17 @@ class MEDexperiment(ABC):
         """Makes the experiment ready to be saved.
         """
         self._make_save_ready_rec(self.pipelines_objects)
-
-    def finalize_model(
-        self, 
-        node_info: dict,
-        prev_node: Node,
-        results: dict,
-        experiment: dict
-        ):
-        """Finalizes the PyCaret's experiment.
-
-        Args:
-            node_info (dict): The node information.
-            prev_node (Node): The previous node already executed.
-            results (dict): The results of the experiment.
-            experiment (dict): The experiment object (pycaret).
-        """
-        # Update global json config
-        self.global_json_config['nodes']['finalize'] = {
-            'id': 'finalize',
-            'username': 'Finalize',
-            'data': {
-                'internal': {
-                    'settings': {},
-                    'name': 'Finalize',
-                    'type': 'finalize',
-                    'code': ""
-                },
-                'id': 'finalize'
-            }
-        }
-        node = self.create_Node(self.global_json_config['nodes']['finalize'])
-        experiment = self.copy_experiment(experiment)
-        self._progress['currentLabel'] = 'Finalizing and saving experiment'
-        data = node.execute(experiment, **prev_node.get_info_for_next_node())
-        node_info['results'] = {
-            'prev_node_id': prev_node.id,
-            'data': data,
-        }
-        # Clean node return experiment
-        if "experiment" in node_info['results']['data']:
-            new_experiment = node_info['results']['data']['experiment']
-            self.modify_node_info(node_info, node, new_experiment)
-            node_info['experiment'] = new_experiment
-        else:
-            self.modify_node_info(node_info, node, experiment)
-            node_info['experiment'] = experiment
-
-        self._nb_nodes_done += 1
-        self._progress['now'] = round(self._nb_nodes_done / (self._nb_nodes + 1) * 100, 2)
-        results['finalize'] = {
-            'next_nodes': copy.deepcopy({}),
-            'results': node_info['results']
-        }
     
     def save_model(
-        self,
-        node_info: dict,
-        prev_node: Node,
-        results: dict,
-        experiment: dict
+            self,
+            node_info: dict,
+            prev_node: Node,
+            results: dict,
+            experiment: dict
         ):
-        """Saves the finalized model.
+        """
+        Saves the finalized model.
+        
         Args:
             node_info (dict): The node information.
             prev_node (Node): The previous node already executed.
@@ -544,36 +517,6 @@ class MEDexperiment(ABC):
             'next_nodes': copy.deepcopy({}),
             'results': node_info['results']
         }
-
-    def finalize_and_save(
-        self, 
-        node_info: dict,
-        prev_node: Node,
-        results: dict,
-        experiment: dict
-        ):
-        """Finalizes the experiment and saves the PyCaret's model.
-        Args:
-            node_info (dict): The node information.
-            prev_node (Node): The previous node already executed.
-            results (dict): The results of the experiment.
-            experiment (dict): The experiment object (pycaret).
-        ):
-        """
-        # Finalize the model
-        self.finalize_model(
-            node_info=node_info,
-            prev_node=prev_node,
-            results=results,
-            experiment=experiment
-        )
-        # Save the model
-        self.save_model(
-            node_info=node_info,
-            prev_node=prev_node,
-            results=results,
-            experiment=experiment
-        )
     
     @abstractmethod
     def _make_save_ready_rec(self, next_nodes: dict):

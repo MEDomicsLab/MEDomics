@@ -270,6 +270,7 @@ class ModelHandler(Node):
         if 'useTuningGrid' in list(settings.keys()):
             del settings['useTuningGrid']
         splitted = kwargs.get("splitted", None)
+        finalize = kwargs.get("finalize", False)
         if splitted:
             trained_models = self.__handle_splitted_data(experiment, settings, **kwargs)
         elif self.type == 'compare_models':
@@ -300,6 +301,14 @@ class ModelHandler(Node):
                 trained_models = [experiment['pycaret_exp'].calibrate_model(trained_models[0], **self.settingsCalibrate)]
                 self.CodeHandler.add_line("code", f"trained_models = [pycaret_exp.calibrate_model(trained_models[0], {self.CodeHandler.convert_dict_to_params(self.settingsCalibrate)})]")
 
+            if finalize:
+                self.CodeHandler.add_line("code", f"for model in trained_models:")
+                self.CodeHandler.add_line(
+                    "code",
+                    f"model = pycaret_exp.finalize_model(model)",
+                    1
+                )
+                trained_models = [experiment['pycaret_exp'].finalize_model(model) for model in trained_models]
         else:
             raise ValueError(f"Unsupported type: {self.type}. Expected 'compare_models' or 'train_model'.")
         trained_models_copy = trained_models.copy()
