@@ -279,7 +279,7 @@ class Split(Node):
             if not (0 < test_size < 1):
                 raise ValueError("test_size must be in (0,1)")
             if n_iterations < 1:
-                raise ValueError("n_iterations must be ≥ 1")
+                raise ValueError("n_iterations must be at least 1")
 
             folds = []
             for it in range(n_iterations):

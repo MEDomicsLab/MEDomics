@@ -141,7 +141,7 @@ class GroupModels(Node):
         if self.optimize_fct:
             if len(self.config_json["cur_models_list_obj"]) < 2:
                 raise ValueError(
-                    f"[GroupModels] {self.optimize_fct} needs ≥2 models "
+                    f"[GroupModels] {self.optimize_fct} needs at least 2 models "
                     f"(received {len(self.config_json['cur_models_list_obj'])})."
                 )
 

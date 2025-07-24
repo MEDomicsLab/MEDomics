@@ -95,10 +95,6 @@ class CombineModels(Node):
         #self._received_ids.append(branch_id)
         self._received_models.extend(kwargs["models"])
 
-        # Register code for the incoming batch
-        batch_repr = ", ".join(format_model(m).__class__.__name__ for m in kwargs["models"])
-        self.CodeHandler.add_line("code", f"trained_models += [{batch_repr}]")
-
         # ------------------------------------------------------------------ #
         # always forward CURRENT list – lets downstream nodes start as soon  #
         # as we have at least one model (legacy behaviour)                   #
@@ -118,7 +114,7 @@ class CombineModels(Node):
         # ---------- Main combination (blend / stack) ----------------------- #
         if self.method:
             if len(full_list) < 2:
-                raise ValueError(f"CombineModels '{self.method}' needs ≥2 models (received {len(full_list)})")
+                raise ValueError(f"CombineModels '{self.method}' needs at least 2 models (received {len(full_list)})")
             print(Fore.GREEN + f" {self.method}()" + Fore.RESET)
 
             pycaret_exp = experiment["pycaret_exp"]

@@ -108,7 +108,7 @@ def get_subsampling_details(dataset, class_names, stratify_columns=None, test_si
     if not (0 < test_size < 1):
         raise ValueError("test_size must be in (0,1)")
     if n_iterations < 1:
-        raise ValueError("n_iterations must be ≥ 1")
+        raise ValueError("n_iterations must be at least 1")
     
     # Prepare stratification vector if needed
     if stratify_columns is not None:
