@@ -283,6 +283,58 @@ export function checkRemoteFolderExists(folderPath) {
   return "does not exist"
 }
 
+export function checkRemoteFileExists(filePath) {
+  // Ensure tunnel is active and SSH client is available
+  const tunnel = getTunnelState()
+  if (!tunnel || !tunnel.tunnelActive || !tunnel.tunnelObject || !tunnel.tunnelObject.sshClient) {
+    const errMsg = 'No active SSH tunnel for remote file check.'
+    console.error(errMsg)
+    return "tunnel inactive"
+  }
+  tunnel.tunnelObject.sshClient.sftp((err, sftp) => {
+    if (err) {
+      console.error('SFTP error:', err)
+      return "sftp error"
+    }
+
+    // Check if file exists
+    sftp.stat(filePath, (statErr, stats) => {
+      if (!statErr && stats && stats.isFile && stats.isFile()) {
+        // File exists
+        sftp.end && sftp.end()
+        return "exists"
+      }
+    })
+  })
+  return "does not exist"
+}
+
+export function getRemoteLStat(Path) {
+  // Ensure tunnel is active and SSH client is available
+  const tunnel = getTunnelState()
+  if (!tunnel || !tunnel.tunnelActive || !tunnel.tunnelObject || !tunnel.tunnelObject.sshClient) {
+    const errMsg = 'No active SSH tunnel for remote file check.'
+    console.error(errMsg)
+    return null
+  }
+  tunnel.tunnelObject.sshClient.sftp((err, sftp) => {
+    if (err) {
+      console.error('SFTP error:', err)
+      return null
+    }
+
+    // Check if file exists
+    sftp.lstat(Path, (statErr, stats) => {
+      if (statErr) {
+        return null
+      } else {
+        return stats
+      }
+    })
+  })
+  return null
+}
+
 export async function detectRemoteOS() {
   return new Promise((resolve, reject) => {
     activeTunnel.exec('uname -s', (err, stream) => {
@@ -310,6 +362,7 @@ export async function detectRemoteOS() {
   })
 }
 
+// Unused
 export function getRemoteMongoDBPath() {
   const remotePlatform = detectRemoteOS()
 

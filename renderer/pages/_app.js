@@ -229,7 +229,7 @@ function App() {
   useEffect(() => {
     async function getGlobalData() {
       await updateGlobalData(workspaceObject)
-      const newGlobalData = await loadMEDDataObjects()
+      const newGlobalData = await loadMEDDataObjects(workspaceObject.isRemote)
       setGlobalData(newGlobalData)
     }
     if (workspaceObject.hasBeenSet == true) {

@@ -1,6 +1,7 @@
 import { MEDDataObject } from "../../components/workspace/NewMedDataObject"
 import { recursivelyRecenseWorkspaceTree } from "./workspaceUtils"
 import { connectToMongoDB, insertMEDDataObjectIfNotExists } from "../../components/mongoDB/mongoDBUtils"
+import { checkRemoteFileExists } from "../../../main/utils/remoteFunctions"
 
 /**
  * @description Used to update the data present in the DB with local files not present in the database
@@ -24,14 +25,14 @@ export const updateGlobalData = async (workspaceObject) => {
     usedIn: null
   })
   await insertMEDDataObjectIfNotExists(rootDataObject, rootPath)
-  await recursivelyRecenseWorkspaceTree(rootChildren, rootParentID)
+  await recursivelyRecenseWorkspaceTree(rootChildren, rootParentID, workspaceObject.isRemote)
 }
 
 /**
  * @descritption load the MEDDataObjects from the MongoDB database
  * @returns medDataObjectsDict dict containing the MEDDataObjects in the Database
  */
-export async function loadMEDDataObjects() {
+export async function loadMEDDataObjects(isRemote = false) {
   let medDataObjectsDict = {}
   try {
     // Get global data
@@ -44,13 +45,25 @@ export async function loadMEDDataObjects() {
     medDataObjectsArray.forEach((data) => {
       const medDataObject = new MEDDataObject(data)
 
-      // Check if local objects still exist
       if (medDataObject.inWorkspace && medDataObject.path) {
-        try {
-          fs.accessSync(medDataObject.path)
-          medDataObjectsDict[medDataObject.id] = medDataObject
-        } catch (error) {
-          console.error(`${medDataObject.name}: not found locally`, medDataObject)
+        if (isRemote) {
+          // Check if remote objects still exist
+          const fileStatus = checkRemoteFileExists(medDataObject.path)
+          if (fileStatus == "exists") {
+            medDataObjectsDict[medDataObject.id] = medDataObject
+          } else if (fileStatus == "does not exist") {
+            console.error(`${medDataObject.name}: not found remotely`, medDataObject)
+          } else {
+            console.error(`${medDataObject.name}: error checking remote file`, medDataObject)
+          } 
+        } else {
+          // Check if local objects still exist
+          try {
+            fs.accessSync(medDataObject.path)
+            medDataObjectsDict[medDataObject.id] = medDataObject
+          } catch (error) {
+            console.error(`${medDataObject.name}: not found locally`, medDataObject)
+          }
         }
       } else {
         medDataObjectsDict[medDataObject.id] = medDataObject

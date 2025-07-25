@@ -1,6 +1,7 @@
 import { MEDDataObject } from "../../components/workspace/NewMedDataObject"
 import { randomUUID } from "crypto"
 import { insertMEDDataObjectIfNotExists } from "../../components/mongoDB/mongoDBUtils"
+import { getRemoteLStat } from "../../../main/utils/remoteFunctions"
 
 // Import fs and path
 const fs = require("fs")
@@ -15,9 +16,10 @@ const path = require("path")
  * @description This function is used to recursively recense the directory tree and add the files and folders to the global data object
  * It is called when the working directory is set
  */
-export async function recursivelyRecenseWorkspaceTree(children, parentID) {
+export async function recursivelyRecenseWorkspaceTree(children, parentID, isRemote = false) {
   for (const child of children) {
-    const stats = fs.lstatSync(child.path)
+    const stats = isRemote ? getRemoteLStat(child.path) : fs.lstatSync(child.path)
+    if (!stats) return
     let uuid = child.name == "DATA" || child.name == "EXPERIMENTS" ? child.name : randomUUID()
     let childType =
       stats.isDirectory() &&
@@ -40,7 +42,7 @@ export async function recursivelyRecenseWorkspaceTree(children, parentID) {
     // Real ID in DataBase if object already exists
     const IDinDB = await insertMEDDataObjectIfNotExists(childObject, child.path)
     if (childType == "directory" && child.name != ".medomics") {
-      await recursivelyRecenseWorkspaceTree(child.children, IDinDB)
+      await recursivelyRecenseWorkspaceTree(child.children, IDinDB, isRemote)
     }
   }
 }
