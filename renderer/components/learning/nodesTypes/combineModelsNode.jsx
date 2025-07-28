@@ -11,13 +11,14 @@ import { SelectButton } from 'primereact/selectbutton'
 const CombineModelsNode = ({ id, data }) => {
   const { updateNode } = useContext(FlowFunctionsContext)
   const [modalShow, setModalShow] = useState(false)
-  const [calibrateEnabled, setCalibrateEnabled] = useState(!!data.internal.settings.calibrate)
+  const [calibrateEnabled, setCalibrateEnabled] = useState(data.internal.settings.calibrate ?? false)  
   const [calibrateModalShow, setCalibrateModalShow] = useState(false)
 
   useEffect(() => {
     if (!data.internal.settings) data.internal.settings = {}
     if (!data.internal.checkedOptions) data.internal.checkedOptions = []
     if (!data.internal.settings.optimize_fct) data.internal.settings.optimize_fct = "blend_models"
+    if (!("calibrate" in data.internal.settings)) {data.internal.settings.calibrate = false}
     updateNode({ id, updatedData: data.internal })
   }, [])
 
@@ -105,6 +106,7 @@ const CombineModelsNode = ({ id, data }) => {
               data={data}
               id={id}
               parentKey="calibrate"
+              title="Calibrate Options"
             />
 
             {/* Blend/stack parameters */}

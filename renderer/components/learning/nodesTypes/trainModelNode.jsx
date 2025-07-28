@@ -25,6 +25,7 @@ import ModalSettingsChooser from "../modalSettingsChooser"
 const TrainModelNode = ({ id, data }) => {
   const [modalShow, setModalShow] = useState(false) // state of the modal
   const [usePycaretSearchSpace, setUsePycaretSearchSpace] = useState(false) // state of the checkbox
+  const [modalShowTuning, setModalShowTuning] = useState(false)
   const { updateNode } = useContext(FlowFunctionsContext)
   const [IntegrateTuning, setIntegrateTuning] = useState(data.internal.isTuningEnabled ?? false)
   const [ensembleEnabled, setEnsembleEnabled] = useState(data.internal.settings.isEnsembleEnabled ?? false)
@@ -212,10 +213,19 @@ const TrainModelNode = ({ id, data }) => {
         // node specific is the body of the node, so optional settings
         nodeSpecific={
           <>
+            {/* === GENERAL OPTIONS WRAPPER BOX === */}
+            <div style={{
+              border: "1px solid #e0e0e0",          // bordure grise très claire
+              borderRadius: "10px",                 // coins arrondis
+              backgroundColor: "#fcfcfc",           // fond légèrement différent
+              padding: "10px 12px",
+              marginBottom: "12px",
+              boxShadow: "0 1px 2px rgba(0,0,0,0.05)" // petite ombre douce
+            }}>
             {/* === TRAINING OPTIONS SECTION === */}
             <div className="p-2 mb-1 d-flex justify-content-between align-items-center"
                 style={{ border: "1px solid #ccc", borderRadius: "8px" }}>
-              <span className="text-muted" style={{ fontSize: "0.9rem" }}>Training Options</span>
+              <span className="text-muted" style={{ fontSize: "0.9rem" }}>General Options</span>
               <Button
                 variant="light"
                 className="btn-contour ms-2"
@@ -223,6 +233,25 @@ const TrainModelNode = ({ id, data }) => {
               >
                 <Icon.Plus width="20px" height="20px" />
               </Button>
+            </div>
+
+            {/* the inputs for the options */}
+            {data.internal.checkedOptions.length > 0 && (
+              <>
+                {/*<label>Global Options:</label>*/}
+                {data.internal.checkedOptions.map((optionName) => {
+                  return (
+                    <Input
+                      key={optionName}
+                      name={optionName}
+                      settingInfos={data.setupParam.possibleSettings.options[optionName]}
+                      currentValue={data.internal.settings[optionName]}
+                      onInputChange={onInputChange}
+                    />
+                  )
+                })}
+              </>
+            )}
             </div>
             
             {/* === INTEGRATE TUNING SECTION === */}
@@ -241,6 +270,21 @@ const TrainModelNode = ({ id, data }) => {
               </div>
               {data.internal.isTuningEnabled && data.internal.tuningGrid && Object.keys(data.internal.tuningGrid).length > 0 && (
                 <>
+                <div
+                    className="p-2 mb-2 d-flex justify-content-between align-items-center"
+                    style={{ border: "1px solid #ccc", borderRadius: "8px" }}
+                  >
+                    <span className="text-muted" style={{ fontSize: "0.9rem" }}>
+                      Tuning Options
+                    </span>
+                    <Button
+                      variant="light"
+                      className="btn-contour ms-2"
+                      onClick={() => setModalShowTuning(true)}
+                    >
+                      <Icon.Plus width="20px" height="20px" />
+                    </Button>
+                </div>
                 <hr />
                 <div className="p-3 mb-3 mt-3">
                   <div className="mb-1 d-flex align-items-center">
@@ -416,23 +460,17 @@ const TrainModelNode = ({ id, data }) => {
               id={id}
               optionsTuning={data.internal.isTuningEnabled ? data.setupParam.possibleSettingsTuning.options : null}
             />
-            {/* the inputs for the options */}
-            {data.internal.checkedOptions.length > 0 && (
-              <>
-                <label>Global Options:</label>
-                {data.internal.checkedOptions.map((optionName) => {
-                  return (
-                    <Input
-                      key={optionName}
-                      name={optionName}
-                      settingInfos={data.setupParam.possibleSettings.options[optionName]}
-                      currentValue={data.internal.settings[optionName]}
-                      onInputChange={onInputChange}
-                    />
-                  )
-                })}
-              </>
-            )}
+            
+            <ModalSettingsChooser
+              show={modalShowTuning}
+              onHide={() => setModalShowTuning(false)}
+              options={{}}
+              optionsTuning={data.setupParam.possibleSettingsTuning.options}
+              data={data}
+              id={id}
+              title="Tuning Options"
+            />
+
           </>
         }
         // Link to documentation

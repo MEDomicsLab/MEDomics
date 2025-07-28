@@ -109,7 +109,7 @@ const ModalSettingsChooser = ({ show, onHide, options, id, data, optionsTuning =
         {/* Display all the options available for the tuning */}
         {optionsTuning && (
           <>
-            <h3>Tuning options</h3>
+            {/* <h3>Tuning options</h3> */}
             {Object.entries(optionsTuning).map(([optionName, optionInfos], i) => {
               return (
                 <CheckOption

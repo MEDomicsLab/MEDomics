@@ -990,10 +990,15 @@ const classificationSettings = {
         default_val: "None"
       },
       early_stopping: {
-        type: "string",
+        type: "list",
         tooltip:
           "<p>Use early stopping to stop fitting to a hyperparameter configuration\nif it performs poorly. Ignored when search_library is scikit-learn,\nor if the estimator does not have \u2018partial_fit\u2019 attribute. If False or\nNone, early stopping will not be used. Can be either an object accepted\nby the search library or one of the following:</p>\n<ul >\n<li><p>\u2018asha\u2019 for Asynchronous Successive Halving Algorithm</p></li>\n<li><p>\u2018hyperband\u2019 for Hyperband</p></li>\n<li><p>\u2018median\u2019 for Median Stopping Rule</p></li>\n<li><p>If False or None, early stopping will not be used.</p></li>\n</ul>\n",
-        default_val: "False"
+        default_val: "False",
+        choices : {
+          asha : "Asha - Successive Halving",
+          hyperband : "Hyperband",
+          median: "Median Stopping Rule"
+        }
       },
       early_stopping_max_iters: {
         type: "int",
@@ -1340,7 +1345,20 @@ const classificationSettings = {
                 "default_val": "False"
               }
             }
+          },
+        "calibrate": {
+          "options" : {
+            "calibration_method": {
+              "type": "list",
+              "tooltip": "The method to use for calibration. Can be ‘sigmoid’ or ‘isotonic’",
+              "default_val": "sigmoid",
+              "choices": {
+                sigmoid: "Sigmoid",
+                isotonic: "Isotonic",
+              }
           }
+        }
+      }  
     },
     code: ""
   }
