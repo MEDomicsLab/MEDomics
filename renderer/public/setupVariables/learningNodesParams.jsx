@@ -20,6 +20,7 @@ const nodesParams = {
     output: ["dataset"],
     img: "dataset.png",
     title: "Dataset",
+    link: "https://pycaret.readthedocs.io/en/stable/api/classification.html#pycaret.classification.setup",
     experimenting: true,
     section: "initialization",
     possibleSettings: {
@@ -49,6 +50,7 @@ const nodesParams = {
     output: ["dataset"],
     img: "clean.png",
     title: "Clean",
+    link: "https://pycaret.readthedocs.io/en/stable/api/classification.html#pycaret.classification.setup",
     experimenting: true,
     section: "initialization",
     possibleSettings: { classification: classificationSettings["clean"], regression: regressionSettings["clean"] }
@@ -62,6 +64,7 @@ const nodesParams = {
     output: ["model_config"],
     img: "model.png",
     title: "Model",
+    link: "https://pycaret.readthedocs.io/en/stable/api/classification.html#pycaret.classification.create_model",
     experimenting: false,
     section: "initialization",
     possibleSettings: { classification: classificationModelsSettings, regression: regressionModelsSettings }
@@ -75,6 +78,7 @@ const nodesParams = {
     output: ["model"],
     img: "create_model.png",
     title: "Train model",
+    link: "https://pycaret.readthedocs.io/en/stable/api/classification.html#pycaret.classification.create_model",
     experimenting: false,
     section: "training",
     possibleSettings: { classification: classificationSettings["create_model"], regression: regressionSettings["create_model"] }
@@ -88,6 +92,7 @@ const nodesParams = {
     output: ["model"],
     img: "compare_models.png",
     title: "Compare models",
+    link: "https://pycaret.readthedocs.io/en/stable/api/classification.html#pycaret.classification.compare_models",
     experimenting: true,
     section: "training",
     possibleSettings: { classification: classificationSettings["compare_models"], regression: regressionSettings["compare_models"] }
@@ -114,6 +119,7 @@ const nodesParams = {
     output: ["model"],
     img: "load_model.png",
     title: "Load model",
+    link: "https://pycaret.readthedocs.io/en/stable/api/classification.html#pycaret.classification.load_model",
     experimenting: false,
     section: "unknown",
     possibleSettings: { classification: classificationSettings["load_model"], regression: regressionSettings["load_model"] }
@@ -142,6 +148,7 @@ const nodesParams = {
     title: "Analyze",
     experimenting: true,
     section: "analysis",
+    link: "https://pycaret.readthedocs.io/en/stable/api/classification.html#pycaret.classification.plot_model",
     possibleSettings: { classification: classificationSettings["analyze"], regression: regressionSettings["analyze"] }
   },
 }

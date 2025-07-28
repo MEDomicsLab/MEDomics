@@ -1,12 +1,26 @@
-import { memo, useContext, useEffect, useState } from "react"
-import { InputText } from "primereact/inputtext"
+import { shell } from "electron"
 import { InputNumber } from "primereact/inputnumber"
+import { InputText } from "primereact/inputtext"
 import { Panel } from "primereact/panel"
+import { memo, useContext, useEffect } from "react"
+import { AiOutlineInfoCircle } from "react-icons/ai"
 import { Handle, Position } from "reactflow"
 import { FlowFunctionsContext } from "../../flow/context/flowFunctionsContext"
 
 const AnalysisBoxNode = ({ data, selected }) => {
   const { updateNode } = useContext(FlowFunctionsContext)
+
+  const header = (
+    <div className="d-flex align-items-center justify-content-between">
+      <label className="mb-0" style={{ marginRight: "0.3rem" }}>Analysis Box</label>
+      <AiOutlineInfoCircle
+        className="btn-info-node mr-2"
+        onClick={() => {
+          shell.openExternal("https://pycaret.readthedocs.io/en/stable/api/classification.html#pycaret.classification.plot_model")
+        }}
+      />
+    </div>
+  )
 
   useEffect(() => {
     if (data) {
@@ -76,7 +90,7 @@ const AnalysisBoxNode = ({ data, selected }) => {
             justifyContent: "center",
           }}
         >
-          <Panel header="Analysis Settings">
+          <Panel header={header}>
             <div className="p-fluid">
               {/* Plot Metric Input */}
               <div className="field" style={{ marginBottom: "1rem" }}>

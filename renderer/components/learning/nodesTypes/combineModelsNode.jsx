@@ -96,6 +96,10 @@ const CombineModelsNode = ({ id, data }) => {
               data={data}
               id={id}
               title={isBlend ? "Blend Options" : "Stack Options"}
+              link={isBlend ? 
+                "https://pycaret.readthedocs.io/en/stable/api/classification.html#pycaret.classification.blend_models" : 
+                "https://pycaret.readthedocs.io/en/stable/api/classification.html#pycaret.classification.stack_models"
+              }
             />
 
             {/* Modal calibrate */}
@@ -107,6 +111,7 @@ const CombineModelsNode = ({ id, data }) => {
               id={id}
               parentKey="calibrate"
               title="Calibrate Options"
+              link="https://pycaret.readthedocs.io/en/stable/api/classification.html#pycaret.classification.calibrate_model"
             />
 
             {/* Blend/stack parameters */}

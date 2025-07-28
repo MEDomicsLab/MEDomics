@@ -113,7 +113,7 @@
 
 .btn-info-node:hover {
   background-color: #00000000;
-  color: blue;
+  color: rgb(0, 119, 255);
 }
 
 .node {
