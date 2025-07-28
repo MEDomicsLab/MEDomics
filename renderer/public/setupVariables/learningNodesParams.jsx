@@ -13,6 +13,7 @@ export const sceneDescription = {
 const nodesParams = {
   dataset: {
     type: "datasetNode",
+    nameID: "Dataset",
     classes: "object dataset run startNode",
     nbInput: 0,
     nbOutput: 1,
@@ -30,6 +31,7 @@ const nodesParams = {
   },
   split: {
     type: "splitNode",
+    nameID: "Split",
     classes: "action analyze run endNode",
     nbInput: 1,
     nbOutput: 1,
@@ -43,6 +45,7 @@ const nodesParams = {
   },
   clean: {
     type: "standardNode",
+    nameID: "Clean",
     classes: "action clean run",
     nbInput: 1,
     nbOutput: 1,
@@ -57,6 +60,7 @@ const nodesParams = {
   },
   model: {
     type: "selectionNode",
+    nameID: "Model",
     classes: "object model",
     nbInput: 0,
     nbOutput: 1,
@@ -71,6 +75,7 @@ const nodesParams = {
   },
   train_model: {
     type: "trainModelNode",
+    nameID: "Train Model",
     classes: "action create_model run",
     nbInput: 2,
     nbOutput: 1,
@@ -85,6 +90,7 @@ const nodesParams = {
   },
   compare_models: {
     type: "standardNode",
+    nameID: "Compare Models",
     classes: "action compare_models run",
     nbInput: 1,
     nbOutput: 1,
@@ -99,6 +105,7 @@ const nodesParams = {
   },
   combine_models: {
     type: "CombineModelsNode",
+    nameID: "Combine Models",
     classes: "action combine_models",
     nbInput: 1,
     nbOutput: 1,
@@ -112,6 +119,7 @@ const nodesParams = {
   },
   load_model: {
     type: "loadModelNode",
+    nameID: "Load Model",
     classes: "action load_model run",
     nbInput: 1,
     nbOutput: 1,
@@ -139,6 +147,7 @@ const nodesParams = {
   },*/
   analyze: {
     type: "selectionNode",
+    nameID: "Analyze",
     classes: "action analyze run endNode",
     nbInput: 1,
     nbOutput: 0,

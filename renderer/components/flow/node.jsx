@@ -31,8 +31,6 @@ import { shell } from "electron"
  * @param {JSX.Element} nodeSpecific jsx element to display specific settings of the node inside the offcanvas
  * @param {JSX.Element} nodeBody jsx element to display the body of the node
  * @param {JSX.Element} defaultSettings jsx element to display default settings of the node inside the offcanvas
- * @param {function} onClickCustom function to call when the node is clicked
- * @param {boolean} isGroupNode boolean to know if the node is a group node
  * @param {string} nodeLink link to the documentation of the node
  *
  * @returns {JSX.Element} A node
@@ -43,8 +41,8 @@ import { shell } from "electron"
  * Note: all JSX.Element props are not mandatory
  * Note: see Powerpoint for additionnal
  */
-const NodeObject = ({ id, data, nodeSpecific, color = null, nodeBody, defaultSettings, onClickCustom, isGroupNode, nodeLink }) => {
-  const [nodeName, setNodeName] = useState(data.internal.name) // used to store the name of the node
+const NodeObject = ({ id, data, nodeSpecific, color = null, nodeBody, defaultSettings, nodeLink }) => {
+  const [nodeName, setNodeName] = useState(data.internal.nameID || data.internal.name) // used to store the name of the node
   const { flowInfos, canRun } = useContext(FlowInfosContext) // used to get the flow infos
   const { showResultsPane } = useContext(FlowResultsContext) // used to get the flow results
   const { updateNode, onDeleteNode, runNode } = useContext(FlowFunctionsContext) // used to get the function to update the node
@@ -63,7 +61,9 @@ const NodeObject = ({ id, data, nodeSpecific, color = null, nodeBody, defaultSet
    * It calls the parent function wich is defined in the workflow component
    */
   useEffect(() => {
-    data.internal.name = nodeName
+    if (nodeName && data.internal.nameID) {
+      data.internal.nameID = nodeName
+    }
     updateNode({
       id: id,
       updatedData: data.internal
@@ -94,6 +94,7 @@ const NodeObject = ({ id, data, nodeSpecific, color = null, nodeBody, defaultSet
         toastId: "customId"
       })
     }
+    console.log("debug newName", newName)
     setNodeName(newName)
   }
 
@@ -124,9 +125,21 @@ const NodeObject = ({ id, data, nodeSpecific, color = null, nodeBody, defaultSet
           className={`text-left ${data.internal.hasRun && showResultsPane ? "" : showResultsPane ? "notRun" : ""}  ${data.className}`}
           header={
             <>
-              <div className="align-center">
-                <img src={`/icon/${flowInfos.type}/` + `${data.internal.img.replaceAll(" ", "_")}`} alt={data.internal.img} className="icon-nodes" />
-                {data.internal.name}
+              <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                <div className="align-center">
+                  <img src={`/icon/${flowInfos.type}/` + `${data.internal.img.replaceAll(" ", "_")}`} alt={data.internal.img} className="icon-nodes" />
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", alignItems: "left"}}>
+                  {data.internal.name}
+                  {data.internal.nameID && (
+                    <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                      <label > ID: </label>
+                      <label style={{ fontWeight: "bold" }}>
+                        {data.internal.nameID}
+                      </label>
+                    </div>
+                  )}
+                </div>
               </div>
 
               <div className="btn-node-div">
@@ -174,7 +187,7 @@ const NodeObject = ({ id, data, nodeSpecific, color = null, nodeBody, defaultSet
                 <div className="editable-node-name">
                   <Icon.Pencil width="18px" height="18px" />
                   <EditableLabel
-                    text={data.internal.name}
+                    text={data.internal.nameID || data.internal.name}
                     labelClassName="node-editableLabel"
                     inputClassName="node-editableLabel"
                     inputWidth="20ch"
