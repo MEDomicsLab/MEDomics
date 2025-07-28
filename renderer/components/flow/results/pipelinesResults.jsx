@@ -21,56 +21,6 @@ import { FlowInfosContext } from "../context/flowInfosContext"
 import { FlowResultsContext } from "../context/flowResultsContext"
 import { FlowFunctionsContext } from "../context/flowFunctionsContext"
 
-/**
- *
- * @param {Object} obj
- * @param {string} id
- * @returns the sub-object corresponding at the id in the obj
- * @description equivalent to obj[id] but the id can be a substring of the key
- */
-const checkIfObjectContainsId = (obj, id) => {
-  let res = false
-  if (!obj) {
-    return res
-  }
-  Object.keys(obj).forEach((key) => {
-    if (key.includes(id)) {
-      res = obj[key]
-    }
-  })
-  return res
-}
-
-/**
- *
- * @param {Object} obj
- * @param {string} id
- * @returns the sub-object corresponding at the id in the obj
- * @description equivalent to obj[id] but the id can be a substring of the key
- */
-const fetchGroupModelsResults = (data, targetNodeId) => {
-  let lastValidResults = null
-
-  const traverse = (obj) => {
-    if (!obj || typeof obj !== 'object') return
-
-    // Check if current object has the target node in its keys
-    Object.entries(obj).forEach(([key, value]) => {
-      if (key.includes(targetNodeId)) {
-        if (Object.keys(value).length > 0 && Object.keys(value).includes("results")) {
-          lastValidResults = value.results
-          return
-        }
-      } else if (key === 'next_nodes' || (typeof value === 'object' && value !== null && Object.keys(value).includes('next_nodes'))) {
-        // Recursively check next_nodes and nested objects
-        traverse(value)
-      }
-    })
-  }
-
-  traverse(data)
-  return lastValidResults
-}
 
 /**
  * Retrieves results for a given node ID by following a specific pipeline path
@@ -114,6 +64,100 @@ function getNodeResults(flowResults, flowContent, pipeline, targetId) {
     console.error('Error while searching for node results:', error)
     return null
   }
+}
+
+/**
+ * Retrieves results for a given node ID by following a specific pipeline path
+ * @param {Object} flowResults - The complete results from experiment
+ * @param {Object} flowContent - The content of the scene
+ * @param {string} targetId - The ID to search for (can be part of a key or exact match)
+ * @param {Array<string>} pipeline - Array of keys to follow in order
+ * @returns {Object|null} - The results object if found, null otherwise
+ */
+function getNodeCode(flowResults, flowContent, pipeline, targetId) {
+  try {
+    const traverse = (currentDict, currentKey) => {
+      if (!currentDict || typeof currentDict !== 'object') return
+
+      // Skip train model node
+      const nodeType = flowContent.nodes.find(node => node.id === currentKey)?.data?.internal?.type 
+      if (nodeType !== "train_model" && currentKey.includes(targetId) && currentDict.results) {
+        return currentDict.results.code // Return found results immediately
+      }
+
+      // Recursively search through next_nodes
+      if (currentDict.next_nodes) {
+        for (const [key, value] of Object.entries(currentDict.next_nodes)) {
+          const isInPipeline = pipeline.some(p => key.includes(p))
+          if (isInPipeline) {
+            const results = traverse(value, key)
+            if (results) return results // Bubble up found results
+          }
+        }
+      }
+    }
+
+    let nodeResults = null
+    Object.entries(flowResults).forEach(([key, value]) => {
+      nodeResults = traverse(value, key)
+    })
+    return nodeResults
+  } catch (error) {
+    console.error('Error while searching for node results:', error)
+    return null
+  }
+}
+
+/**
+ * Removes objects with duplicate content from a list
+ * @param {Array} items - List of objects with type/content/indent properties
+ * @returns {Array} - Deduplicated list
+ */
+const removeDuplicateContents = (items) => {
+  const seenContents = new Set()
+  return items.filter(item => {
+    // Skip non-code items or items without content
+    if (!item.content) return true
+    
+    // Check for duplicates
+    const isDuplicate = seenContents.has(item.content)
+    seenContents.add(item.content)
+    return !isDuplicate
+  })
+}
+
+/**
+ * Updates code lines to append to trained_models instead of recreating it
+ * @param {Array} codeItems - Array of code objects {type, content, indent}
+ * @returns {Array} - Modified array with updated initialization
+ */
+const fixTrainedModelsInitialization = (codeItems) => {
+  let firstOccurrenceFound = false
+  
+  return codeItems.map(item => {
+    // Only process code items with content
+    if (item.type === "code" && item.content) {
+      const createModelPattern = /^trained_models\s*=\s*\[pycaret_exp\.create_model/
+      
+      if (createModelPattern.test(item.content)) {
+        if (!firstOccurrenceFound) {
+          // Keep the first occurrence as is
+          firstOccurrenceFound = true
+          return item
+        } else {
+          // Replace subsequent occurrences with +=
+          return {
+            ...item,
+            content: item.content.replace(
+              /^trained_models\s*=\s*\[/,
+              'trained_models += ['
+            )
+          }
+        }
+      }
+    }
+    return item // Return unmodified if not matching our pattern
+  })
 }
 
 /**
@@ -219,6 +263,13 @@ const PipelinesResults = ({ pipelines, fullPipelines, selectionMode, flowContent
   const [accordionActiveIndexStore, setAccordionActiveIndexStore] = useState([])
   const [accordionActiveIndex, setAccordionActiveIndex] = useState([])
   const isProd = process.env.NODE_ENV === "production"
+
+  const hasCombineModels = (pipeline) => {
+    return pipeline.some((id) => {
+      let node = flowContent.nodes.find((node) => node.id == id)
+      return node && node.data.internal.type == "combine_models"
+    })
+  }
 
   //when the selectionMode change, reset the selectedResultsId and the accordionActiveIndex
   useEffect(() => {
@@ -328,12 +379,19 @@ const PipelinesResults = ({ pipelines, fullPipelines, selectionMode, flowContent
         setShowResultsPane(false)
 
         // Find model node
-        let modelNode = flowContent.nodes.find((node) => node.data.internal.type == "model" && pipeline.includes(node.id))
+        let modelNode = null
+        let newName = ""
+        if (hasGroupModels(pipeline)) {
+          // Set group model node as the model node
+          modelNode = flowContent.nodes.find((node) => node.data.internal.type == "combine_models" && pipeline.includes(node.id))
+        } else {
+          modelNode = flowContent.nodes.find((node) => node.data.internal.type == "model" && pipeline.includes(node.id))
+          newName = modelNode.data.internal.name !== "Model" ? modelNode.data.internal.name : ''
+        }
         if (!modelNode || !modelNode.id) {
           toast.error("No model node found in the pipeline")
           return
         }
-        const newName = modelNode.data.internal.name !== "Model" ? modelNode.data.internal.name : ''
         runFinalizeAndSave(modelNode.id, newName)
       }
 
@@ -355,40 +413,20 @@ const PipelinesResults = ({ pipelines, fullPipelines, selectionMode, flowContent
         let resultsCopy = deepCopy(flowResults)
         console.log("resultsCopy", resultsCopy)
         let nodeResults = null
-        pipeline.forEach((id) => {
-          // check if next node is a group_models
-          let nextNode = flowContent.nodes.find((node) => node.id == id)
-          console.log("nextNode", nextNode)
-          let isNextGroupModels = nextNode && nextNode.data.internal.type == "combine_models"
-          if (isNextGroupModels) {
-            console.log("next node is a combine_models")
-            console.log(checkIfObjectContainsId(resultsCopy, id))
-          }
-          nodeResults = checkIfObjectContainsId(resultsCopy, id)
-          if (nodeResults) {
-            if (!isNextGroupModels) {
-              finalCode = [...finalCode, ...Object.values(nodeResults.results.code.content)]
-              console.log("imports", Object.values(nodeResults.results.code.imports))
-              finalImports = [...finalImports, ...Object.values(nodeResults.results.code.imports)]
-            }
-            resultsCopy = nodeResults.next_nodes
-          } else {
-            console.log("id " + id + " not found in results")
-            toast.error("Id not found in results")
-          }
+        
+        fullPipelines[index].forEach((id) => {
+          // Skip train model nodes
+          const nodeType = flowContent.nodes.find(node => node.id === id)?.data?.internal?.type
+          if (nodeType === "train_model") return
+          const nodeCode = getNodeCode(flowResults, flowContent, fullPipelines[index], id)
+          finalCode = [...finalCode, ...Object.values(nodeCode.content)]
+          finalImports = [...finalImports, ...Object.values(nodeCode.imports)]
         })
-        // Check if the last result has finalize and save code
-        if (Object.keys(nodeResults.next_nodes).length > 0 && Object.keys(nodeResults.next_nodes).includes("finalize")){
-          if (!Object.values(nodeResults.next_nodes.finalize?.results?.code)) return
-          finalCode = [...finalCode, ...Object.values(nodeResults.next_nodes.finalize.results.code.content)]
-          finalImports = [...finalImports, ...Object.values(nodeResults.next_nodes.finalize.results.code.imports)]
+        if (hasCombineModels(pipeline)) {
+          finalImports = removeDuplicateContents(finalImports)
+          finalCode = removeDuplicateContents(finalCode)
+          finalCode = fixTrainedModelsInitialization(finalCode)
         }
-        if (Object.keys(nodeResults.next_nodes).length > 0 && Object.keys(nodeResults.next_nodes).includes("save")){
-          if (!Object.values(nodeResults.next_nodes.save?.results?.code)) return
-          finalCode = [...finalCode, ...Object.values(nodeResults.next_nodes.save.results.code.content)]
-          finalImports = [...finalImports, ...Object.values(nodeResults.next_nodes.save.results.code.imports)]
-        }
-        console.log(finalImports)
         let notebookID = await createNoteBookDoc(finalCode, finalImports)
         lockDataset(flowResults, notebookID) // Lock the dataset to avoid the user to modify or delete it
       }
@@ -528,10 +566,10 @@ const PipelinesResults = ({ pipelines, fullPipelines, selectionMode, flowContent
               .filter(id => {
                 // Only keep non-model nodes if group models exist
                 if (hasGroupModels(pipeline)) {
-                  const node = flowContent.nodes.find(node => node.id === id);
-                  return !(node && node.data.internal.type === "model");
+                  const node = flowContent.nodes.find(node => node.id === id)
+                  return !(node && node.data.internal.type === "model")
                 }
-                return true; // Keep all if no group models
+                return true // Keep all if no group models
               })
               .map(id => ({
                 name: getName(id),

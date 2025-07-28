@@ -102,6 +102,40 @@ const ResultsPane = ({ runFinalizeAndSave }) => {
   }, [flowContent])
 
   /**
+   * Finds all models nodes linked to a given train_model node
+   * @param {string} trainModelNodeId - The ID of the train_model node
+   * @param {Object} dict - The nested dictionary to search
+   * @returns {Array<Array<string>>} - List of paths (each path is an array of keys)
+   */
+  const findModelNodes = (trainModelNodeId, dict) => {
+    const models = []
+    const traverse = (currentDict, currentKey) => {
+      if (!currentDict || typeof currentDict !== 'object') return
+
+      // Check if current level has the train_model node
+      if (currentKey.includes(trainModelNodeId)) {
+        // If found, add the current path to models
+        const modelNode = currentKey.split("*").reverse()[0]
+        const nodeType = flowContent.nodes.find(node => node.id === modelNode)?.data?.internal?.type
+        if (nodeType === "model") {
+          models.push(modelNode)
+        }
+      }
+
+      // Recursively search through next_nodes
+      if (currentDict.next_nodes) {
+        Object.entries(currentDict.next_nodes).forEach(([key, value]) => {
+          traverse(value, key)
+        })
+      }
+    }
+    Object.entries(dict).forEach(([key, value]) => {
+      traverse(value, key)
+    })
+    return models
+  }
+
+  /**
    * Finds all paths to 'box-analysis' nodes in a nested dictionary structure
    * @param {Object} dict - The nested dictionary to search
    * @returns {Array<Array<string>>} - List of paths (each path is an array of keys)
@@ -136,7 +170,7 @@ const ResultsPane = ({ runFinalizeAndSave }) => {
               }
             }
           } else {
-            modelsTrained[part] = Array.from(new Set([...(modelsTrained[part] || []), correctedPath[correctedPath.length - 1]]))
+            modelsTrained[part] = findModelNodes(part, dict)
           }
           
         })
@@ -371,14 +405,14 @@ const ResultsPane = ({ runFinalizeAndSave }) => {
                         Single Selection
                       </label>
                     </div>
-                    <div className="flex align-items-center">
-                      <Button severity="info" size="sm" className="manage-pipelines-button" onClick={() => setVisible(true)} >
-                          <Icon.ArrowLeftRight style={{ marginRight: "10px", fontSize: "1rem" }} />
-                          Manage Pipelines
-                      </Button>
-                    </div>
                   </>
                 )}
+                <div className="flex align-items-center">
+                  <Button severity="info" size="sm" className="manage-pipelines-button" onClick={() => setVisible(true)} >
+                      <Icon.ArrowLeftRight style={{ marginRight: "10px", fontSize: "1rem" }} />
+                      Manage Pipelines
+                  </Button>
+                </div>
               </div>
             </div>
             <PipelineManager 
