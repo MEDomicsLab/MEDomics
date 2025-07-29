@@ -28,11 +28,11 @@ import { generateSSHKeyPair } from './sshKeygen.js'
 import {
   startSSHTunnel,
   getActiveTunnel,
-  getActiveTunnelServer,
   stopSSHTunnel,
-  setTunnelObject,
   detectRemoteOS,
-  startMongoTunnel
+  startMongoTunnel,
+  getRemoteLStat,
+  checkRemoteFileExists
 } from './utils/remoteFunctions.js'
 import express from "express"
 import bodyParser from "body-parser"
@@ -382,21 +382,19 @@ if (isProd) {
 
   // Remote express requests
   expressApp.post("/set-working-directory", async (req, res, next) =>{
-    console.log(`received set-working-directory : `, req.body)
     const workspacePath = req.body.workspacePath.startsWith("/") ? req.body.workspacePath.slice(1) : req.body.workspacePath;
     try {
       const result = await setWorkspaceDirectory(workspacePath);
-      console.log(`post setWorkspaceDirectory : ${workspacePath}`)
       if (result && result.hasBeenSet) {
-        console.log('Workspace set to: ' + workspacePath)
+        console.log('Workspace (from remote) set to: ' + workspacePath)
         result.isRemote = true;
         res.json({ success: true, workspace: result });
       } else {
-        console.log('error1, ', err)
+        console.log('Workspace specified by remote could not be set : ', err)
         res.status(500).json({ success: false, error: err.message });
       }
     } catch (err) {
-      console.log('error2, ', err)
+      console.log('Error setting workspace directory from remote : ', err)
       res.status(500).json({ success: false, error: err.message });
     }
   });
@@ -997,20 +995,29 @@ ipcMain.handle('getSSHKey', async (_event, { username }) => {
 })
 
 ipcMain.handle('startSSHTunnel', async (_event, params) => {
-  return startSSHTunnel(params);
+  return startSSHTunnel(params)
 });
 
 ipcMain.handle('startMongoTunnel', async () => {
-  return startMongoTunnel();
+  return startMongoTunnel()
 });
 
 ipcMain.handle('stopSSHTunnel', async () => {
-  return stopSSHTunnel();
+  return stopSSHTunnel()
 });
+
+ipcMain.handle('getRemoteLStat', async (_event, { path: remotePath }) => {
+  return getRemoteLStat(remotePath)
+})
+
+ipcMain.handle('checkRemoteFileExists', async (_event, { path: remotePath }) => {
+  return checkRemoteFileExists(remotePath)
+})
 
 ipcMain.handle('listRemoteDirectory', async (_event, { path: remotePath }) => {
   return new Promise((resolve, reject) => {
     const activeTunnel = getActiveTunnel()
+    console.log("listRemoteDirectory: ", activeTunnel ? "tunnel active" : "tunnel inactive")
     if (!activeTunnel) {
       return resolve({ path: remotePath, contents: [], error: 'No active SSH tunnel' })
     }
@@ -1055,6 +1062,7 @@ ipcMain.handle('listRemoteDirectory', async (_event, { path: remotePath }) => {
 // Unified remote directory navigation handler
 ipcMain.handle('navigateRemoteDirectory', async (_event, { action, path: currentPath, dirName }) => {
   const activeTunnel = getActiveTunnel()
+  console.log("navigateRemoteDirectory: ", activeTunnel ? "tunnel active" : "tunnel inactive")
   // Helper to get SFTP client
   function getSftp(cb) {
     if (!activeTunnel) return cb(new Error('No active SSH tunnel'))
@@ -1166,6 +1174,7 @@ ipcMain.handle('navigateRemoteDirectory', async (_event, { action, path: current
 
 ipcMain.handle('createRemoteFolder', async (_event, { path: parentPath, folderName }) => {
   const activeTunnel = getActiveTunnel()
+  console.log("createRemoteFolder: ", activeTunnel ? "tunnel active" : "tunnel inactive")
   // Helper to get SFTP client
   function getSftp(cb) {
     if (!activeTunnel) return cb(new Error('No active SSH tunnel'))

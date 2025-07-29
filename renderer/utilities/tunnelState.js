@@ -9,19 +9,10 @@ let tunnelInfo = {
   remoteDBPort: null,
   remotePort: null,
   username: null,
-  tunnelObject: null, // Optional: to store the tunnel object if needed
 };
 
 export function setTunnelState(info) {
-  tunnelInfo = { ...tunnelInfo, ...info, tunnelActive: !!info.tunnelActive }
-}
-
-export function setTunnelObject(tunnelObject) {
-  tunnelInfo.tunnelObject = tunnelObject;
-}
-
-export function getTunnelObject() {
-  return tunnelInfo.tunnelObject;
+  tunnelInfo = { ...tunnelInfo, ...info, tunnelActive: info.tunnelActive }
 }
 
 export function clearTunnelState() {
@@ -35,7 +26,6 @@ export function clearTunnelState() {
     remoteDBPort: null,
     remotePort: null,
     username: null,
-    tunnelObject: null,
   };
 }
 

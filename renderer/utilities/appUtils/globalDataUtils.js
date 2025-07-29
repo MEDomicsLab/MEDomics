@@ -1,7 +1,7 @@
 import { MEDDataObject } from "../../components/workspace/NewMedDataObject"
 import { recursivelyRecenseWorkspaceTree } from "./workspaceUtils"
 import { connectToMongoDB, insertMEDDataObjectIfNotExists } from "../../components/mongoDB/mongoDBUtils"
-import { checkRemoteFileExists } from "../../../main/utils/remoteFunctions"
+import { ipcRenderer } from "electron"
 
 /**
  * @description Used to update the data present in the DB with local files not present in the database
@@ -33,6 +33,7 @@ export const updateGlobalData = async (workspaceObject) => {
  * @returns medDataObjectsDict dict containing the MEDDataObjects in the Database
  */
 export async function loadMEDDataObjects(isRemote = false) {
+  console.log("Loading MEDDataObjects from MongoDB...")
   let medDataObjectsDict = {}
   try {
     // Get global data
@@ -42,13 +43,13 @@ export async function loadMEDDataObjects(isRemote = false) {
     const medDataObjectsArray = await collection.find().toArray()
 
     // Format data
-    medDataObjectsArray.forEach((data) => {
+    medDataObjectsArray.forEach(async (data) => {
       const medDataObject = new MEDDataObject(data)
 
       if (medDataObject.inWorkspace && medDataObject.path) {
         if (isRemote) {
           // Check if remote objects still exist
-          const fileStatus = checkRemoteFileExists(medDataObject.path)
+          const fileStatus = await ipcRenderer.invoke('checkRemoteFileExists', medDataObject.path)
           if (fileStatus == "exists") {
             medDataObjectsDict[medDataObject.id] = medDataObject
           } else if (fileStatus == "does not exist") {

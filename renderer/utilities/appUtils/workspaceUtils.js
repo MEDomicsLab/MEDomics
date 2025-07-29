@@ -1,7 +1,8 @@
 import { MEDDataObject } from "../../components/workspace/NewMedDataObject"
 import { randomUUID } from "crypto"
 import { insertMEDDataObjectIfNotExists } from "../../components/mongoDB/mongoDBUtils"
-import { getRemoteLStat } from "../../../main/utils/remoteFunctions"
+import { ipcRenderer } from "electron"
+
 
 // Import fs and path
 const fs = require("fs")
@@ -18,7 +19,7 @@ const path = require("path")
  */
 export async function recursivelyRecenseWorkspaceTree(children, parentID, isRemote = false) {
   for (const child of children) {
-    const stats = isRemote ? getRemoteLStat(child.path) : fs.lstatSync(child.path)
+    const stats = isRemote ? await ipcRenderer.invoke('getRemoteLStat', child.path) : fs.lstatSync(child.path)
     if (!stats) return
     let uuid = child.name == "DATA" || child.name == "EXPERIMENTS" ? child.name : randomUUID()
     let childType =
