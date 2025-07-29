@@ -1,9 +1,10 @@
+import { shell } from "electron"
 import { InputSwitch } from "primereact/inputswitch"
-import { Dropdown } from "primereact/dropdown"
 import { Panel } from "primereact/panel"
 import { useContext, useEffect, useState } from "react"
 import { Button, Stack } from "react-bootstrap"
 import * as Icon from "react-bootstrap-icons"
+import { AiOutlineInfoCircle } from "react-icons/ai"
 import { FlowFunctionsContext } from "../../flow/context/flowFunctionsContext"
 import Node from "../../flow/node"
 import HyperParameterInput from "../HyperParameterInput"
@@ -257,7 +258,15 @@ const TrainModelNode = ({ id, data }) => {
             {/* === INTEGRATE TUNING SECTION === */}
             <div style={{ border: "1px solid #ccc", borderRadius: "8px" }}>
               <div className="p-2 mb-1 d-flex justify-content-between align-items-center">
-                <label htmlFor="integrateTuning" className="me-2 mb-0">Tune Model</label>
+                <div className="d-flex align-items-center">
+                  <label htmlFor="integrateTuning" className="me-2 mb-0">Tune Model</label>
+                  <AiOutlineInfoCircle
+                    className="btn-info-node"
+                    onClick={() => {
+                      shell.openExternal("https://pycaret.readthedocs.io/en/stable/api/classification.html#pycaret.classification.tune_model")
+                  }}
+                  />
+                </div>
                 <InputSwitch
                   className="integrateTuning"
                   checked={IntegrateTuning}
@@ -369,7 +378,15 @@ const TrainModelNode = ({ id, data }) => {
             {/* ENSEMBLE SECTION */}
             <div className="p-2 mb-1" style={{ border: "1px solid #ccc", borderRadius: "8px" }}>
               <div className="mb-1 d-flex align-items-center justify-content-between">
-                <label className="me-2">Ensemble Model</label>
+                <div className="d-flex align-items-center">
+                  <label className="me-2">Ensemble Model</label>
+                  <AiOutlineInfoCircle
+                    className="btn-info-node"
+                    onClick={() => {
+                      shell.openExternal("https://pycaret.readthedocs.io/en/stable/api/classification.html#pycaret.classification.ensemble_model")
+                  }}
+                  />
+                </div>
                 <InputSwitch
                   checked={ensembleEnabled}
                   onChange={(e) => {
@@ -379,6 +396,7 @@ const TrainModelNode = ({ id, data }) => {
                     updateNode({ id, updatedData: data.internal })
                   }}
                 />
+                
               </div>
 
               {/* Ensemble Options */}
@@ -404,7 +422,15 @@ const TrainModelNode = ({ id, data }) => {
             {/* CALIBRATE SECTION */}
             <div className="p-2 mb-1" style={{ border: "1px solid #ccc", borderRadius: "8px" }}>
               <div className="mb-1 d-flex align-items-center justify-content-between">
-                <label className="me-2">Calibrate Model</label>
+                <div className="d-flex align-items-center">
+                  <label className="me-2">Calibrate Model</label>
+                  <AiOutlineInfoCircle
+                    className="btn-info-node"
+                    onClick={() => {
+                      shell.openExternal("https://pycaret.readthedocs.io/en/stable/api/classification.html#pycaret.classification.calibrate_model")
+                    }}
+                  />
+                </div>
                 <InputSwitch
                   checked={calibrateEnabled}
                   onChange={(e) => {

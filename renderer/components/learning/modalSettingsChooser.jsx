@@ -1,9 +1,10 @@
-import React, { useContext } from "react"
-import Modal from "react-bootstrap/Modal"
+import { shell } from "electron"
+import { useContext, useEffect, useState } from "react"
 import Button from "react-bootstrap/Button"
-import CheckOption from "./checkOption"
-import { useState, useEffect } from "react"
+import Modal from "react-bootstrap/Modal"
+import { AiOutlineInfoCircle } from "react-icons/ai"
 import { FlowFunctionsContext } from "../flow/context/flowFunctionsContext"
+import CheckOption from "./checkOption"
 
 /**
  *
@@ -18,7 +19,7 @@ import { FlowFunctionsContext } from "../flow/context/flowFunctionsContext"
  * This component is used to display a ModalSettingsChooser modal.
  * it handles the display of the modal and the available options
  */
-const ModalSettingsChooser = ({ show, onHide, options, id, data, optionsTuning = null,  optionsEnsemble = null, title }) => {
+const ModalSettingsChooser = ({ show, onHide, options, id, data, optionsTuning = null,  optionsEnsemble = null, title, link = null }) => {
   const [checkedUpdate, setCheckedUpdate] = useState(null)
   const [checkedUpdateTuning, setCheckedUpdateTuning] = useState(null)
   const [checkedUpdateEnsemble, setCheckedUpdateEnsemble] = useState(null)
@@ -96,9 +97,19 @@ const ModalSettingsChooser = ({ show, onHide, options, id, data, optionsTuning =
   return (
     // Base modal component built from react-bootstrap
     <Modal show={show} onHide={onHide} size="lg" aria-labelledby="contained-modal-title-vcenter" centered className="modal-settings-chooser">
-      <Modal.Header closeButton>
-        <Modal.Title id="contained-modal-title-vcenter">{title || (data.setupParam?.title + " options") || " Options"} </Modal.Title>
-      </Modal.Header>
+      <Modal.Header closeButton className="d-flex align-items-center">
+        <div className="d-flex align-items-center gap-2">
+        <Modal.Title id="contained-modal-title-vcenter" className="mb-2">
+          {title || (data.setupParam?.title + " options") || "Options"}
+        </Modal.Title>
+        {(link || data.setupParam?.link) && (
+          <AiOutlineInfoCircle
+            className="btn-info-node"
+            onClick={() => shell.openExternal(link || data.setupParam?.link)}
+          />
+        )}
+      </div>
+    </Modal.Header>
       {/* Display all the options available for the node */}
       <Modal.Body>
         {Object.entries(options).map(([optionName, optionInfos], i) => {

@@ -322,11 +322,48 @@ const Workflow = forwardRef(({ setWorkflowType, workflowType, isExperiment }, re
     if (isInitialized) {
       isExperiment ? [] : createDefaultBoxes() // create default boxes to add to the workflow
     }
+    checkDuplicateModelNodes(nodes) // check for duplicate model nodes and show a warning
     setTreeData(createTreeFromNodes())
     updateTrainModelNode(nodes, edges)
     cleanTrainModelNode(nodes)
     updateSplitNodesColumns(nodes)
   }, [nodes, edges, isExperiment, isInitialized])
+
+  // Check if there are duplicate model nodes and show a warning if there are
+  const checkDuplicateModelNodes = (nodes) => {
+    const modelNodes = nodes.filter((node) => node.type === "selectionNode" && node.data.internal.type === "model")
+    const duplicateNodes = modelNodes.filter((node, index) => modelNodes.findIndex((n) => n.data.internal.nameID === node.data.internal.nameID) !== index)
+    if (duplicateNodes.length > 0) {
+      duplicateNodes.forEach((node) => {
+        if (!node.data.internal.hasWarning.state) {
+          node.data.internal.hasWarning = { state: true, tooltip: <p>This model shares an ID with another node. To avoid conflicts, please update it.</p> }
+          setNodes((nds) =>
+            nds.map((n) => {
+              if (n.id === node.id) {
+                n.data.internal = node.data.internal
+              }
+              return n
+            })
+          )
+        }
+      })
+    } else if (modelNodes.length > 0) {
+      // Remove warnings if no duplicates are found
+      modelNodes.forEach((node) => {
+        if (node.data.internal.hasWarning && node.data.internal.hasWarning.state) {
+          node.data.internal.hasWarning = { state: false }
+          setNodes((nds) =>
+            nds.map((n) => {
+              if (n.id === node.id) {
+                n.data.internal = node.data.internal
+              }
+              return n
+            })
+          )
+        }
+      })
+    }
+  }
 
   // Update split node columns
   const updateSplitNodesColumns = (nodes) => {
@@ -937,6 +974,7 @@ const Workflow = forwardRef(({ setWorkflowType, workflowType, isExperiment }, re
               setupParams.possibleSettingsTuning = setupParamsTuning["possibleSettings"][newScene.MLType]
             }
             node.data.setupParam = setupParams
+            !node.data.internal.nameID && (node.data.internal.nameID = node.data.setupParam.nameID)
           } else if (node.id.startsWith("box-")) {
             node.draggable = false
           }
@@ -1036,6 +1074,7 @@ const Workflow = forwardRef(({ setWorkflowType, workflowType, isExperiment }, re
       }
     }
     newNode.data.setupParam = setupParams
+    newNode.data.internal.nameID = newNode.data.setupParam.nameID
     newNode.data.internal.code = ""
     newNode.className = setupParams.classes
 
