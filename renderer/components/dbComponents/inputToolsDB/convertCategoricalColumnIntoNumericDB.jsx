@@ -11,6 +11,8 @@ import { Slider } from "primereact/slider"
 import { InputNumber } from "primereact/inputnumber"
 import { requestBackend } from "../../../utilities/requests"
 import { ServerConnectionContext } from "../../serverConnection/connectionContext"
+import { Tooltip } from 'primereact/tooltip';
+        
 
 const ConvertCategoricalColumnIntoNumericDB = ({ currentCollection }) => {
   const { globalData } = useContext(DataContext)
@@ -290,6 +292,24 @@ const ConvertCategoricalColumnIntoNumericDB = ({ currentCollection }) => {
       }}
     >
       {loadingData && <Message severity="info" text="Loading..." style={{ marginBottom: "15px" }} />}
+      <Tooltip target=".experimental-tag" content="This tool is experimental and mostly intended for result visualization. We recommend using the Learning Module for validated preprocessing workflows." />
+
+      <div className="experimental-tag" style={{ textAlign: "right", marginBottom: "-5px" }}>
+        <span
+          style={{
+            background: "#fff3cd",
+            padding: "3px 8px",
+            borderRadius: "10px",
+            border: "1px solid #ffeeba",
+            fontSize: "0.75rem",
+            color: "#856404",
+            display: "inline-block"
+          }}
+        >
+          Experimental tool
+        </span>
+      </div>
+
       <Message severity="info" text="This tool identifies categorical columns in your dataset and converts them to numeric using One-Hot Encoding." style={{ marginBottom: "15px" }} />
       <Message severity="success" text={`Current Collection: ${globalData[currentCollection]?.name || "None"}`} style={{ marginBottom: "15px" }} />
       <div
