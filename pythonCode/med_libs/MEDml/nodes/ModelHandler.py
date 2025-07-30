@@ -46,7 +46,6 @@ class ModelHandler(Node):
     def __custom_train_and_evaluate(
             self, 
             pycaret_exp, 
-            model_id: str, 
             folds: list,
             X_processed: pd.DataFrame, 
             y_processed: pd.Series, 
@@ -93,17 +92,10 @@ class ModelHandler(Node):
 
             # Model Instantiation
             try:
-                # Check if estimator is already set in settings
-                if 'estimator' in ml_settings:
-                    if model_id != ml_settings['estimator']:
-                        raise ValueError(f"Model ID {model_id} does not match the estimator in settings. Please check your configuration.")
-                else:
-                    ml_settings['estimator'] = model_id
-                
                 # Use PyCaret's create_model instead of manual instantiation
                 model = pycaret_exp.create_model(verbose=False, **ml_settings)
             except Exception as e:
-                raise ValueError(f"Failed to create model {model_id} on fold {fold_num}. Error: {e}")
+                raise ValueError(f"Failed to create model on fold {fold_num}. Error: {e}")
 
             # Model Training
             try:
@@ -114,7 +106,7 @@ class ModelHandler(Node):
                 # Try fitting with specific train-test data
                 model.fit(X_train_fold, y_train_fold)
             except Exception as e:
-                raise ValueError(f"Failed to fit model {model_id}. Error: {e}")
+                raise ValueError(f"Failed to fit model on fold {fold_num}. Error: {e}")
 
             # Model Tuning
             try:
@@ -124,13 +116,13 @@ class ModelHandler(Node):
                         optimization_metric = self.settingsTuning['optimize']
                     
                     # Check if a custom grid is provided
-                    if self.useTuningGrid and model_id in list(self.config_json['data']['internal'].keys()) and 'custom_grid' in list(self.config_json['data']['internal'][model_id].keys()):
-                        self.settingsTuning['custom_grid'] = self.config_json['data']['internal'][model_id]['custom_grid']
+                    if self.useTuningGrid and self.model_id in list(self.config_json['data']['internal'].keys()) and 'custom_grid' in list(self.config_json['data']['internal'][self.model_id].keys()):
+                        self.settingsTuning['custom_grid'] = self.config_json['data']['internal'][self.model_id]['custom_grid']
                     
                     # Tune the model
                     model = pycaret_exp.tune_model(model, **self.settingsTuning)
             except Exception as e:
-                raise ValueError(f"Failed to tune model {model_id} on fold {fold_num}. Error: {e}")
+                raise ValueError(f"Failed to tune model on fold {fold_num}. Error: {e}")
 
             # Testing on the test set for this fold
             try:
@@ -150,7 +142,7 @@ class ModelHandler(Node):
                     'test_indices': test_indices
                 })
             except Exception as e:
-                raise ValueError(f"Failed to evaluate model {model_id} on fold {fold_num}. Error: {e}")
+                raise ValueError(f"Failed to evaluate model on fold {fold_num}. Error: {e}")
 
             # Store Results for the fold
             trained_models.append(model)
@@ -172,7 +164,7 @@ class ModelHandler(Node):
                 # Store the final model
                 return best_model
             except Exception as e:
-                raise ValueError(f"Failed to fit the best model {model_id} on the entire dataset. Error: {e}")
+                raise ValueError(f"Failed to fit the best model on the entire dataset. Error: {e}")
         else:
             raise ValueError("No fold performances were recorded. Check the training process.")
 
@@ -247,7 +239,6 @@ class ModelHandler(Node):
             else:
                 trained_model = self.__custom_train_and_evaluate(
                     pycaret_exp, 
-                    model_id, 
                     folds, 
                     X_processed, 
                     y_processed, 
@@ -290,6 +281,9 @@ class ModelHandler(Node):
             trained_models = [experiment['pycaret_exp'].create_model(**settings)]
             self.CodeHandler.add_line("code", f"trained_models = [pycaret_exp.create_model({self.CodeHandler.convert_dict_to_params(settings)})]")
             if self.isTuningEnabled:
+                # Check if a custom grid is provided
+                if self.useTuningGrid and self.model_id in list(self.config_json['data']['internal'].keys()) and 'custom_grid' in list(self.config_json['data']['internal'][self.model_id].keys()):
+                    self.settingsTuning['custom_grid'] = self.config_json['data']['internal'][self.model_id]['custom_grid']
                 trained_models = [experiment['pycaret_exp'].tune_model(trained_models[0], **self.settingsTuning)]
                 self.CodeHandler.add_line("code", f"trained_models = [pycaret_exp.tune_model(trained_models[0], {self.CodeHandler.convert_dict_to_params(self.settingsTuning)})]")
 

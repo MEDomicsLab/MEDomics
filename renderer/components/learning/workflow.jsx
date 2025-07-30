@@ -331,12 +331,12 @@ const Workflow = forwardRef(({ setWorkflowType, workflowType, isExperiment }, re
 
   // Check if there are duplicate model nodes and show a warning if there are
   const checkDuplicateModelNodes = (nodes) => {
-    const modelNodes = nodes.filter((node) => node.type === "selectionNode" && node.data.internal.type === "model")
-    const duplicateNodes = modelNodes.filter((node, index) => modelNodes.findIndex((n) => n.data.internal.nameID === node.data.internal.nameID) !== index)
+    const duplicateNodes = nodes.filter((node, index) => node.data.internal.nameID && nodes.findIndex((n) => n.data.internal.nameID === node.data.internal.nameID) !== index)
     if (duplicateNodes.length > 0) {
+      const nonDuplicateNodes = nodes.filter((node) => !duplicateNodes.includes(node))
       duplicateNodes.forEach((node) => {
-        if (!node.data.internal.hasWarning.state) {
-          node.data.internal.hasWarning = { state: true, tooltip: <p>This model shares an ID with another node. To avoid conflicts, please update it.</p> }
+        if (node.data.internal.hasWarning && !node.data.internal.hasWarning.state) {
+          node.data.internal.hasWarning = { state: true, tooltip: <p>This node shares the same ID with another node. To avoid conflicts, please update it.</p> }
           setNodes((nds) =>
             nds.map((n) => {
               if (n.id === node.id) {
@@ -347,10 +347,23 @@ const Workflow = forwardRef(({ setWorkflowType, workflowType, isExperiment }, re
           )
         }
       })
-    } else if (modelNodes.length > 0) {
+      nonDuplicateNodes.length > 0 && nonDuplicateNodes.forEach((node) => {
+        if (node.data.internal.hasWarning && node.data.internal.hasWarning.state && node.data.internal.hasWarning.tooltip.props.children.startsWith("This node shares the same ID")) {
+          node.data.internal.hasWarning = { state: false }
+          setNodes((nds) =>
+            nds.map((n) => {
+              if (n.id === node.id) {
+                n.data.internal = node.data.internal
+              }
+              return n
+            })
+          )
+        }
+      })
+    } else {
       // Remove warnings if no duplicates are found
-      modelNodes.forEach((node) => {
-        if (node.data.internal.hasWarning && node.data.internal.hasWarning.state) {
+      nodes.forEach((node) => {
+        if (node.data.internal.hasWarning && node.data.internal.hasWarning.state && node.data.internal.hasWarning.tooltip.props.children.startsWith("This node shares the same ID")) {
           node.data.internal.hasWarning = { state: false }
           setNodes((nds) =>
             nds.map((n) => {
@@ -474,8 +487,8 @@ const Workflow = forwardRef(({ setWorkflowType, workflowType, isExperiment }, re
     
     // Create a set of existing model selections for faster lookups
     const existingModelSelections = new Set(
-      modelSelectionNodes.filter((node) => node.data.internal.checkedOptions.length > 0).map(node => node.data.internal.selection.toString())
-      )
+      modelSelectionNodes.filter((node) => node.data.internal.checkedOptions.length > 0).map(node => node.id)
+    )
     
     // Get models to remove (those without corresponding selection nodes)
     const modelsToRemove = Object.keys(tuningGrid).filter(
@@ -517,13 +530,25 @@ const Workflow = forwardRef(({ setWorkflowType, workflowType, isExperiment }, re
       const listModelSelectionNode = nodes.filter((node) => node.type == "selectionNode" && node.data.internal.subflowId == groupNodeId.id&& node.data.internal.type == "model")
       for (const modelSelectionNode of listModelSelectionNode) {
         let newTrainModelNode = deepCopy(trainModelNode)
-        let selectedModel = modelSelectionNode.data.internal.selection.toString()
+        let selectedModel = modelSelectionNode.id
+        let modelName = modelSelectionNode.data.internal.selection
+        let modelFullName = modelSelectionNode.data.setupParam.possibleSettings[modelName].label
         if (Object.keys(modelSelectionNode.data.internal.settings).length > 0) {
           let filled = newTrainModelNode.data.internal.tuningGrid ? Object.keys(newTrainModelNode.data.internal.tuningGrid).length > 0 : false
           newTrainModelNode.data.internal.tuningGrid = filled ? deepCopy(newTrainModelNode.data.internal.tuningGrid) : {}
+          if (!newTrainModelNode.data.internal.hasOwnProperty("modelsInfo")) {
+            newTrainModelNode.data.internal["modelsInfo"] = {}
+          }
           if (selectedModel) {
             newTrainModelNode.data.internal.tuningGrid[selectedModel] = newTrainModelNode.data.internal.tuningGrid[selectedModel] ? deepCopy(newTrainModelNode.data.internal.tuningGrid[selectedModel]) : {}
             let alreadyUpdated = true
+            if (!newTrainModelNode.data.internal.modelsInfo.hasOwnProperty(selectedModel)) {
+              newTrainModelNode.data.internal.modelsInfo[selectedModel] = {
+                id: modelSelectionNode.id,
+                nameID: modelSelectionNode.data.internal.nameID,
+                name: modelFullName
+              }
+            }
             Object.keys(modelSelectionNode.data.internal.settings).forEach((setting) => {
               if (newTrainModelNode.data.internal.tuningGrid[selectedModel] && newTrainModelNode.data.internal.tuningGrid[selectedModel].hasOwnProperty(setting)) {
                 if (!modelSelectionNode.data.internal.checkedOptions.includes(setting)) {
@@ -562,7 +587,7 @@ const Workflow = forwardRef(({ setWorkflowType, workflowType, isExperiment }, re
             if (!alreadyUpdated) {
               newTrainModelNode.data.internal.tuningGrid[selectedModel] = {
                 ...newTrainModelNode.data.internal.tuningGrid[selectedModel],
-                ...{options: modelSelectionNode.data.setupParam.possibleSettings[selectedModel].options}
+                ...{options: modelSelectionNode.data.setupParam.possibleSettings[modelName].options}
               }
 
               setNodes((nds) =>
