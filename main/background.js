@@ -1022,7 +1022,7 @@ ipcMain.handle('getRemoteLStat', async (_event, path) => {
 })
 
 ipcMain.handle('checkRemoteFileExists', async (_event, path) => {
-  return checkRemoteFileExists(path)
+  return await checkRemoteFileExists(path)
 })
 
 ipcMain.handle('listRemoteDirectory', async (_event, { path: remotePath }) => {

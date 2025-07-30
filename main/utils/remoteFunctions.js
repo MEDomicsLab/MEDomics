@@ -306,7 +306,7 @@ export function checkRemoteFolderExists(folderPath) {
   return "does not exist"
 }
 
-export function checkRemoteFileExists(filePath) {
+export async function checkRemoteFileExists(filePath) {
   // Ensure tunnel is active and SSH client is available
   console.log("checkRemoteFileExists", filePath)
   const activeTunnel = getActiveTunnel()
@@ -316,7 +316,7 @@ export function checkRemoteFileExists(filePath) {
     return "tunnel inactive"
   }
   console.log("Starting sftp check for file: ", filePath)
-  activeTunnel.sftp((err, sftp) => {
+  await activeTunnel.sftp((err, sftp) => {
     if (err) {
       console.error('SFTP error:', err)
       return "sftp error"
@@ -329,11 +329,12 @@ export function checkRemoteFileExists(filePath) {
         console.log("File exists: ", filePath)
         sftp.end && sftp.end()
         return "exists"
+      } else {
+        console.log("File does not exist: ", filePath)
+        return "does not exist"
       }
     })
   })
-  console.log("File does not exist: ", filePath)
-  return "does not exist"
 }
 
 export function getRemoteLStat(Path) {

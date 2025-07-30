@@ -316,7 +316,6 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
   }, [visible, username, keyComment])
 
   const sendTestRequest = async () => {
-    console.log(ipcRenderer.rawListeners("checkRemoteFileExists"))
     console.log("Port: ", port)
     console.log("Tunnel state: ", getTunnelState())
     console.log("Tunnel context: ", tunnelContext.tunnelActive)
