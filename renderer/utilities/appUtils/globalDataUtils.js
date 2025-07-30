@@ -44,7 +44,7 @@ export async function loadMEDDataObjects(isRemote = false) {
     const medDataObjectsArray = await collection.find().toArray()
 
     // Format data
-    medDataObjectsArray.forEach(async (data) => {
+    for (const data of medDataObjectsArray) {
       const medDataObject = new MEDDataObject(data)
 
       if (medDataObject.inWorkspace && medDataObject.path) {
@@ -72,7 +72,7 @@ export async function loadMEDDataObjects(isRemote = false) {
       } else {
         medDataObjectsDict[medDataObject.id] = medDataObject
       }
-    })
+    }
   } catch (error) {
     console.error("Failed to load MEDDataObjects: ", error)
   }
