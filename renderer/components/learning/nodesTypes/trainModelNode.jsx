@@ -331,8 +331,18 @@ const TrainModelNode = ({ id, data }) => {
                   }}>
                   <div style={{ fontWeight: "bold", margin: "10px 0" }}>Custom Tuning Grid</div>
                   {Object.keys(data.internal.tuningGrid).map((model) => {
+                    const header = (
+                      <div style={{ display: "flex", flexDirection: "column", alignItems: "left"}}>
+                        <span>{data.internal.modelsInfo[model].name}</span>
+                        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                          <label style={{ fontWeight: "bold", fontStyle: "italic", fontSize: "0.9rem" }}>
+                            ID: {data.internal.modelsInfo[model].nameID}
+                          </label>
+                        </div>
+                      </div>
+                    )
                     return (
-                      <Panel header={data.internal.modelsInfo[model].name} key={model} collapsed toggleable>
+                      <Panel header={header} key={model} collapsed toggleable>
                         {Object.keys(data.internal.tuningGrid[model].options).filter((setting => data.internal.tuningGrid[model].hasOwnProperty(setting))).map((setting) => {
                         return (
                           <HyperParameterInput
