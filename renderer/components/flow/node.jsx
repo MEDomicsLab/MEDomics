@@ -94,7 +94,6 @@ const NodeObject = ({ id, data, nodeSpecific, color = null, nodeBody, defaultSet
         toastId: "customId"
       })
     }
-    console.log("debug newName", newName)
     setNodeName(newName)
   }
 
