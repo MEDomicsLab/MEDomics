@@ -1,6 +1,6 @@
 import { getTunnelState } from "../../renderer/utilities/tunnelState.js"
-import { Client } from 'ssh2'
-const net = require('net')
+import { Client } from "ssh2"
+const net = require("net")
 
 // Global tunnel state for remote connection management
 let activeTunnel = null
@@ -36,28 +36,24 @@ export function getActiveTunnelServer() {
  * @param {number|string} params.remoteDBPort
  * @returns {Promise<{success: boolean}>}
  */
-export async function startSSHTunnel({
-  host,
-  username,
-  privateKey,
-  password,
-  remotePort,
-  localBackendPort,
-  remoteBackendPort,
-  localDBPort,
-  remoteDBPort
-}) {
+export async function startSSHTunnel({ host, username, privateKey, password, remotePort, localBackendPort, remoteBackendPort, localDBPort, remoteDBPort }) {
   return new Promise((resolve, reject) => {
     mongoDBLocalPort = localDBPort
     mongoDBRemotePort = remoteDBPort
 
     if (activeTunnelServer) {
-      try { activeTunnelServer.backendServer.close() } catch {}
-      try { activeTunnelServer.mongoServer && activeTunnelServer.mongoServer.close() } catch {}
+      try {
+        activeTunnelServer.backendServer.close()
+      } catch {}
+      try {
+        activeTunnelServer.mongoServer && activeTunnelServer.mongoServer.close()
+      } catch {}
       setActiveTunnelServer(null)
     }
     if (activeTunnel) {
-      try { activeTunnel.end() } catch {}
+      try {
+        activeTunnel.end()
+      } catch {}
       setActiveTunnel(null)
     }
     const connConfig = {
@@ -68,41 +64,37 @@ export async function startSSHTunnel({
     if (privateKey) connConfig.privateKey = privateKey
     if (password) connConfig.password = password
     const conn = new Client()
-    conn.on('ready', () => {
-      console.log("SSH connection established to", host)
-      // Backend port forwarding only
-      const backendServer = net.createServer((socket) => {
-        conn.forwardOut(
-          socket.localAddress || '127.0.0.1',
-          socket.localPort || 0,
-          '127.0.0.1',
-          parseInt(remoteBackendPort),
-          (err, stream) => {
+    conn
+      .on("ready", () => {
+        console.log("SSH connection established to", host)
+        // Backend port forwarding only
+        const backendServer = net.createServer((socket) => {
+          conn.forwardOut(socket.localAddress || "127.0.0.1", socket.localPort || 0, "127.0.0.1", parseInt(remoteBackendPort), (err, stream) => {
             if (err) {
               console.error(err)
               socket.destroy()
               return
             }
             socket.pipe(stream).pipe(socket)
-          }
-        )
-      })
-      backendServer.listen(localBackendPort, '127.0.0.1')
-      backendServer.on('error', (e) => {
-        conn.end()
-        console.error("Connection to backend server error:", e)
-        reject(new Error('Backend local server error: ' + e.message))
-      })
+          })
+        })
+        backendServer.listen(localBackendPort, "127.0.0.1")
+        backendServer.on("error", (e) => {
+          conn.end()
+          console.error("Connection to backend server error:", e)
+          reject(new Error("Backend local server error: " + e.message))
+        })
 
-      setActiveTunnel(conn)
-      setActiveTunnelServer({ backendServer: backendServer })
-      resolve({ success: true })
-    }).on('error', (err) => {
-      reject(new Error('SSH connection error: ' + err.message))
-    }).connect(connConfig)
+        setActiveTunnel(conn)
+        setActiveTunnelServer({ backendServer: backendServer })
+        resolve({ success: true })
+      })
+      .on("error", (err) => {
+        reject(new Error("SSH connection error: " + err.message))
+      })
+      .connect(connConfig)
   })
 }
-
 
 /**
  * Checks if a port is open on the remote host via SSH.
@@ -114,7 +106,7 @@ async function checkRemotePortOpen(conn, port) {
   // Use detectRemoteOS to determine the remote OS and select the right command
   const remoteOS = await detectRemoteOS()
   let checkCmd
-  if (remoteOS === 'win32') {
+  if (remoteOS === "win32") {
     // Windows: use netstat and findstr
     checkCmd = `netstat -an | findstr :${port}`
   } else {
@@ -128,16 +120,16 @@ async function checkRemotePortOpen(conn, port) {
         return reject(err)
       }
       let found = false
-      let stdout = ''
-      let stderr = ''
-      stream.on('data', (data) => {
+      let stdout = ""
+      let stderr = ""
+      stream.on("data", (data) => {
         stdout += data.toString()
         if (data.toString().includes(port)) found = true
       })
-      stream.stderr.on('data', (data) => {
+      stream.stderr.on("data", (data) => {
         stderr += data.toString()
       })
-      stream.on('close', (code, signal) => {
+      stream.on("close", (code, signal) => {
         resolve(found)
       })
     })
@@ -153,7 +145,7 @@ export async function startMongoTunnel() {
   return new Promise(async (resolve, reject) => {
     const conn = getActiveTunnel()
     if (!conn) {
-      reject(new Error('No active SSH connection for MongoDB tunnel.'))
+      reject(new Error("No active SSH connection for MongoDB tunnel."))
     }
 
     // Retry logic: up to 5 times, 3s delay
@@ -172,7 +164,7 @@ export async function startMongoTunnel() {
       if (!portOpen) {
         attempts++
         if (attempts < maxAttempts) {
-          await new Promise(res => setTimeout(res, delayMs))
+          await new Promise((res) => setTimeout(res, delayMs))
         }
       }
     }
@@ -182,30 +174,26 @@ export async function startMongoTunnel() {
 
     // If mongoServer already exists, close it first
     if (activeTunnelServer && activeTunnelServer.mongoServer) {
-      try { activeTunnelServer.mongoServer.close() } catch {}
+      try {
+        activeTunnelServer.mongoServer.close()
+      } catch {}
     }
     const mongoServer = net.createServer((socket) => {
-      conn.forwardOut(
-        socket.localAddress || '127.0.0.1',
-        socket.localPort || 0,
-        '127.0.0.1',
-        parseInt(mongoDBRemotePort),
-        (err, stream) => {
-          if (err) {
-            console.error(err)
-            socket.destroy()
-            return
-          }
-          socket.pipe(stream).pipe(socket)
+      conn.forwardOut(socket.localAddress || "127.0.0.1", socket.localPort || 0, "127.0.0.1", parseInt(mongoDBRemotePort), (err, stream) => {
+        if (err) {
+          console.error(err)
+          socket.destroy()
+          return
         }
-      )
+        socket.pipe(stream).pipe(socket)
+      })
     })
-    mongoServer.listen(mongoDBLocalPort, '127.0.0.1')
+    mongoServer.listen(mongoDBLocalPort, "127.0.0.1")
 
-    mongoServer.on('error', (e) => {
+    mongoServer.on("error", (e) => {
       conn.end()
       console.error("Connection to backend Mongo error:", e)
-      reject(new Error('Mongo local server error: ' + e.message))
+      reject(new Error("Mongo local server error: " + e.message))
     })
 
     // Update activeTunnelServer to include mongoServer
@@ -236,13 +224,12 @@ export async function confirmMongoTunnel() {
         attempts++
         if (attempts >= maxAttempts) {
           clearInterval(interval)
-          reject({ success: false, error: 'MongoDB tunnel is not listening after multiple attempts.' })
+          reject({ success: false, error: "MongoDB tunnel is not listening after multiple attempts." })
         }
       }
     }, 3000)
   })
 }
-
 
 /**
  * Stops the SSH tunnel and closes all forwarded servers.
@@ -272,38 +259,45 @@ export async function stopSSHTunnel() {
     }
   }
   if (activeTunnel) {
-    try { activeTunnel.end() } catch {}
+    try {
+      activeTunnel.end()
+    } catch {}
     setActiveTunnel(null)
     success = true
   }
   if (success) return { success: true }
-  return { success: false, error: error || 'No active tunnel' }
+  return { success: false, error: error || "No active tunnel" }
 }
 
 export function checkRemoteFolderExists(folderPath) {
   // Ensure tunnel is active and SSH client is available
   const tunnelObject = getActiveTunnel()
   if (!tunnelObject) {
-    const errMsg = 'No active SSH tunnel for remote folder creation.'
+    const errMsg = "No active SSH tunnel for remote folder creation."
     console.error(errMsg)
-    return "tunnel inactive"
+    return Promise.resolve("tunnel inactive")
   }
-  tunnelObject.sftp((err, sftp) => {
-    if (err) {
-      console.error('SFTP error:', err)
-      return "sftp error"
-    }
 
-    // Check if folder exists
-    sftp.stat(folderPath, (statErr, stats) => {
-      if (!statErr && stats && stats.isDirectory()) {
-        // Folder exists
-        sftp.end && sftp.end()
-        return "exists"
+  return new Promise((resolve, reject) => {
+    tunnelObject.sftp((err, sftp) => {
+      if (err) {
+        console.error("SFTP error:", err)
+        resolve("sftp error")
+        return
       }
+
+      // Check if folder exists
+      sftp.stat(folderPath, (statErr, stats) => {
+        if (!statErr && stats && stats.isDirectory()) {
+          // Folder exists
+          sftp.end && sftp.end()
+          resolve("exists")
+        } else {
+          resolve("does not exist")
+        }
+      })
     })
   })
-  return "does not exist"
 }
 
 export async function checkRemoteFileExists(filePath) {
@@ -311,28 +305,32 @@ export async function checkRemoteFileExists(filePath) {
   console.log("checkRemoteFileExists", filePath)
   const activeTunnel = getActiveTunnel()
   if (!activeTunnel) {
-    const errMsg = 'No active SSH tunnel for remote file check.'
+    const errMsg = "No active SSH tunnel for remote file check."
     console.error(errMsg)
     return "tunnel inactive"
   }
   console.log("Starting sftp check for file: ", filePath)
-  await activeTunnel.sftp((err, sftp) => {
-    if (err) {
-      console.error('SFTP error:', err)
-      return "sftp error"
-    }
-    console.log("SFTP client ready, checking file: ", filePath)
-    // Check if file exists
-    sftp.stat(filePath, (statErr, stats) => {
-      if (!statErr && stats && ((stats.isFile && stats.isFile()) || (stats.isDirectory && stats.isDirectory()))) {
-        // File exists
-        console.log("File exists: ", filePath)
-        sftp.end && sftp.end()
-        return "exists"
-      } else {
-        console.log("File does not exist: ", filePath)
-        return "does not exist"
+
+  return new Promise((resolve, reject) => {
+    activeTunnel.sftp((err, sftp) => {
+      if (err) {
+        console.error("SFTP error:", err)
+        resolve("sftp error")
+        return
       }
+      console.log("SFTP client ready, checking file: ", filePath)
+      // Check if file exists
+      sftp.stat(filePath, (statErr, stats) => {
+        if (!statErr && stats && ((stats.isFile && stats.isFile()) || (stats.isDirectory && stats.isDirectory()))) {
+          // File exists
+          console.log("File exists: ", filePath)
+          sftp.end && sftp.end()
+          resolve("exists")
+        } else {
+          console.log("File does not exist: ", filePath)
+          resolve("does not exist")
+        }
+      })
     })
   })
 }
@@ -342,52 +340,57 @@ export function getRemoteLStat(Path) {
   // Ensure tunnel is active and SSH client is available
   const activeTunnel = getActiveTunnel()
   if (!activeTunnel) {
-    const errMsg = 'No active SSH tunnel for remote lstat.'
+    const errMsg = "No active SSH tunnel for remote lstat."
     console.error(errMsg)
-    return null
+    return Promise.resolve(null)
   }
-  activeTunnel.sftp((err, sftp) => {
-    if (err) {
-      console.error('SFTP error:', err)
-      return null
-    }
 
-    // Check if file exists
-    sftp.lstat(Path, (statErr, stats) => {
-      console.log("sftp.lstat result :", stats)
-      if (statErr) {
-        return null
-      } else {
-        return stats
+  return new Promise((resolve, reject) => {
+    activeTunnel.sftp((err, sftp) => {
+      if (err) {
+        console.error("SFTP error:", err)
+        resolve(null)
+        return
       }
+
+      // Check if file exists
+      sftp.lstat(Path, (statErr, stats) => {
+        console.log("sftp.lstat result :", stats)
+        if (statErr) {
+          resolve(null)
+        } else {
+          resolve(stats)
+        }
+      })
     })
   })
-  return null
 }
 
 export async function detectRemoteOS() {
   return new Promise((resolve, reject) => {
-    activeTunnel.exec('uname -s', (err, stream) => {
+    activeTunnel.exec("uname -s", (err, stream) => {
       if (err) {
         // Assume Windows if uname fails
-        resolve('win32')
+        resolve("win32")
         return
       }
-      let output = ''
-      stream.on('data', (outputData) => { output += outputData.toString() })
-      stream.on('close', () => {
+      let output = ""
+      stream.on("data", (outputData) => {
+        output += outputData.toString()
+      })
+      stream.on("close", () => {
         const out = output.trim().toLowerCase()
-        if (out.includes('linux')) {
-          resolve('linux')
-        } else if (out.includes('darwin')) {
-          resolve('darwin')
-        } else if (out.includes('bsd')) {
-          resolve('unix')
+        if (out.includes("linux")) {
+          resolve("linux")
+        } else if (out.includes("darwin")) {
+          resolve("darwin")
+        } else if (out.includes("bsd")) {
+          resolve("unix")
         } else {
-          resolve('win32')
+          resolve("win32")
         }
       })
-      stream.stderr.on('data', () => resolve('win32'))
+      stream.stderr.on("data", () => resolve("win32"))
     })
   })
 }
