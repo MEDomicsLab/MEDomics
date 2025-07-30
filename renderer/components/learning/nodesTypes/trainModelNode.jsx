@@ -25,7 +25,7 @@ import ModalSettingsChooser from "../modalSettingsChooser"
  */
 const TrainModelNode = ({ id, data }) => {
   const [modalShow, setModalShow] = useState(false) // state of the modal
-  const [usePycaretSearchSpace, setUsePycaretSearchSpace] = useState(false) // state of the checkbox
+  const [usePycaretSearchSpace, setUsePycaretSearchSpace] = useState(true) // state of the checkbox
   const [modalShowTuning, setModalShowTuning] = useState(false)
   const { updateNode } = useContext(FlowFunctionsContext)
   const [IntegrateTuning, setIntegrateTuning] = useState(data.internal.isTuningEnabled ?? false)
@@ -294,7 +294,6 @@ const TrainModelNode = ({ id, data }) => {
                       <Icon.Plus width="20px" height="20px" />
                     </Button>
                 </div>
-                <hr />
                 <div className="p-3 mb-3 mt-3">
                   <div className="mb-1 d-flex align-items-center">
                     <label 
@@ -333,7 +332,7 @@ const TrainModelNode = ({ id, data }) => {
                   <div style={{ fontWeight: "bold", margin: "10px 0" }}>Custom Tuning Grid</div>
                   {Object.keys(data.internal.tuningGrid).map((model) => {
                     return (
-                      <Panel header={model} key={model} collapsed toggleable>
+                      <Panel header={data.internal.modelsInfo[model].name} key={model} collapsed toggleable>
                         {Object.keys(data.internal.tuningGrid[model].options).filter((setting => data.internal.tuningGrid[model].hasOwnProperty(setting))).map((setting) => {
                         return (
                           <HyperParameterInput

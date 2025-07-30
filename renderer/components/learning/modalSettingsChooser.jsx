@@ -96,7 +96,7 @@ const ModalSettingsChooser = ({ show, onHide, options, id, data, optionsTuning =
 
   return (
     // Base modal component built from react-bootstrap
-    <Modal show={show} onHide={onHide} size="lg" aria-labelledby="contained-modal-title-vcenter" centered className="modal-settings-chooser">
+    <Modal show={show} onHide={onHide} size="lg" aria-labelledby="contained-modal-title-vcenter" centered className="modal-settings-chooser" style={{ zIndex: 100000 }}>
       <Modal.Header closeButton className="d-flex align-items-center">
         <div className="d-flex align-items-center gap-2">
         <Modal.Title id="contained-modal-title-vcenter" className="mb-2">

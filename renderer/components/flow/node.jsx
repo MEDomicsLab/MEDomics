@@ -103,8 +103,8 @@ const NodeObject = ({ id, data, nodeSpecific, color = null, nodeBody, defaultSet
       <div className="node">
         {data.internal.hasWarning.state && (
           <>
-            <Tag className="node-warning-tag" icon="pi pi-exclamation-triangle" severity="warning" value="" rounded data-pr-position="left" data-pr-showdelay={200} />
-            <Tooltip target=".node-warning-tag">
+            <Tag className={`node-warning-tag-${id}`} icon="pi pi-exclamation-triangle" severity="warning" value="" rounded data-pr-position="left" data-pr-showdelay={200} />
+            <Tooltip target={`.node-warning-tag-${id}`}>
               <span>{data.internal.hasWarning.tooltip}</span>
             </Tooltip>
           </>
