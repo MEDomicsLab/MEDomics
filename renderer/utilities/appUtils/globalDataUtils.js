@@ -8,6 +8,7 @@ import { ipcRenderer } from "electron"
  * @param {Object} workspaceObject
  */
 export const updateGlobalData = async (workspaceObject) => {
+  console.log("Updating global data: ", workspaceObject)
   let rootChildren = workspaceObject.workingDirectory.children
   let rootParentID = "ROOT"
   let rootName = workspaceObject.workingDirectory.name
@@ -49,6 +50,7 @@ export async function loadMEDDataObjects(isRemote = false) {
       if (medDataObject.inWorkspace && medDataObject.path) {
         if (isRemote) {
           // Check if remote objects still exist
+          console.log(`Checking remote existence of: ${medDataObject.name} at ${medDataObject.path}`)
           const fileStatus = await ipcRenderer.invoke('checkRemoteFileExists', medDataObject.path)
           if (fileStatus == "exists") {
             medDataObjectsDict[medDataObject.id] = medDataObject
