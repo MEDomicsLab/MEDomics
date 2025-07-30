@@ -590,12 +590,12 @@ const classificationModelSettings = {
             },
             "n_iter_no_change": {
                 "type": "int",
-                "default_val": "10",
+                "default_val": 10,
                 "tooltip": "int, default=10. Number of iterations with no improvement to wait before stopping fitting. Convergence is checked against the training loss or the validation loss depending on the early_stopping parameter. Integer values must be in the range [1, max_iter)."
             },
             "max_fun": {
                 "type": "int",
-                "default_val": "15000",
+                "default_val": 15000,
                 "tooltip": "int, default=15000. Only used when solver=’lbfgs’. Maximum number of loss function calls."
             }
         },
@@ -641,7 +641,7 @@ const classificationModelSettings = {
             },
             "random_state": {
                 "type": "int",
-                "default_val": "1334",
+                "default_val": 1334,
                 "tooltip": "int, default=1334. Used when solver == ‘sag’ or ‘saga’ to shuffle the data."     
                    },
             "class_weight": {
@@ -662,7 +662,7 @@ const classificationModelSettings = {
             },
             "n_estimators": {
                 "type": "int",
-                "default_val": "100",
+                "default_val": 100,
                 "tooltip": "int, default=100. The maximum number of estimators at which boosting is terminated. In case of perfect fit, the learning procedure is stopped early. Values must be in the range [1, inf)."
             },
             "estimator_params": {
@@ -687,17 +687,17 @@ const classificationModelSettings = {
             },
             "n_jobs": {
                 "type": "int",
-                "default_val": "-1",
+                "default_val": -1,
                 "tooltip": "int, default=-1. Number of CPU cores used when parallelizing over classes if multi_class=’ovr’”. This parameter is ignored when the solver is set to ‘liblinear’ regardless of whether ‘multi_class’ is specified or not."
             },
             "random_state": {
                 "type": "int",
-                "default_val": "1334",
+                "default_val": 1334,
                 "tooltip": "int, default=1334. Controls the random resampling of the original dataset (sample wise and feature wise). "          
               },
             "verbose": {
                 "type": "int",
-                "default_val": "0",
+                "default_val": 0,
                 "tooltip": "int, default=0. Controls the verbosity when fitting and predicting."
             },
             "warm_start": {
@@ -732,7 +732,7 @@ const classificationModelSettings = {
             },
             "min_samples_leaf": {
                 "type": "int",
-                "default_val": "1",
+                "default_val": 1,
                 "tooltip": "int, default=1. The minimum number of samples required to be at a leaf node. A split point at any depth will only be considered if it leaves at least min_samples_leaf training samples in each of the left and right branches. This may have the effect of smoothing the model, especially in regression."
             },
             "min_weight_fraction_leaf": {
@@ -799,7 +799,7 @@ const classificationModelSettings = {
             },
             "n_estimators": {
                 "type": "int",
-                "default_val": "50",
+                "default_val": 50,
                 "tooltip": "int, default=50. The maximum number of estimators at which boosting is terminated. In case of perfect fit, the learning procedure is stopped early. Values must be in the range [1, inf)."
             },
             "estimator_params": {
@@ -819,7 +819,7 @@ const classificationModelSettings = {
             },
             "random_state": {
                 "type": "int",
-                "default_val": "1334",
+                "default_val": 1334,
                 "tooltip": "int, default=1334. Controls the random seed given at each estimator at each boosting iteration."
                         },
             "algorithm": {
@@ -835,7 +835,7 @@ const classificationModelSettings = {
         "options": {
             "n_estimators": {
                 "type": "int",
-                "default_val": "100",
+                "default_val": 100,
                 "tooltip": "int, default=100. The maximum number of estimators at which boosting is terminated. In case of perfect fit, the learning procedure is stopped early. Values must be in the range [1, inf)."
             },
             "learning_rate": {
@@ -860,7 +860,7 @@ const classificationModelSettings = {
             },
             "min_samples_leaf": {
                 "type": "int",
-                "default_val": "1",
+                "default_val": 1,
                 "tooltip": "int, default=1. The minimum number of samples required to be at a leaf node. A split point at any depth will only be considered if it leaves at least min_samples_leaf training samples in each of the left and right branches. This may have the effect of smoothing the model, especially in regression."
             },
             "min_weight_fraction_leaf": {
@@ -880,7 +880,7 @@ const classificationModelSettings = {
             },
             "max_depth": {
                 "type": "int",
-                "default_val": "3",
+                "default_val": 3,
                 "tooltip": "int, default=3. The maximum depth of the tree. If None, then nodes are expanded until all leaves are pure or until all leaves contain less than min_samples_split samples."
             },
             "min_impurity_decrease": {
@@ -900,7 +900,7 @@ const classificationModelSettings = {
             },
             "random_state": {
                 "type": "int",
-                "default_val": "1334",
+                "default_val": 1334,
                 "tooltip": "int, default=1334. Controls the random seed given to each Tree estimator at each boosting iteration. "           
              },
             "alpha": {
@@ -910,7 +910,7 @@ const classificationModelSettings = {
             },
             "verbose": {
                 "type": "int",
-                "default_val": "0",
+                "default_val": 0,
                 "tooltip": "int, default=0. Enable verbose output. If 1 then it prints progress and performance once in a while (the more trees the lower the frequency)"
             },
             "max_leaf_nodes": {
@@ -994,7 +994,7 @@ const classificationModelSettings = {
             },
             "n_estimators": {
                 "type": "int",
-                "default_val": "100",
+                "default_val": 100,
                 "tooltip": "int, default=100. The maximum number of estimators at which boosting is terminated. In case of perfect fit, the learning procedure is stopped early. Values must be in the range [1, inf)."
             },
             "estimator_params": {
@@ -1019,17 +1019,17 @@ const classificationModelSettings = {
             },
             "n_jobs": {
                 "type": "int",
-                "default_val": "-1",
+                "default_val": -1,
                 "tooltip": "int, default=-1. Number of CPU cores used when parallelizing over classes if multi_class=’ovr’”. This parameter is ignored when the solver is set to ‘liblinear’ regardless of whether ‘multi_class’ is specified or not."
             },
             "random_state": {
                 "type": "int",
-                "default_val": "1334",
+                "default_val": 1334,
                 "tooltip": "int, default=1334. Controls the random resampling of the original dataset (sample wise and feature wise). "          
                   },
             "verbose": {
                 "type": "int",
-                "default_val": "0",
+                "default_val": 0,
                 "tooltip": "int, default=0. Controls the verbosity when fitting and predicting."
             },
             "warm_start": {
@@ -1064,7 +1064,7 @@ const classificationModelSettings = {
             },
             "min_samples_leaf": {
                 "type": "int",
-                "default_val": "1",
+                "default_val": 1,
                 "tooltip": "int, default=1. The minimum number of samples required to be at a leaf node. A split point at any depth will only be considered if it leaves at least min_samples_leaf training samples in each of the left and right branches. This may have the effect of smoothing the model, especially in regression."
             },
             "min_weight_fraction_leaf": {
@@ -1110,12 +1110,12 @@ const classificationModelSettings = {
             },
             "num_leaves": {
                 "type": "int",
-                "default_val": "31",
+                "default_val": 31,
                 "tooltip": "int, default=31. Maximum tree leaves for base learners."
             },
             "max_depth": {
                 "type": "int",
-                "default_val": "-1",
+                "default_val": -1,
                 "tooltip": "int, default=-1. The maximum depth of the tree. If None, then nodes are expanded until all leaves are pure or until all leaves contain less than min_samples_split samples."
             },
             "learning_rate": {
@@ -1125,12 +1125,12 @@ const classificationModelSettings = {
             },
             "n_estimators": {
                 "type": "int",
-                "default_val": "100",
+                "default_val": 100,
                 "tooltip": "int, default=100. The maximum number of estimators at which boosting is terminated. In case of perfect fit, the learning procedure is stopped early. Values must be in the range [1, inf)."
             },
             "subsample_for_bin": {
                 "type": "int",
-                "default_val": "200000",
+                "default_val": 200000,
                 "tooltip": "int, default=200000.  Number of samples for constructing bins."
             },
             "min_split_gain": {
@@ -1145,7 +1145,7 @@ const classificationModelSettings = {
             },
             "min_child_samples": {
                 "type": "int",
-                "default_val": "20",
+                "default_val": 20,
                 "tooltip": "int, default=20. Minimum number of data needed in a child (leaf)."
             },
             "subsample": {
@@ -1155,7 +1155,7 @@ const classificationModelSettings = {
             },
             "subsample_freq": {
                 "type": "int",
-                "default_val": "0",
+                "default_val": 0,
                 "tooltip": "int, default=0. Frequency of subsample, <=0 means no enable."
             },
             "colsample_bytree": {
@@ -1175,12 +1175,12 @@ const classificationModelSettings = {
             },
             "random_state": {
                 "type": "int",
-                "default_val": "1334",
+                "default_val": 1334,
                 "tooltip": "int, default=1334. Random number seed. If int, this number is used to seed the C++ code. "  
                       },
             "n_jobs": {
                 "type": "int",
-                "default_val": "-1",
+                "default_val": -1,
                 "tooltip": "int, default=-1. Number of CPU cores used when parallelizing over classes if multi_class=’ovr’”. This parameter is ignored when the solver is set to ‘liblinear’ regardless of whether ‘multi_class’ is specified or not."
             },
             "importance_type": {
@@ -1206,7 +1206,7 @@ const classificationModelSettings = {
             },
             "random_state": {
                 "type": "int",
-                "default_val": "1334",
+                "default_val": 1334,
                 "tooltip": "int, default=1334. Controls the randomness to generate the predictions when strategy='stratified' or strategy='uniform'. Pass an int for reproducible output across multiple function calls."
                         },
             "constant": {
