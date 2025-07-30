@@ -6,12 +6,16 @@ import { MultiSelect } from "primereact/multiselect"
 import { Dropdown } from "primereact/dropdown"
 import { InputText } from "primereact/inputtext"
 import { OverlayPanel } from "primereact/overlaypanel"
+import { toast } from "react-toastify"
 import { requestBackend } from "../../../utilities/requests"
 import { getCollectionColumns } from "../../mongoDB/mongoDBUtils"
+import { insertMEDDataObjectIfNotExists } from "../../mongoDB/mongoDBUtils"
 import { ServerConnectionContext } from "../../serverConnection/connectionContext"
 import { DataContext } from "../../workspace/dataContext"
-import { toast } from "react-toastify"
-import { MEDDataObject } from "../../workspace/NewMedDataObject" // ✅ Needed to refresh the workspace
+import { MEDDataObject } from "../../workspace/NewMedDataObject"
+import { randomUUID } from "crypto" 
+import { Tooltip } from 'primereact/tooltip';
+        
 
 const NormalizeToolsDB = ({ currentCollection }) => {
   const { port } = useContext(ServerConnectionContext)
@@ -45,7 +49,7 @@ const NormalizeToolsDB = ({ currentCollection }) => {
     fetchColumns()
   }, [currentCollection])
 
-  const handleNormalizeRequest = (overwrite) => {
+  const handleNormalizeRequest = async (overwrite) => {
     if (!newDatasetName) {
       toast.error("Please provide a name for the new normalized dataset")
       return
@@ -56,15 +60,41 @@ const NormalizeToolsDB = ({ currentCollection }) => {
       return
     }
 
+    const collectionName = newDatasetName + ".csv"
+    let exists = false
+    for (const item of Object.keys(globalData)) {
+      if (globalData[item].name && globalData[item].name === collectionName) {
+        exists = true
+        break
+      }
+    }
+
+    if (exists && !overwrite) {
+      toast.error("Dataset already exists. Use overwrite option if you want to replace it.")
+      return
+    }
+
+    const id = randomUUID()
     const jsonToSend = {
       collection: currentCollection,
       columns: selectedColumns,
       method: normalizationMethod,
-      newDatasetName: newDatasetName + ".csv",
+      newDatasetName: id,
       overwrite: overwrite
     }
 
-    console.log("Sending payload******:", jsonToSend)
+    if (!exists || !overwrite) {
+      const object = new MEDDataObject({
+        id: id,
+        name: collectionName,
+        type: "csv",
+        parentID: globalData[currentCollection].parentID,
+        childrenIDs: [],
+        inWorkspace: false
+      })
+    
+      insertMEDDataObjectIfNotExists(object)
+    }    
 
     setLoading(true)
     requestBackend(
@@ -79,8 +109,6 @@ const NormalizeToolsDB = ({ currentCollection }) => {
           return
         }
         toast.success("Normalization applied successfully")
-
-        // ✅ Refresh workspace data to make new dataset appear
         MEDDataObject.updateWorkspaceDataObject()
       },
       (error) => {
@@ -93,6 +121,24 @@ const NormalizeToolsDB = ({ currentCollection }) => {
 
   return (
     <div>
+      <Tooltip target=".experimental-tag" content="This tool is experimental and mostly intended for result visualization. We recommend using the Learning Module for validated preprocessing workflows." />
+
+      <div className="experimental-tag" style={{ textAlign: "right", marginBottom: "-5px" }}>
+        <span
+          style={{
+            background: "#fff3cd",
+            padding: "3px 8px",
+            borderRadius: "10px",
+            border: "1px solid #ffeeba",
+            fontSize: "0.75rem",
+            color: "#856404",
+            display: "inline-block"
+          }}
+        >
+          Experimental tool
+        </span>
+      </div>
+
       <Message
         text="The normalization tool scales selected numerical columns using a specified method such as Min-Max, Z-Score, or Robust."
         severity="info"
@@ -137,15 +183,15 @@ const NormalizeToolsDB = ({ currentCollection }) => {
 
       <OverlayPanel ref={op} showCloseIcon={true} dismissable={true} style={{ width: "430px", padding: "10px" }} onHide={() => setNewDatasetName("")}>
         <h4 style={{ fontSize: "0.8rem", margin: "10px 0" }}>
-          Do you want to <b>overwrite</b> the dataset or <b>create a new one</b> ?
+          Do you want to <b>overwrite</b> the dataset or <b>create a new one</b>?
         </h4>
         <div style={{ display: "flex", justifyContent: "space-between" }}>
-          <Button className="p-button-danger" label="Overwrite" style={{ margin: "5px", fontSize: "0.8rem", padding: "6px 10px" }} onClick={() => handleNormalizeRequest(true)} />
+          <Button className="p-button-danger" label="Overwrite" style={{ width : "200px", margin: "5px", fontSize: "0.8rem", padding: "6px 10px" }} onClick={() => handleNormalizeRequest(true)} />
           <div className="p-inputgroup w-full md:w-30rem" style={{ margin: "5px", fontSize: "0.8rem" }}>
-            <InputText value={newDatasetName} onChange={(e) => setNewDatasetName(e.target.value)} placeholder="New collection name" />
+            <InputText value={newDatasetName} onChange={(e) => setNewDatasetName(e.target.value)} placeholder="New collection name"/>
             <span className="p-inputgroup-addon">.csv</span>
           </div>
-          <Button label="Create New" loading={loading} style={{ margin: "5px", fontSize: "0.8rem", padding: "6px 10px" }} onClick={() => handleNormalizeRequest(false)} />
+          <Button label="Create New" loading={loading} style={{ width : "200px", margin: "5px", fontSize: "0.8rem", padding: "6px 10px" }} onClick={() => handleNormalizeRequest(false)} />
         </div>
       </OverlayPanel>
     </div>
