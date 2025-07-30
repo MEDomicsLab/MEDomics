@@ -52,6 +52,7 @@ export async function loadMEDDataObjects(isRemote = false) {
           // Check if remote objects still exist
           console.log(`Checking remote existence of: ${medDataObject.name} at ${medDataObject.path}`)
           const fileStatus = await ipcRenderer.invoke('checkRemoteFileExists', medDataObject.path)
+          console.log(`Remote existence check for ${medDataObject.name}: `, fileStatus)
           if (fileStatus == "exists") {
             medDataObjectsDict[medDataObject.id] = medDataObject
           } else if (fileStatus == "does not exist") {

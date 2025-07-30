@@ -228,9 +228,16 @@ function App() {
   // This useEffect hook is called whenever the `workspaceObject` state changes.
   useEffect(() => {
     async function getGlobalData() {
-      await updateGlobalData(workspaceObject)
-      const newGlobalData = await loadMEDDataObjects(workspaceObject.isRemote)
-      setGlobalData(newGlobalData)
+      let result
+      if (workspaceObject.isRemote) {
+        result = await ipcRenderer.invoke("confirmMongoTunnel")
+      }
+
+      if (!result || (result && result.success)) {
+        await updateGlobalData(workspaceObject)
+        const newGlobalData = await loadMEDDataObjects(workspaceObject.isRemote)
+        setGlobalData(newGlobalData)
+      }
     }
     if (workspaceObject.hasBeenSet == true) {
       console.log("workspaceObject changed", workspaceObject)

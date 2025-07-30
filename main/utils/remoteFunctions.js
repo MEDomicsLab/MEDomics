@@ -156,11 +156,11 @@ export async function startMongoTunnel() {
       reject(new Error('No active SSH connection for MongoDB tunnel.'))
     }
 
-    // Retry logic: up to 3 times, 5s delay
+    // Retry logic: up to 5 times, 3s delay
     let portOpen = false
     let attempts = 0
-    const maxAttempts = 3
-    const delayMs = 5000
+    const maxAttempts = 5
+    const delayMs = 3000
     while (attempts < maxAttempts && !portOpen) {
       try {
         console.log(`Checking if remote MongoDB port ${mongoDBRemotePort} is open...`)
@@ -218,6 +218,33 @@ export async function startMongoTunnel() {
 }
 
 /**
+ * Confirms that the mongoDB tunnel is active and the server is listening.
+ * @returns {Promise<{success: boolean, error?: string}>}
+ */
+export async function confirmMongoTunnel() {
+  console.log("Confirming MongoDB tunnel is active...")
+  return new Promise((resolve, reject) => {
+    // Check the value of activeTunnelServer.mongoServer every 3000 ms, up to 10 times
+    let attempts = 0
+    const maxAttempts = 10
+    const interval = setInterval(() => {
+      if (activeTunnelServer && activeTunnelServer.mongoServer) {
+        clearInterval(interval)
+        console.log("MongoDB tunnel is active and listening.")
+        resolve({ success: true })
+      } else {
+        attempts++
+        if (attempts >= maxAttempts) {
+          clearInterval(interval)
+          reject({ success: false, error: 'MongoDB tunnel is not listening after multiple attempts.' })
+        }
+      }
+    }, 3000)
+  })
+}
+
+
+/**
  * Stops the SSH tunnel and closes all forwarded servers.
  * @returns {Promise<{success: boolean, error?: string}>}
  */
@@ -269,7 +296,7 @@ export function checkRemoteFolderExists(folderPath) {
 
     // Check if folder exists
     sftp.stat(folderPath, (statErr, stats) => {
-      if (!statErr && stats && stats.isDirectory && stats.isDirectory()) {
+      if (!statErr && stats && stats.isDirectory()) {
         // Folder exists
         sftp.end && sftp.end()
         return "exists"
@@ -283,7 +310,6 @@ export function checkRemoteFileExists(filePath) {
   // Ensure tunnel is active and SSH client is available
   console.log("checkRemoteFileExists", filePath)
   const activeTunnel = getActiveTunnel()
-  console.log("activeTunnel :", activeTunnel ? "active" : "null")
   if (!activeTunnel) {
     const errMsg = 'No active SSH tunnel for remote file check.'
     console.error(errMsg)
@@ -298,9 +324,7 @@ export function checkRemoteFileExists(filePath) {
     console.log("SFTP client ready, checking file: ", filePath)
     // Check if file exists
     sftp.stat(filePath, (statErr, stats) => {
-      console.log("sftp.stat result :", stats)
-      console.log("sftp.stat error :", statErr)
-      if (!statErr && stats && stats.isFile && stats.isFile()) {
+      if (!statErr && stats && ((stats.isFile && stats.isFile()) || (stats.isDirectory && stats.isDirectory()))) {
         // File exists
         console.log("File exists: ", filePath)
         sftp.end && sftp.end()
@@ -308,10 +332,12 @@ export function checkRemoteFileExists(filePath) {
       }
     })
   })
+  console.log("File does not exist: ", filePath)
   return "does not exist"
 }
 
 export function getRemoteLStat(Path) {
+  console.log("getRemoteLStat", Path)
   // Ensure tunnel is active and SSH client is available
   const activeTunnel = getActiveTunnel()
   if (!activeTunnel) {
@@ -327,6 +353,7 @@ export function getRemoteLStat(Path) {
 
     // Check if file exists
     sftp.lstat(Path, (statErr, stats) => {
+      console.log("sftp.lstat result :", stats)
       if (statErr) {
         return null
       } else {

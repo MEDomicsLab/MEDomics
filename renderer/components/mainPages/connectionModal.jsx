@@ -316,6 +316,7 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
   }, [visible, username, keyComment])
 
   const sendTestRequest = async () => {
+    console.log(ipcRenderer.rawListeners("checkRemoteFileExists"))
     console.log("Port: ", port)
     console.log("Tunnel state: ", getTunnelState())
     console.log("Tunnel context: ", tunnelContext.tunnelActive)
@@ -613,6 +614,7 @@ const DirectoryBrowser = ({ directoryContents, onDirClick }) => {
                       toast.success("Workspace set successfully on remote app.")
                       if (response.data.workspace !== workspace) {
                         let workspaceToSet = { ...response.data.workspace }
+                        workspaceToSet.newPort = tunnelState.localBackendPort
                         setWorkspace(workspaceToSet)
                         handleConnectMongoDB()
                       }

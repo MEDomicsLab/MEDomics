@@ -32,7 +32,8 @@ import {
   detectRemoteOS,
   startMongoTunnel,
   getRemoteLStat,
-  checkRemoteFileExists
+  checkRemoteFileExists,
+  confirmMongoTunnel
 } from './utils/remoteFunctions.js'
 import express from "express"
 import bodyParser from "body-parser"
@@ -1008,16 +1009,20 @@ ipcMain.handle('startMongoTunnel', async () => {
   return startMongoTunnel()
 });
 
+ipcMain.handle('confirmMongoTunnel', async () => {
+  return confirmMongoTunnel()
+});
+
 ipcMain.handle('stopSSHTunnel', async () => {
   return stopSSHTunnel()
 });
 
-ipcMain.handle('getRemoteLStat', async (_event, { path: remotePath }) => {
-  return getRemoteLStat(remotePath)
+ipcMain.handle('getRemoteLStat', async (_event, path) => {
+  return getRemoteLStat(path)
 })
 
-ipcMain.handle('checkRemoteFileExists', async (_event, { path: remotePath }) => {
-  return checkRemoteFileExists(remotePath)
+ipcMain.handle('checkRemoteFileExists', async (_event, path) => {
+  return checkRemoteFileExists(path)
 })
 
 ipcMain.handle('listRemoteDirectory', async (_event, { path: remotePath }) => {
