@@ -382,7 +382,13 @@ if (isProd) {
 
   // Remote express requests
   expressApp.post("/set-working-directory", async (req, res, next) =>{
-    const workspacePath = req.body.workspacePath.startsWith("/") ? req.body.workspacePath.slice(1) : req.body.workspacePath;
+    let workspacePath = req.body.workspacePath
+    if (process.platform === "win32") {
+      if (workspacePath.startsWith("/")) {
+        workspacePath = workspacePath.slice(1)
+      } 
+    }
+    console.log("Received request to set workspace directory from remote: ", workspacePath)
     try {
       const result = await setWorkspaceDirectory(workspacePath);
       if (result && result.hasBeenSet) {
