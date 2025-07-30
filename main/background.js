@@ -1023,7 +1023,6 @@ ipcMain.handle('checkRemoteFileExists', async (_event, { path: remotePath }) => 
 ipcMain.handle('listRemoteDirectory', async (_event, { path: remotePath }) => {
   return new Promise((resolve, reject) => {
     const activeTunnel = getActiveTunnel()
-    console.log("listRemoteDirectory: ", activeTunnel ? "tunnel active" : "tunnel inactive")
     if (!activeTunnel) {
       return resolve({ path: remotePath, contents: [], error: 'No active SSH tunnel' })
     }
@@ -1068,7 +1067,6 @@ ipcMain.handle('listRemoteDirectory', async (_event, { path: remotePath }) => {
 // Unified remote directory navigation handler
 ipcMain.handle('navigateRemoteDirectory', async (_event, { action, path: currentPath, dirName }) => {
   const activeTunnel = getActiveTunnel()
-  console.log("navigateRemoteDirectory: ", activeTunnel ? "tunnel active" : "tunnel inactive")
   // Helper to get SFTP client
   function getSftp(cb) {
     if (!activeTunnel) return cb(new Error('No active SSH tunnel'))
@@ -1180,7 +1178,6 @@ ipcMain.handle('navigateRemoteDirectory', async (_event, { action, path: current
 
 ipcMain.handle('createRemoteFolder', async (_event, { path: parentPath, folderName }) => {
   const activeTunnel = getActiveTunnel()
-  console.log("createRemoteFolder: ", activeTunnel ? "tunnel active" : "tunnel inactive")
   // Helper to get SFTP client
   function getSftp(cb) {
     if (!activeTunnel) return cb(new Error('No active SSH tunnel'))

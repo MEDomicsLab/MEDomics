@@ -10,7 +10,6 @@ let mongoDBLocalPort = null
 let mongoDBRemotePort = null
 
 export function setActiveTunnel(tunnel) {
-  console.log("Setting active tunnel: ", tunnel ? "not null" : "null")
   activeTunnel = tunnel
 }
 export function setActiveTunnelServer(server) {
@@ -132,18 +131,13 @@ async function checkRemotePortOpen(conn, port) {
       let stdout = ''
       let stderr = ''
       stream.on('data', (data) => {
-        console.log("STDOUT:", data.toString())
         stdout += data.toString()
         if (data.toString().includes(port)) found = true
       })
       stream.stderr.on('data', (data) => {
-        console.log("STDERR:", data.toString())
         stderr += data.toString()
       })
       stream.on('close', (code, signal) => {
-        console.log("Stream closed. Code:", code, ", Signal:", signal)
-        console.log("Full STDOUT:", stdout)
-        console.log("Full STDERR:", stderr)
         resolve(found)
       })
     })
