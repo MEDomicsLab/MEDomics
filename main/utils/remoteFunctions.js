@@ -359,7 +359,7 @@ export async function getRemoteLStat(filePath) {
         if (statErr) {
           resolve(null)
         } else {
-          resolve(stats)
+          resolve({ fileStats: stats, isDir: stats.isDirectory() })
         }
       })
     })

@@ -18,18 +18,31 @@ const path = require("path")
  * It is called when the working directory is set
  */
 export async function recursivelyRecenseWorkspaceTree(children, parentID, isRemote = false) {
+  let childType
   for (const child of children) {
-    const stats = isRemote ? await ipcRenderer.invoke('getRemoteLStat', child.path) : fs.lstatSync(child.path)
-    if (!stats) return
+    if (isRemote) {
+      const fileInfo = await ipcRenderer.invoke('getRemoteLStat', child.path)
+      if (!fileInfo) return
+      childType = fileInfo.isDir && 
+        child.path.slice(1) != "medml" &&
+        child.path.slice(1) != "medmlres" &&
+        child.path.slice(1) != "medeval" &&
+        child.path.slice(1) != "medmodel"
+          ? "directory"
+          : child.path.slice(1)
+    } else {
+      const stats = fs.lstatSync(child.path)
+      if (!stats) return
+      childType = stats.isDirectory() &&
+        path.extname(child.path).slice(1) != "medml" &&
+        path.extname(child.path).slice(1) != "medmlres" &&
+        path.extname(child.path).slice(1) != "medeval" &&
+        path.extname(child.path).slice(1) != "medmodel"
+          ? "directory"
+          : path.extname(child.path).slice(1)
+    }
     let uuid = child.name == "DATA" || child.name == "EXPERIMENTS" ? child.name : randomUUID()
-    let childType =
-      stats.isDirectory() &&
-      path.extname(child.path).slice(1) != "medml" &&
-      path.extname(child.path).slice(1) != "medmlres" &&
-      path.extname(child.path).slice(1) != "medeval" &&
-      path.extname(child.path).slice(1) != "medmodel"
-        ? "directory"
-        : path.extname(child.path).slice(1)
+    
     let childObject = new MEDDataObject({
       id: uuid,
       name: child.name,
