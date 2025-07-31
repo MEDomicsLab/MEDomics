@@ -301,6 +301,7 @@ class ModelHandler(Node):
                 self.CodeHandler.add_line("code", f"trained_models = [pycaret_exp.calibrate_model(trained_models[0], {self.CodeHandler.convert_dict_to_params(self.settingsCalibrate)})]")
 
             if finalize:
+                self.CodeHandler.add_line("md", "##### *Finalizing models*")
                 self.CodeHandler.add_line("code", f"for model in trained_models:")
                 self.CodeHandler.add_line(
                     "code",
