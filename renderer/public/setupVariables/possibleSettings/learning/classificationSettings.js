@@ -781,11 +781,12 @@ const classificationSettings = {
             "<p>Controls cross-validation. If None, the CV generator in the fold_strategy\nparameter of the setup function is used. When an integer is passed,\nit is interpreted as the \u2018n_splits\u2019 parameter of the CV generator in the\nsetup function.</p>\n",
           default_val: "None"
         },
+        /*
         use_bootstrap_632: {
           type: "bool",
           tooltip: "When enabled, applies the 0.632 correction to combine in-bag and out-of-bag error estimates. Only use if the model was trained using Bootstrapping.",
           default_val: "True"
-        },
+        },*/
         fit_kwargs: {
           type: "dict",
           tooltip: "<p>Dictionary of arguments passed to the fit method of the model.</p>\n",
