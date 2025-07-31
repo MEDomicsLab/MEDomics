@@ -339,6 +339,7 @@ const PipelinesResults = ({ pipelines, fullPipelines, selectionMode, flowContent
         }
         if (node && node.name == "Model") {
           if (node.data.internal.name != "Model") return node.data.internal.name
+          if (node.data.internal.nameID && node.data.internal.nameID != "Model") return node.data.internal.nameID
           if (node.data.internal.selection) {
             const selection = node.data.internal.selection
             const modelName = node.data.setupParam.possibleSettings[selection]?.label

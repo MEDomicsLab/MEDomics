@@ -38,6 +38,7 @@ class ModelHandler(Node):
                 self.settingsCalibrate = self.config_json['data']['internal'].get('settingsCalibration', {})
             self.model_id = self.config_json['associated_id']
             model_obj = self.global_config_json['nodes'][self.model_id]
+            self.model_name_id = model_obj['data']['internal'].get('nameID', None)
             self.config_json['data']['estimator'] = {
                 "type": model_obj['data']['internal']['selection'],
                 "settings": model_obj['data']['internal']['settings']
@@ -255,6 +256,10 @@ class ModelHandler(Node):
         print()
         print(Fore.BLUE + "=== fit === " + Fore.YELLOW + f"({self.username})" + Fore.RESET)
         print(Fore.CYAN + f"Using {self.type}" + Fore.RESET)
+        if self.model_name_id is not None:
+            self.CodeHandler.add_line("md", f"##### *Model ID: {self.model_name_id}*")
+        else:
+            self.CodeHandler.add_line("md", f"##### *Model ID: {self.username}*")
         trained_models = None
         trained_models_json = {}
         settings = copy.deepcopy(self.settings)
@@ -296,6 +301,7 @@ class ModelHandler(Node):
                 self.CodeHandler.add_line("code", f"trained_models = [pycaret_exp.calibrate_model(trained_models[0], {self.CodeHandler.convert_dict_to_params(self.settingsCalibrate)})]")
 
             if finalize:
+                self.CodeHandler.add_line("md", "##### *Finalizing models*")
                 self.CodeHandler.add_line("code", f"for model in trained_models:")
                 self.CodeHandler.add_line(
                     "code",
