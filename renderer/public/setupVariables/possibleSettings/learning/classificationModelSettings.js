@@ -602,57 +602,6 @@ const classificationModelSettings = {
         "code": "mlp",
         "label": "Multi-Layer Perceptron"
     },
-    "ridge": {
-        "options": {
-            "alpha": {
-                "type": "float",
-                "default_val": "1.0",
-                "tooltip": "float, default=1.0. Constant that multiplies the penalty terms."
-            },
-            "fit_intercept": {
-                "type": "bool",
-                "default_val": "True",
-                "tooltip": "Bool. default=True. Whether to calculate the intercept for this model. If set to False, no intercept will be used in calculations (i.e. data is expected to be centered)."
-            },
-            "copy_X": {
-                "type": "bool",
-                "default_val": "True",
-                "tooltip": "bool, default=True. If True, X will be copied; else, it may be overwritten."
-            },
-            "max_iter": {
-                "type": "NoneType",
-                "default_val": "None",
-                "tooltip": "NoneType, default=None. The maximum number of iterations to be run."
-            },
-            "tol": {
-                "type": "float",
-                "default_val": "0.0001",
-                "tooltip": "float, default=0.0001. Tolerance for stopping criteria."
-            },
-            "solver": {
-                "type": "string",
-                "default_val": "auto",
-                "tooltip": "string, default=’auto’. Algorithm to use in the optimization problem."
-            },
-            "positive": {
-                "type": "bool",
-                "default_val": "False",
-                "tooltip": "bool, default=False. When set to True, forces the coefficients to be positive."
-            },
-            "random_state": {
-                "type": "int",
-                "default_val": 1334,
-                "tooltip": "int, default=1334. Used when solver == ‘sag’ or ‘saga’ to shuffle the data."     
-                   },
-            "class_weight": {
-                "type": "NoneType",
-                "default_val": "None",
-                "tooltip": "NoneType, default=None. Set the parameter C of class i to class_weight[i]*C for SVC. If not given, all classes are supposed to have weight one. The “balanced” mode uses the values of y to automatically adjust weights inversely proportional to class frequencies in the input data as n_samples / (n_classes * np.bincount(y))."
-            }
-        },
-        "code": "ridge",
-        "label": "Ridge Classifier"
-    },
     "rf": {
         "options": {
             "estimator": {

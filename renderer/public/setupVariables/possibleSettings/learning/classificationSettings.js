@@ -498,7 +498,7 @@ const classificationSettings = {
       use_gpu: {
         type: "list",
         tooltip:
-          "<p>When set to True, it will use GPU for training with algorithms that support it,\nand fall back to CPU if they are unavailable. When set to \u2018force\u2019, it will only\nuse GPU-enabled algorithms and raise exceptions when they are unavailable. When\nFalse, all algorithms are trained using CPU only.</p>\n<p>GPU enabled algorithms:</p>\n<ul >\n<li><p>Extreme Gradient Boosting, requires no further installation</p></li>\n<li><p>CatBoost Classifier, requires no further installation</p></li>\n</ul>\n<p>(GPU is only enabled when data &gt; 50,000 rows)</p>\n<ul >\n<li><p>Light Gradient Boosting Machine, requires GPU installation</p></li>\n</ul>\n<p>https://lightgbm.readthedocs.io/en/latest/GPU-Tutorial.html</p>\n<ul >\n<li><p>Logistic Regression, Ridge Classifier, Random Forest, K Neighbors Classifier,</p></li>\n</ul>\n<p>Support Vector Machine, requires cuML &gt;= 0.15\nhttps://github.com/rapidsai/cuml</p>\n",
+          "<p>When set to True, it will use GPU for training with algorithms that support it,\nand fall back to CPU if they are unavailable. When set to \u2018force\u2019, it will only\nuse GPU-enabled algorithms and raise exceptions when they are unavailable. When\nFalse, all algorithms are trained using CPU only.</p>\n<p>GPU enabled algorithms:</p>\n<ul >\n<li><p>Extreme Gradient Boosting, requires no further installation</p></li>\n<li><p>CatBoost Classifier, requires no further installation</p></li>\n</ul>\n<p>(GPU is only enabled when data &gt; 50,000 rows)</p>\n<ul >\n<li><p>Light Gradient Boosting Machine, requires GPU installation</p></li>\n</ul>\n<p>https://lightgbm.readthedocs.io/en/latest/GPU-Tutorial.html</p>\n<ul >\n<li><p>Logistic Regression, Random Forest, K Neighbors Classifier,</p></li>\n</ul>\n<p>Support Vector Machine, requires cuML &gt;= 0.15\nhttps://github.com/rapidsai/cuml</p>\n",
         default_val: "False",
         choices: {
           False: "tooltip False",
@@ -601,7 +601,6 @@ const classificationSettings = {
           rbfsvm: "SVM - Radial Kernel",
           gpc: "Gaussian Process Classifier",
           mlp: "MLP Classifier",
-          ridge: "Ridge Classifier",
           rf: "Random Forest Classifier",
           qda: "Quadratic Discriminant Analysis",
           ada: "Ada Boost Classifier",
@@ -628,7 +627,6 @@ const classificationSettings = {
           rbfsvm: "SVM - Radial Kernel",
           gpc: "Gaussian Process Classifier",
           mlp: "MLP Classifier",
-          ridge: "Ridge Classifier",
           rf: "Random Forest Classifier",
           qda: "Quadratic Discriminant Analysis",
           ada: "Ada Boost Classifier",
@@ -1124,7 +1122,6 @@ const classificationSettings = {
           rbfsvm: "SVM - Radial Kernel",
           gpc: "Gaussian Process Classifier",
           mlp: "MLP Classifier",
-          ridge: "Ridge Classifier",
           rf: "Random Forest Classifier",
           qda: "Quadratic Discriminant Analysis",
           ada: "Ada Boost Classifier",
