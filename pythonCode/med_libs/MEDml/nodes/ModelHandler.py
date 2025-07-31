@@ -256,7 +256,7 @@ class ModelHandler(Node):
         print()
         print(Fore.BLUE + "=== fit === " + Fore.YELLOW + f"({self.username})" + Fore.RESET)
         print(Fore.CYAN + f"Using {self.type}" + Fore.RESET)
-        if self.model_name_id is not None:
+        if self.type == "train_model" and getattr(self, "model_name_id", None) is not None:
             self.CodeHandler.add_line("md", f"##### *Model ID: {self.model_name_id}*")
         else:
             self.CodeHandler.add_line("md", f"##### *Model ID: {self.username}*")
