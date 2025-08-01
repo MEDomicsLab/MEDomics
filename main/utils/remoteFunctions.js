@@ -305,34 +305,41 @@ export async function checkRemoteFileExists(filePath) {
   console.log("checkRemoteFileExists", filePath)
   const activeTunnel = getActiveTunnel()
   if (!activeTunnel) {
-    const errMsg = "No active SSH tunnel for remote file check."
+    const errMsg = 'No active SSH tunnel for remote file check.'
     console.error(errMsg)
     return "tunnel inactive"
   }
-  console.log("Starting sftp check for file: ", filePath)
 
-  return new Promise((resolve, reject) => {
+  const getSftp = () => new Promise((resolve, reject) => {
     activeTunnel.sftp((err, sftp) => {
-      if (err) {
-        console.error("SFTP error:", err)
-        resolve("sftp error")
-        return
-      }
-      console.log("SFTP client ready, checking file: ", filePath)
-      // Check if file exists
-      sftp.stat(filePath, (statErr, stats) => {
-        if (!statErr && stats && ((stats.isFile && stats.isFile()) || (stats.isDirectory && stats.isDirectory()))) {
-          // File exists
-          console.log("File exists: ", filePath)
-          sftp.end && sftp.end()
-          resolve("exists")
-        } else {
-          console.log("File does not exist: ", filePath)
-          resolve("does not exist")
-        }
-      })
-    })
-  })
+      if (err) return reject(err);
+      resolve(sftp);
+    });
+  });
+
+  const statFile = (sftp, filePath) => new Promise((resolve, reject) => {
+    sftp.stat(filePath, (err, stats) => {
+      if (err) return resolve(false); // File does not exist
+      const exists = stats && ((stats.isFile && stats.isFile()) || (stats.isDirectory && stats.isDirectory()));
+      resolve(exists);
+    });
+  });
+
+  try {
+    const sftp = await getSftp();
+    const exists = await statFile(sftp, filePath);
+    sftp.end && sftp.end();
+    if (exists) {
+      console.log("File exists:", filePath);
+      return "exists";
+    } else {
+      console.log("File does not exist:", filePath);
+      return "does not exist";
+    }
+  } catch (error) {
+    console.error("SFTP error:", error);
+    return "sftp error";
+  }
 }
 
 export async function getRemoteLStat(filePath) {
@@ -340,30 +347,33 @@ export async function getRemoteLStat(filePath) {
   // Ensure tunnel is active and SSH client is available
   const activeTunnel = getActiveTunnel()
   if (!activeTunnel) {
-    const errMsg = "No active SSH tunnel for remote lstat."
+    const errMsg = 'No active SSH tunnel for remote lstat.'
     console.error(errMsg)
-    return Promise.resolve(null)
+    return null
   }
-
-  return new Promise((resolve, reject) => {
+    const getSftp = () => new Promise((resolve, reject) => {
     activeTunnel.sftp((err, sftp) => {
-      if (err) {
-        console.error("SFTP error:", err)
-        resolve(null)
-        return
-      }
+      if (err) return reject(err);
+      resolve(sftp);
+    });
+  });
 
-      // Check if file exists
-      sftp.lstat(Path, (statErr, stats) => {
-        console.log("sftp.lstat result :", stats)
-        if (statErr) {
-          resolve(null)
-        } else {
-          resolve({ fileStats: stats, isDir: stats.isDirectory() })
-        }
-      })
-    })
-  })
+  const lstatFile = (sftp, filePath) => new Promise((resolve, reject) => {
+    sftp.stat(filePath, (err, stats) => {
+      if (err) return reject(err); // File does not exist
+      resolve(stats);
+    });
+  });
+
+  try {
+    const sftp = await getSftp()
+    const fileStats = await lstatFile(sftp, filePath)
+    sftp.end && sftp.end()
+    return fileStats
+  } catch (error) {
+    console.error("SFTP error:", error);
+    return "sftp error";
+  }
 }
 
 export async function detectRemoteOS() {

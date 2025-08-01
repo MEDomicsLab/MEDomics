@@ -21,7 +21,14 @@ export async function recursivelyRecenseWorkspaceTree(children, parentID, isRemo
   let childType
   for (const child of children) {
     if (isRemote) {
-      const fileInfo = await ipcRenderer.invoke('getRemoteLStat', child.path)
+      let fileInfo
+      try {
+        fileInfo = await ipcRenderer.invoke('getRemoteLStat', child.path)
+      }
+      catch (error) {
+        console.error(`Error getting remote file info for ${child.path}:`, error)
+        continue
+      }
       if (!fileInfo) return
       childType = fileInfo.isDir && 
         child.path.slice(1) != "medml" &&
