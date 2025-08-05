@@ -328,6 +328,11 @@ const WorkflowBase = ({ isGoodConnection, groupNodeHandlingDefault, onDeleteNode
         }
       })
 
+      // Special check: split -> clean is not allowed
+      if (sourceNode.data.internal.type === "split" && targetNode.data.internal.type === "clean") {
+        isValidConnection = false
+      }
+
       // if isGoodConnection is defined, check if the connection is valid again with the isGoodConnection function
       isGoodConnection && (isValidConnection = isValidConnection && isGoodConnection(params))
 
