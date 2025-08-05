@@ -51,6 +51,7 @@ class ModelHandler(Node):
             X_processed: pd.DataFrame, 
             y_processed: pd.Series, 
             random_state=42, 
+            finalize=False,
             **ml_settings
         ) -> None:
         """
@@ -202,6 +203,12 @@ class ModelHandler(Node):
                 # Update code handler with final fit
                 self.CodeHandler.add_line("code", f"best_model.fit(X_processed, y_processed)")
                 self.CodeHandler.add_line("code", f"trained_models = [best_model]")
+
+                # Finalize the model
+                if finalize:
+                    best_model = pycaret_exp.finalize_model(best_model)
+                    self.CodeHandler.add_line("code", "\n# Finalizing model")
+                    self.CodeHandler.add_line("code", f"best_model = pycaret_exp.finalize_model(best_model)")
                 
                 # Store the final model
                 return best_model
@@ -227,6 +234,7 @@ class ModelHandler(Node):
         iteration_data = kwargs["split_indices"]
         pycaret_exp = experiment['pycaret_exp']
         random_state = kwargs.get("random_state", 42)
+        finalize = kwargs.get("finalize", False)
 
         # Setup models to train and evaluate 
         try:
@@ -258,6 +266,16 @@ class ModelHandler(Node):
             # Use PyCaret's create_model instead of manual instantiation
             trained_model = pycaret_exp.create_model(**settings)
             self.CodeHandler.add_line("code", f"trained_models = [pycaret_exp.create_model({self.CodeHandler.convert_dict_to_params(settings)})]")
+
+            if finalize:
+                self.CodeHandler.add_line("md", "##### *Finalizing models*")
+                self.CodeHandler.add_line("code", f"for model in trained_models:")
+                self.CodeHandler.add_line(
+                    "code",
+                    f"model = pycaret_exp.finalize_model(model)",
+                    1
+                )
+                trained_model = pycaret_exp.finalize_model(trained_model)
         else:
             # Retrieve processed data from PyCaret
             X_processed = pycaret_exp.get_config('X_transformed')
@@ -275,6 +293,7 @@ class ModelHandler(Node):
                 X_processed, 
                 y_processed, 
                 random_state, 
+                finalize,
                 **settings
             )
         return [trained_model]
@@ -298,8 +317,6 @@ class ModelHandler(Node):
         splitted = kwargs.get("splitted", None)
         finalize = kwargs.get("finalize", False)
         if splitted:
-            print("debug settings", settings)
-            print("debug kwargs", kwargs)
             trained_models = self.__handle_splitted_data(experiment, settings, **kwargs)
         elif self.type == 'compare_models':
             models = experiment['pycaret_exp'].compare_models(**settings)
