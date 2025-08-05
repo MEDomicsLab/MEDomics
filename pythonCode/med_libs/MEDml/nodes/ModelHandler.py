@@ -202,7 +202,6 @@ class ModelHandler(Node):
 
                 # Update code handler with final fit
                 self.CodeHandler.add_line("code", f"best_model.fit(X_processed, y_processed)")
-                self.CodeHandler.add_line("code", f"trained_models = [best_model]")
 
                 # Finalize the model
                 if finalize:
@@ -211,6 +210,8 @@ class ModelHandler(Node):
                     self.CodeHandler.add_line("code", f"best_model = pycaret_exp.finalize_model(best_model)")
                 
                 # Store the final model
+                self.CodeHandler.add_line("code", f"trained_models = [best_model]")
+                
                 return best_model
             except Exception as e:
                 raise ValueError(f"Failed to fit the best model on the entire dataset. Error: {e}")
