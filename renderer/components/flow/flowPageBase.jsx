@@ -95,7 +95,7 @@ const FlowPageBaseWithFlowInfos = ({ children, workflowType, id, isExperiment, r
                 size > 5 ? setShowResultsPane(true) : setShowResultsPane(false)
               }}
             >
-              <ResultsPane runFinalizeAndSave={runFinalizeAndSave} />
+              <ResultsPane runFinalizeAndSave={runFinalizeAndSave} isExperiment={isExperiment} />
             </Panel>
           </PanelGroup>
         </Panel>

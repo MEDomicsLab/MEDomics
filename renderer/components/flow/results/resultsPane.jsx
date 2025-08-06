@@ -22,7 +22,7 @@ import { InputText } from 'primereact/inputtext'
  * This component is used to display the results of the pipeline according to the selected nodes.
  *
  */
-const ResultsPane = ({ runFinalizeAndSave }) => {
+const ResultsPane = ({ runFinalizeAndSave, isExperiment }) => {
   const { setShowResultsPane, flowResults, pipelineNames, setPipelineNames } = useContext(FlowResultsContext)
   const { flowContent } = useContext(FlowInfosContext)
   const { updateNode } = useContext(FlowFunctionsContext)
@@ -75,29 +75,55 @@ const ResultsPane = ({ runFinalizeAndSave }) => {
       })
 
       // find all pipelines
-      let [correctedPipelines, fullPipelines] = findBoxAnalysisPaths(flowResults)
-      setFullPipelines(fullPipelines)
+      if (isExperiment) {
+        let pipelines = findAllPaths(flowContent)
+        setFullPipelines(pipelines)
 
-      // Set pipeline names
-      let names = correctedPipelines.map((pipeline, index) => { return `Pipeline ${index + 1}` })
-      if (names && names.length > 0 && (pipelineNames.length === 0 || pipelineNames.length !== names.length)) {
-        setPipelineNames(names)
-      }
-
-      // find pipelines that includes all the selected ids
-      let selectedPipelines = []
-      correctedPipelines.forEach((pipeline) => {
-        let found = true
-        selectedIds.forEach((id) => {
-          if (!pipeline.includes(id)) {
-            found = false
+        // find pipelines that includes all the selected ids
+        let selectedPipelines = []
+        pipelines.forEach((pipeline) => {
+          let found = true
+          selectedIds.forEach((id) => {
+            if (!pipeline.includes(id)) {
+              found = false
+            }
+          })
+          if (found) {
+            selectedPipelines.push(pipeline)
           }
         })
-        if (found) {
-          selectedPipelines.push(pipeline)
+        // Set pipeline names
+        let names = selectedPipelines.map((pipeline, index) => { return `Pipeline ${index + 1}` })
+        if (names && names.length > 0 && (pipelineNames.length === 0 || pipelineNames.length !== names.length)) {
+          setPipelineNames(names)
         }
-      })
-      setSelectedPipelines(selectedPipelines)
+        setSelectedPipelines(selectedPipelines)
+      } else {
+        // find all pipelines
+        let [correctedPipelines, fullPipelines] = findBoxAnalysisPaths(flowResults)
+        setFullPipelines(fullPipelines)
+
+        // Set pipeline names
+        let names = correctedPipelines.map((pipeline, index) => { return `Pipeline ${index + 1}` })
+        if (names && names.length > 0 && (pipelineNames.length === 0 || pipelineNames.length !== names.length)) {
+          setPipelineNames(names)
+        }
+
+        // find pipelines that includes all the selected ids
+        let selectedPipelines = []
+        correctedPipelines.forEach((pipeline) => {
+          let found = true
+          selectedIds.forEach((id) => {
+            if (!pipeline.includes(id)) {
+              found = false
+            }
+          })
+          if (found) {
+            selectedPipelines.push(pipeline)
+          }
+        })
+        setSelectedPipelines(selectedPipelines)
+      }
     }
   }, [flowContent])
 
@@ -195,7 +221,7 @@ const ResultsPane = ({ runFinalizeAndSave }) => {
     })
 
     return [paths, fullPaths]
-}
+  }
 
   function findAllPaths(flowContent) {
     let links = flowContent.edges
@@ -209,44 +235,7 @@ const ResultsPane = ({ runFinalizeAndSave }) => {
       if (!graph[source]) {
         graph[source] = []
       }
-      
-      const sourceNode = flowContent.nodes.find((node) => node.id == source)
-      const targetNode = flowContent.nodes.find((node) => node.id == target)
-      if (targetNode.type == "trainModelNode" && sourceNode.name !== "Model") {
-        // Check if combine model node is the target
-        let trainModelTarget = flowContent.edges.filter(edge => edge.source === target)[0]?.target
-        trainModelTarget = flowContent.nodes.find(node => node.id === trainModelTarget )
-        if (trainModelTarget && trainModelTarget.type === "CombineModelsNode") {
-          // If the target is a CombineModelsNode, link the dataset node directly to it
-          graph[source].push(trainModelTarget.id)
-        }else {
-          const connectedNodes = flowContent.edges.filter(edge => edge.target === target && edge.source !== source).map(edge => edge.source)
-          const connectedModelNodes = flowContent.nodes.filter(node => node.name === "Model" && connectedNodes.includes(node.id))
-          // Link dataset node to model nodes
-          connectedModelNodes.forEach((modelNode) => {
-            if (!graph[source]) {
-              graph[source] = []
-            }
-            graph[source].push(modelNode.id)
-          })
-        }
-      } else if (sourceNode.type == "trainModelNode" && targetNode.type !== "CombineModelsNode") {
-        const connectedNodes = flowContent.edges.filter(edge => edge.target === source && edge.source !== target).map(edge => edge.source)
-        const connectedModelNodes = flowContent.nodes.filter(node => node.name === "Model" && connectedNodes.includes(node.id))
-        // Link model nodes to dataset node
-        connectedModelNodes.forEach((modelNode) => {
-          if (!graph[modelNode.id]) {
-            graph[modelNode.id] = []
-          }
-          graph[modelNode.id].push(target)
-        })
-      } else if (sourceNode.type == "trainModelNode" && targetNode.type == "CombineModelsNode") {
-        graph[source] = graph[source] || []
-        graph[source].push(target)
-      } else {
-        // For other nodes, just link them normally
-        graph[source].push(target)
-      }
+      graph[source].push(target)
     })
 
     function explore(node, path) {
@@ -423,7 +412,14 @@ const ResultsPane = ({ runFinalizeAndSave }) => {
             </Button>
           </Card.Header>
           <Card.Body>
-            <PipelinesResults pipelines={selectedPipelines} fullPipelines={fullPipelines} pipelineNames={pipelineNames} selectionMode={selectionMode} flowContent={flowContent} runFinalizeAndSave={runFinalizeAndSave} />
+            <PipelinesResults 
+              pipelines={selectedPipelines} 
+              fullPipelines={fullPipelines} 
+              pipelineNames={pipelineNames} 
+              selectionMode={selectionMode} 
+              flowContent={flowContent} 
+              runFinalizeAndSave={runFinalizeAndSave} 
+              isExperiment={isExperiment} />
           </Card.Body>
         </Card>
       </Col>
