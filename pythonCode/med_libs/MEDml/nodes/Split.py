@@ -1,4 +1,5 @@
 import json
+from copy import deepcopy
 from typing import Tuple, Union
 
 import numpy as np
@@ -124,7 +125,7 @@ class Split(Node):
         # Build kwargs for the first Pycaret setup 
         pycaret_exp = experiment["pycaret_exp"]
         medml_logger = experiment["medml_logger"]
-        cleaning_settings = kwargs.get("settings", {})
+        cleaning_settings = kwargs.get("cleaning_settings", {})
 
         # Add tags to stratify_columns if use_tags is enabled
         if use_tags:
@@ -189,6 +190,7 @@ class Split(Node):
             for col in stratify_columns[1:]:
                 experiment_df['strat_composite'] += '_' + experiment_df[col].astype(str)
             experiment['df']['strat_composite'] = experiment_df['strat_composite']
+            self.CodeHandler.add_line("code", f"experiment['df']['strat_composite'] = {experiment_df['strat_composite'].to_dict()}")
             dataset['strat_composite'] = experiment_df['strat_composite']
             stratify_columns = 'strat_composite'  # Use the composite column for stratification
             ignore_features = ['strat_composite']
@@ -206,13 +208,18 @@ class Split(Node):
         )
 
         # First (global) setup – no unsupported keys left
-        pycaret_exp.setup(data=experiment.get("df", dataset), **setup_kwargs)
+        if split_type.lower() != "cross_validation":
+            pycaret_exp.setup(data=experiment.get("df", dataset), **setup_kwargs)
+            code_handler_kwargs = deepcopy(setup_kwargs)
+            del code_handler_kwargs['log_experiment']
+            self.CodeHandler.add_line("code", f"pycaret_exp.setup(data=pycaret_exp.get_config('data'), {self.CodeHandler.convert_dict_to_params(code_handler_kwargs)})")
 
         iteration_result = {}  # final output container
 
         # OUTER: CROSS-VALIDATION
         if split_type.lower() == "cross_validation":
             from sklearn.model_selection import KFold, StratifiedKFold
+            self.CodeHandler.add_import("from sklearn.model_selection import KFold, StratifiedKFold")
 
             n_samples = len(dataset)
             cv_folds = self.settings['outer']['cross_validation']['num_folds']
@@ -238,6 +245,9 @@ class Split(Node):
             )
             setup_kwargs_cv["fold"] = cv_folds
             pycaret_exp.setup(data=experiment.get("df", dataset), **setup_kwargs_cv)
+            code_handler_kwargs = deepcopy(setup_kwargs_cv)
+            del code_handler_kwargs['log_experiment']
+            self.CodeHandler.add_line("code", f"pycaret_exp.setup(data=pycaret_exp.get_config('data'), {self.CodeHandler.convert_dict_to_params(code_handler_kwargs)})")
 
             if cv_folds < 2 or cv_folds > n_samples:
                 raise ValueError(f"num_folds ({cv_folds}) must be between 2 and {n_samples}")
@@ -245,12 +255,16 @@ class Split(Node):
             # Build the fold generator
             if use_stratification:
                 y = dataset[stratify_columns].values
+                self.CodeHandler.add_line("code", f"y = dataset[{stratify_columns}].values")
                 splitter = StratifiedKFold(n_splits=cv_folds, shuffle=True, random_state=random_state)
+                self.CodeHandler.add_line("code", f"splitter = StratifiedKFold(n_splits={cv_folds}, shuffle=True, random_state={random_state})")
                 fold_iter = splitter.split(np.zeros(n_samples), y)
+                self.CodeHandler.add_line("code", f"fold_iter = splitter.split(np.zeros({n_samples}), y)")
             else:
                 splitter = KFold(n_splits=cv_folds, shuffle=True, random_state=random_state)
+                self.CodeHandler.add_line("code", f"splitter = KFold(n_splits={cv_folds}, shuffle=True, random_state={random_state})")
                 fold_iter = splitter.split(dataset)
-
+                self.CodeHandler.add_line("code", f"fold_iter = splitter.split(dataset)")
             folds = [{
                 'fold' : i,
                 'train_indices': tr.tolist(),
@@ -271,10 +285,16 @@ class Split(Node):
         # OUTER: RANDOM SUB-SAMPLING
         elif split_type.lower() == "random_sub_sampling":
             from sklearn.model_selection import train_test_split
+            self.CodeHandler.add_import("from sklearn.model_selection import train_test_split")
 
             n_samples = len(dataset)
             test_size = float(self.settings['outer']['random_sub_sampling']['test_size'])
             n_iterations = int(self.settings['outer']['random_sub_sampling']['n_iterations'])
+
+            # Update code handler with parameters
+            self.CodeHandler.add_line("code", f"n_samples = {n_samples}")
+            self.CodeHandler.add_line("code", f"test_size = {test_size}")
+            self.CodeHandler.add_line("code", f"n_iterations = {n_iterations}")
 
             if not (0 < test_size < 1):
                 raise ValueError("test_size must be in (0,1)")
@@ -303,6 +323,14 @@ class Split(Node):
                     'train_indices': tr.tolist(),
                     'test_indices' : te.tolist(),
                 })
+            
+            self.CodeHandler.add_line("code", f"folds = []")
+            self.CodeHandler.add_line("code", f"for it in range({n_iterations}):")
+            self.CodeHandler.add_line("code", f"rs = {random_state} + it if {random_state} is not None else None", indent=1)
+            if use_stratification:
+                self.CodeHandler.add_line("code", f"y = dataset[{stratify_columns}].values", indent=1)
+            self.CodeHandler.add_line("code", f"tr, te = train_test_split(np.arange({n_samples}), test_size={test_size}, random_state=rs, shuffle=True, stratify=y)", indent=1)
+            self.CodeHandler.add_line("code", f"folds.append({{'fold': it + 1, 'train_indices': tr.tolist(), 'test_indices': te.tolist()}})", indent=1)
 
             iteration_result = {"type": "random_sub_sampling", "folds": folds}
 
@@ -322,11 +350,20 @@ class Split(Node):
             n_iterations = int(self.settings['outer']['bootstrapping']['n_iterations'])
             train_size = float(self.settings['outer']['bootstrapping']['bootstrap_train_sample_size'])
 
+            # Update code handler with parameters
+            self.CodeHandler.add_line("code", f"n_samples = {n_samples}")
+            self.CodeHandler.add_line("code", f"n_iterations = {n_iterations}")
+            self.CodeHandler.add_line("code", f"train_size = {train_size}")
+
             if not (0 < train_size <= 1):
                 raise ValueError("train_size must be in (0,1]")
 
             rng = np.random.default_rng(random_state)
             folds = []
+
+            # Update code handler with parameters
+            self.CodeHandler.add_line("code", f"rng = np.random.default_rng({random_state})")
+            self.CodeHandler.add_line("code", f"folds = []")
 
             for it in range(n_iterations):
                 tr_idx = rng.choice(n_samples, size=int(n_samples * train_size), replace=True)
@@ -338,6 +375,12 @@ class Split(Node):
                     'test_indices': te_idx.tolist(),
                 })
 
+            # Update code handler with fold generation
+            self.CodeHandler.add_line("code", f"for it in range({n_iterations}):")
+            self.CodeHandler.add_line("code", f"tr_idx = rng.choice({n_samples}, size=int({n_samples} * {train_size}), replace=True)", indent=1)
+            self.CodeHandler.add_line("code", f"te_idx = np.setdiff1d(np.arange({n_samples}), np.unique(tr_idx))", indent=1)
+            self.CodeHandler.add_line("code", f"folds.append({{'fold': it + 1, 'train_indices': tr_idx.tolist(), 'test_indices': te_idx.tolist()}})", indent=1)
+            
             iteration_result = {"type": "bootstrapping", "folds": folds}
 
 

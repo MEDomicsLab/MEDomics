@@ -346,7 +346,7 @@ class MEDexperiment(ABC):
                     results=results[current_node_id]['next_nodes'],
                     experiment=self.copy_experiment(experiment)
                 )
-            elif self.finalize and not self.finalize_is_combine:
+            elif self.finalize and not self.finalize_is_combine and prev_node.type == 'train_model':
                 self.save_model(
                     node_info,
                     prev_node=node,

@@ -1,13 +1,13 @@
-import pandas as pd
-import numpy as np
 import json
 from typing import Union
-from .NodeObj import *
-from typing import Union
+
+import numpy as np
+import pandas as pd
 from colorama import Fore
+
 from ..logger.MEDml_logger_pycaret import MEDml_logger
 from ..MEDexperiment_learning import create_pycaret_exp
-
+from .NodeObj import *
 
 DATAFRAME_LIKE = Union[dict, list, tuple, np.ndarray, pd.DataFrame]
 TARGET_LIKE = Union[int, str, list, tuple, np.ndarray, pd.Series]
@@ -57,7 +57,7 @@ class Clean(Node):
         self.CodeHandler.add_line(
             "code", f"dataset = pycaret_exp.get_config('X').join(pycaret_exp.get_config('y'))")
         self._info_for_next_node = kwargs
-        self._info_for_next_node["settings"] = self.settings
+        self._info_for_next_node["cleaning_settings"] = self.settings
         return {
             "experiment": {
             'pycaret_exp': pycaret_exp,

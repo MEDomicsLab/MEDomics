@@ -51,6 +51,7 @@ class ModelHandler(Node):
             X_processed: pd.DataFrame, 
             y_processed: pd.Series, 
             random_state=42, 
+            finalize=False,
             **ml_settings
         ) -> None:
         """
@@ -75,6 +76,12 @@ class ModelHandler(Node):
         trained_models = []
         fold_performances = []
         optimization_metric = 'Accuracy'
+
+        # Update code handler with parameters
+        self.CodeHandler.add_line("code", "\n# Initializing model training and evaluation")
+        self.CodeHandler.add_line("code", "trained_models = []")
+        self.CodeHandler.add_line("code", "fold_performances = []")
+        self.CodeHandler.add_line("code", f"optimization_metric = '{optimization_metric}'")
         
         # Iterate through each fold and train the model
         for fold_data in folds:
@@ -148,21 +155,63 @@ class ModelHandler(Node):
             # Store Results for the fold
             trained_models.append(model)
 
+        # Update code handler with training loop
+        self.CodeHandler.add_line("code", f"\n# Training and evaluating models for {len(folds)} folds")
+        self.CodeHandler.add_line("code", f"for fold_data in folds:")
+        self.CodeHandler.add_line("code", f"fold_num = fold_data['fold']", indent=1)
+        self.CodeHandler.add_line("code", f"train_indices = fold_data['train_indices']", indent=1)
+        self.CodeHandler.add_line("code", f"test_indices = fold_data['test_indices']", indent=1)
+        self.CodeHandler.add_line("code", f"X_train_fold = X_processed.iloc[train_indices]", indent=1)
+        self.CodeHandler.add_line("code", f"y_train_fold = y_processed.iloc[train_indices]", indent=1)
+        self.CodeHandler.add_line("code", f"X_test_fold = X_processed.iloc[test_indices]", indent=1)
+        self.CodeHandler.add_line("code", f"y_test_fold = y_processed.iloc[test_indices]", indent=1)
+        self.CodeHandler.add_line("code", f"model = pycaret_exp.create_model(verbose=False, {self.CodeHandler.convert_dict_to_params(ml_settings)})", indent=1)
+        self.CodeHandler.add_line("code", f"if hasattr(model, 'random_state'):", indent=1)
+        self.CodeHandler.add_line("code", f"setattr(model, 'random_state', {random_state})", indent=2)
+        self.CodeHandler.add_line("code", f"model.fit(X_train_fold, y_train_fold)", indent=1)
+        if self.isTuningEnabled:
+            self.CodeHandler.add_line("code", f"model = pycaret_exp.tune_model(model, {self.CodeHandler.convert_dict_to_params(self.settingsTuning)})", indent=1)
+        self.CodeHandler.add_line("code", f"y_pred = model.predict(X_test_fold)", indent=1)
+        self.CodeHandler.add_line("code", f"if optimization_metric.lower() == 'auc' and hasattr(model, 'predict_proba'):", indent=1)
+        self.CodeHandler.add_line("code", f"y_pred = model.predict_proba(X_test_fold)[:, 1]", indent=2)
+        self.CodeHandler.add_import("from pycaret.utils.generic import check_metric")
+        self.CodeHandler.add_line("code", f"fold_score = check_metric(y_test_fold, pd.Series(y_pred), metric=optimization_metric)", indent=1)
+        self.CodeHandler.add_line("code", f"fold_performances.append({{'fold': fold_num, 'model': model, 'score': fold_score, 'test_indices': test_indices}})", indent=1)
+        self.CodeHandler.add_line("code", f"trained_models.append(model)", indent=1)
+
         # Select the best model based on performance
         if fold_performances:
             # Sort by score (higher is better) and select the best model
             best_model = sorted(fold_performances, key=lambda x: x['score'], reverse=True)[0]['model']
+
+            # Update code handler with best model selection
+            self.CodeHandler.add_line("code", "\n# Selecting the best model based on performance")
+            self.CodeHandler.add_line("code", f"best_model = sorted(fold_performances, key=lambda x: x['score'], reverse=True)[0]['model']")
             
             # Final evaluation on the entire dataset if needed
             try:
                 # Ensure the final model has the same random state
                 if hasattr(best_model, 'random_state'):
                     setattr(best_model, 'random_state', random_state)
+
+                    # Update code handler
+                    self.CodeHandler.add_line("code", f"setattr(best_model, 'random_state', {random_state})")
                 
                 # Final fit on the entire dataset
                 best_model.fit(X_processed, y_processed)
+
+                # Update code handler with final fit
+                self.CodeHandler.add_line("code", f"best_model.fit(X_processed, y_processed)")
+
+                # Finalize the model
+                if finalize:
+                    best_model = pycaret_exp.finalize_model(best_model)
+                    self.CodeHandler.add_line("code", "\n# Finalizing model")
+                    self.CodeHandler.add_line("code", f"best_model = pycaret_exp.finalize_model(best_model)")
                 
                 # Store the final model
+                self.CodeHandler.add_line("code", f"trained_models = [best_model]")
+                
                 return best_model
             except Exception as e:
                 raise ValueError(f"Failed to fit the best model on the entire dataset. Error: {e}")
@@ -186,68 +235,69 @@ class ModelHandler(Node):
         iteration_data = kwargs["split_indices"]
         pycaret_exp = experiment['pycaret_exp']
         random_state = kwargs.get("random_state", 42)
-
-        # Metrics to use for evaluation
-        try:
-            # Extract the metrics (usually the DataFrame index)
-            metrics_to_calculate = pycaret_exp.get_metrics()['Name'].tolist()
-            if not metrics_to_calculate:
-                raise ValueError("No metrics found in pycaret_exp.get_metrics(). Ensure setup was successful.")
-        except Exception as e:
-            print(f"ERROR: Failed to retrieve models using pycaret_exp.models(). Error: {e}")
-            metrics_to_calculate = ['Accuracy', 'AUC', 'Recall', 'Prec.', 'F1', 'Kappa']
-
-        # Retrieve processed data from PyCaret
-        X_processed = pycaret_exp.get_config('X_transformed')
-        y_processed = pycaret_exp.get_config('y_transformed')
+        finalize = kwargs.get("finalize", False)
 
         # Setup models to train and evaluate 
         try:
-            if self.type == 'compare_models':
-                all_models_df = pycaret_exp.models()
-                models_to_evaluate = all_models_df.index.tolist()[:2]
-                if not models_to_evaluate:
-                    raise ValueError("No models found in pycaret_exp.models(). Ensure setup was successful.")
-            elif self.type == 'train_model':
-                # For train_model, we can use the model_id from the configuration
-                settings.update(self.config_json['data']['estimator']['settings'])
-                settings.update({'estimator': self.config_json['data']['estimator']['type']})
-                models_to_evaluate = [self.config_json['data']['estimator']['type']]
-            else:
-                raise ValueError(f"Unsupported type: {self.type}. Expected 'compare_models' or 'train_model'.")
+            if self.type != 'train_model':
+                raise ValueError(f"Something went wrong, the type of the node is {self.type}, but it should be 'train_model'.")
+            # For train_model, we can use the model_id from the configuration
+            settings.update(self.config_json['data']['estimator']['settings'])
+            settings.update({'estimator': self.config_json['data']['estimator']['type']})
+            model_to_evaluate = self.config_json['data']['estimator']['type']
+                
         except Exception as e:
             print(f"ERROR: Failed to retrieve models using pycaret_exp.models(). Error: {e}")
-            models_to_evaluate = ['lr', 'knn', 'rf'] 
+            model_to_evaluate = 'lr'
 
         split_type = iteration_data['type']
         folds = iteration_data['folds']
 
         # Iterate through models to train and evaluate
-        trained_models = []
-        for model_id in models_to_evaluate:
-            if split_type == "cross_validation":
-                # Check if estimator is already set in settings
-                if 'estimator' in settings:
-                    if model_id != settings['estimator']:
-                        raise ValueError(f"Model ID {model_id} does not match the estimator in settings. Please check your configuration.")
-                else:
-                    settings['estimator'] = model_id
-                
-                # Use PyCaret's create_model instead of manual instantiation
-                trained_models = pycaret_exp.create_model(**settings)
-                if type(trained_models) != list:
-                    trained_models = [trained_models]
+        trained_model = None
+        if split_type == "cross_validation":
+            # Check if estimator is already set in settings
+            if 'estimator' in settings:
+                if model_to_evaluate != settings['estimator']:
+                    raise ValueError(f"Model ID {model_to_evaluate} does not match the estimator in settings. Please check your configuration.")
             else:
-                trained_model = self.__custom_train_and_evaluate(
-                    pycaret_exp, 
-                    folds, 
-                    X_processed, 
-                    y_processed, 
-                    random_state, 
-                    **settings
+                settings['estimator'] = model_to_evaluate
+                self.CodeHandler.add_line("code", f"# Training model: {model_to_evaluate}")
+
+            # Use PyCaret's create_model instead of manual instantiation
+            trained_model = pycaret_exp.create_model(**settings)
+            self.CodeHandler.add_line("code", f"trained_models = [pycaret_exp.create_model({self.CodeHandler.convert_dict_to_params(settings)})]")
+
+            if finalize:
+                self.CodeHandler.add_line("md", "##### *Finalizing models*")
+                self.CodeHandler.add_line("code", f"for model in trained_models:")
+                self.CodeHandler.add_line(
+                    "code",
+                    f"model = pycaret_exp.finalize_model(model)",
+                    1
                 )
-                trained_models.append(trained_model)
-        return trained_models
+                trained_model = pycaret_exp.finalize_model(trained_model)
+        else:
+            # Retrieve processed data from PyCaret
+            X_processed = pycaret_exp.get_config('X_transformed')
+            y_processed = pycaret_exp.get_config('y_transformed')
+
+            # Update code handler
+            self.CodeHandler.add_line("code", "# Retrieve processed data from PyCaret")
+            self.CodeHandler.add_line("code", f"X_processed = pycaret_exp.get_config('X_transformed')")
+            self.CodeHandler.add_line("code", f"y_processed = pycaret_exp.get_config('y_transformed')")
+
+            # Custom training and evaluation function
+            trained_model = self.__custom_train_and_evaluate(
+                pycaret_exp, 
+                folds, 
+                X_processed, 
+                y_processed, 
+                random_state, 
+                finalize,
+                **settings
+            )
+        return [trained_model]
 
     def _execute(self, experiment: dict = None, **kwargs) -> json:
         """
