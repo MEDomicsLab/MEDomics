@@ -1,4 +1,5 @@
 import json
+import random
 from copy import deepcopy
 from typing import Tuple, Union
 
@@ -6,7 +7,8 @@ import numpy as np
 import pandas as pd
 from bson import ObjectId
 from mongodb_utils import connect_to_mongo
-from utils.data_split_utils import get_cv_stratification_details, get_subsampling_details
+from utils.data_split_utils import (get_cv_stratification_details,
+                                    get_subsampling_details)
 
 from .NodeObj import *
 
@@ -96,7 +98,17 @@ class Split(Node):
         split_type = self.settings['outer_split_type']
         use_tags = bool(self.settings['useTags'])
         stats_df = None
-    
+
+        # Set random seeds
+        random.seed(random_state)
+        np.random.seed(random_state)
+
+        # Update code handler
+        self.CodeHandler.add_import("import random")
+        self.CodeHandler.add_line("code", f"# Setting random seeds")
+        self.CodeHandler.add_line("code", f"random.seed({random_state})")
+        self.CodeHandler.add_line("code", f"np.random.seed({random_state})")
+
         # Fallback: if no list provided, use the single target column
         if not stratify_columns and target:
             stratify_columns = [target]

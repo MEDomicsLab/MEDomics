@@ -165,13 +165,14 @@ class ModelHandler(Node):
         self.CodeHandler.add_line("code", f"y_train_fold = y_processed.iloc[train_indices]", indent=1)
         self.CodeHandler.add_line("code", f"X_test_fold = X_processed.iloc[test_indices]", indent=1)
         self.CodeHandler.add_line("code", f"y_test_fold = y_processed.iloc[test_indices]", indent=1)
+        self.CodeHandler.add_line("code", f"# Create and fit model", indent=1)
         self.CodeHandler.add_line("code", f"model = pycaret_exp.create_model(verbose=False, {self.CodeHandler.convert_dict_to_params(ml_settings)})", indent=1)
         self.CodeHandler.add_line("code", f"if hasattr(model, 'random_state'):", indent=1)
         self.CodeHandler.add_line("code", f"setattr(model, 'random_state', {random_state})", indent=2)
         self.CodeHandler.add_line("code", f"model.fit(X_train_fold, y_train_fold)", indent=1)
-        if self.isTuningEnabled:
-            self.CodeHandler.add_line("code", f"model = pycaret_exp.tune_model(model, {self.CodeHandler.convert_dict_to_params(self.settingsTuning)})", indent=1)
+        self.CodeHandler.add_line("code", f"# Making predictions on the test set", indent=1)
         self.CodeHandler.add_line("code", f"y_pred = model.predict(X_test_fold)", indent=1)
+        self.CodeHandler.add_line("code", f"# Assess performance", indent=1)
         self.CodeHandler.add_line("code", f"if optimization_metric.lower() == 'auc' and hasattr(model, 'predict_proba'):", indent=1)
         self.CodeHandler.add_line("code", f"y_pred = model.predict_proba(X_test_fold)[:, 1]", indent=2)
         self.CodeHandler.add_import("from pycaret.utils.generic import check_metric")
@@ -202,6 +203,15 @@ class ModelHandler(Node):
 
                 # Update code handler with final fit
                 self.CodeHandler.add_line("code", f"best_model.fit(X_processed, y_processed)")
+                if self.isTuningEnabled:
+                    self.CodeHandler.add_line("code", f"# Tuning model", indent=0)
+                    self.CodeHandler.add_line("code", f"best_model = pycaret_exp.tune_model(best_model, {self.CodeHandler.convert_dict_to_params(self.settingsTuning)})", indent=0)
+                if self.ensembleEnabled:
+                    self.CodeHandler.add_line("code", f"# Ensembling model", indent=0)
+                    self.CodeHandler.add_line("code", f"best_model = pycaret_exp.ensemble_model(best_model, {self.CodeHandler.convert_dict_to_params(self.settingsEnsemble)})", indent=0)
+                if self.calibrateEnabled:
+                    self.CodeHandler.add_line("code", f"# Calibrating model", indent=0)
+                    self.CodeHandler.add_line("code", f"best_model = pycaret_exp.calibrate_model(best_model, {self.CodeHandler.convert_dict_to_params(self.settingsCalibrate)})", indent=0)
 
                 # Finalize the model
                 if finalize:
