@@ -128,7 +128,7 @@ class Node(ABC):
         """
         self.CodeHandler.reset()
         self.CodeHandler.add_line("md", f"### This is {self.username}")
-        if self.nameID is not None and self.type != "train_model":
+        if self.nameID is not None and self.type != "train_model" and self.type != "compare_models":
             self.CodeHandler.add_line("md", f"##### *Node ID: {self.nameID}*")
         self.just_run = True
         self._has_run = True

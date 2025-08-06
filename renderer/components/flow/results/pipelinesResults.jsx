@@ -170,7 +170,7 @@ const fixTrainedModelsInitialization = (codeItems) => {
  * @description
  * This component takes a pipeline and displays the results related to the selected node.
  */
-const PipelineResult = ({ index, pipeline, selectionMode, flowContent,highlightPipeline }) => {
+const PipelineResult = ({ index, pipeline, selectionMode, flowContent,highlightPipeline, isExperiment }) => {
   const { flowResults, selectedResultsId } = useContext(FlowResultsContext)
   const { updateNode } = useContext(FlowFunctionsContext)
   const [body, setBody] = useState(<></>)
@@ -206,6 +206,25 @@ const PipelineResult = ({ index, pipeline, selectionMode, flowContent,highlightP
   }, [pipeline, selectedId])
 
   /**
+   * @description this function checks if the results dictionary contains a specific id and returns the results if it does.
+   * @param {*} obj results dictionary
+   * @param {*} id id to check in the results dictionary
+   * @returns 
+   */
+  const checkIfObjectContainsId = (obj, id) => {
+    let res = false
+    if (!obj) {
+      return res
+    }
+    Object.keys(obj).forEach((key) => {
+      if (key.includes(id)) {
+        res = obj[key]
+      }
+    })
+    return res
+  }
+
+  /**
    * @returns {JSX.Element} The body of the accordion tab
    *
    * @description
@@ -217,7 +236,25 @@ const PipelineResult = ({ index, pipeline, selectionMode, flowContent,highlightP
     let toReturn = <></>
     if (selectedId) {
       let selectedNode = flowContent.nodes.find((node) => node.id == selectedId)
-      let selectedResults = getNodeResults(flowResults, flowContent, pipeline, selectedId)
+      let selectedResults = null
+      if (isExperiment) {
+        let resultsCopy = deepCopy(flowResults)
+        pipeline.forEach((id) => {
+          resultsCopy = checkIfObjectContainsId(resultsCopy, id)
+          if (resultsCopy) {
+            if (id == selectedId) {
+              selectedResults = resultsCopy.results
+            } else {
+              resultsCopy = resultsCopy.next_nodes
+            }
+          } else {
+            !selectedNode.data.internal.hasRun && (toReturn = <div className="pipe-name-notRun">Has not been run yet !</div>)
+          }
+        })
+      }
+      else {
+        selectedResults = getNodeResults(flowResults, flowContent, pipeline, selectedId)
+      }
       console.log("selectedResults", selectedResults)
       if (selectedResults) {
         let type = selectedNode.data.internal.type
@@ -254,7 +291,7 @@ const PipelineResult = ({ index, pipeline, selectionMode, flowContent,highlightP
  * @description
  * This component takes all the selected pipelines and displays them in an accordion.
  */
-const PipelinesResults = ({ pipelines, fullPipelines, selectionMode, flowContent, runFinalizeAndSave }) => {
+const PipelinesResults = ({ pipelines, fullPipelines, selectionMode, flowContent, runFinalizeAndSave, isExperiment = false }) => {
   const { selectedResultsId, setSelectedResultsId, flowResults, setShowResultsPane, showResultsPane, isResults, pipelineNames } = useContext(FlowResultsContext)
   const { getBasePath } = useContext(WorkspaceContext)
   const { sceneName } = useContext(FlowInfosContext)
@@ -347,6 +384,7 @@ const PipelinesResults = ({ pipelines, fullPipelines, selectionMode, flowContent
           }
           return "Model"
         }
+        else if (node && node.data.internal.nameID != node.data.internal.name) return node.data.internal.nameID
         return node && node.data.internal.name
       }
 
@@ -579,7 +617,7 @@ const PipelinesResults = ({ pipelines, fullPipelines, selectionMode, flowContent
               }))}
               itemTemplate={buttonTemplate}
           />
-          <FinalizeSaveBtn onClick={runFinalizeAndSaveWrapper} />
+          {!isExperiment && <FinalizeSaveBtn onClick={runFinalizeAndSaveWrapper} />}
           <CodeGenBtn onClick={codeGeneration} />
         </>
       )
@@ -697,7 +735,7 @@ const PipelinesResults = ({ pipelines, fullPipelines, selectionMode, flowContent
             key={index} 
             header={createTitleFromPipe(index, pipeline, runFinalizeAndSave)}
             >
-            <PipelineResult key={index} index={index} pipeline={pipeline} selectionMode={selectionMode} flowContent={flowContent} highlightPipeline={highlightPipeline}/>
+            <PipelineResult key={index} index={index} pipeline={pipeline} selectionMode={selectionMode} flowContent={flowContent} highlightPipeline={highlightPipeline} isExperiment={isExperiment} />
           </AccordionTab>
         )
       })}

@@ -25,6 +25,7 @@ class ModelHandler(Node):
             global_config_json (json): The global config json.
         """
         super().__init__(id_, global_config_json)
+        self.model_name_id = None
         if self.type == 'train_model':
             self.isTuningEnabled = self.config_json['data']['internal'].get('isTuningEnabled', False)
             if self.isTuningEnabled:
@@ -331,7 +332,6 @@ class ModelHandler(Node):
             trained_models = self.__handle_splitted_data(experiment, settings, **kwargs)
         elif self.type == 'compare_models':
             models = experiment['pycaret_exp'].compare_models(**settings)
-            print(models)
             self.CodeHandler.add_line("code", f"trained_models = pycaret_exp.compare_models({self.CodeHandler.convert_dict_to_params(settings)})")
             if isinstance(models, list):
                 trained_models = models
