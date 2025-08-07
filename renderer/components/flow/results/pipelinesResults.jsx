@@ -384,7 +384,7 @@ const PipelinesResults = ({ pipelines, fullPipelines, selectionMode, flowContent
           }
           return "Model"
         }
-        else if (node && node.data.internal.nameID != node.data.internal.name) return node.data.internal.nameID
+        else if (node && node.data.internal.nameID && node.data.internal.nameID != node.data.internal.name) return node.data.internal.nameID
         return node && node.data.internal.name
       }
 

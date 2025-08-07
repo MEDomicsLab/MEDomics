@@ -245,7 +245,7 @@ class Split(Node):
                 "inner", 
                 "global"
             ]
-            filtered_settings = { k: v for k, v in self.settings.items() if k not in excluded }
+            filtered_settings = { k: v for k, v in cleaning_settings.items() if k not in excluded }
 
             setup_kwargs_cv, stratify_columns = self._build_setup_kwargs(
                 base_kwargs=kwargs["setup_settings"],
