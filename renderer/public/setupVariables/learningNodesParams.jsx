@@ -144,7 +144,7 @@ const nodesParams = {
     experimenting: false,
     section: "unknown",
     possibleSettings: { classification: classificationSettings["optimize"], regression: regressionSettings["optimize"] }
-  },*/
+  },
   analyze: {
     type: "selectionNode",
     nameID: "Analyze",
@@ -159,7 +159,7 @@ const nodesParams = {
     section: "analysis",
     link: "https://pycaret.readthedocs.io/en/stable/api/classification.html#pycaret.classification.plot_model",
     possibleSettings: { classification: classificationSettings["analyze"], regression: regressionSettings["analyze"] }
-  },
+  },*/
 }
 
 export default nodesParams

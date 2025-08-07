@@ -320,7 +320,7 @@ const Workflow = forwardRef(({ setWorkflowType, workflowType, isExperiment }, re
       if (boxes.length > 0) setNodes((nds => [...nds, ...boxes])) // add the boxes to the nodes array
     }
     if (isInitialized) {
-      isExperiment ? [] : createDefaultBoxes() // create default boxes to add to the workflow
+      createDefaultBoxes() // create default boxes to add to the workflow
     }
     checkDuplicateModelNodes(nodes) // check for duplicate model nodes and show a warning
     setTreeData(createTreeFromNodes())
