@@ -55,10 +55,13 @@ function getNodeResults(flowResults, flowContent, pipeline, targetId) {
 
     let nodeResults = null
 
-    Object.entries(flowResults).forEach(([key, value]) => {
+    // Iterate through the flowResults to find the targetId
+    for (const [key, value] of Object.entries(flowResults)) {
       nodeResults = traverse(value, key)
-      
-    })
+      if (nodeResults) {
+        break // Exit loop when we get a non-empty result
+      }
+    }
     return nodeResults
   } catch (error) {
     console.error('Error while searching for node results:', error)
@@ -80,7 +83,7 @@ function getNodeCode(flowResults, flowContent, pipeline, targetId) {
       if (!currentDict || typeof currentDict !== 'object') return
 
       // Skip train model node
-      const nodeType = flowContent.nodes.find(node => node.id === currentKey)?.data?.internal?.type 
+      const nodeType = flowContent.nodes.find(node => node.id === currentKey)?.data?.internal?.type
       if (nodeType !== "train_model" && currentKey.includes(targetId) && currentDict.results) {
         return currentDict.results.code // Return found results immediately
       }
@@ -98,9 +101,12 @@ function getNodeCode(flowResults, flowContent, pipeline, targetId) {
     }
 
     let nodeResults = null
-    Object.entries(flowResults).forEach(([key, value]) => {
+    for (const [key, value] of Object.entries(flowResults)) {
       nodeResults = traverse(value, key)
-    })
+      if (nodeResults) {
+        break // Exit loop when we get a non-empty result
+      }
+    }
     return nodeResults
   } catch (error) {
     console.error('Error while searching for node results:', error)
@@ -170,7 +176,7 @@ const fixTrainedModelsInitialization = (codeItems) => {
  * @description
  * This component takes a pipeline and displays the results related to the selected node.
  */
-const PipelineResult = ({ index, pipeline, selectionMode, flowContent,highlightPipeline, isExperiment }) => {
+const PipelineResult = ({ index, pipeline, selectionMode, flowContent, highlightPipeline }) => {
   const { flowResults, selectedResultsId } = useContext(FlowResultsContext)
   const { updateNode } = useContext(FlowFunctionsContext)
   const [body, setBody] = useState(<></>)
@@ -200,8 +206,8 @@ const PipelineResult = ({ index, pipeline, selectionMode, flowContent,highlightP
             updatedData: node.data.internal
           })
         }
+        setBody(createBody())
       }
-      setBody(createBody())
     }
   }, [pipeline, selectedId])
 
@@ -237,24 +243,7 @@ const PipelineResult = ({ index, pipeline, selectionMode, flowContent,highlightP
     if (selectedId) {
       let selectedNode = flowContent.nodes.find((node) => node.id == selectedId)
       let selectedResults = null
-      if (isExperiment) {
-        let resultsCopy = deepCopy(flowResults)
-        pipeline.forEach((id) => {
-          resultsCopy = checkIfObjectContainsId(resultsCopy, id)
-          if (resultsCopy) {
-            if (id == selectedId) {
-              selectedResults = resultsCopy.results
-            } else {
-              resultsCopy = resultsCopy.next_nodes
-            }
-          } else {
-            !selectedNode.data.internal.hasRun && (toReturn = <div className="pipe-name-notRun">Has not been run yet !</div>)
-          }
-        })
-      }
-      else {
-        selectedResults = getNodeResults(flowResults, flowContent, pipeline, selectedId)
-      }
+      selectedResults = getNodeResults(flowResults, flowContent, pipeline, selectedId)
       console.log("selectedResults", selectedResults)
       if (selectedResults) {
         let type = selectedNode.data.internal.type
@@ -384,7 +373,7 @@ const PipelinesResults = ({ pipelines, fullPipelines, selectionMode, flowContent
           }
           return "Model"
         }
-        else if (node && node.data.internal.nameID != node.data.internal.name) return node.data.internal.nameID
+        else if (node && node.data.internal.nameID && node.data.internal.nameID != node.data.internal.name) return node.data.internal.nameID
         return node && node.data.internal.name
       }
 
@@ -448,11 +437,6 @@ const PipelinesResults = ({ pipelines, fullPipelines, selectionMode, flowContent
         e.stopPropagation()
         let finalCode = []
         let finalImports = []
-        console.log("code generation", pipeline)
-        let resultsCopy = deepCopy(flowResults)
-        console.log("resultsCopy", resultsCopy)
-        let nodeResults = null
-        
         fullPipelines[index].forEach((id) => {
           // Skip train model nodes
           const nodeType = flowContent.nodes.find(node => node.id === id)?.data?.internal?.type
@@ -735,7 +719,7 @@ const PipelinesResults = ({ pipelines, fullPipelines, selectionMode, flowContent
             key={index} 
             header={createTitleFromPipe(index, pipeline, runFinalizeAndSave)}
             >
-            <PipelineResult key={index} index={index} pipeline={pipeline} selectionMode={selectionMode} flowContent={flowContent} highlightPipeline={highlightPipeline} isExperiment={isExperiment} />
+            <PipelineResult key={index} index={index} pipeline={pipeline} selectionMode={selectionMode} flowContent={flowContent} highlightPipeline={highlightPipeline} />
           </AccordionTab>
         )
       })}

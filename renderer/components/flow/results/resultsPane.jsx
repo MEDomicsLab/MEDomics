@@ -74,31 +74,7 @@ const ResultsPane = ({ runFinalizeAndSave, isExperiment }) => {
         }
       })
 
-      // find all pipelines
-      if (isExperiment) {
-        let pipelines = findAllPaths(flowContent)
-        setFullPipelines(pipelines)
 
-        // find pipelines that includes all the selected ids
-        let selectedPipelines = []
-        pipelines.forEach((pipeline) => {
-          let found = true
-          selectedIds.forEach((id) => {
-            if (!pipeline.includes(id)) {
-              found = false
-            }
-          })
-          if (found) {
-            selectedPipelines.push(pipeline)
-          }
-        })
-        // Set pipeline names
-        let names = selectedPipelines.map((pipeline, index) => { return `Pipeline ${index + 1}` })
-        if (names && names.length > 0 && (pipelineNames.length === 0 || pipelineNames.length !== names.length)) {
-          setPipelineNames(names)
-        }
-        setSelectedPipelines(selectedPipelines)
-      } else {
         // find all pipelines
         let [correctedPipelines, fullPipelines] = findBoxAnalysisPaths(flowResults)
         setFullPipelines(fullPipelines)
@@ -123,7 +99,7 @@ const ResultsPane = ({ runFinalizeAndSave, isExperiment }) => {
           }
         })
         setSelectedPipelines(selectedPipelines)
-      }
+      
     }
   }, [flowContent])
 
