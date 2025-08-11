@@ -33,7 +33,9 @@ import {
   startMongoTunnel,
   getRemoteLStat,
   checkRemoteFileExists,
-  confirmMongoTunnel
+  confirmMongoTunnel,
+  getRemoteWorkspacePath,
+  setRemoteWorkspacePath
 } from './utils/remoteFunctions.js'
 import express from "express"
 import bodyParser from "body-parser"
@@ -406,6 +408,20 @@ if (isProd) {
     }
   });
 
+  expressApp.get("/get-working-dir-tree", (req, res) => {
+    try {
+      const workingDirectory = dirTree(req.body.requestedPath)
+      if (!workingDirectory) {
+        console.log("No working directory found for the requested path:" + req.body.requestedPath)
+        res.status(500).json({ success: false, error: "Working directory not found" })
+      }
+      res.json({ success: true, workingDirectory: workingDirectory })
+    } catch (err) {
+      console.error("Error getting working directory: ", err)
+      res.status(500).json({ success: false, error: err.message })
+    }
+  })
+
   const setWorkspaceDirectory = async (data) => {
     app.setPath("sessionData", data)
     console.log(`setWorkspaceDirectory : ${data}`)
@@ -669,11 +685,30 @@ if (isProd) {
       let recentWorkspaces = loadWorkspaces()
       event.reply("recentWorkspaces", recentWorkspaces)
     } else if (data === "updateWorkingDirectory") {
-      event.reply("updateDirectory", {
-        workingDirectory: dirTree(app.getPath("sessionData")),
-        hasBeenSet: hasBeenSet,
-        newPort: serverPort
-      }) // Sends the folder structure to Next.js
+      const activeTunnel = getActiveTunnel()
+      const tunnelState = getTunnelState()
+      if (activeTunnel && tunnelState) {
+        // If an SSH tunnel is active, we set the remote workspace path
+        const remoteWorkspacePath = getRemoteWorkspacePath()
+        axios.post(`http://${tunnelState.host}:3000/get-working-dir-tree`, { requestedPath: remoteWorkspacePath })
+          .then((response) => {
+            if (response.data.success && response.data.workingDirectory) {
+              event.reply("updateDirectory", {
+                workingDirectory: response.data.workingDirectory,
+                hasBeenSet: hasBeenSet,
+                newPort: serverPort
+              }) // Sends the folder structure to Next.js
+            } else {
+              console.error("Failed to get remote working directory tree: ", response.data.error)
+            }
+          })
+      } else {
+        event.reply("updateDirectory", {
+          workingDirectory: dirTree(app.getPath("sessionData")),
+          hasBeenSet: hasBeenSet,
+          newPort: serverPort
+        }) // Sends the folder structure to Next.js
+      }
     } else if (data === "getServerPort") {
       event.reply("getServerPort", {
         newPort: serverPort
@@ -1023,6 +1058,10 @@ ipcMain.handle('getRemoteLStat', async (_event, path) => {
 
 ipcMain.handle('checkRemoteFileExists', async (_event, path) => {
   return checkRemoteFileExists(path)
+})
+
+ipcMain.handle('setRemoteWorkspacePath', async (_event, path) => {
+  return setRemoteWorkspacePath(path)
 })
 
 ipcMain.handle('listRemoteDirectory', async (_event, { path: remotePath }) => {

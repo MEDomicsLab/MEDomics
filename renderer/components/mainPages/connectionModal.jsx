@@ -277,10 +277,12 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
         setTunnelActive(false)
         setTunnelStatus("SSH tunnel disconnected.")
         tunnelContext.clearTunnelInfo()
+        ipcRenderer.invoke("setRemoteWorkspacePath", null)
         clearTunnelState()
         toast.success("SSH tunnel disconnected.")
         setDirectoryContents([])
         setRemoteDirPath("")
+        setWorkspace(null)
       } else {
         setTunnelStatus("Failed to disconnect tunnel: " + (result?.error || 'Unknown error'))
         toast.error("Disconnect Failed: " + result?.error || 'Unknown error')
@@ -615,6 +617,7 @@ const DirectoryBrowser = ({ directoryContents, onDirClick }) => {
                         let workspaceToSet = { ...response.data.workspace }
                         workspaceToSet.newPort = tunnelState.localBackendPort
                         setWorkspace(workspaceToSet)
+                        ipcRenderer.invoke("setRemoteWorkspacePath", remoteDirPath)
                         handleConnectMongoDB()
                       }
                     } else {

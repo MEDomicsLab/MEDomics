@@ -9,6 +9,8 @@ let activeTunnelServer = null
 let mongoDBLocalPort = null
 let mongoDBRemotePort = null
 
+let remoteWorkspacePath = null
+
 export function setActiveTunnel(tunnel) {
   activeTunnel = tunnel
 }
@@ -21,6 +23,16 @@ export function getActiveTunnel() {
 export function getActiveTunnelServer() {
   return activeTunnelServer
 }
+export function setRemoteWorkspacePath(path) {
+  console.log("Setting remote workspace path:", path)
+  remoteWorkspacePath = path
+}
+export function getRemoteWorkspacePath() {
+  console.log("Getting remote workspace path:", remoteWorkspacePath)
+  return remoteWorkspacePath
+}
+
+
 /**
  * Starts an SSH tunnel and creates the backend port forwarding server only.
  * MongoDB tunnel can be created later by calling startMongoTunnel.
