@@ -69,6 +69,8 @@ var hasBeenSet = false
 const isProd = process.env.NODE_ENV === "production"
 let splashScreen // The splash screen is the window that is displayed while the application is loading
 export var mainWindow // The main window is the window of the application
+// Robust headless mode detection
+const isHeadless = process.argv.some(arg => arg.includes('--no-gui'));
 
 //**** AUTO UPDATER ****//
 const { autoUpdater } = require("electron-updater")
@@ -220,9 +222,10 @@ if (isProd) {
 }
 
 
+// Main async startup
 (async () => {
   await app.whenReady()
-  
+
   protocol.registerFileProtocol("local", (request, callback) => {
     const url = request.url.replace(/^local:\/\//, "")
     const decodedUrl = decodeURI(url)
@@ -232,13 +235,12 @@ if (isProd) {
       console.error("ERROR: registerLocalProtocol: Could not get file path:", error)
     }
   })
-  
+
   ipcMain.on("get-file-path", (event, configPath) => {
     event.reply("get-file-path-reply", path.resolve(configPath))
   })
-  
+
   console.log("process.argv: ", process.argv)
-  const isHeadless = process.argv.some(arg => arg.includes('--no-gui'));
   console.log("isHeadless: ", isHeadless)
 
   if (!isHeadless) {
@@ -269,9 +271,15 @@ if (isProd) {
       splashScreen.focus()
       splashScreen.setAlwaysOnTop(true)
     })
+  } else {
+    // Headless/server-only mode
+    mainWindow = undefined;
+    splashScreen = undefined;
+    console.log("Running in headless/server-only mode: no GUI will be created.");
   }
-  
-  const openRecentWorkspacesSubmenuOptions = getRecentWorkspacesOptions(null, mainWindow, hasBeenSet, serverPort)
+
+  // Use mainWindow only if not headless
+  const openRecentWorkspacesSubmenuOptions = getRecentWorkspacesOptions(null, !isHeadless ? mainWindow : null, hasBeenSet, serverPort)
   console.log("openRecentWorkspacesSubmenuOptions", JSON.stringify(openRecentWorkspacesSubmenuOptions, null, 2))
   const menuTemplate = [
     {
@@ -732,15 +740,14 @@ if (isProd) {
     mainWindow.webContents.send("toggleDarkMode")
   })
 
-  if (isProd) {
-    await mainWindow.loadURL("app://./index.html")
-  } else {
-    const port = process.argv[2]
-    await mainWindow.loadURL(`http://localhost:${port}/`)
-    mainWindow.webContents.openDevTools()
-  }
-   
   if (!isHeadless) {
+    if (isProd) {
+      await mainWindow.loadURL("app://./index.html")
+    } else {
+      const port = process.argv[2]
+      await mainWindow.loadURL(`http://localhost:${port}/`)
+      mainWindow.webContents.openDevTools()
+    }
     splashScreen.destroy()
     mainWindow.maximize()
     mainWindow.show()
