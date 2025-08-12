@@ -739,10 +739,12 @@ if (isProd) {
     await mainWindow.loadURL(`http://localhost:${port}/`)
     mainWindow.webContents.openDevTools()
   }
-
-  splashScreen.destroy()
-  mainWindow.maximize()
-  mainWindow.show()
+   
+  if (!isHeadless) {
+    splashScreen.destroy()
+    mainWindow.maximize()
+    mainWindow.show()
+  }
 })()
 
 ipcMain.handle("request", async (_, axios_request) => {
@@ -852,19 +854,22 @@ app.on("ready", async () => {
  * @returns {BrowserWindow} The new window
  */
 function openWindowFromURL(url) {
-  let window = new BrowserWindow({
-    icon: path.join(__dirname, "../resources/MEDomicsLabWithShadowNoText100.png"),
-    width: 700,
-    height: 700,
-    transparent: true,
-    center: true
-  })
+  const isHeadless = process.argv.some(arg => arg.includes('--no-gui'))
+  if (!isHeadless) {
+    let window = new BrowserWindow({
+      icon: path.join(__dirname, "../resources/MEDomicsLabWithShadowNoText100.png"),
+      width: 700,
+      height: 700,
+      transparent: true,
+      center: true
+    })
 
-  window.loadURL(url)
-  window.once("ready-to-show", () => {
-    window.show()
-    window.focus()
-  })
+    window.loadURL(url)
+    window.once("ready-to-show", () => {
+      window.show()
+      window.focus()
+    })
+  }
 }
 
 // Function to start MongoDB
