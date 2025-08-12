@@ -1,4 +1,3 @@
-import { getTunnelState } from "../../renderer/utilities/tunnelState.js"
 import { Client } from "ssh2"
 const net = require("net")
 

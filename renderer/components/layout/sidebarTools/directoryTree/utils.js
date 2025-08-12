@@ -5,6 +5,7 @@ import { confirmDialog } from "primereact/confirmdialog"
 import { toast } from "react-toastify"
 import { insertMEDDataObjectIfNotExists } from "../../../mongoDB/mongoDBUtils"
 import { MEDDataObject } from "../../../workspace/NewMedDataObject"
+import { ipcRenderer } from "electron"
 
 const untouchableIDs = ["ROOT", "DATA", "EXPERIMENTS"]
 
@@ -186,7 +187,7 @@ export async function onDeleteSequentially(globalData, workspacePath, setIsDialo
  * @param {Array} selectedItems - The array of selected items in the directory tree
  * @returns {void}
  */
-export async function createFolder(globalData, selectedItems, workspacePath) {
+export async function createFolder(globalData, selectedItems, workspacePath, isRemote = false) {
   if (selectedItems && selectedItems.length > 0) {
     const item = globalData[selectedItems[0]]
     let parentID = null
@@ -221,14 +222,18 @@ export async function createFolder(globalData, selectedItems, workspacePath) {
     MEDDataObject.updateWorkspaceDataObject()
     
     // Check if the folder already exists
-    if (!fs.existsSync(medObject.path)) {
-      fs.mkdir(medObject.path, { recursive: true }, (err) => {
-        if (err) {
-          console.error(err)
-          return
-        }
-        console.log("Folder created successfully!")
-      })
+    if (isRemote) {
+      await ipcRenderer.invoke('createRemoteFolder', { path: medObject.path })
+    } else {
+      if (!fs.existsSync(medObject.path)) {
+        fs.mkdir(medObject.path, { recursive: true }, (err) => {
+          if (err) {
+            console.error(err)
+            return
+          }
+          console.log("Folder created successfully!")
+        })
+      }
     }
   } else {
     toast.warning("Please select a directory")

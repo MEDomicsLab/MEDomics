@@ -37,6 +37,7 @@ import {
   getRemoteWorkspacePath,
   setRemoteWorkspacePath
 } from './utils/remoteFunctions.js'
+import { getTunnelState } from "../renderer/utilities/tunnelState.js"
 import express from "express"
 import bodyParser from "body-parser"
 
@@ -695,8 +696,8 @@ if (isProd) {
             if (response.data.success && response.data.workingDirectory) {
               event.reply("updateDirectory", {
                 workingDirectory: response.data.workingDirectory,
-                hasBeenSet: hasBeenSet,
-                newPort: serverPort
+                hasBeenSet: true,
+                newPort: tunnelState.localBackendPort
               }) // Sends the folder structure to Next.js
             } else {
               console.error("Failed to get remote working directory tree: ", response.data.error)
@@ -1221,6 +1222,7 @@ ipcMain.handle('navigateRemoteDirectory', async (_event, { action, path: current
 })
 
 ipcMain.handle('createRemoteFolder', async (_event, { path: parentPath, folderName }) => {
+  console.log('createRemoteFolder', parentPath, folderName)
   const activeTunnel = getActiveTunnel()
   // Helper to get SFTP client
   function getSftp(cb) {
@@ -1255,21 +1257,25 @@ ipcMain.handle('createRemoteFolder', async (_event, { path: parentPath, folderNa
         }
       }
       try {
+        console.log('Creating folder', folderName, 'in', parentPath)
         const parent = normalizePath(parentPath)
         // Step 1: resolve canonical parent path
         let canonicalParent = await new Promise((res, rej) => {
           sftp.realpath(parent, (e, abs) => e ? res(parent) : res(abs))
         })
         // Step 2: build new folder path
-        let newFolderPath = canonicalParent.replace(/\/$/, '') + '/' + folderName
+        let newFolderPath = folderName ? canonicalParent.replace(/\/$/, '') + '/' + folderName : canonicalParent
         // Step 3: create directory
+        console.log('Resolved new folder path:', newFolderPath)
         await new Promise((res, rej) => {
           sftp.mkdir(newFolderPath, (e) => e ? rej(e) : res())
         })
         closeSftp()
+        console.log('Folder created successfully')
         resolve({ success: true })
       } catch (e) {
         closeSftp()
+        console.error('Error creating remote folder:', e)
         resolve({ success: false, error: e.message })
       }
     })
