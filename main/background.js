@@ -1,3 +1,9 @@
+// Force Electron headless mode if --no-gui is present
+if (process.argv.some(arg => arg.includes('--no-gui'))) {
+  process.env.ELECTRON_ENABLE_HEADLESS = '1'
+  // On some Linux systems, also clear DISPLAY
+  process.env.DISPLAY = ''
+}
 import { app, ipcMain, Menu, dialog, BrowserWindow, protocol, shell } from "electron"
 import axios from "axios"
 import serve from "electron-serve"
