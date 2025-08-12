@@ -238,7 +238,7 @@ if (isProd) {
   })
   
   console.log("process.argv: ", process.argv)
-  const isHeadless = process.argv[3].includes('--no-gui');
+  const isHeadless = process.argv.some(arg => arg === '--no-gui' || arg.startsWith('--no-gui='));
   console.log("isHeadless: ", isHeadless)
 
   if (!isHeadless) {
