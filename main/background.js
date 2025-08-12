@@ -219,9 +219,10 @@ if (isProd) {
   app.setPath("userData", `${app.getPath("userData")} (development)`)
 }
 
+
 (async () => {
   await app.whenReady()
-
+  
   protocol.registerFileProtocol("local", (request, callback) => {
     const url = request.url.replace(/^local:\/\//, "")
     const decodedUrl = decodeURI(url)
@@ -231,38 +232,45 @@ if (isProd) {
       console.error("ERROR: registerLocalProtocol: Could not get file path:", error)
     }
   })
-
+  
   ipcMain.on("get-file-path", (event, configPath) => {
     event.reply("get-file-path-reply", path.resolve(configPath))
   })
+  
+  console.log("process.argv: ", process.argv)
+  const isHeadless = process.argv[3].includes('--no-gui');
+  console.log("isHeadless: ", isHeadless)
 
-  splashScreen = new BrowserWindow({
-    icon: path.join(__dirname, "../resources/MEDomicsLabWithShadowNoText100.png"),
-    width: 700,
-    height: 700,
-    transparent: true,
-    frame: false,
-    alwaysOnTop: true,
-    center: true,
-    show: true
-  })
+  if (!isHeadless) {
+    splashScreen = new BrowserWindow({
+      icon: path.join(__dirname, "../resources/MEDomicsLabWithShadowNoText100.png"),
+      width: 700,
+      height: 700,
+      transparent: true,
+      frame: false,
+      alwaysOnTop: true,
+      center: true,
+      show: true
+    })
 
-  mainWindow = createWindow("main", {
-    width: 1500,
-    height: 1000,
-    show: false
-  })
+    mainWindow = createWindow("main", {
+      width: 1500,
+      height: 1000,
+      show: false
+    })
 
-  if (isProd) {
-    splashScreen.loadFile(path.join(__dirname, "splash.html"))
-  } else {
-    splashScreen.loadFile(path.join(__dirname, "../main/splash.html"))
+    if (isProd) {
+      splashScreen.loadFile(path.join(__dirname, "splash.html"))
+    } else {
+      splashScreen.loadFile(path.join(__dirname, "../main/splash.html"))
+    }
+    splashScreen.once("ready-to-show", () => {
+      splashScreen.show()
+      splashScreen.focus()
+      splashScreen.setAlwaysOnTop(true)
+    })
   }
-  splashScreen.once("ready-to-show", () => {
-    splashScreen.show()
-    splashScreen.focus()
-    splashScreen.setAlwaysOnTop(true)
-  })
+  
   const openRecentWorkspacesSubmenuOptions = getRecentWorkspacesOptions(null, mainWindow, hasBeenSet, serverPort)
   console.log("openRecentWorkspacesSubmenuOptions", JSON.stringify(openRecentWorkspacesSubmenuOptions, null, 2))
   const menuTemplate = [
