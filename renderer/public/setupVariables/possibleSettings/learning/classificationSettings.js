@@ -151,9 +151,14 @@ const classificationSettings = {
   clean: {
     options: {
       imputation_type: {
-        type: "string",
+        type: "list",
         tooltip: "<p>The type of imputation to use. Can be either \u2018simple\u2019 or \u2018iterative\u2019.\nIf None, no imputation of missing values is performed.</p>\n",
-        default_val: "simple"
+        default_val: "simple",
+        choices: {
+          Simple: "simple",
+          Iterative: "iterative"
+        }
+
       },
       normalize: {
         type: "bool",
