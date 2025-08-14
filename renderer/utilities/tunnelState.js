@@ -1,4 +1,5 @@
 // Simple tunnel state for use outside React (e.g., in .js files)
+
 let tunnelInfo = {
   host: null,
   tunnelActive: false,
@@ -32,3 +33,4 @@ export function clearTunnelState() {
 export function getTunnelState() {
   return tunnelInfo
 }
+

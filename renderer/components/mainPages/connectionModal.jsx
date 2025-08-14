@@ -5,7 +5,7 @@ import { ipcRenderer } from "electron"
 import { requestBackend } from "../../utilities/requests"
 import { ServerConnectionContext } from "../serverConnection/connectionContext"
 import { useTunnel } from "../tunnel/TunnelContext"
-import { getTunnelState, setTunnelState, clearTunnelState } from "../../utilities/tunnelState"
+import { getTunnelState } from "../../utilities/tunnelState"
 import { Button } from "@blueprintjs/core"
 import { GoFile, GoFileDirectoryFill, GoChevronDown, GoChevronUp } from "react-icons/go"
 import { FaFolderPlus } from "react-icons/fa"
@@ -51,32 +51,32 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
   const [directoryContents, setDirectoryContents] = useState([])
   const [remoteDirPath, setRemoteDirPath] = useState("")
 
-  const registerPublicKey = async (publicKeyToRegister, usernameToRegister) => {
-    setRegisterStatus("Registering...")
-    toast.info("Registering your SSH public key with the backend...")
-    await requestBackend(
-      port,
-      "/connection/register_ssh_key",
-      {
-        username: usernameToRegister,
-        publicKey: publicKeyToRegister
-      },
-      async (jsonResponse) => {
-        console.log("received results:", jsonResponse)
-        if (!jsonResponse.error) {
-          setRegisterStatus("Public key registered successfully!")
-          toast.success("Your SSH public key was registered successfully.")
-        } else {
-          setRegisterStatus("Failed to register public key: " + jsonResponse.error)
-          toast.error(jsonResponse.error)
-        }
-      },
-      (err) => {
-        setRegisterStatus("Failed to register public key: " + err)
-        toast.error(err)
-      }
-    )
-  }
+  // const registerPublicKey = async (publicKeyToRegister, usernameToRegister) => {
+  //   setRegisterStatus("Registering...")
+  //   toast.info("Registering your SSH public key with the backend...")
+  //   await requestBackend(
+  //     port,
+  //     "/connection/register_ssh_key",
+  //     {
+  //       username: usernameToRegister,
+  //       publicKey: publicKeyToRegister
+  //     },
+  //     async (jsonResponse) => {
+  //       console.log("received results:", jsonResponse)
+  //       if (!jsonResponse.error) {
+  //         setRegisterStatus("Public key registered successfully!")
+  //         toast.success("Your SSH public key was registered successfully.")
+  //       } else {
+  //         setRegisterStatus("Failed to register public key: " + jsonResponse.error)
+  //         toast.error(jsonResponse.error)
+  //       }
+  //     },
+  //     (err) => {
+  //       setRegisterStatus("Failed to register public key: " + err)
+  //       toast.error(err)
+  //     }
+  //   )
+  // }
 
   const handleGenerateKey = async () => {
     try {
@@ -200,8 +200,8 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
       if (result && result.success) {
         setTunnelActive(true)
         setTunnelStatus("SSH tunnel established.")
-        setTunnelState({ ...connInfo, tunnelActive: true })
-        tunnelContext.setTunnelInfo(getTunnelState()) // Sync React context
+        await ipcRenderer.invoke("setTunnelState", { ...connInfo, tunnelActive: true })
+        tunnelContext.setTunnelInfo(await ipcRenderer.invoke("getTunnelState")) // Sync React context
         setReconnectAttempts(0)
         if (onConnect) onConnect()
         toast.success("SSH tunnel established.")
@@ -278,7 +278,7 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
         setTunnelStatus("SSH tunnel disconnected.")
         tunnelContext.clearTunnelInfo()
         ipcRenderer.invoke("setRemoteWorkspacePath", null)
-        clearTunnelState()
+        ipcRenderer.invoke("clearTunnelState")
         toast.success("SSH tunnel disconnected.")
         setDirectoryContents([])
         setRemoteDirPath("")

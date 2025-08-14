@@ -15,6 +15,7 @@ import { WorkspaceProvider } from "../components/workspace/workspaceContext"
 import { loadMEDDataObjects, updateGlobalData } from "../utilities/appUtils/globalDataUtils"
 import { NotificationContextProvider } from "../components/generalPurpose/notificationContext"
 import { TunnelProvider } from "../components/tunnel/TunnelContext";
+import { setTunnelState } from "../utilities/tunnelState"
 
 // CSS
 import "bootstrap/dist/css/bootstrap.min.css"
@@ -179,7 +180,9 @@ function App() {
     })
 
     ipcRenderer.on("updateDirectory", (event, data) => {
+      console.log("updateDirectory", data)
       let workspace = { ...data }
+      console.log("workspace from updateDirectory", workspace)
       setWorkspaceObject(workspace)
     })
 
@@ -197,6 +200,11 @@ function App() {
       console.log("recentWorkspaces", data)
       setRecentWorkspaces(data)
     })
+
+    ipcRenderer.on('tunnelStateUpdated', (event, state) => {
+      setTunnelState(state);
+    });
+
 
     /**
      * This is to log messages from the main process in the console
@@ -227,6 +235,7 @@ function App() {
 
   // This useEffect hook is called whenever the `workspaceObject` state changes.
   useEffect(() => {
+    console.log("getting global data for workspaceObject", workspaceObject)
     async function getGlobalData() {
       let result
       if (workspaceObject.isRemote) {

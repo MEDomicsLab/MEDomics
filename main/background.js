@@ -30,20 +30,12 @@ import {
   installRequiredPythonPackages
 } from "./utils/pythonEnv"
 import { installMongoDB, checkRequirements } from "./utils/installation"
-import { generateSSHKeyPair } from './sshKeygen.js'
 import {
-  startSSHTunnel,
+  getTunnelState,
   getActiveTunnel,
-  stopSSHTunnel,
   detectRemoteOS,
-  startMongoTunnel,
-  getRemoteLStat,
-  checkRemoteFileExists,
-  confirmMongoTunnel,
   getRemoteWorkspacePath,
-  setRemoteWorkspacePath
 } from './utils/remoteFunctions.js'
-import { getTunnelState } from "../renderer/utilities/tunnelState.js"
 import express from "express"
 import bodyParser from "body-parser"
 
@@ -76,7 +68,7 @@ const isProd = process.env.NODE_ENV === "production"
 let splashScreen // The splash screen is the window that is displayed while the application is loading
 export var mainWindow // The main window is the window of the application
 // Robust headless mode detection
-const isHeadless = process.argv.some(arg => arg.includes('--no-gui'));
+const isHeadless = process.argv.some(arg => arg.includes('--no-gui'))
 
 //**** AUTO UPDATER ****//
 const { autoUpdater } = require("electron-updater")
@@ -245,9 +237,6 @@ if (isProd) {
   ipcMain.on("get-file-path", (event, configPath) => {
     event.reply("get-file-path-reply", path.resolve(configPath))
   })
-
-  console.log("process.argv: ", process.argv)
-  console.log("isHeadless: ", isHeadless)
 
   if (!isHeadless) {
     splashScreen = new BrowserWindow({
@@ -709,21 +698,29 @@ if (isProd) {
       event.reply("recentWorkspaces", recentWorkspaces)
     } else if (data === "updateWorkingDirectory") {
       const activeTunnel = getActiveTunnel()
-      const tunnelState = getTunnelState()
-      if (activeTunnel && tunnelState) {
+      const tunnel = getTunnelState()
+      console.log("tunnelState: ", tunnel)
+      if (activeTunnel && tunnel) {
         // If an SSH tunnel is active, we set the remote workspace path
         const remoteWorkspacePath = getRemoteWorkspacePath()
-        axios.post(`http://${tunnelState.host}:3000/get-working-dir-tree`, { requestedPath: remoteWorkspacePath })
+        console.log("Getting remote working directory tree for path: ", remoteWorkspacePath)
+        console.log("Posting request to: " + `http://${tunnel.host}:3000/get-working-dir-tree`)
+        axios.get(`http://${tunnel.host}:3000/get-working-dir-tree`, { params: { requestedPath: remoteWorkspacePath } })
           .then((response) => {
+            console.log("Response from remote get-working-dir-tree: ", response.data)
             if (response.data.success && response.data.workingDirectory) {
               event.reply("updateDirectory", {
                 workingDirectory: response.data.workingDirectory,
                 hasBeenSet: true,
-                newPort: tunnelState.localBackendPort
+                newPort: tunnel.localBackendPort,
+                isRemote: true
               }) // Sends the folder structure to Next.js
             } else {
               console.error("Failed to get remote working directory tree: ", response.data.error)
             }
+          })
+          .catch((error) => {
+            console.error("Error getting remote working directory tree: ", error)
           })
       } else {
         event.reply("updateDirectory", {
@@ -1023,287 +1020,3 @@ export function getMongoDBPath() {
   }
 }
 
-ipcMain.handle('generateSSHKey', async (_event, { comment, username }) => {
-  try {
-    const userDataPath = app.getPath('userData')
-    const privKeyPath = path.join(userDataPath, `${username || 'user'}_id_rsa`)
-    const pubKeyPath = path.join(userDataPath, `${username || 'user'}_id_rsa.pub`)
-    let privateKey, publicKey
-    if (fs.existsSync(privKeyPath) && fs.existsSync(pubKeyPath)) {
-      privateKey = fs.readFileSync(privKeyPath, 'utf8')
-      publicKey = fs.readFileSync(pubKeyPath, 'utf8')
-    } else {
-      const result = await generateSSHKeyPair(comment, username)
-      privateKey = result.privateKey
-      publicKey = result.publicKey
-      fs.writeFileSync(privKeyPath, privateKey, { mode: 0o600 })
-      fs.writeFileSync(pubKeyPath, publicKey, { mode: 0o644 })
-    }
-    return { privateKey, publicKey }
-  } catch (err) {
-    return { error: err.message }
-  }
-})
-
-ipcMain.handle('getSSHKey', async (_event, { username }) => {
-  try {
-    const userDataPath = app.getPath('userData')
-    const privKeyPath = path.join(userDataPath, `${username || 'user'}_id_rsa`)
-    const pubKeyPath = path.join(userDataPath, `${username || 'user'}_id_rsa.pub`)
-    let privateKey, publicKey
-    if (fs.existsSync(privKeyPath) && fs.existsSync(pubKeyPath)) {
-      privateKey = fs.readFileSync(privKeyPath, 'utf8')
-      publicKey = fs.readFileSync(pubKeyPath, 'utf8')
-      return { privateKey, publicKey }
-    } else {
-      return { privateKey: '', publicKey: '' }
-    }
-  } catch (err) {
-    return { error: err.message }
-  }
-})
-
-ipcMain.handle('startSSHTunnel', async (_event, params) => {
-  return startSSHTunnel(params)
-});
-
-ipcMain.handle('startMongoTunnel', async () => {
-  return startMongoTunnel()
-});
-
-ipcMain.handle('confirmMongoTunnel', async () => {
-  return confirmMongoTunnel()
-});
-
-ipcMain.handle('stopSSHTunnel', async () => {
-  return stopSSHTunnel()
-});
-
-ipcMain.handle('getRemoteLStat', async (_event, path) => {
-  return getRemoteLStat(path)
-})
-
-ipcMain.handle('checkRemoteFileExists', async (_event, path) => {
-  return checkRemoteFileExists(path)
-})
-
-ipcMain.handle('setRemoteWorkspacePath', async (_event, path) => {
-  return setRemoteWorkspacePath(path)
-})
-
-ipcMain.handle('listRemoteDirectory', async (_event, { path: remotePath }) => {
-  return new Promise((resolve, reject) => {
-    const activeTunnel = getActiveTunnel()
-    if (!activeTunnel) {
-      return resolve({ path: remotePath, contents: [], error: 'No active SSH tunnel' })
-    }
-    try {
-      activeTunnel.sftp((err, sftp) => {
-        if (err || !sftp) return resolve({ path: remotePath, contents: [], error: err ? err.message : 'No SFTP' })
-        // Normalize path for SFTP: always use absolute, default to home dir as '.'
-        function normalizePath(p) {
-          if (!p || p === '') return '.' // SFTP: '.' means home dir
-          if (p === '~') return '.'
-          if (p.startsWith('~/')) return p.replace(/^~\//, '')
-          return p
-        }
-        const targetPath = normalizePath(remotePath)
-        // First, resolve canonical/absolute path
-        sftp.realpath(targetPath, (err2, absPath) => {
-          const canonicalPath = (!err2 && absPath) ? absPath : targetPath
-          sftp.readdir(canonicalPath, (err3, list) => {
-            // Always close SFTP session after use
-            if (sftp && typeof sftp.end === 'function') {
-              try { sftp.end() } catch (e) {}
-            } else if (sftp && typeof sftp.close === 'function') {
-              try { sftp.close() } catch (e) {}
-            }
-            if (err3) return resolve({ path: canonicalPath, contents: [], error: err3.message })
-            const contents = Array.isArray(list)
-              ? list.filter(e => e.filename !== '.' && e.filename !== '..').map(e => ({
-                  name: e.filename,
-                  type: e.attrs.isDirectory() ? 'dir' : 'file'
-                }))
-              : []
-            resolve({ path: canonicalPath, contents })
-          })
-        })
-      })
-    } catch (e) {
-      resolve({ path: remotePath, contents: [], error: e.message })
-    }
-  })
-})
-
-// Unified remote directory navigation handler
-ipcMain.handle('navigateRemoteDirectory', async (_event, { action, path: currentPath, dirName }) => {
-  const activeTunnel = getActiveTunnel()
-  // Helper to get SFTP client
-  function getSftp(cb) {
-    if (!activeTunnel) return cb(new Error('No active SSH tunnel'))
-    if (activeTunnel.sftp) {
-      // ssh2 v1.15+ attaches sftp method directly
-      return activeTunnel.sftp(cb)
-    } else if (activeTunnel.sshClient && activeTunnel.sshClient.sftp) {
-      return activeTunnel.sshClient.sftp(cb)
-    } else {
-      return cb(new Error('No SFTP available'))
-    }
-  }
-
-  // Promisified SFTP realpath
-  function sftpRealpath(sftp, p) {
-    return new Promise((resolve, reject) => {
-      sftp.realpath(p, (err, absPath) => {
-        if (err) return reject(err)
-        resolve(absPath)
-      })
-    })
-  }
-
-  // Promisified SFTP readdir
-  function sftpReaddir(sftp, p) {
-    return new Promise((resolve, reject) => {
-      sftp.readdir(p, (err, list) => {
-        if (err) return reject(err)
-        resolve(list)
-      })
-    })
-  }
-
-  // Normalize path for SFTP: always use absolute, default to home dir as '.'
-  function normalizePath(p) {
-    if (!p || p === '') return '.' // SFTP: '.' means home dir
-    if (p === '~') return '.'
-    if (p.startsWith('~/')) return p.replace(/^~\//, '')
-    return p
-  }
-
-  return new Promise((resolve) => {
-    getSftp(async (err, sftp) => {
-      if (err) return resolve({ path: currentPath, contents: [], error: err.message })
-      let targetPath = normalizePath(currentPath)
-      let sftpClosed = false
-      // Helper to close SFTP session safely
-      function closeSftp() {
-        if (sftp && !sftpClosed) {
-          if (typeof sftp.end === 'function') {
-            try { sftp.end() } catch (e) {}
-          } else if (typeof sftp.close === 'function') {
-            try { sftp.close() } catch (e) {}
-          }
-          sftpClosed = true
-        }
-      }
-      try {
-        // Step 1: resolve canonical path (absolute)
-        let canonicalPath = await sftpRealpath(sftp, targetPath).catch(() => targetPath)
-        // Step 2: handle navigation action
-        if (action === 'up') {
-          // Go up one directory
-          if (canonicalPath === '/' || canonicalPath === '' || canonicalPath === '.') {
-            // Already at root/home
-            // List current
-          } else {
-            let parts = canonicalPath.split('/').filter(Boolean)
-            if (parts.length > 1) {
-              parts.pop()
-              canonicalPath = '/' + parts.join('/')
-            } else {
-              canonicalPath = '/'
-            }
-          }
-        } else if (action === 'into' && dirName) {
-          // Always join using absolute path
-          if (canonicalPath === '/' || canonicalPath === '') {
-            canonicalPath = '/' + dirName
-          } else if (canonicalPath === '.') {
-            // Home dir: get its absolute path
-            canonicalPath = await sftpRealpath(sftp, '.').catch(() => '/')
-            canonicalPath = canonicalPath.replace(/\/$/, '') + '/' + dirName
-          } else {
-            canonicalPath = canonicalPath.replace(/\/$/, '') + '/' + dirName
-          }
-          // Re-resolve in case of symlinks
-          canonicalPath = await sftpRealpath(sftp, canonicalPath).catch(() => canonicalPath)
-        } else if (action === 'list') {
-          // Just list current
-        }
-        // Step 3: list directory
-        let entries = await sftpReaddir(sftp, canonicalPath).catch(() => [])
-        let contents = Array.isArray(entries)
-          ? entries.filter(e => e.filename !== '.' && e.filename !== '..').map(e => ({
-              name: e.filename,
-              type: e.attrs.isDirectory() ? 'dir' : 'file'
-            }))
-          : []
-        closeSftp()
-        resolve({ path: canonicalPath, contents })
-      } catch (e) {
-        closeSftp()
-        resolve({ path: currentPath, contents: [], error: e.message })
-      }
-    })
-  })
-})
-
-ipcMain.handle('createRemoteFolder', async (_event, { path: parentPath, folderName }) => {
-  console.log('createRemoteFolder', parentPath, folderName)
-  const activeTunnel = getActiveTunnel()
-  // Helper to get SFTP client
-  function getSftp(cb) {
-    if (!activeTunnel) return cb(new Error('No active SSH tunnel'))
-    if (activeTunnel.sftp) {
-      return activeTunnel.sftp(cb)
-    } else if (activeTunnel.sshClient && activeTunnel.sshClient.sftp) {
-      return activeTunnel.sshClient.sftp(cb)
-    } else {
-      return cb(new Error('No SFTP available'))
-    }
-  }
-  // Normalize path for SFTP: always use absolute, default to home dir as '.'
-  function normalizePath(p) {
-    if (!p || p === '') return '.'
-    if (p === '~') return '.'
-    if (p.startsWith('~/')) return p.replace(/^~\//, '')
-    return p
-  }
-  return new Promise((resolve) => {
-    getSftp(async (err, sftp) => {
-      if (err) return resolve({ success: false, error: err.message })
-      let sftpClosed = false
-      function closeSftp() {
-        if (sftp && !sftpClosed) {
-          if (typeof sftp.end === 'function') {
-            try { sftp.end() } catch (e) {}
-          } else if (typeof sftp.close === 'function') {
-            try { sftp.close() } catch (e) {}
-          }
-          sftpClosed = true
-        }
-      }
-      try {
-        console.log('Creating folder', folderName, 'in', parentPath)
-        const parent = normalizePath(parentPath)
-        // Step 1: resolve canonical parent path
-        let canonicalParent = await new Promise((res, rej) => {
-          sftp.realpath(parent, (e, abs) => e ? res(parent) : res(abs))
-        })
-        // Step 2: build new folder path
-        let newFolderPath = folderName ? canonicalParent.replace(/\/$/, '') + '/' + folderName : canonicalParent
-        // Step 3: create directory
-        console.log('Resolved new folder path:', newFolderPath)
-        await new Promise((res, rej) => {
-          sftp.mkdir(newFolderPath, (e) => e ? rej(e) : res())
-        })
-        closeSftp()
-        console.log('Folder created successfully')
-        resolve({ success: true })
-      } catch (e) {
-        closeSftp()
-        console.error('Error creating remote folder:', e)
-        resolve({ success: false, error: e.message })
-      }
-    })
-  })
-})

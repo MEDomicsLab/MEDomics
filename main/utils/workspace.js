@@ -1,10 +1,10 @@
 import { app, dialog, ipcRenderer } from "electron"
 import MEDconfig from "../../medomics.dev"
+import { getTunnelState } from "./remoteFunctions"
 
 const fs = require("fs")
 var path = require("path")
 const dirTree = require("directory-tree")
-const { getTunnelState } = require('../../renderer/utilities/tunnelState')
 
 /**
  * @description Set the working directory
