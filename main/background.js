@@ -422,9 +422,16 @@ if (isProd) {
 
   expressApp.get("/get-working-dir-tree", (req, res) => {
     try {
-      const workingDirectory = dirTree(req.body.requestedPath)
+      let requestPath = req.query.requestedPath
+      if (process.platform === "win32") {
+        if (requestPath.startsWith("/")) {
+          requestPath = requestPath.slice(1)
+        } 
+      }
+      console.log("Received request to get working directory tree for path: ", requestPath)
+      const workingDirectory = dirTree(requestPath)
       if (!workingDirectory) {
-        console.log("No working directory found for the requested path:" + req.body.requestedPath)
+        console.log("No working directory found for the requested path:" + requestPath)
         res.status(500).json({ success: false, error: "Working directory not found" })
       }
       res.json({ success: true, workingDirectory: workingDirectory })
@@ -433,6 +440,7 @@ if (isProd) {
       res.status(500).json({ success: false, error: err.message })
     }
   })
+
 
   const setWorkspaceDirectory = async (data) => {
     app.setPath("sessionData", data)
