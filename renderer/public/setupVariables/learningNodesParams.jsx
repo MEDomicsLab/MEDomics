@@ -48,7 +48,7 @@ const nodesParams = {
     possibleSettings: { classification: classificationModelsSettings, regression: regressionModelsSettings }
   },
   train_model: {
-    type: "standardNode",
+    type: "trainModelNode",
     classes: "action create_model run",
     nbInput: 2,
     nbOutput: 1,

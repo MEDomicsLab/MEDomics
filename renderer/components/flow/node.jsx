@@ -192,12 +192,16 @@ const NodeObject = ({ id, data, nodeSpecific, nodeBody, defaultSettings, onClick
                 />
               </div>
               <hr className="solid" />
-              {/* here are the default settings of the node. if nothing is specified, nothing is displayed*/}
-              {defaultSettings}
-              {/* here are the node specific settings. if nothing is specified, nothing is displayed*/}
-              {nodeSpecific}
-              {/* note : quand on va implémenter codeeditor */}
-              {/* <CodeEditor data={data} /> */}
+              <div className="options-overlayPanel-settingsBody">
+                <Stack direction="vertical" gap={1}>
+                  {/* here are the default settings of the node. if nothing is specified, nothing is displayed*/}
+                  {defaultSettings}
+                  {/* here are the node specific settings. if nothing is specified, nothing is displayed*/}
+                  {nodeSpecific}
+                  {/* note : quand on va implémenter codeeditor */}
+                  {/* <CodeEditor data={data} /> */}
+                </Stack>
+              </div>
             </Stack>
           </OverlayPanel>
         </>

@@ -581,6 +581,11 @@ input.node-editableLabel {
   padding: 0.5rem;
 }
 
+.options-overlayPanel-settingsBody {
+  max-height: 20rem;
+  overflow-y: auto;
+}
+
 .optimize-io {
   width: 200px;
   height: 200px;

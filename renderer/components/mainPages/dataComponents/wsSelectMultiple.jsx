@@ -35,78 +35,81 @@ const WsSelectMultiple = ({
     const processData = async () => {
       if (globalData !== undefined) {
         let ids = Object.keys(globalData)
-        let datasetListToShow = await Promise.all(ids.map(async (id) => {
-          // Only process files in the selected root directory
-          if (rootDir != undefined) {
-            if (globalData[globalData[id].parentID]) {
-              if (rootDir.includes(globalData[globalData[id].parentID].name) || rootDir.includes(globalData[globalData[id].parentID].originalName)) {
-                if (!(!acceptFolder && globalData[id].type == "directory")) {
-                  if (acceptedExtensions.includes("all") || acceptedExtensions.includes(globalData[id].type)) {
-                    if (!matchRegex || matchRegex.test(globalData[id].name)) {
-                      // Initializations
-                      let columnsTags = {}
-                      let tags = []
-                      let tagsCollections = await getCollectionTags(id) // Get the tags of the file from db
-                      tagsCollections = await tagsCollections.toArray() // Convert to array
-                      // Process the tags and link them to columns: {column_name: [tags]}
-                      tagsCollections.map((tagCollection) => {
-                        let tempColName = tagCollection.column_name
-                        if (tagCollection.column_name.includes("_|_")) {
-                          tempColName = tagCollection.column_name.split("_|_")[1]
+        let datasetListToShow = await Promise.all(
+          ids.map(async (id) => {
+            // Only process files in the selected root directory
+            if (rootDir != undefined) {
+              if (globalData[globalData[id].parentID]) {
+                if (rootDir.includes(globalData[globalData[id].parentID].name) || rootDir.includes(globalData[globalData[id].parentID].originalName)) {
+                  if (!(!acceptFolder && globalData[id].type == "directory")) {
+                    if (acceptedExtensions.includes("all") || acceptedExtensions.includes(globalData[id].type)) {
+                      if (!matchRegex || matchRegex.test(globalData[id].name)) {
+                        // Initializations
+                        let columnsTags = {}
+                        let tags = []
+                        let tagsCollections = await getCollectionTags(id) // Get the tags of the file from db
+                        tagsCollections = await tagsCollections.toArray() // Convert to array
+                        // Process the tags and link them to columns: {column_name: [tags]}
+                        tagsCollections.map((tagCollection) => {
+                          let tempColName = tagCollection.column_name
+                          if (tagCollection.column_name.includes("_|_")) {
+                            tempColName = tagCollection.column_name.split("_|_")[1]
+                          }
+                          columnsTags[tempColName] = tagCollection.tags
+                          tags = tags.concat(tagCollection.tags)
+                        })
+                        tags = [...new Set(tags)] // Remove duplicates
+
+                        // Add the file to the list
+                        return {
+                          key: id,
+                          id: id,
+                          name: globalData[id].name,
+                          tags: tags,
+                          columnsTags: columnsTags
                         }
-                        columnsTags[tempColName] = tagCollection.tags
-                        tags = tags.concat(tagCollection.tags)
-                      })
-                      tags = [...new Set(tags)] // Remove duplicates
-                      
-                      // Add the file to the list
-                      return {
-                        id: id,
-                        name: globalData[id].name,
-                        tags: tags,
-                        columnsTags: columnsTags
                       }
                     }
                   }
                 }
               }
-            }
-            // else, we want to add any file (or folder) from acceptedExtensions
-          } else {
-            if (acceptedExtensions.includes(globalData[id].extension) || acceptedExtensions.includes("all")) {
-              let columnsTags = {}
-              let tags = []
-              let tagsCollections = await getCollectionTags(id)
-              tagsCollections = await tagsCollections.toArray()
-              tagsCollections.map((tagCollection) => {
-                columnsTags[tagCollection.column_name] = tagCollection.tags
-                tags = tags.concat(tagCollection.tags)
-              })
-              return {
-                id: id,
-                name: globalData[id].name,
-                tags: tags,
-                columnsTags: columnsTags
+              // else, we want to add any file (or folder) from acceptedExtensions
+            } else {
+              if (acceptedExtensions.includes(globalData[id].extension) || acceptedExtensions.includes("all")) {
+                let columnsTags = {}
+                let tags = []
+                let tagsCollections = await getCollectionTags(id)
+                tagsCollections = await tagsCollections.toArray()
+                tagsCollections.map((tagCollection) => {
+                  columnsTags[tagCollection.column_name] = tagCollection.tags
+                  tags = tags.concat(tagCollection.tags)
+                })
+                return {
+                  key: id,
+                  id: id,
+                  name: globalData[id].name,
+                  tags: tags,
+                  columnsTags: columnsTags
+                }
               }
             }
-          }
-          // Return empty list if the item doesn't meet the conditions
-          return null;
-        })
-      )
+            // Return empty list if the item doesn't meet the conditions
+            return null
+          })
+        )
 
-      // Filter out any null values
-      datasetListToShow = datasetListToShow.filter((item) => item !== null);
+        // Filter out any null values
+        datasetListToShow = datasetListToShow.filter((item) => item !== null)
 
-      console.log("datasetListToShow", datasetListToShow);
-      setDatasetList(datasetListToShow);
+        console.log("datasetListToShow", datasetListToShow)
+        setDatasetList(datasetListToShow)
 
-      if (datasetListToShow.length === 0) {
-        setHasWarning({ state: true, tooltip: "No data file found in the workspace" });
+        if (datasetListToShow.length === 0) {
+          setHasWarning({ state: true, tooltip: "No data file found in the workspace" })
+        }
       }
     }
-  }
-  processData()
+    processData()
   }, [globalData])
 
   return (
@@ -116,7 +119,14 @@ const WsSelectMultiple = ({
           key={key}
           disabled={disabled}
           placeholder={placeholder}
-          value={Array.isArray(selectedPaths) ? selectedPaths : []}
+          value={
+            Array.isArray(selectedPaths)
+              ? selectedPaths.map((item) => ({
+                  ...item,
+                  key: item.key || item.id
+                }))
+              : []
+          }
           onChange={(e) => onChange(e.value)}
           options={datasetList}
           optionLabel="name"

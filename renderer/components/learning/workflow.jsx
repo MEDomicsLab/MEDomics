@@ -25,6 +25,7 @@ import GroupNode from "../flow/groupNode"
 import OptimizeIO from "./nodesTypes/optimizeIO"
 import DatasetNode from "./nodesTypes/datasetNode"
 import LoadModelNode from "./nodesTypes/loadModelNode"
+import TrainModelNode from "./nodesTypes/trainModelNode.jsx"
 
 // here are the parameters of the nodes
 import nodesParams from "../../public/setupVariables/allNodesParams"
@@ -83,7 +84,8 @@ const Workflow = ({ setWorkflowType, workflowType }) => {
       groupNode: GroupNode,
       optimizeIO: OptimizeIO,
       datasetNode: DatasetNode,
-      loadModelNode: LoadModelNode
+      loadModelNode: LoadModelNode,
+      trainModelNode: TrainModelNode
     }),
     []
   )
@@ -145,6 +147,12 @@ const Workflow = ({ setWorkflowType, workflowType }) => {
         if (!node.id.includes("opt")) {
           let subworkflowType = node.data.internal.subflowId != "MAIN" ? "optimize" : "learning"
           node.data.setupParam.possibleSettings = deepCopy(staticNodesParams[subworkflowType][node.data.internal.type]["possibleSettings"][MLType])
+          console.log(node.type)
+          if (node.type == "trainModelNode") {
+            node.data.setupParam.possibleSettingsTuning = deepCopy(staticNodesParams["optimize"]["tune_model"]["possibleSettings"][MLType])
+            node.data.internal.checkedOptionsTuning = []
+            node.data.internal.settingsTuning = {}
+          }
           node.data.internal.settings = {}
           node.data.internal.checkedOptions = []
           if (node.type == "selectionNode") {
@@ -402,6 +410,11 @@ const Workflow = ({ setWorkflowType, workflowType }) => {
             let subworkflowType = node.data.internal.subflowId != "MAIN" ? "optimize" : "learning"
             let setupParams = deepCopy(staticNodesParams[subworkflowType][node.data.internal.type])
             setupParams.possibleSettings = setupParams["possibleSettings"][newScene.MLType]
+            console.log(node.type)
+            if (node.type == "trainModelNode") {
+              let setupParamsTuning = deepCopy(staticNodesParams["optimize"]["tune_model"])
+              setupParams.possibleSettingsTuning = setupParamsTuning["possibleSettings"][newScene.MLType]
+            }
             node.data.setupParam = setupParams
           }
         })
@@ -461,6 +474,12 @@ const Workflow = ({ setWorkflowType, workflowType }) => {
     if (!newNode.id.includes("opt")) {
       setupParams = deepCopy(staticNodesParams[workflowType][newNode.data.internal.type])
       setupParams.possibleSettings = setupParams["possibleSettings"][MLType]
+      if (newNode.type == "trainModelNode") {
+        let setupParamsTuning = deepCopy(staticNodesParams["optimize"]["tune_model"])
+        setupParams.possibleSettingsTuning = setupParamsTuning["possibleSettings"][MLType]
+        newNode.data.internal.checkedOptionsTuning = []
+        newNode.data.internal.settingsTuning = {}
+      }
     }
     newNode.id = `${newNode.id}${associatedNode ? `.${associatedNode}` : ""}` // if the node is a sub-group node, it has the id of the parent node seperated by a dot. useful when processing only ids
     newNode.hidden = newNode.type == "optimizeIO"
@@ -481,6 +500,7 @@ const Workflow = ({ setWorkflowType, workflowType }) => {
 
     newNode.data.internal.selection = newNode.type == "selectionNode" && Object.keys(setupParams.possibleSettings)[0]
     newNode.data.internal.checkedOptions = []
+
     newNode.data.internal.subflowId = !associatedNode ? groupNodeId.id : associatedNode
     newNode.data.internal.hasWarning = { state: false }
 
@@ -627,6 +647,7 @@ const Workflow = ({ setWorkflowType, workflowType }) => {
         const plotDirectoryID = await insertMEDDataObjectIfNotExists(plotsDirectory)
 
         // Clean everything before running a new experiment
+        console.log("sending flow ", flow)
         let { success, isValid } = await cleanJson2Send(flow, up2Id, plotDirectoryID)
         if (success) {
           requestBackendRunExperiment(port, backendMetadataFileID, isValid)
@@ -785,10 +806,11 @@ const Workflow = ({ setWorkflowType, workflowType }) => {
     if (reactFlowInstance && metadataFileID) {
       const flow = deepCopy(reactFlowInstance.toObject())
       flow.MLType = MLType
+      flow.intersections = intersections
+      console.log("scene saved", flow)
       flow.nodes.forEach((node) => {
         node.data.setupParam = null
       })
-      flow.intersections = intersections
       let success = await overwriteMEDDataObjectContent(metadataFileID, [flow])
       if (success) {
         toast.success("Scene " + sceneName + " has been saved successfully")

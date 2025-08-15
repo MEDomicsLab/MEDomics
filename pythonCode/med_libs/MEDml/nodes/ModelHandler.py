@@ -25,6 +25,9 @@ class ModelHandler(Node):
         """
         super().__init__(id_, global_config_json)
         if self.type == 'train_model':
+            self.isTuningEnabled = self.config_json['data']['internal']['isTuningEnabled']
+            if self.isTuningEnabled:
+                self.settingsTuning = self.config_json['data']['internal']['settingsTuning']
             self.model_id = self.config_json['associated_id']
             model_obj = self.global_config_json['nodes'][self.model_id]
             self.config_json['data']['estimator'] = {
@@ -66,7 +69,14 @@ class ModelHandler(Node):
                 "code", 
                 f"trained_models = [pycaret_exp.create_model({self.CodeHandler.convert_dict_to_params(settings)})]"
             )
+            if self.isTuningEnabled:
+                trained_models = [experiment['pycaret_exp'].tune_model(trained_models[0], **self.settingsTuning)]
+                self.CodeHandler.add_line(
+                    "code", 
+                    f"trained_models = [pycaret_exp.tune_model(trained_models[0], {self.CodeHandler.convert_dict_to_params(self.settingsTuning)})]"
+                )
         trained_models_copy = trained_models.copy()
+
         self._info_for_next_node = {'models': trained_models}
         for model in trained_models_copy:
             model_copy = copy.deepcopy(model)
