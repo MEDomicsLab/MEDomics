@@ -445,6 +445,7 @@ if (isProd) {
     try {
       console.log("Received request to insert object into collection: ", req.body)
       mainWindow.webContents.send("insertObjectIntoCollection", req.body)
+      res.status(200).json({ success: true, message: "Object insertion request received" })
     } catch (err) {
       console.error("Error inserting object into remote collection: ", err)
       res.status(500).json({ success: false, error: err.message })
