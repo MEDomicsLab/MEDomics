@@ -30,13 +30,14 @@ export async function recursivelyRecenseWorkspaceTree(children, parentID, isRemo
         continue
       }
       if (!fileInfo) return
+      const fileExt = child.name.includes(".") ? "." + child.name.split(".")[1] : child.name
       childType = fileInfo.isDir && 
-        child.path.slice(1) != "medml" &&
-        child.path.slice(1) != "medmlres" &&
-        child.path.slice(1) != "medeval" &&
-        child.path.slice(1) != "medmodel"
+        fileExt.slice(1) != "medml" &&
+        fileExt.slice(1) != "medmlres" &&
+        fileExt.slice(1) != "medeval" &&
+        fileExt.slice(1) != "medmodel"
           ? "directory"
-          : child.path.slice(1)
+          : fileExt.slice(1)
     } else {
       const stats = fs.lstatSync(child.path)
       if (!stats) return

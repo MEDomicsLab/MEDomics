@@ -16,6 +16,7 @@ import { loadMEDDataObjects, updateGlobalData } from "../utilities/appUtils/glob
 import { NotificationContextProvider } from "../components/generalPurpose/notificationContext"
 import { TunnelProvider } from "../components/tunnel/TunnelContext";
 import { setTunnelState } from "../utilities/tunnelState"
+import { insertObjectIntoCollection } from "../components/mongoDB/mongoDBUtils"
 
 // CSS
 import "bootstrap/dist/css/bootstrap.min.css"
@@ -201,8 +202,12 @@ function App() {
       setRecentWorkspaces(data)
     })
 
-    ipcRenderer.on('tunnelStateUpdated', (event, state) => {
-      setTunnelState(state);
+    ipcRenderer.on("tunnelStateUpdate", (event, state) => {
+      setTunnelState(state)
+    });
+
+    ipcRenderer.on("insertObjectIntoCollection", (event, data) => {
+      insertObjectIntoCollection(data)
     });
 
 

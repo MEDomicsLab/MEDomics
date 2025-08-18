@@ -418,7 +418,7 @@ if (isProd) {
       console.log('Error setting workspace directory from remote : ', err)
       res.status(500).json({ success: false, error: err.message });
     }
-  });
+  })
 
   expressApp.get("/get-working-dir-tree", (req, res) => {
     try {
@@ -441,6 +441,15 @@ if (isProd) {
     }
   })
 
+  expressApp.post("/insert-object-into-collection", async (req, res) => {
+    try {
+      console.log("Received request to insert object into collection: ", req.body)
+      mainWindow.webContents.send("insertObjectIntoCollection", req.body)
+    } catch (err) {
+      console.error("Error inserting object into remote collection: ", err)
+      res.status(500).json({ success: false, error: err.message })
+    }
+  })
 
   const setWorkspaceDirectory = async (data) => {
     app.setPath("sessionData", data)
@@ -711,8 +720,6 @@ if (isProd) {
       if (activeTunnel && tunnel) {
         // If an SSH tunnel is active, we set the remote workspace path
         const remoteWorkspacePath = getRemoteWorkspacePath()
-        console.log("Getting remote working directory tree for path: ", remoteWorkspacePath)
-        console.log("Posting request to: " + `http://${tunnel.host}:3000/get-working-dir-tree`)
         axios.get(`http://${tunnel.host}:3000/get-working-dir-tree`, { params: { requestedPath: remoteWorkspacePath } })
           .then((response) => {
             console.log("Response from remote get-working-dir-tree: ", response.data)
