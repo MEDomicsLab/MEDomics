@@ -15,15 +15,17 @@ const untouchableIDs = ["ROOT", "DATA", "EXPERIMENTS"]
  * @param {Object} dataContextObject - The data context object
  * @returns {Array} - The reordered array of folders and files
  */
-function reorderArrayOfFoldersAndFiles(array, dataContextObject) {
+function reorderArrayOfFoldersAndFiles(array, dataContextObject, showHiddenFiles) {
   let folders = []
   let files = []
   array.forEach((item) => {
     if (dataContextObject[item] !== undefined) {
-      if (dataContextObject[item].type == "directory") {
-        folders.push(item)
-      } else {
-        files.push(item)
+      if (!dataContextObject[item].name.startsWith(".") || showHiddenFiles) {
+        if (dataContextObject[item].type == "directory") {
+          folders.push(item)
+        } else {
+          files.push(item)
+        }
       }
     }
   })
@@ -32,26 +34,29 @@ function reorderArrayOfFoldersAndFiles(array, dataContextObject) {
 
 /**
  * This function converts the data context object to a tree object that can be used by the directory tree component.
- * @param {Object} medDataContext - The data context object
+ * @param {Object} data - The data context object
+ * @param {boolean} showHiddenFiles - Whether to include hidden files in the tree
  * @returns {Object} - The tree object
  */
-export function fromJSONtoTree(data) {
+export function fromJSONtoTree(data, showHiddenFiles) {
   let tree = {}
-  const namesYouCantRename = ["DATA", "EXPERIMENTS"] // These names cannot be renamed
+  const namesYouCantRename = ["DATA", "EXPERIMENTS", "ROOT"] // These names cannot be renamed
   Object.keys(data).forEach((key) => {
     let element = data[key]
-    if (element.name != ".medomics" && element.name != ".ipynb_checkpoints" && element.name != ".DS_Store") {
+    if (showHiddenFiles || (element.name != ".ipynb_checkpoints" && element.name != ".DS_Store")) {
       let ableToRename = !namesYouCantRename.includes(element.name)
+      let isRoot = element.parentID == null
       tree[element.id] = {
         index: element.id,
-        canMove: ableToRename,
-        isFolder: element.type == "directory",
-        children: element.childrenIDs ? reorderArrayOfFoldersAndFiles(element.childrenIDs, data) : [],
+        canMove: ableToRename && !isRoot,
+        isFolder: element.type === "directory",
+        children: element.childrenIDs ? reorderArrayOfFoldersAndFiles(element.childrenIDs, data, showHiddenFiles) : [],
         data: element.name,
-        canRename: ableToRename,
+        canRename: ableToRename && !isRoot,
         type: element.type,
         isLocked: element.isLocked,
-        usedIn: element.usedIn
+        usedIn: element.usedIn,
+        path: element.path
       }
     }
   })
@@ -125,8 +130,8 @@ export function onPaste(globalData, copiedObjectId, placeToCopyId) {
  * @note - This function is called when the user deletes files or folders in the directory tree, either by pressing the delete key or by right-clicking and selecting "Delete".
  */
 export async function onDeleteSequentially(globalData, workspacePath, setIsDialogShowing, items, index = 0) {
-  MEDDataObject.updateWorkspaceDataObject()  // Update the workspace data object before deleting
-  MEDDataObject.verifyLockedObjects(globalData)  // Verify if the locked objects and unlock them if they are not linked to any other object
+  MEDDataObject.updateWorkspaceDataObject() // Update the workspace data object before deleting
+  MEDDataObject.verifyLockedObjects(globalData) // Verify if the locked objects and unlock them if they are not linked to any other object
   const id = items[index]
   // check if the item is locked
   if (globalData[id] && globalData[id].isLocked) {
@@ -145,7 +150,7 @@ export async function onDeleteSequentially(globalData, workspacePath, setIsDialo
         setIsDialogShowing(false)
       }
     })
-    MEDDataObject.updateWorkspaceDataObject()  // Update the workspace data object
+    MEDDataObject.updateWorkspaceDataObject() // Update the workspace data object
     return
   }
   if (index >= items.length || !globalData[id]) {
@@ -197,7 +202,7 @@ export async function createFolder(globalData, selectedItems, workspacePath, isR
     } else if (item.parentID) {
       parentID = item.parentID
     } else {
-      toast.warning("Selected item is not a directory and has no parent. Setting parent to ROOT.") 
+      toast.warning("Selected item is not a directory and has no parent. Setting parent to ROOT.")
       parentID = "ROOT"
     }
     // Check if the selected item is in the workspace and has a valid path
@@ -220,7 +225,7 @@ export async function createFolder(globalData, selectedItems, workspacePath, isR
     medObject.path = path.join(currentPath, medObject.name)
     await insertMEDDataObjectIfNotExists(medObject)
     MEDDataObject.updateWorkspaceDataObject()
-    
+
     // Check if the folder already exists
     if (isRemote) {
       await ipcRenderer.invoke('createRemoteFolder', { path: medObject.path })
@@ -247,47 +252,47 @@ export async function createFolder(globalData, selectedItems, workspacePath, isR
  * @returns {void}
  * @note - This function is called when the user drops an item in the directory tree.
  */
-export const onDrop = async (items, target) => {
+export const onDrop = async (items, target, tree, globalData, workspacePath) => {
   console.log("HERE", items, target)
-  /* const currentItems = tree.current.treeEnvironmentContext.items
-    for (const item of items) {
-      const parent = Object.values(currentItems).find((potentialParent) => potentialParent.children?.includes(item.index))
 
-      if (!parent) {
-        throw Error(`Could not find parent of item "${item.index}"`)
-      }
+  const currentItems = tree.treeEnvironmentContext.items
+  for (const item of items) {
+    const parent = Object.values(currentItems).find((potentialParent) => potentialParent.children?.includes(item.index))
 
-      if (!parent.children) {
-        throw Error(`Parent "${parent.index}" of item "${item.index}" did not have any children`)
-      }
+    if (!parent) {
+      throw Error(`Could not find parent of item "${item.index}"`)
+    }
 
-      if (target.targetType === "item" || target.targetType === "root") {
-        if (target.targetItem === parent.index) {
-          // NO Operation
-        } else {
-          let dataObject = globalData[item.index]
-          if (dataObject.type == "directory") {
-            MedDataObject.move(dataObject, globalData[target.targetItem], globalData, setGlobalData)
-            //MedDataObject.updateWorkspaceDataObject()
-          } else {
-            MedDataObject.move(dataObject, globalData[target.targetItem], globalData, setGlobalData)
-            //MedDataObject.updateWorkspaceDataObject()
-          }
-        }
+    if (!parent.children) {
+      throw Error(`Parent "${parent.index}" of item "${item.index}" did not have any children`)
+    }
+
+    if (target.targetType === "item" || target.targetType === "root") {
+      if (target.targetItem === parent.index) {
+        console.log("Trying to drop inside itself")
+        // NO Operation
       } else {
-        if (target.parentItem === item.index) {
-          // Trying to drop inside itself
-          return
-        }
-        let dataObject = globalData[item.UUID]
-        if (target.parentItem === dataObject.parentID) {
-          // NO Operation
-        } else {
-          MedDataObject.move(dataObject, globalData[target.parentItem], globalData, setGlobalData)
-          //MedDataObject.updateWorkspaceDataObject()
-        }
+        let dataObject = globalData[item.index]
+        console.log("dataobject", dataObject)
+        await MEDDataObject.move(globalData, item.index, target.targetItem, workspacePath)
+        // MedDataObject.move(dataObject, globalData[target.targetItem], globalData, setGlobalData)
       }
-    } */
+    } else {
+      if (target.parentItem === item.index) {
+        // Trying to drop inside itself
+        console.log("Trying to drop inside itself")
+        return
+      }
+      let dataObject = globalData[item.index]
+      console.log("dataobject", dataObject)
+      // if (target.parentItem === dataObject.parentID) {
+      //   // NO Operation
+      // } else {
+      await MEDDataObject.move(globalData, item.index, target.targetItem, workspacePath)
+      // await MEDDataObject.updateWorkspaceDataObject()
+      // }
+    }
+  }
 }
 
 /**

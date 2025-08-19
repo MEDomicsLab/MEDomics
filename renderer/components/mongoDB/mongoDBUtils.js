@@ -107,7 +107,7 @@ export async function insertMEDDataObjectIfNotExists(medData, path = null, jsonD
   }
 
   // Add path to medData if not null and not already present
-  if (path && !medData.path) {
+  if (path !== null && path !== undefined && typeof path === "string" && path.trim() !== "" && !medData.path) {
     medData.path = path
   }
 

@@ -12,6 +12,7 @@ import Row from "react-bootstrap/Row"
 import Col from "react-bootstrap/Col"
 import { Button } from "primereact/button"
 import { ErrorRequestContext } from "../generalPurpose/errorRequestContext"
+import { useTheme } from "../theme/themeContext"
 
 /**
  *
@@ -55,6 +56,7 @@ const WorkflowBase = ({ isGoodConnection, groupNodeHandlingDefault, onDeleteNode
   const { showAvailableNodes, setShowAvailableNodes, updateFlowContent } = useContext(FlowInfosContext) // used to update the flow infos
   const { showResultsPane, setShowResultsPane, isResults, flowResults } = useContext(FlowResultsContext) // used to update the flow infos
   const { showError, setShowError } = useContext(ErrorRequestContext) // used to get the flow infos
+  const { isDarkMode } = useTheme() // used to get the current theme mode
   const [hasBeenAnError, setHasBeenAnError] = useState(false) // used to get the flow infos
   const [miniMapState, setMiniMapState] = useState(true) // used to get the flow infos
   const [numberOfNodes, setNumberOfNodes] = useState(0) // used to get the flow infos
@@ -154,15 +156,16 @@ const WorkflowBase = ({ isGoodConnection, groupNodeHandlingDefault, onDeleteNode
       }
 
       const setHasRunRec = (obj) => {
+        console.log("obj", obj)
         Object.keys(obj).forEach((id) => {
           setHasRun(id)
-          setHasRunRec(obj[id].next_nodes)
+          obj[id].next_nodes && setHasRunRec(obj[id].next_nodes)
         })
       }
       if (Object.keys(flowResults).length > 0) {
         Object.keys(flowResults).forEach((id) => {
           setHasRun(id)
-          setHasRunRec(flowResults[id].next_nodes)
+          flowResults[id].next_nodes && setHasRunRec(flowResults[id].next_nodes)
         })
       } else {
         nodes.forEach((node) => {
@@ -245,10 +248,12 @@ const WorkflowBase = ({ isGoodConnection, groupNodeHandlingDefault, onDeleteNode
 
       const setHasRunRec = (obj) => {
         Object.keys(obj).forEach((id) => {
-          Object.keys(obj[id].next_nodes).forEach((nextId) => {
-            setHasRun(id, nextId)
-          })
-          setHasRunRec(obj[id].next_nodes)
+          if (obj[id].next_nodes) {
+            Object.keys(obj[id].next_nodes).forEach((nextId) => {
+              setHasRun(id, nextId)
+            })
+            obj[id].next_nodes && setHasRunRec(obj[id].next_nodes)
+          }
         })
       }
 
@@ -256,7 +261,7 @@ const WorkflowBase = ({ isGoodConnection, groupNodeHandlingDefault, onDeleteNode
         Object.keys(flowResults[id].next_nodes).forEach((nextId) => {
           setHasRun(id, nextId)
         })
-        setHasRunRec(flowResults[id].next_nodes)
+        flowResults[id].next_nodes && setHasRunRec(flowResults[id].next_nodes)
       })
       edges.forEach((edge) => {
         edge.data ? (edge.data.hasRun = edgesHasRun.includes(edge.id)) : (edge.data = { hasRun: edgesHasRun.includes(edge.id) })
@@ -581,6 +586,7 @@ const WorkflowBase = ({ isGoodConnection, groupNodeHandlingDefault, onDeleteNode
         onEdgeUpdate={onEdgeUpdate}
         onEdgeUpdateStart={onEdgeUpdateStart}
         onEdgeUpdateEnd={onEdgeUpdateEnd}
+        colorMode={isDarkMode ? 'dark' : 'light'}
         fitView
       >
         <Background />

@@ -42,11 +42,10 @@ export async function loadMEDDataObjects(isRemote = false) {
     const db = await connectToMongoDB()
     const collection = db.collection("medDataObjects")
     const medDataObjectsArray = await collection.find().toArray()
-
     // Format data
     for (const data of medDataObjectsArray) {
       const medDataObject = new MEDDataObject(data)
-
+      // Check if local objects still exist
       if (medDataObject.inWorkspace && medDataObject.path) {
         if (isRemote) {
           // Check if remote objects still exist

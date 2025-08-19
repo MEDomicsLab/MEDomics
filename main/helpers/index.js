@@ -1,5 +1,4 @@
-import createWindow from "./create-window";
+import createWindow from "./create-window"
+import TerminalManager from "./terminalManager"
 
-export {
-	createWindow,
-};
+export { createWindow, TerminalManager }

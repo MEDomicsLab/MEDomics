@@ -1,0 +1,469 @@
+:root {
+  /* Light theme variables */
+  --bg-primary: #ffffff;
+  --bg-secondary: #f8f9fa;
+  --bg-tertiary: #e9ecef;
+  --text-primary: #212529;
+  --text-secondary: #6c757d;
+  --text-muted: #adb5bd;
+  --border-color: #dee2e6;
+  --border-color-light: #f1f3f4;
+  --sidebar-bg: #ffffff;
+  --sidebar-text: #212529;
+  --sidebar-hover: #f8f9fa;
+  --sidebar-active: #e9ecef;
+  --button-bg: #0d6efd;
+  --button-text: #ffffff;
+  --button-hover: #0b5ed7;
+  --card-bg: #ffffff;
+  --card-border: #dee2e6;
+  --input-bg: #ffffff;
+  --input-border: #ced4da;
+  --input-focus: #86b7fe;
+  --shadow: rgba(0, 0, 0, 0.15);
+  --shadow-hover: rgba(0, 0, 0, 0.25);
+  --terminal-bg: #ffffff;
+  --terminal-text: #212529;
+  --success: #198754;
+  --warning: #ffc107;
+  --danger: #dc3545;
+  --info: #0dcaf0;
+}
+
+[data-theme="dark"] {
+  /* Dark theme variables */
+  --bg-primary: #1a1a1a;
+  --bg-secondary: #2d2d2d;
+  --bg-tertiary: #404040;
+  --text-primary: #ffffff;
+  --text-secondary: #b3b3b3;
+  --text-muted: #8d8d8d;
+  --border-color: #404040;
+  --border-color-light: #333333;
+  --sidebar-bg: #2d2d2d;
+  --sidebar-text: #ffffff;
+  --sidebar-hover: #404040;
+  --sidebar-active: #4a4a4a;
+  --button-bg: #0d6efd;
+  --button-text: #ffffff;
+  --button-hover: #0b5ed7;
+  --card-bg: #2d2d2d;
+  --card-border: #404040;
+  --input-bg: #2d2d2d;
+  --input-border: #404040;
+  --input-focus: #0d6efd;
+  --shadow: rgba(0, 0, 0, 0.3);
+  --shadow-hover: rgba(0, 0, 0, 0.5);
+  --terminal-bg: #1a1a1a;
+  --terminal-text: #ffffff;
+  --success: #20c997;
+  --warning: #ffc107;
+  --danger: #dc3545;
+  --info: #0dcaf0;
+}
+
+body {
+  background-color: var(--bg-primary) !important;
+  color: var(--text-primary) !important;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Oxygen", "Ubuntu", "Cantarell", "Fira Sans", "Droid Sans", "Helvetica Neue", sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+/* Label styles */
+label {
+  color: var(--text-primary) !important;
+  font-weight: 500;
+}
+
+/* Sidebar styles */
+.sidebar {
+  background-color: var(--sidebar-bg) !important;
+  color: var(--sidebar-text) !important;
+  border-right: 1px solid var(--border-color) !important;
+}
+
+.sidebar-item {
+  color: var(--sidebar-text) !important;
+}
+
+.sidebar-item:hover {
+  background-color: var(--sidebar-hover) !important;
+}
+
+.sidebar-item.active {
+  background-color: var(--sidebar-active) !important;
+}
+
+/* Card and panel styles */
+.card,
+.panel,
+.p-card {
+  background-color: var(--card-bg) !important;
+  border-color: var(--card-border) !important;
+  color: var(--text-primary) !important;
+}
+
+.card-header,
+.p-card-header {
+  background-color: var(--bg-secondary) !important;
+  border-bottom-color: var(--border-color) !important;
+  color: var(--text-primary) !important;
+}
+
+/* PrimeReact panel styles */
+.p-panel {
+  background-color: var(--card-bg) !important;
+  border-color: var(--card-border) !important;
+  color: var(--text-primary) !important;
+}
+
+.p-panel.p-panel-header {
+  background-color: var(--bg-secondary) !important;
+  border-bottom-color: var(--border-color) !important;
+  color: var(--text-primary) !important;
+}
+
+/* Button styles */
+/* .btn,
+.p-button {
+  background-color: var(--button-bg);
+  border-color: var(--button-bg);
+  color: var(--button-text);
+}
+
+.btn:hover,
+.p-button:hover {
+  background-color: var(--button-hover) !important;
+  border-color: var(--button-hover) !important;
+} */
+
+/* Input styles */
+.form-control,
+.p-inputtext,
+.p-dropdown,
+.p-multiselect {
+  background-color: var(--input-bg) !important;
+  border-color: var(--input-border) !important;
+  color: var(--text-primary) !important;
+}
+
+.form-control:focus,
+.p-inputtext:focus {
+  border-color: var(--input-focus) !important;
+  box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25) !important;
+}
+
+/* Modal styles */
+.modal-content,
+.p-dialog {
+  background-color: var(--card-bg) !important;
+  color: var(--text-primary) !important;
+}
+
+.modal-header,
+.p-dialog-header {
+  background-color: var(--bg-secondary) !important;
+  border-bottom-color: var(--border-color) !important;
+}
+
+/* Table styles */
+.table,
+.p-datatable {
+  color: var(--text-primary) !important;
+}
+
+.table th,
+.p-datatable-thead th {
+  background-color: var(--bg-secondary) !important;
+  border-color: var(--border-color) !important;
+  color: var(--text-primary) !important;
+}
+
+.table td,
+.p-datatable-tbody td {
+  border-color: var(--border-color) !important;
+  color: var(--text-primary) !important;
+}
+
+.table-striped tbody tr:nth-of-type(odd) {
+  background-color: var(--bg-secondary) !important;
+}
+
+/* Terminal styles */
+.terminal,
+.xterm {
+  background-color: var(--terminal-bg) !important;
+  color: var(--terminal-text) !important;
+}
+
+/* Terminal container and tab styling */
+.terminal-container {
+  height: 100%;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  background-color: var(--terminal-bg);
+}
+
+.terminal-tab .p-tabview-panel {
+  padding: 0 !important;
+  height: calc(100% - 40px);
+}
+
+.terminal-tab .p-tabview-panels {
+  background-color: var(--terminal-bg) !important;
+  height: calc(100% - 40px);
+}
+
+.terminal-tab .p-tabview-nav {
+  background-color: var(--card-bg) !important;
+  border-bottom: 1px solid var(--border-color) !important;
+}
+
+.terminal-tab .p-tabview-nav li .p-tabview-nav-link {
+  background-color: transparent !important;
+  color: var(--text-primary) !important;
+  border: none !important;
+}
+
+.terminal-tab .p-tabview-nav li.p-highlight .p-tabview-nav-link {
+  background-color: var(--primary-color) !important;
+  color: white !important;
+}
+
+/* Xterm.js specific styling */
+.xterm .xterm-viewport {
+  background-color: var(--terminal-bg) !important;
+}
+
+.xterm .xterm-screen {
+  background-color: var(--terminal-bg) !important;
+}
+
+.xterm .xterm-cursor {
+  background-color: var(--terminal-text) !important;
+}
+
+.xterm .xterm-selection {
+  background-color: rgba(255, 255, 255, 0.3) !important;
+}
+
+/* Dropdown and menu styles */
+.dropdown-menu,
+.p-menu {
+  background-color: var(--card-bg) !important;
+  border-color: var(--border-color) !important;
+}
+
+.dropdown-item,
+.p-menuitem-link {
+  color: var(--text-primary) !important;
+}
+
+.dropdown-item:hover,
+.p-menuitem-link:hover {
+  background-color: var(--sidebar-hover) !important;
+}
+
+/* Toast and notification styles */
+.toast,
+.p-toast {
+  background-color: var(--card-bg) !important;
+  color: var(--text-primary) !important;
+  border-color: var(--border-color) !important;
+}
+
+/* Scrollbar styles for dark mode */
+[data-theme="dark"] ::-webkit-scrollbar {
+  background-color: var(--bg-secondary);
+}
+
+[data-theme="dark"] ::-webkit-scrollbar-thumb {
+  background-color: var(--bg-tertiary);
+}
+
+[data-theme="dark"] ::-webkit-scrollbar-thumb:hover {
+  background-color: var(--border-color);
+}
+
+/* Layout manager styles */
+.flexlayout__border_top,
+.flexlayout__border_bottom,
+.flexlayout__border_left,
+.flexlayout__border_right {
+  background-color: var(--sidebar-bg) !important;
+  color: var(--sidebar-text) !important;
+}
+
+.flexlayout__tab {
+  background-color: var(--bg-secondary) !important;
+  color: var(--text-primary) !important;
+}
+
+.flexlayout__tab_selected {
+  background-color: var(--bg-primary) !important;
+}
+
+.flexlayout__tabset_header {
+  background-color: var(--bg-secondary) !important;
+}
+
+.flexlayout__splitter {
+  background-color: var(--border-color) !important;
+}
+
+/* Terminal button styles (VSCode-like) */
+.terminal-new-btn:hover,
+.terminal-split-btn:hover,
+.terminal-unsplit-btn:hover {
+  background-color: var(--surface-hover) !important;
+  border-color: var(--primary-color) !important;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.terminal-kill-btn:hover {
+  background-color: var(--red-100) !important;
+  border-color: var(--red-600) !important;
+  color: var(--red-600) !important;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.terminal-new-btn:active,
+.terminal-split-btn:active,
+.terminal-unsplit-btn:active,
+.terminal-kill-btn:active {
+  transform: translateY(0);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+/* Terminal controls bar enhancement */
+.terminal-controls {
+  background: linear-gradient(to bottom, var(--card-bg), var(--surface-ground));
+  border-bottom: 1px solid var(--border-color);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+/* Terminal tab list improvements */
+.terminal-tab-list {
+  background-color: var(--surface-ground);
+  border-left: 1px solid var(--border-color);
+}
+
+.terminal-tab-item {
+  transition: all 0.15s ease;
+  border-radius: 3px;
+  margin: 2px 4px;
+}
+
+.terminal-tab-item:hover {
+  background-color: var(--surface-hover) !important;
+  border-left: 3px solid var(--primary-color);
+}
+
+.terminal-tab-item.active {
+  background-color: var(--primary-color) !important;
+  color: white !important;
+  border-left: 3px solid var(--primary-color-dark);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+/* Terminal splitter improvements */
+.p-splitter {
+  border: none !important;
+}
+
+.p-splitter.p-splitter-horizontal > .p-splitter-gutter {
+  background-color: var(--border-color) !important;
+  width: 4px !important;
+  cursor: col-resize !important;
+  transition: background-color 0.2s ease;
+}
+
+.p-splitter.p-splitter-horizontal > .p-splitter-gutter:hover {
+  background-color: var(--primary-color) !important;
+}
+
+.p-splitter.p-splitter-vertical > .p-splitter-gutter {
+  background-color: var(--border-color) !important;
+  height: 4px !important;
+  cursor: row-resize !important;
+  transition: background-color 0.2s ease;
+}
+
+.p-splitter.p-splitter-vertical > .p-splitter-gutter:hover {
+  background-color: var(--primary-color) !important;
+}
+
+.p-splitter-gutter-handle {
+  display: none !important;
+}
+
+/* Ensure terminal tab manager is responsive */
+.terminal-tab-list {
+  min-width: 120px;
+  max-width: 300px;
+}
+
+/* Responsive terminal tab items */
+@media (max-width: 200px) {
+  .terminal-tab-item span {
+    font-size: 10px !important;
+  }
+
+  .terminal-tab-item .pi-clone {
+    display: none !important;
+  }
+}
+
+/* Improve split terminal appearance */
+.terminal-container .p-splitter-panel {
+  border: none !important;
+  overflow: hidden;
+}
+
+/* Enhanced terminal controls */
+.terminal-controls {
+  background: linear-gradient(135deg, var(--card-bg) 0%, var(--surface-ground) 100%);
+  border-bottom: 1px solid var(--border-color);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  backdrop-filter: blur(8px);
+}
+
+/* Terminal tab controls hover effect */
+.terminal-tab-item:hover .terminal-tab-controls {
+  opacity: 1 !important;
+}
+
+.terminal-tab-item.active .terminal-tab-controls {
+  opacity: 1 !important;
+}
+
+/* Terminal tab buttons styling */
+.terminal-tab-controls .p-button {
+  transition: all 0.15s ease;
+  color: var(--text-secondary);
+}
+
+.terminal-tab-controls .p-button:hover {
+  background-color: rgba(255, 255, 255, 0.1) !important;
+  color: var(--text-primary) !important;
+  transform: scale(1.1);
+}
+
+.terminal-tab-item.active .terminal-tab-controls .p-button {
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.terminal-tab-item.active .terminal-tab-controls .p-button:hover {
+  background-color: rgba(255, 255, 255, 0.2) !important;
+  color: white !important;
+}
+
+/* Terminal new button in header styling */
+.terminal-new-btn-header:hover {
+  opacity: 1 !important;
+  color: var(--primary-color) !important;
+  transform: scale(1.1);
+}

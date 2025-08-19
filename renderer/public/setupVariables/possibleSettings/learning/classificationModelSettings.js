@@ -3,9 +3,13 @@ const classificationModelSettings = {
     "lr": {
         "options": {
             "penalty": {
-                "type": "string",
+                "type": "list",
                 "default_val": "l2",
-                "tooltip": "{‘l1’, ‘l2’}, default=’l2’ Specifies the norm used in the penalization. The ‘l2’ penalty is the standard used in SVC. The ‘l1’ leads to coef_ vectors that are sparse."
+                "tooltip": "<p>Specifies the norm used in the penalization. The <code>l2</code> penalty is the standard used in SVC. The <code>l1</code> penalty leads to <code>coef_</code> vectors that are sparse.</p>\n<p>Options: <code>l1</code>, <code>l2</code>. Default = <code>l2</code>.</p>",
+                "choices": {
+                    "l1": "L1",
+                    "l2": "L2"
+                }
             },
             "dual": {
                 "type": "bool",
@@ -43,9 +47,14 @@ const classificationModelSettings = {
                 "tooltip": "int, default=None. Used when solver == ‘sag’, ‘saga’ or ‘liblinear’ to shuffle the data."          
               },
             "solver": {
-                "type": "string",
+                "type": "list",
                 "default_val": "lbfgs",
-                "tooltip": "string, default=’lbfgs’. Algorithm to use in the optimization problem."
+                "tooltip": "<p>Algorithm to use in the optimization problem. Default = <code>lbfgs</code>.</p>\n<ul>\n<li><b>newton-cg</b>: Newton Conjugate Gradient.</li>\n<li><b>lbfgs</b>: Limited-memory BFGS (default).</li>\n<li><b>liblinear</b>: Library for large linear classification.</li>\n</ul>",
+                "choices": {
+                    "newton-cg": "Newton-CG",
+                    "lbfgs": "LBFGS",
+                    "liblinear": "LibLinear"
+                }
             },
             "max_iter": {
                 "type": "int",
@@ -53,9 +62,14 @@ const classificationModelSettings = {
                 "tooltip": "int, default=1000. The maximum number of iterations to be run."
             },
             "multi_class": {
-                "type": "string",
+                "type": "list",
                 "default_val": "auto",
-                "tooltip": "String, default='auto' Determines the multi-class strategy if y contains more than two classes."
+                "tooltip": "<p>Determines the multi-class strategy when the target <code>y</code> has more than two classes. Default = <code>auto</code>.</p>\n<ul>\n<li><b>auto</b>: Automatically selects <code>ovr</code> or <code>multinomial</code> based on the solver. Uses <code>multinomial</code> if <code>solver='lbfgs'</code>.</li>\n<li><b>ovr</b>: One-vs-Rest — fits a binary problem for each class.</li>\n<li><b>multinomial</b>: Minimizes the multinomial loss over the entire probability distribution. Only supported by the <code>lbfgs</code> solver.</li>\n</ul>",
+                "choices": {
+                    "auto": "Auto",
+                    "ovr": "OvR",
+                    "multinomial": "Multinomial"
+                }
             },
             "verbose": {
                 "type": "int",
@@ -94,9 +108,15 @@ const classificationModelSettings = {
                 "tooltip": "NoneType, default=None. Limiting distance of neighbors to return. If radius is a float, then n_neighbors must be set to None."
             },
             "algorithm": {
-                "type": "string",
+                "type": "list",
                 "default_val": "auto",
-                "tooltip": "String, default=’auto’. Algorithm used to compute the nearest neighbors:‘ball_tree’ will use BallTree.‘kd_tree’ will use KDTree.‘brute’ will use a brute-force search.‘auto’ will attempt to decide the most appropriate algorithm based on the values passed to fit method. (default)"
+                "tooltip": "<p>Algorithm used to compute the nearest neighbors. Default = <code>auto</code>.</p>\n<ul>\n<li><b>auto</b>: Chooses the best algorithm based on the training data.</li>\n<li><b>ball_tree</b>: Uses BallTree algorithm.</li>\n<li><b>kd_tree</b>: Uses KDTree algorithm.</li>\n<li><b>brute</b>: Uses brute-force search.</li>\n</ul>\n<p><strong>Note:</strong> Fitting on sparse input will override this parameter and use brute force.</p>",
+                "choices": {
+                    "auto": "Auto",
+                    "ball_tree": "Ball Tree",
+                    "kd_tree": "KD Tree",
+                    "brute": "Brute Force"
+                }
             },
             "leaf_size": {
                 "type": "int",
@@ -104,9 +124,16 @@ const classificationModelSettings = {
                 "tooltip": "int, default=30. Leaf size passed to BallTree or KDTree. This can affect the speed of the construction and query, as well as the memory required to store the tree. The optimal value depends on the nature of the problem."
             },
             "metric": {
-                "type": "string",
+                "type": "list",
                 "default_val": "minkowski",
-                "tooltip": "String, default=’minkowski’. Distance metric for searching neighbors."
+                "tooltip": "<p>Distance metric to use for neighbor search. Default = <code>minkowski</code>, which is equivalent to Euclidean distance when <code>p=2</code>.</p>\n<ul>\n<li><b>minkowski</b>: Generalized distance (default).</li>\n<li><b>euclidean</b>: Euclidean distance (same as <code>minkowski</code> with <code>p=2</code>).</li>\n<li><b>manhattan</b>: Manhattan distance (same as <code>minkowski</code> with <code>p=1</code>).</li>\n<li><b>chebyshev</b>: Chebyshev distance.</li>\n<li><b>hamming</b>: Hamming distance.</li>\n<li><b>precomputed</b>: Use a precomputed distance matrix (X must be square).</li>\n</ul>\n<p>You may also provide a callable function, but it is less efficient.</p>",
+                "choices": {
+                    "minkowski": "Minkowski",
+                    "euclidean": "Euclidean",
+                    "manhattan": "Manhattan",
+                    "chebyshev": "Chebyshev",
+                    "hamming": "Hamming",
+                }
             },
             "metric_params": {
                 "type": "NoneType",
@@ -124,10 +151,14 @@ const classificationModelSettings = {
                 "tooltip": "int, default=-1. Number of CPU cores used when parallelizing over classes if multi_class=’ovr’”. This parameter is ignored when the solver is set to ‘liblinear’ regardless of whether ‘multi_class’ is specified or not."
             },
             "weights": {
-                "type": "string",
-                "default_val": "uniform",
-                "tooltip": "String, default=’uniform’. Weight function used in prediction. Possible values: ‘uniform’ : Uniform weights. All points in each neighborhood are weighted equally. ‘Distance’ : weight points by the inverse of their distance. in this case, closer neighbors of a query point will have a greater influence than neighbors which are further away. Callable : a user-defined function which accepts an array of distances, and returns an array of the same shape containing the weights."
+            "type": "list",
+            "default_val": "uniform",
+            "tooltip": "<p>Weight function used in prediction. Default = <code>uniform</code>.</p>\n<ul>\n<li><b>uniform</b>: All points in each neighborhood are weighted equally.</li>\n<li><b>distance</b>: Weight points by the inverse of their distance (closer neighbors have more influence).</li>\n</ul>\n<p><b>Note :</b> You can also provide a callable (custom function), but this is not supported in the current UI.</p>",
+            "choices": {
+                "uniform": "Uniform",
+                "distance": "Distance-based"
             }
+            }  
         },
         "code": "knn",
         "label": "K-Nearest Neighbors"
@@ -151,14 +182,23 @@ const classificationModelSettings = {
     "dt": {
         "options": {
             "criterion": {
-                "type": "string",
-                "default_val": "gini",
-                "tooltip": "String, default=”gini”. The function to measure the quality of a split. Supported criteria are “gini” for the Gini impurity and “log_loss” and “entropy” both for the Shannon information gain"
+            "type": "list",
+            "default_val": "gini",
+            "tooltip": "<p>Function to measure the quality of a split. Default = <code>gini</code>.</p>\n<ul>\n<li><b>gini</b>: Gini impurity.</li>\n<li><b>entropy</b>: Shannon information gain (entropy).</li>\n<li><b>log_loss</b>: Shannon information gain (log loss).</li>\n</ul>",
+            "choices": {
+                "gini": "Gini",
+                "entropy": "Entropy",
+                "log_loss": "Log Loss"
+            }
             },
             "splitter": {
-                "type": "string",
+                "type": "list",
                 "default_val": "best",
-                "tooltip": "String, default=”best”. The strategy used to choose the split at each node. Supported strategies are “best” to choose the best split and “random” to choose the best random split."
+                "tooltip": "<p>Strategy used to choose the split at each node. Default = <code>best</code>.</p>\n<ul>\n<li><b>best</b>: Chooses the best possible split.</li>\n<li><b>random</b>: Chooses the best random split.</li>\n</ul>",
+                "choices": {
+                    "best": "Best",
+                    "random": "Random"
+            }
             },
             "max_depth": {
                 "type": "NoneType",
@@ -217,19 +257,40 @@ const classificationModelSettings = {
     "svm": {
         "options": {
             "loss": {
-                "type": "string",
-                "default_val": "hinge",
-                "tooltip": "String, default=’hinge’. The loss function to be used. ‘Hinge’ gives a linear SVM. ‘Log_loss’ gives logistic regression, a probabilistic classifier. ‘Modified_huber’ is another smooth loss that brings tolerance to outliers as well as probability estimates. ‘Squared_hinge’ is like hinge but is quadratically penalized. ‘Perceptron’ is the linear loss used by the perceptron algorithm. The other losses, ‘Squared_error’, ‘Huber’, ‘Epsilon_insensitive’ and ‘Squared_epsilon_insensitive’ are designed for regression but can be useful in classification as well"
+            "type": "list",
+            "default_val": "hinge",
+            "tooltip": "<p>The loss function to be used. Default = <code>hinge</code>.</p>\n<ul>\n<li><b>hinge</b>: Linear SVM (default).</li>\n<li><b>log_loss</b>: Logistic regression (probabilistic classifier).</li>\n<li><b>modified_huber</b>: Smooth loss, robust to outliers, gives probabilities.</li>\n<li><b>squared_hinge</b>: Like hinge but penalized quadratically.</li>\n<li><b>perceptron</b>: Linear loss for the perceptron algorithm.</li>\n<li><b>squared_error</b>, <b>huber</b>, <b>epsilon_insensitive</b>, <b>squared_epsilon_insensitive</b>: Regression losses, can be useful in classification.</li>\n</ul>",
+            "choices": {
+                "hinge": "Hinge (SVM)",
+                "log_loss": "Log Loss (Logistic Regression)",
+                "modified_huber": "Modified Huber",
+                "squared_hinge": "Squared Hinge",
+                "perceptron": "Perceptron",
+                "squared_error": "Squared Error",
+                "huber": "Huber",
+                "epsilon_insensitive": "Epsilon Insensitive",
+                "squared_epsilon_insensitive": "Squared Epsilon Insensitive"
+            }
             },
             "penalty": {
-                "type": "string",
+                "type": "list",
                 "default_val": "l2",
-                "tooltip": "{‘l1’, ‘l2’}, default=’l2’ Specifies the norm used in the penalization. The ‘l2’ penalty is the standard used in SVC. The ‘l1’ leads to coef_ vectors that are sparse."
+                "tooltip": "<p>Specifies the norm used in the penalization. Default = <code>l2</code>.</p>\n<ul>\n<li><b>l1</b>: Produces sparse coefficient vectors.</li>\n<li><b>l2</b>: Standard used in SVC (default).</li>\n</ul>",
+                "choices": {
+                    "l1": "L1",
+                    "l2": "L2"
+                }
             },
             "learning_rate": {
-                "type": "string",
+                "type": "list",
                 "default_val": "optimal",
-                "tooltip": "String, default=’optimal’. The learning rate schedule:‘constant’: eta = eta0‘ Pptimal’: eta = 1.0 / (alpha * (t + t0)) where t0 is chosen by a heuristic proposed by Leon Bottou. ‘Invscaling’: eta = eta0 / pow(t, power_t) ‘Adaptive’: eta = eta0, as long as the training keeps decreasing. Each time n_iter_no_change consecutive epochs fail to decrease the training loss by tol or fail to increase validation score by tol if early_stopping is True, the current learning rate is divided by 5."
+                "tooltip": "<p>Learning rate schedule. Default = <code>optimal</code>.</p>\n<ul>\n<li><b>constant</b>: eta = eta0</li>\n<li><b>optimal</b>: eta = 1.0 / (alpha * (t + t0)), t0 heuristically chosen (default).</li>\n<li><b>invscaling</b>: eta = eta0 / pow(t, power_t)</li>\n<li><b>adaptive</b>: eta = eta0 as long as training improves, divided by 5 on plateau.</li>\n</ul>",
+                "choices": {
+                    "constant": "Constant",
+                    "optimal": "Optimal",
+                    "invscaling": "Inverse Scaling",
+                    "adaptive": "Adaptive"
+                }
             },
             "epsilon": {
                 "type": "float",
@@ -333,9 +394,13 @@ const classificationModelSettings = {
     "rbfsvm": {
         "options": {
             "decision_function_shape": {
-                "type": "string",
+                "type": "list",
                 "default_val": "ovr",
-                "tooltip": "String, default=’ovr’. Whether to return a one-vs-rest (‘ovr’) decision function of shape (n_samples, n_classes) as all other classifiers, or the original one-vs-one (‘ovo’) decision function of libsvm which has shape (n_samples, n_classes * (n_classes - 1) / 2). "
+                "tooltip": "<p>Whether to return a one-vs-rest (<code>ovr</code>) decision function of shape <code>(n_samples, n_classes)</code> — as in most classifiers — or the original one-vs-one (<code>ovo</code>) decision function of <code>libsvm</code>, which has shape <code>(n_samples, n_classes × (n_classes - 1) / 2)</code>.</p><p>Default = <code>ovr</code>.</p>",
+                "choices": {
+                    "ovr": "OvR",
+                    "ovo": "OvO"
+            }
             },
             "break_ties": {
                 "type": "bool",
@@ -343,9 +408,16 @@ const classificationModelSettings = {
                 "tooltip": "bool, default=False. If true, decision_function_shape='ovr', and number of classes > 2, predict will break ties according to the confidence values of decision_function; otherwise the first class among the tied classes is returned. "
             },
             "kernel": {
-                "type": "string",
+                "type": "list",
                 "default_val": "rbf",
-                "tooltip": "String, default=’rbf’, Specifies the kernel type to be used in the algorithm."
+                "tooltip": "<p>Specifies the kernel type to be used in the algorithm. Default = <code>rbf</code>.</p>\n<ul>\n<li><b>linear</b>: Linear kernel.</li>\n<li><b>poly</b>: Polynomial kernel.</li>\n<li><b>rbf</b>: Radial Basis Function kernel (default).</li>\n<li><b>sigmoid</b>: Sigmoid kernel.</li>\n<li><b>precomputed</b>: Use a user-provided kernel matrix instead of computing it.</li>\n</ul>",
+                "choices": {
+                    "rbf": "RBF",
+                    "linear": "Linear",
+                    "poly": "Polynomial",
+                    "sigmoid": "Sigmoid",
+                    "precomputed": "Precomputed kernel matrix"
+                }
             },
             "degree": {
                 "type": "int",
@@ -353,9 +425,13 @@ const classificationModelSettings = {
 				"tooltip": "int, default=3. Degree of the polynomial kernel function (‘poly’). Must be non-negative. Ignored by all other kernels."
             },
             "gamma": {
-                "type": "string",
+                "type": "list",
                 "default_val": "auto",
-                "tooltip": "String, default=’auto’. Kernel coefficient for ‘rbf’, ‘poly’ and ‘sigmoid’."
+                "tooltip": "<p>Kernel coefficient for <code>rbf</code>, <code>poly</code> and <code>sigmoid</code>. Determines how far the influence of a single training example reaches.</p>\n<ul>\n<li><b>auto</b>: Uses <code>1 / n_features</code>.</li>\n<li><b>scale</b>: Uses <code>1 / (n_features * X.var())</code>. More robust (recommended).</li>\n</ul>\n<p><strong>Note :</strong> You can also specify a float value manually via the backend if needed.</p>",
+                "choices": {
+                    "auto": "Auto",
+                    "scale": "Scale"
+                }
             },
             "coef0": {
                 "type": "float",
@@ -429,9 +505,13 @@ const classificationModelSettings = {
                 "tooltip": "NoneType, default=’None’, Specifies the kernel type to be used in the algorithm."
             },
             "optimizer": {
-                "type": "string",
+                "type": "list",
                 "default_val": "fmin_l_bfgs_b",
-                "tooltip": "String, default=’fmin_l_bfgs_b’. Can either be one of the internally supported optimizers for optimizing the kernel’s parameters, specified by a string, or an externally defined optimizer passed as a callable."
+                "tooltip": "<p>Algorithm used to optimize the kernel’s parameters. Default = <code>fmin_l_bfgs_b</code>.</p>\n<ul>\n<li><b>fmin_l_bfgs_b</b>: Quasi-Newton method for bound-constrained optimization (default).</li>\n<li><b>None</b>: Disable optimization; use initial kernel parameters.</li>\n</ul>\n<p><strong>Note :</strong> Callables (custom functions) are supported in scikit-learn, but not in the current UI.</p>",
+                "choices": {
+                    "fmin_l_bfgs_b": "fmin_l_bfgs_b"
+                    
+                }
             },
             "n_restarts_optimizer": {
                 "type": "int",
@@ -459,9 +539,12 @@ const classificationModelSettings = {
                 "tooltip": "int, default=1334. Determines random number generation used to initialize the centers. Pass an int for reproducible results across multiple function calls. "          
               },
             "multi_class": {
-                "type": "string",
+                "type": "list",
                 "default_val": "one_vs_rest",
-                "tooltip": "String, default='one_vs_rest'. Determines the multi-class strategy if y contains more than two classes."
+                "tooltip": "<p>Determines the multi-class strategy when the target <code>y</code> contains more than two classes. Only <code>one_vs_rest</code> is supported in <code>GaussianProcessClassifier</code>.</p>",
+                "choices": {
+                    "one_vs_rest": "One-vs-Rest"
+                }
             },
             "n_jobs": {
                 "type": "int",
@@ -475,14 +558,25 @@ const classificationModelSettings = {
     "mlp": {
         "options": {
             "activation": {
-                "type": "string",
+                "type": "list",
                 "default_val": "relu",
-                "tooltip": "String, default=’relu’. Activation function for the hidden layer."
+                "tooltip": "<p>Activation function for the hidden layer. Default = <code>relu</code>.</p>\n<ul>\n<li><b>identity</b>: No-op activation, returns input as is.</li>\n<li><b>logistic</b>: Sigmoid function.</li>\n<li><b>tanh</b>: Hyperbolic tangent function.</li>\n<li><b>relu</b>: Rectified Linear Unit function (default).</li>\n</ul>",
+                "choices": {
+                    "identity": "Identity",
+                    "logistic": "Logistic (Sigmoid)",
+                    "tanh": "Tanh",
+                    "relu": "ReLU (default)"
+                }
             },
             "solver": {
-                "type": "string",
+                "type": "list",
                 "default_val": "adam",
-                "tooltip": "String, default=’adam’. Algorithm to use in the optimization problem."
+                "tooltip": "<p>Algorithm to use for weight optimization. Default = <code>adam</code>.</p>\n<ul>\n<li><b>lbfgs</b>: Optimizer in the family of quasi-Newton methods.</li>\n<li><b>sgd</b>: Stochastic Gradient Descent.</li>\n<li><b>adam</b>: Stochastic optimizer based on adaptive estimates of lower-order moments (default).</li>\n</ul>",
+                "choices": {
+                    "lbfgs": "L-BFGS",
+                    "sgd": "SGD",
+                    "adam": "Adam (default)"
+                }
             },
             "alpha": {
                 "type": "float",
@@ -495,9 +589,14 @@ const classificationModelSettings = {
 				"tooltip": "String, default=’auto’. Size of minibatches for stochastic optimizers."
             },
             "learning_rate": {
-                "type": "string",
+                "type": "list",
                 "default_val": "constant",
-                "tooltip": "String, default=’constant’. The learning rate schedule:‘constant’: eta = eta0‘ Pptimal’: eta = 1.0 / (alpha * (t + t0)) where t0 is chosen by a heuristic proposed by Leon Bottou. ‘Invscaling’: eta = eta0 / pow(t, power_t) ‘Adaptive’: eta = eta0, as long as the training keeps decreasing. Each time n_iter_no_change consecutive epochs fail to decrease the training loss by tol or fail to increase validation score by tol if early_stopping is True, the current learning rate is divided by 5."
+                "tooltip": "<p>Learning rate schedule for weight updates. Default = <code>constant</code>.</p>\n<ul>\n<li><b>constant</b>: eta = eta0 (default).</li>\n<li><b>invscaling</b>: eta = eta0 / pow(t, power_t).</li>\n<li><b>adaptive</b>: eta = eta0 as long as loss improves, else divided by 5.</li>\n</ul>",
+                "choices": {
+                    "constant": "Constant (default)",
+                    "invscaling": "Invscaling",
+                    "adaptive": "Adaptive"
+                }
             },
             "learning_rate_init": {
                 "type": "float",
@@ -515,9 +614,20 @@ const classificationModelSettings = {
                 "tooltip": "int, default=500. The maximum number of iterations to be run."
             },
             "loss": {
-                "type": "string",
+                "type": "list",
                 "default_val": "log_loss",
-                "tooltip": "String, default=’log_loss’. The loss function to be used. ‘Hinge’ gives a linear SVM. ‘Log_loss’ gives logistic regression, a probabilistic classifier. ‘Modified_huber’ is another smooth loss that brings tolerance to outliers as well as probability estimates. ‘Squared_hinge’ is like hinge but is quadratically penalized. ‘Perceptron’ is the linear loss used by the perceptron algorithm. The other losses, ‘Squared_error’, ‘Huber’, ‘Epsilon_insensitive’ and ‘Squared_epsilon_insensitive’ are designed for regression but can be useful in classification as well"
+                "tooltip": "<p>Loss function to use (default: <code>log_loss</code>).</p>\n<p><strong>Classification:</strong> <code>hinge</code> (SVM), <code>log_loss</code> (logistic), <code>modified_huber</code>, <code>squared_hinge</code>, <code>perceptron</code>.</p>\n<p>Some regression losses like <code>squared_error</code> and <code>huber</code> can also be used for classification. </p>",
+                "choices": {
+                    "hinge": "Hinge (classification)",
+                    "log_loss": "Log Loss (classification, default)",
+                    "modified_huber": "Modified Huber (classification)",
+                    "squared_hinge": "Squared Hinge (classification)",
+                    "perceptron": "Perceptron (classification)",
+                    "squared_error": "Squared Error (regression-style)",
+                    "huber": "Huber (regression-style)",
+                    "epsilon_insensitive": "Epsilon Insensitive (regression-style)",
+                    "squared_epsilon_insensitive": "Squared Epsilon Insensitive (regression-style)"
+                }
             },
             "hidden_layer_sizes": {
                 "type": "tuple",
@@ -626,9 +736,19 @@ const classificationModelSettings = {
                 "tooltip": "float, default=0.0001. Tolerance for stopping criteria."
             },
             "solver": {
-                "type": "string",
+                "type": "list",
                 "default_val": "auto",
-                "tooltip": "string, default=’auto’. Algorithm to use in the optimization problem."
+                "tooltip": "<p>Algorithm used to solve the Ridge regression problem. Default = <code>auto</code>.</p>\n<ul>\n<li><b>auto</b>: Automatically chooses the best solver based on the data.</li>\n<li><b>svd</b>: Uses Singular Value Decomposition. Suitable when <code>X</code> is dense and small.</li>\n<li><b>cholesky</b>: Uses the standard normal equations solver.</li>\n<li><b>lsqr</b>: Uses the LSQR iterative solver.</li>\n<li><b>sparse_cg</b>: Conjugate gradient solver.</li>\n<li><b>sag</b>: Stochastic Average Gradient descent (for large datasets).</li>\n<li><b>saga</b>: Variant of SAG also supporting sparse data and L1 penalty.</li>\n<li><b>lbfgs</b>: Limited-memory BFGS optimizer (for large datasets).</li>\n</ul>",
+                "choices": {
+                    "auto": "Auto",
+                    "svd": "SVD",
+                    "cholesky": "Cholesky",
+                    "lsqr": "LSQR",
+                    "sparse_cg": "Sparse Conjugate Gradient",
+                    "sag": "SAG",
+                    "saga": "SAGA",
+                    "lbfgs": "L-BFGS"
+                }
             },
             "positive": {
                 "type": "bool",
@@ -712,9 +832,14 @@ const classificationModelSettings = {
                 "tooltip": "NoneType, default=None. The number of samples to draw from X to train each base estimator "
             },
             "criterion": {
-                "type": "string",
+                "type": "list",
                 "default_val": "gini",
-                "tooltip": "String, default=”gini”. The function to measure the quality of a split. Supported criteria are “gini” for the Gini impurity and “log_loss” and “entropy” both for the Shannon information gain"
+                "tooltip": "<p>Function to measure the quality of a split. Default = <code>gini</code>.</p>\n<ul>\n<li><b>gini</b>: Gini impurity.</li>\n<li><b>entropy</b>: Shannon information gain.</li>\n<li><b>log_loss</b>: Also based on Shannon information gain (for probabilistic splits).</li>\n</ul>",
+                "choices": {
+                    "gini": "Gini",
+                    "entropy": "Entropy",
+                    "log_loss": "Log Loss"
+                }
             },
             "max_depth": {
                 "type": "NoneType",
@@ -737,9 +862,14 @@ const classificationModelSettings = {
                 "tooltip": "float, default=0.0. The minimum weighted fraction of the sum total of weights (of all the input samples) required to be at a leaf node. Samples have equal weight when sample_weight is not provided."
             },
             "max_features": {
-                "type": "string",
+                "type": "list",
                 "default_val": "sqrt",
-                "tooltip": "String, default=”sqrt”. The number of features to consider when looking for the best split: If int, then consider max_features features at each split. If float, then max_features is a fraction and max(1, int(max_features * n_features_in_)) features are considered at each split. If “sqrt”, then max_features=sqrt(n_features).If “log2”, then max_features=log2(n_features) If None, then max_features=n_features."
+                "tooltip": "<p>Number of features to consider when looking for the best split. Default = <code>sqrt</code>.</p>\n<ul>\n<li><b>sqrt</b>: Square root of total features.</li>\n<li><b>log2</b>: Log2 of total features.</li>\n<li><b>None</b>: Use all features.</li>\n</ul>\n<p><b>Note :</b> You can also provide float or int manually in the backend.</p>",
+                "choices": {
+                    "sqrt": "Sqrt (default)",
+                    "log2": "Log2",
+                    "None": "None (all features)"
+                }
             },
             "max_leaf_nodes": {
                 "type": "NoneType",
@@ -819,10 +949,14 @@ const classificationModelSettings = {
                 "tooltip": "int, default=1334. Controls the random seed given at each estimator at each boosting iteration."
                         },
             "algorithm": {
-                "type": "string",
+                "type": "list",
                 "default_val": "SAMME.R",
-                "tooltip": "String, default=’SAMME.R’. If ‘SAMME.R’ then use the SAMME.R real boosting algorithm. estimator must support calculation of class probabilities. If ‘SAMME’ then use the SAMME discrete boosting algorithm. The SAMME.R algorithm typically converges faster than SAMME, achieving a lower test error with fewer boosting iterations."
-            }
+                "tooltip": "<p>Boosting algorithm to use. Default = <code>SAMME.R</code>.</p>\n<ul>\n<li><b>SAMME.R</b>: Real boosting (requires probability estimates). Converges faster.</li>\n<li><b>SAMME</b>: Discrete boosting (uses predicted classes only).</li>\n</ul>",
+                "choices": {
+                    "SAMME.R": "SAMME.R (real, default)",
+                    "SAMME": "SAMME (discrete)"
+                }
+         }
         },
         "code": "ada",
         "label": "AdaBoost"
@@ -840,14 +974,24 @@ const classificationModelSettings = {
                 "tooltip": "float, default=0.1. Weight applied to each classifier at each boosting iteration. A higher learning rate increases the contribution of each classifier. There is a trade-off between the learning_rate and n_estimators parameters. Values must be in the range (0.0, inf)."
             },
             "loss": {
-                "type": "string",
+                "type": "list",
                 "default_val": "log_loss",
-                "tooltip": "String, default=’log_loss’. The loss function to be used. ‘Hinge’ gives a linear SVM. ‘Log_loss’ gives logistic regression, a probabilistic classifier. ‘Modified_huber’ is another smooth loss that brings tolerance to outliers as well as probability estimates. ‘Squared_hinge’ is like hinge but is quadratically penalized. ‘Perceptron’ is the linear loss used by the perceptron algorithm. The other losses, ‘Squared_error’, ‘Huber’, ‘Epsilon_insensitive’ and ‘Squared_epsilon_insensitive’ are designed for regression but can be useful in classification as well"
+                "tooltip": "<p>Loss function to be optimized. Default = <code>log_loss</code>.</p>\n<p>Supports <code>log_loss</code>, <code>exponential</code>, and <code>hinge</code>.</p>",
+                "choices": {
+                    "log_loss": "Log Loss (default)",
+                    "exponential": "Exponential",
+                    "hinge": "Hinge"
+                }
             },
             "criterion": {
-                "type": "string",
+                "type": "list",
                 "default_val": "friedman_mse",
-                "tooltip": "String, default=”friedman_mse”. The function to measure the quality of a split. Supported criteria are “gini” for the Gini impurity and “log_loss” and “entropy” both for the Shannon information gain"
+                "tooltip": "<p>Function to measure the quality of a split. Default = <code>friedman_mse</code>.</p>\n<ul>\n<li><b>friedman_mse</b>: Improvement score used in Friedman’s GB.</li>\n<li><b>squared_error</b>: Mean squared error.</li>\n<li><b>mse</b>: Alias for <code>squared_error</code>.</li>\n</ul>",
+                "choices": {
+                    "friedman_mse": "Friedman MSE (default)",
+                    "squared_error": "Squared Error",
+                    "mse": "MSE (alias)"
+                }
             },
             "min_samples_split": {
                 "type": "int",
@@ -941,9 +1085,14 @@ const classificationModelSettings = {
     "lda": {
         "options": {
             "solver": {
-                "type": "string",
+                "type": "list",
                 "default_val": "svd",
-                "tooltip": "string, default=’svd’. Algorithm to use in the optimization problem."
+                "tooltip": "<p>Algorithm used to solve the LDA optimization problem. Default = <code>svd</code>.</p>\n<ul>\n<li><b>svd</b>: Does not compute the covariance matrix (default).</li>\n<li><b>lsqr</b>: Least squares solution.</li>\n<li><b>eigen</b>: Eigenvalue decomposition-based solution.</li>\n</ul>",
+                "choices": {
+                    "svd": "SVD (default)",
+                    "lsqr": "LSQR",
+                    "eigen": "Eigen"
+                }
             },
             "shrinkage": {
                 "type": "NoneType",
@@ -1042,9 +1191,14 @@ const classificationModelSettings = {
                 "tooltip": "NoneType, default=None. The number of samples to draw from X to train each base estimator "
             },
             "criterion": {
-                "type": "string",
+                "type": "list",
                 "default_val": "gini",
-                "tooltip": "String, default=”gini”. The function to measure the quality of a split. Supported criteria are “gini” for the Gini impurity and “log_loss” and “entropy” both for the Shannon information gain"
+                "tooltip": "<p>Function to measure the quality of a split. Default = <code>gini</code>.</p>\n<ul>\n<li><b>gini</b>: Gini impurity.</li>\n<li><b>entropy</b>: Shannon information gain.</li>\n<li><b>log_loss</b>: Log loss for probabilistic splits.</li>\n</ul>",
+                "choices": {
+                    "gini": "Gini (default)",
+                    "entropy": "Entropy",
+                    "log_loss": "Log Loss"
+                }
             },
             "max_depth": {
                 "type": "NoneType",
@@ -1067,9 +1221,14 @@ const classificationModelSettings = {
                 "tooltip": "float, default=0.0. The minimum weighted fraction of the sum total of weights (of all the input samples) required to be at a leaf node. Samples have equal weight when sample_weight is not provided."
             },
             "max_features": {
-                "type": "string",
+                "type": "list",
                 "default_val": "sqrt",
-                "tooltip": "String, default=”sqrt”. The number of features to consider when looking for the best split: If int, then consider max_features features at each split. If float, then max_features is a fraction and max(1, int(max_features * n_features_in_)) features are considered at each split. If “sqrt”, then max_features=sqrt(n_features).If “log2”, then max_features=log2(n_features) If None, then max_features=n_features."
+                "tooltip": "<p>Number of features to consider at each split. Default = <code>sqrt</code>.</p>\n<ul>\n<li><b>sqrt</b>: Square root of total features.</li>\n<li><b>log2</b>: Log base 2 of total features.</li>\n<li><b>None</b>: Use all features.</li>\n</ul>",
+                "choices": {
+                    "sqrt": "Sqrt (default)",
+                    "log2": "Log2",
+                    "None": "None (all features)"
+                }
             },
             "max_leaf_nodes": {
                 "type": "NoneType",
@@ -1093,9 +1252,15 @@ const classificationModelSettings = {
     "lightgbm": {
         "options": {
             "boosting_type": {
-                "type": "string",
+                "type": "list",
                 "default_val": "gbdt",
-                "tooltip": "String, default='gbdt'. traditional Gradient Boosting Decision Tree."
+                "tooltip": "<p>Boosting algorithm used. Default = <code>gbdt</code>.</p>\n<ul>\n<li><b>gbdt</b>: Gradient Boosting Decision Tree (default).</li>\n<li><b>dart</b>: Dropouts meet Additive Regression Trees.</li>\n<li><b>goss</b>: Gradient-based One-Side Sampling.</li>\n<li><b>rf</b>: Random Forest.</li>\n</ul>",
+                "choices": {
+                    "gbdt": "GBDT (default)",
+                    "dart": "DART",
+                    "goss": "GOSS",
+                    "rf": "Random Forest"
+                }
             },
             "objective": {
                 "type": "NoneType",
@@ -1178,9 +1343,13 @@ const classificationModelSettings = {
                 "tooltip": "int, default=-1. Number of CPU cores used when parallelizing over classes if multi_class=’ovr’”. This parameter is ignored when the solver is set to ‘liblinear’ regardless of whether ‘multi_class’ is specified or not."
             },
             "importance_type": {
-                "type": "string",
+                "type": "list",
                 "default_val": "split",
-                "tooltip": "String, default='split'. The type of feature importance to be filled into feature_importances_."
+                "tooltip": "<p>Type of feature importance to use. Default = <code>split</code>.</p>\n<ul>\n<li><b>split</b>: Number of times the feature is used in the model.</li>\n<li><b>gain</b>: Total gain of splits that use the feature.</li>\n</ul>",
+                "choices": {
+                    "split": "Split (default)",
+                    "gain": "Gain"
+                }
             },
             "class_weight": {
                 "type": "NoneType",
@@ -1194,9 +1363,16 @@ const classificationModelSettings = {
     "dummy": {
         "options": {
             "strategy": {
-                "type": "string",
+                "type": "list",
                 "default_val": "prior",
-                "tooltip": "String, default=”prior”. Strategy to use to generate predictions. “prior”: the predict method always returns the most frequent class label in the observed y argument passed to fit (like “most_frequent”)."
+                "tooltip": "<p>Strategy to generate predictions. Default = <code>prior</code>.</p>\n<ul>\n<li><b>prior</b>: Always predict the most frequent class (same as <code>most_frequent</code>).</li>\n<li><b>most_frequent</b>: Predict the most frequent class.</li>\n<li><b>stratified</b>: Predict randomly according to class distribution.</li>\n<li><b>uniform</b>: Predict uniformly at random.</li>\n<li><b>constant</b>: Predict a constant label (requires <code>constant</code> parameter).</li>\n</ul>",
+                "choices": {
+                    "prior": "Prior (default)",
+                    "most_frequent": "Most Frequent",
+                    "stratified": "Stratified",
+                    "uniform": "Uniform",
+                    "constant": "Constant"
+                }
             },
             "random_state": {
                 "type": "int",
