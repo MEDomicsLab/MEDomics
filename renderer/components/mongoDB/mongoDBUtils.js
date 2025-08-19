@@ -308,6 +308,12 @@ async function insertCSVIntoCollection(filePath, collectionName) {
         dynamicTyping: true, // Automatically convert numeric fields to numbers
         complete: async (results) => {
           try {
+            console.log("CSV parsing results: ", results)
+            if (results.data.length == 0) {
+              console.warn("CSV file is empty or has no valid rows.")
+              resolve(null)
+              return
+            } 
             const result = await collection.insertMany(results.data)
             console.log(`CSV data inserted with ${result.insertedCount} documents`)
             resolve(result)

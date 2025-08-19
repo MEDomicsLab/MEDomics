@@ -282,7 +282,11 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
         toast.success("SSH tunnel disconnected.")
         setDirectoryContents([])
         setRemoteDirPath("")
-        setWorkspace(null)
+        setWorkspace({
+          hasBeenSet: false,
+          workingDirectory: "",
+          isRemote: false
+        })
       } else {
         setTunnelStatus("Failed to disconnect tunnel: " + (result?.error || 'Unknown error'))
         toast.error("Disconnect Failed: " + result?.error || 'Unknown error')
