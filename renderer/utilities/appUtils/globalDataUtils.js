@@ -8,7 +8,6 @@ import { ipcRenderer } from "electron"
  * @param {Object} workspaceObject
  */
 export const updateGlobalData = async (workspaceObject) => {
-  console.log("Updating global data: ", workspaceObject)
   let rootChildren = workspaceObject.workingDirectory.children
   let rootParentID = "ROOT"
   let rootName = workspaceObject.workingDirectory.name
@@ -34,7 +33,6 @@ export const updateGlobalData = async (workspaceObject) => {
  * @returns medDataObjectsDict dict containing the MEDDataObjects in the Database
  */
 export async function loadMEDDataObjects(isRemote = false) {
-  console.log("Loading MEDDataObjects from MongoDB...")
   let medDataObjectsDict = {}
   try {
     // Get global data
@@ -49,9 +47,7 @@ export async function loadMEDDataObjects(isRemote = false) {
       if (medDataObject.inWorkspace && medDataObject.path) {
         if (isRemote) {
           // Check if remote objects still exist
-          console.log(`Checking remote existence of: ${medDataObject.name} at ${medDataObject.path}`)
           const fileStatus = await ipcRenderer.invoke('checkRemoteFileExists', medDataObject.path)
-          console.log(`Remote existence check for ${medDataObject.name}: `, fileStatus)
           if (fileStatus == "exists") {
             medDataObjectsDict[medDataObject.id] = medDataObject
           } else if (fileStatus == "does not exist") {

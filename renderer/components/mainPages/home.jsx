@@ -55,14 +55,12 @@ const HomePage = () => {
       "/input/generate_sample_data/",
       jsonToSend,
       async (jsonResponse) => {
-        console.log("jsonResponse", jsonResponse)
         if (jsonResponse.error) {
-          console.log("Sample data error")
           if (jsonResponse.error.message) {
-            console.error(jsonResponse.error.message)
+            console.error("Sample data generating error: ", jsonResponse.error.message)
             toast.error(jsonResponse.error.message)
           } else {
-            console.error(jsonResponse.error)
+            console.error("Sample data generating error: ", jsonResponse.error)
             toast.error(jsonResponse.error)
           }
         } else {
@@ -75,7 +73,7 @@ const HomePage = () => {
       },
       (error) => {
         console.log(error)
-        toast.error("Error generating sample data " + error)
+        toast.error("Error generating sample data :", error)
       }
     )
   }

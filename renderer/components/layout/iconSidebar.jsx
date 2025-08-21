@@ -169,7 +169,6 @@ const IconSidebar = ({ onSidebarItemSelect }) => {
             data-tooltip-id="tooltip-connection-menu"
             onClick={() => {
               setShowConnectionModal(true)
-              console.log("TunnelActive: " + tunnel.tunnelActive)
             }}
             style={{ position: "relative" }}
           >

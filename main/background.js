@@ -445,11 +445,36 @@ if (isProd) {
 
   expressApp.post("/insert-object-into-collection", async (req, res) => {
     try {
+      if (!req.body) {
+        console.error("No object provided in request body")
+        return res.status(400).json({ success: false, error: "No object provided" })
+      } else if (!req.body.objectPath || !req.body.medDataObject) {
+        console.error("Invalid request body: objectPath and medDataObject are required")
+        return res.status(400).json({ success: false, error: "Invalid request body" })
+      }
       console.log("Received request to insert object into collection: ", req.body)
-      mainWindow.webContents.send("insertObjectIntoCollection", req.body)
+      await mainWindow.webContents.send("insertObjectIntoCollection", req.body)
       res.status(200).json({ success: true, message: "Object insertion request received" })
     } catch (err) {
       console.error("Error inserting object into remote collection: ", err)
+      res.status(500).json({ success: false, error: err.message })
+    }
+  })
+
+  expressApp.post("/download-collection-to-file", async (req, res) => {
+    try {
+      if (!req.body) {
+        console.error("No object provided in request body")
+        return res.status(400).json({ success: false, error: "No object provided" })
+      } else if (!req.body.collectionId || !req.body.filePath || !req.body.type) {
+        console.error("Invalid request body: downloadCollectionToFile requires collectionId, filePath, and type")
+        return res.status(400).json({ success: false, error: "Invalid request body" })
+      }
+      console.log("Received request to download collection to file: ", req.body)
+      await mainWindow.webContents.send("downloadCollectionToFile", req.body)
+      res.status(200).json({ success: true, message: "Collection download request received" })
+    } catch (err) {
+      console.error("Error downloading object to file: ", err)
       res.status(500).json({ success: false, error: err.message })
     }
   })
@@ -719,13 +744,11 @@ if (isProd) {
     } else if (data === "updateWorkingDirectory") {
       const activeTunnel = getActiveTunnel()
       const tunnel = getTunnelState()
-      console.log("tunnelState: ", tunnel)
       if (activeTunnel && tunnel) {
         // If an SSH tunnel is active, we set the remote workspace path
         const remoteWorkspacePath = getRemoteWorkspacePath()
         axios.get(`http://${tunnel.host}:3000/get-working-dir-tree`, { params: { requestedPath: remoteWorkspacePath } })
           .then((response) => {
-            console.log("Response from remote get-working-dir-tree: ", response.data)
             if (response.data.success && response.data.workingDirectory) {
               event.reply("updateDirectory", {
                 workingDirectory: response.data.workingDirectory,

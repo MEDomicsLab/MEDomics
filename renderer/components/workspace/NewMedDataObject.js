@@ -12,6 +12,9 @@ import {
   updateMEDDataObjectName,
   updateMEDDataObjectPath
 } from "../mongoDB/mongoDBUtils"
+import { remoteDirname } from "../../utilities/fileManagementUtils"
+import axios from "axios"
+import { getTunnelState } from "../../utilities/tunnelState"
 
 /**
  * @description class definition of a MEDDataObject
@@ -442,7 +445,7 @@ export class MEDDataObject {
    * @param {Boolean} notify - Wether to display a toast message while success
    * @param {Set} syncedObjects - A set to track already synced objects to avoid infinite loops
    */
-  static async sync(dict, id, workspacePath, notify = true, syncedObjects = new Set()) {
+  static async sync(dict, id, workspacePath, notify = true, syncedObjects = new Set(), isRemote) {
     const medDataObject = dict[id]
 
     if (!medDataObject) {
@@ -458,22 +461,45 @@ export class MEDDataObject {
 
     // Recursively sync parent objects
     if (medDataObject.parentID && medDataObject.parentID !== "ROOT") {
-      await this.sync(dict, medDataObject.parentID, workspacePath, notify, syncedObjects)
+      await this.sync(dict, medDataObject.parentID, workspacePath, notify, syncedObjects, isRemote)
     }
 
     // Define the file path where the content will be downloaded
     const filePath = this.getFullPath(dict, id, workspacePath)
-
     // Ensure the directory exists
-    const directoryPath = path.dirname(filePath)
-    if (!fs.existsSync(directoryPath)) {
-      fs.mkdirSync(directoryPath, { recursive: true })
+    if (isRemote) {
+      const directoryPath = remoteDirname(filePath)
+      console.log(`Creating directory at ${directoryPath} for remote sync`)
+      const fileExists = await ipcRenderer.invoke('checkRemoteFileExists', directoryPath)
+      if (fileExists === "does not exist") {
+        await ipcRenderer.invoke('createRemoteDirectory', { path: directoryPath, recursive: true })
+      }
+    } else {
+      const directoryPath = path.dirname(filePath)
+      if (!fs.existsSync(directoryPath)) {
+        fs.mkdirSync(directoryPath, { recursive: true })
+      }
     }
 
     // Download the content based on the type
     try {
       if (medDataObject.type != "directory" && medDataObject.type != "medml" && medDataObject.type != "medeval" && medDataObject.type != "medmlres" && medDataObject.type != "medmodel") {
-        await downloadCollectionToFile(id, filePath, medDataObject.type)
+        if (isRemote) {
+          const tunnelState = getTunnelState()
+          axios.post(`http://${tunnelState.host}:3000/download-collection-to-file`, { collectionId: id, filePath: filePath, type: medDataObject.type })
+            .then(response => {
+              if (response.data.success) {
+                console.log(`Downloaded collection ${id} to remote file successfully`)
+              } else {
+                toast.error(`Failed to download collection ${id} to remote file: ` + response.data.error)
+              }
+            })
+            .catch(err => {
+              toast.error(`Failed to download collection ${id} to remote file: ` + (err && err.message ? err.message : String(err)))
+            })
+        } else {
+          await downloadCollectionToFile(id, filePath, medDataObject.type)
+        }  
       }
 
       // Sync child objects for specific types

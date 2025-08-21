@@ -294,7 +294,6 @@ async function insertBigCSVIntoCollection(filePath, collectionName) {
  * @returns
  */
 async function insertCSVIntoCollection(filePath, collectionName) {
-  console.log(`Inserting CSV file into collection: ${collectionName} from path: ${filePath}`)
   const db = await connectToMongoDB()
   const collection = db.collection(collectionName)
 
@@ -308,7 +307,6 @@ async function insertCSVIntoCollection(filePath, collectionName) {
         dynamicTyping: true, // Automatically convert numeric fields to numbers
         complete: async (results) => {
           try {
-            console.log("CSV parsing results: ", results)
             if (results.data.length == 0) {
               console.warn("CSV file is empty or has no valid rows.")
               resolve(null)

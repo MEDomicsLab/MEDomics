@@ -28,11 +28,9 @@ export function getActiveTunnelServer() {
   return activeTunnelServer
 }
 export function setRemoteWorkspacePath(path) {
-  console.log("Setting remote workspace path:", path)
   remoteWorkspacePath = path
 }
 export function getRemoteWorkspacePath() {
-  console.log("Getting remote workspace path:", remoteWorkspacePath)
   return remoteWorkspacePath
 }
 
@@ -50,7 +48,6 @@ let tunnelInfo = {
 };
 
 export function setTunnelState(info) {
-  console.log("Setting tunnel state with info:", info);
   tunnelInfo = { ...tunnelInfo, ...info, tunnelActive: info.tunnelActive }
 }
 
@@ -69,7 +66,6 @@ export function clearTunnelState() {
 }
 
 export function getTunnelState() {
-  console.log("Getting tunnel state:", tunnelInfo);
   return tunnelInfo
 }
 
@@ -342,7 +338,6 @@ export async function stopSSHTunnel() {
  */
 export async function checkRemoteFileExists(filePath) {
   // Ensure tunnel is active and SSH client is available
-  console.log("checkRemoteFileExists", filePath)
   const activeTunnel = getActiveTunnel()
   if (!activeTunnel) {
     const errMsg = 'No active SSH tunnel for remote file check.'
@@ -370,10 +365,8 @@ export async function checkRemoteFileExists(filePath) {
     const exists = await statFile(sftp, filePath);
     sftp.end && sftp.end();
     if (exists) {
-      console.log("File exists:", filePath);
       return "exists";
     } else {
-      console.log("File does not exist:", filePath);
       return "does not exist";
     }
   } catch (error) {
@@ -388,7 +381,6 @@ export async function checkRemoteFileExists(filePath) {
  * @returns {{ isDir: boolean, isFile: boolean, stats: Object } | string} - Returns an object with file stats or "sftp error" if an error occurs.
  */
 export async function getRemoteLStat(filePath) {
-  console.log("getRemoteLStat", filePath)
   // Ensure tunnel is active and SSH client is available
   const activeTunnel = getActiveTunnel()
   if (!activeTunnel) {
@@ -455,13 +447,58 @@ export async function detectRemoteOS() {
 }
 
 /**
+ * Cross-platform equivalent to path.dirname(): works for both '/' and '\\' separators.
+ * @param {string} filePath - The path to extract the directory from.
+ * @returns {string} Directory path
+ */
+export function remoteDirname(filePath) {
+  if (!filePath) return ''
+  // Normalize to handle both separators
+  const separator = filePath.includes('\\') ? '\\' : '/'
+  const idx = filePath.lastIndexOf(separator)
+  if (idx === -1) return ''
+  if (idx === 0) return separator
+  return filePath.slice(0, idx)
+}
+
+/**
+ * Helper function to create a directory recursively using SFTP.
+ * @param {Object} sftp - The SFTP client instance.
+ * @param {string} fullPath - The path of the lowest-level directory to create, including all parent directories.
+ */
+async function sftpMkdirRecursive(sftp, fullPath) {
+  const sep = fullPath.includes('\\') ? '\\' : '/'
+  const parts = fullPath.split(sep).filter(Boolean)
+  let current = fullPath.startsWith(sep) ? sep : ''
+  for (const part of parts) {
+    current = current === sep ? current + part : current + sep + part
+    try {
+      // Try to stat the directory
+      await new Promise((res, rej) => {
+        sftp.stat(current, (err, stats) => {
+          if (!err && stats && stats.isDirectory()) res()
+          else rej()
+        })
+      })
+    } catch {
+      // Directory does not exist, try to create
+      await new Promise((res, rej) => {
+        sftp.mkdir(current, (err) => {
+          if (!err) res()
+          else rej(err)
+        })
+      })
+    }
+  }
+}
+
+/**
  * @description This request handler creates a new remote folder in the specified parent path.
  * @param {string} path - The parent path where the new folder will be created
  * @param {string} folderName - The name of the new folder to be created
  * @returns {Promise<{success: boolean, error?: string}>}
  */
-ipcMain.handle('createRemoteFolder', async (_event, { path: parentPath, folderName }) => {
-  console.log('createRemoteFolder', parentPath, folderName)
+ipcMain.handle('createRemoteFolder', async (_event, { path: parentPath, folderName, recursive = false }) => {
   const activeTunnel = getActiveTunnel()
   // Helper to get SFTP client
   function getSftp(cb) {
@@ -505,10 +542,13 @@ ipcMain.handle('createRemoteFolder', async (_event, { path: parentPath, folderNa
         // Step 2: build new folder path
         let newFolderPath = folderName ? canonicalParent.replace(/\/$/, '') + '/' + folderName : canonicalParent
         // Step 3: create directory
-        console.log('Resolved new folder path:', newFolderPath)
-        await new Promise((res, rej) => {
-          sftp.mkdir(newFolderPath, (e) => e ? rej(e) : res())
-        })
+        if (recursive) {
+          await sftpMkdirRecursive(sftp, newFolderPath)
+        } else {
+          await new Promise((res, rej) => {
+            sftp.mkdir(newFolderPath, (e) => e ? rej(e) : res())
+          })
+        }
         closeSftp()
         console.log('Folder created successfully')
         resolve({ success: true })

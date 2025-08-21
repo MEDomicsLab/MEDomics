@@ -451,6 +451,21 @@ const getFileReadingMethodFromExtension = {
   xlsx: (path, whenLoaded) => loadXLSXFromPath(path, whenLoaded)
 }
 
+/**
+ * Cross-platform equivalent to path.dirname(): works for both '/' and '\\' separators.
+ * @param {string} filePath - The path to extract the directory from.
+ * @returns {string} Directory path
+ */
+function remoteDirname(filePath) {
+  if (!filePath) return ''
+  // Normalize to handle both separators
+  const separator = filePath.includes('\\') ? '\\' : '/'
+  const idx = filePath.lastIndexOf(separator)
+  if (idx === -1) return ''
+  if (idx === 0) return separator
+  return filePath.slice(0, idx)
+}
+
 export {
   getPathSeparator,
   splitStringAtTheLastSeparator,
@@ -472,5 +487,6 @@ export {
   createFolderSync,
   loadJSONFromPath,
   loadXLSXFromPath,
-  getFileReadingMethodFromExtension
+  getFileReadingMethodFromExtension,
+  remoteDirname
 }

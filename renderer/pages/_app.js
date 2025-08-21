@@ -16,7 +16,7 @@ import { loadMEDDataObjects, updateGlobalData } from "../utilities/appUtils/glob
 import { NotificationContextProvider } from "../components/generalPurpose/notificationContext"
 import { TunnelProvider } from "../components/tunnel/TunnelContext";
 import { setTunnelState } from "../utilities/tunnelState"
-import { insertObjectIntoCollection } from "../components/mongoDB/mongoDBUtils"
+import { downloadCollectionToFile, insertObjectIntoCollection } from "../components/mongoDB/mongoDBUtils"
 import { ThemeProvider } from "../components/theme/themeContext"
 
 // CSS
@@ -164,9 +164,7 @@ function App({ Component, pageProps }) {
     })
 
     ipcRenderer.on("updateDirectory", (event, data) => {
-      console.log("updateDirectory", data)
       let workspace = { ...data }
-      console.log("workspace from updateDirectory", workspace)
       setWorkspaceObject(workspace)
     })
 
@@ -187,11 +185,25 @@ function App({ Component, pageProps }) {
 
     ipcRenderer.on("tunnelStateUpdate", (event, state) => {
       setTunnelState(state)
-    });
+    })
 
     ipcRenderer.on("insertObjectIntoCollection", (event, data) => {
+      if (process.platform === "win32") {
+        if (data.objectPath.startsWith("/")) {
+          data.objectPath = data.ObjectPath.slice(1)
+        } 
+      }
       insertObjectIntoCollection(data)
-    });
+    })
+
+    ipcRenderer.on("downloadCollectionToFile", (event, data) => {
+      if (process.platform === "win32") {
+        if (data.filePath.startsWith("/")) {
+          data.filePath = data.filePath.slice(1)
+        } 
+      }
+      downloadCollectionToFile(data.collectionId, data.filePath, data.type)
+    })
 
 
     /**
@@ -223,7 +235,6 @@ function App({ Component, pageProps }) {
 
   // This useEffect hook is called whenever the `workspaceObject` state changes.
   useEffect(() => {
-    console.log("getting global data for workspaceObject", workspaceObject)
     async function getGlobalData() {
       let result
       if (workspaceObject.isRemote) {
