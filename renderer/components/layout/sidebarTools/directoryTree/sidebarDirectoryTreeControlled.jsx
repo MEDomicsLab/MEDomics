@@ -173,7 +173,7 @@ const SidebarDirectoryTreeControlled = ({ setExternalSelectedItems, setExternalD
       toast.error("Please close the editor before renaming")
       return
     }
-    rename(globalData, workspace.workingDirectory.path, item, newName)
+    rename(globalData, workspace.workingDirectory.path, item, newName, workspace.isRemote)
   }
 
   /**

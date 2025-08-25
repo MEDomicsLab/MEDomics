@@ -69,10 +69,11 @@ export function fromJSONtoTree(data, showHiddenFiles) {
  * @param {String} workspacePath - The workspace path
  * @param {Object} item - The item linked to a `MedDataObject` to rename
  * @param {string} newName - The new name of the `MedDataObject`
+ * @param {string} isRemote - A flag indicating if the workspace is remote
  * @returns {void}
  * @note - This function is called when the user renames a file or folder in the directory tree, either by F2 or by right-clicking and selecting "Rename".
  */
-export function rename(globalData, workspacePath, item, newName) {
+export function rename(globalData, workspacePath, item, newName, isRemote = false) {
   if (newName == "") {
     toast.error("Error: Name cannot be empty")
     return
@@ -100,7 +101,7 @@ export function rename(globalData, workspacePath, item, newName) {
     toast.error("Error: This name cannot be changed")
     return
   }
-  MEDDataObject.rename(globalData, item.index, newName, workspacePath)
+  MEDDataObject.rename(globalData, item.index, newName, workspacePath, isRemote)
 }
 
 /**

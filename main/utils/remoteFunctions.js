@@ -413,6 +413,33 @@ export async function getRemoteLStat(filePath) {
   }
 }
 
+ipcMain.handle('renameRemoteFile', async (_event, { oldPath, newPath }) => {
+  function sftpRename(sftp, oldPath, newPath) {
+    return new Promise((resolve, reject) => {
+      sftp.rename(oldPath, newPath, (err) => {
+        if (err) reject(err)
+        else resolve()
+      })
+    })
+  }
+
+  const activeTunnel = getActiveTunnel()
+  if (!activeTunnel) return { success: false, error: 'No active SSH tunnel' }
+  return new Promise((resolve) => {
+    activeTunnel.sftp(async (err, sftp) => {
+      if (err) return resolve({ success: false, error: err.message })
+      try {
+        await sftpRename(sftp, oldPath, newPath)
+        if (typeof sftp.end === 'function') sftp.end()
+        resolve({ success: true })
+      } catch (e) {
+        if (typeof sftp.end === 'function') sftp.end()
+        resolve({ success: false, error: e.message })
+      }
+    })
+  })
+})
+
 /**
  * @description This function uses a terminal command to detect the operating system of the remote server.
  * @returns {Promise<string>}

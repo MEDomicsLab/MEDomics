@@ -398,9 +398,10 @@ export class MEDDataObject {
    * @param {String} id - the id of the MEDDataObject to rename
    * @param {String} newName - the new name for the MEDDataObject
    * @param {String} workspacePath - the root path of the workspace
+   * @param {string} isRemote - A flag indicating if the workspace is remote
    * @returns {void}
    */
-  static async rename(dict, id, newName, workspacePath) {
+  static async rename(dict, id, newName, workspacePath, isRemote = false) {
     const object = dict[id]
 
     if (!object) {
@@ -429,7 +430,24 @@ export class MEDDataObject {
         toast.error(`Failed to rename ${object.name}`)
         return
       }
-      fs.renameSync(oldPath, newPath)
+      if (isRemote) {
+        try {
+          const result = await ipcRenderer.invoke('renameRemoteFile', { oldPath: oldPath, newPath: newPath })
+          if (result && result.success) {
+            console.log(`Renamed ${oldPath} to ${newPath} on remote`)
+          } else {
+            console.error(`Failed to rename ${oldPath} to ${newPath} on remote: ${result ? result.error : 'unknown error'}`)
+            toast.error(`Failed to rename ${object.name} on remote: ${result ? result.error : 'unknown error'}`)
+            return
+          }
+        } catch (error) {
+          console.error(`Failed to rename ${oldPath} to ${newPath} on remote: ${error.message}`)
+          toast.error(`Failed to rename ${object.name} on remote: ${error.message}`)
+          return
+        }
+      } else {
+        fs.renameSync(oldPath, newPath)
+      }
       console.log(`Renamed ${oldPath} to ${newPath}`)
     }
 
