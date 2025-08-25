@@ -181,7 +181,8 @@ const DatasetNode = ({ id, data }) => {
    * This function is used to update the node internal data when the tags input changes.
    */
   const onMultipleTagsChange = async (inputUpdate) => {
-    data.internal.settings[inputUpdate.name] = inputUpdate.value
+    if (inputUpdate.value.length === 0) return
+    data.internal.settings.tags= inputUpdate.value
     updateNode({
       id: id,
       updatedData: data.internal
@@ -256,7 +257,7 @@ const DatasetNode = ({ id, data }) => {
                 value="medomics"
                 // selected={optionName === selection}
               >
-                MEDomicsLab standard
+                MEDomics standard
               </option>
               <option
                 key="custom"
