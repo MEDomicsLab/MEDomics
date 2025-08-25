@@ -151,9 +151,13 @@ const classificationSettings = {
   clean: {
     options: {
       imputation_type: {
-        type: "string",
+        type: "list",
         tooltip: "<p>The type of imputation to use. Can be either \u2018simple\u2019 or \u2018iterative\u2019.\nIf None, no imputation of missing values is performed.</p>\n",
-        default_val: "simple"
+        default_val: "simple",
+        choices: {
+          simple : "Simple",
+          iterative : "Iterative"
+        }
       },
       normalize: {
         type: "bool",
@@ -161,10 +165,16 @@ const classificationSettings = {
         default_val: "False"
       },
       normalize_method: {
-        type: "string",
+        type: "list",
         tooltip:
           "<p>Defines the method for scaling. By default, normalize method is set to \u2018zscore\u2019\nThe standard zscore is calculated as z = (x - u) / s. Ignored when normalize\nis not True. The other options are:</p>\n<ul >\n<li><p>minmax: scales and translates each feature individually such that it is in</p></li>\n</ul>\n<p>the range of 0 - 1.\n- maxabs: scales and translates each feature individually such that the\nmaximal absolute value of each feature will be 1.0. It does not\nshift/center the data, and thus does not destroy any sparsity.\n- robust: scales and translates each feature according to the Interquartile\nrange. When the dataset contains outliers, robust scaler often gives\nbetter results.</p>\n",
-        default_val: "zscore"
+        default_val: "zscore",
+        choices : {
+          zscore : "Z-Score",
+          minmax : "Min-Max",
+          maxabs: "Max Absolute",
+          robust: "Robust"
+        }
       },
       iterative_imputation_iters: {
         type: "int",
@@ -174,15 +184,27 @@ const classificationSettings = {
         max: 100
       },
       categorical_imputation: {
-        type: "string",
+        type: "list",
         tooltip:
           "<p>Imputing strategy for categorical columns. Ignored when imputation_type= iterative. Choose from:</p>\n<blockquote>\n<div><ul >\n<li><p>\u201cdrop\u201d: Drop rows containing missing values.</p></li>\n<li><p>\u201cmode\u201d: Impute with most frequent value.</p></li>\n<li><p>str: Impute with provided string.</p></li>\n</ul>\n</div></blockquote>\n",
-        default_val: "mode"
+        default_val: "mode",
+        choices : {
+          drop : "Drop",
+          mode : "Mode",
+          str: "String"
+        }
       },
       categorical_iterative_imputer: {
-        type: "string",
+        type: "list",
         tooltip: "<p>Regressor for iterative imputation of missing values in categorical features.\nIf None, it uses LGBClassifier. Ignored when imputation_type=simple.</p>\n",
-        default_val: "lightgbm"
+        default_val: "lightgbm",
+        choices: {
+          lightgbm: "Light GBM",
+          random_forest: "Random Forest",
+          extra_trees: "Extra Trees",
+          catboost: "CatBoost",
+          xgboost: "XGBoost"
+        }
       },
       numeric_imputation: {
         type: "list",
@@ -198,9 +220,17 @@ const classificationSettings = {
         }
       },
       numeric_iterative_imputer: {
-        type: "string",
-        tooltip: "<p>Regressor for iterative imputation of missing values in numeric features.\nIf None, it uses LGBClassifier. Ignored when imputation_type=simple.</p>\n",
-        default_val: "lightgbm"
+          type: "list",
+          tooltip:
+            "<p>Regressor for iterative imputation of missing values in numeric columns.<br>If None, it uses LGBMRegressor. Ignored when imputation_type=simple.</p>",
+          default_val: "lightgbm",
+          choices: {
+              lightgbm: "LGBM",
+              random_forest: "RandomForest",
+              extra_trees: "ExtraTrees",
+              catboost: "CatBoost",
+              xgboost: "XGBoost"
+          }
       },
       transformation: {
         type: "bool",
@@ -208,10 +238,14 @@ const classificationSettings = {
         default_val: "False"
       },
       transformation_method: {
-        type: "string",
-        tooltip:
-          "<p>Defines the method for transformation. By default, the transformation method is\nset to \u2018yeo-johnson\u2019. The other available option for transformation is \u2018quantile\u2019.\nIgnored when transformation is not True.</p>\n",
-        default_val: "yeo-johnson"
+          type: "list",
+          tooltip:
+            "<p>Defines the method for transformation. Ignored when transformation is not True.<br>Available options:</p>\n<blockquote>\n<ul>\n<li><p>'yeo-johnson': Default transformation suitable for both positive and negative values.</p></li>\n<li><p>'quantile': Quantile transformation that maps data to a uniform or normal distribution.</p></li>\n</ul>\n</blockquote>",
+          default_val: "yeo-johnson",
+          choices: {
+              "yeo-johnson": "Default transformation suitable for both positive and negative values",
+              quantile: "Quantile transformation mapping data to uniform or normal distribution"
+          }
       },
       pca: {
         type: "bool",
@@ -219,10 +253,15 @@ const classificationSettings = {
         default_val: "False"
       },
       pca_method: {
-        type: "string",
-        tooltip:
-          "<dl >\n<dt>Method with which to apply PCA. Possible values are:</dt><dd><ul >\n<li><p>\u2018linear\u2019: Uses Singular Value  Decomposition.</p></li>\n<li><p>\u2018kernel\u2019: Dimensionality reduction through the use of RBF kernel.</p></li>\n<li><p>\u2018incremental\u2019: Similar to \u2018linear\u2019, but more efficient for large datasets.</p></li>\n</ul>\n</dd>\n</dl>\n",
-        default_val: "linear"
+          type: "list",
+          tooltip:
+            "<p>Method used to apply PCA. Choose one of the following:</p>\n<blockquote>\n<ul>\n<li><p>'linear': Uses Singular Value Decomposition (SVD). Default method.</p></li>\n<li><p>'kernel': Dimensionality reduction using RBF kernel.</p></li>\n<li><p>'incremental': Similar to 'linear', but optimized for large datasets.</p></li>\n</ul>\n</blockquote>",
+          default_val: "linear",
+          choices: {
+              linear: "Uses Singular Value Decomposition (SVD). Default method",
+              kernel: "Dimensionality reduction using RBF kernel",
+              incremental: "Optimized SVD for large datasets"
+          }
       },
       pca_components: {
         type: "int-float-str",
@@ -274,16 +313,28 @@ const classificationSettings = {
         default_val: "False"
       },
       feature_selection_estimator: {
-        type: "string",
-        tooltip:
-          "<p>Classifier used to determine the feature importances. The\nestimator should have a <cite>feature_importances_</cite> or <cite>coef_</cite>\nattribute after fitting. If None, it uses LGBClassifier. This\nparameter is ignored when <cite>feature_selection_method=univariate</cite>.</p>\n",
-        default_val: "lightgbm"
+          type: "list",
+          tooltip:
+            "<p>Classifier used to determine feature importances. Must have <cite>feature_importances_</cite> or <cite>coef_</cite> after fitting.<br>Ignored when <cite>feature_selection_method='univariate'</cite>. If None, LGBClassifier is used by default.</p>",
+          default_val: "lightgbm",
+          choices: {
+              lightgbm: "LGBM",
+              random_forest: "RandomForest",
+              extra_trees: "ExtraTrees",
+              catboost: "CatBoost",
+              xgboost: "XGBoost"
+          }
       },
       feature_selection_method: {
-        type: "string",
+        type: "list",
         tooltip:
           "<dl >\n<dt>Algorithm for feature selection. Choose from:</dt><dd><ul >\n<li><p>\u2018univariate\u2019: Uses sklearn\u2019s SelectKBest.</p></li>\n<li><p>\u2018classic\u2019: Uses sklearn\u2019s SelectFromModel.</p></li>\n<li><p>\u2018sequential\u2019: Uses sklearn\u2019s SequentialFeatureSelector.</p></li>\n</ul>\n</dd>\n</dl>\n",
-        default_val: "classic"
+        default_val: "classic",
+        choices: {
+        univariate: "SelectKBest from sklearn (univariate statistical tests)",
+        classic: "SelectFromModel from sklearn (based on feature importance, default)",
+        sequential: "SequentialFeatureSelector from sklearn (step-wise selection)"
+          }
       },
       n_features_to_select: {
         type: "float",
@@ -298,12 +349,6 @@ const classificationSettings = {
   },
   dataset: {
     options: {
-      data_func: {
-        type: "data-function",
-        tooltip:
-          "<p>The function that generate data (the dataframe-like input). This\nis useful when the dataset is large, and you need parallel operations\nsuch as compare_models. It can avoid broadcasting large dataset\nfrom driver to workers. Notice one and only one of data and\ndata_func must be set.</p>\n",
-        default_val: ""
-      },
       index: {
         type: "bool-int-str",
         tooltip:
@@ -340,20 +385,9 @@ const classificationSettings = {
           "<p>If the inferred data types are not correct, the categorical_features param\ncan be used to define the data types. It takes a list of strings with column\nnames that are categorical.</p>\n",
         default_val: "None"
       },
-      date_features: {
-        type: "custom-list",
-        tooltip:
-          "<p>If the inferred data types are not correct, the date_features param can be\nused to overwrite the data types. It takes a list of strings with column\nnames that are DateTime.</p>\n",
-        default_val: "None"
-      },
       text_features: {
         type: "custom-list",
         tooltip: "<p>Column names that contain a text corpus. If None, no text features are\nselected.</p>\n",
-        default_val: "None"
-      },
-      ignore_features: {
-        type: "custom-list",
-        tooltip: "<p>ignore_features param can be used to ignore features during preprocessing\nand model training. It takes a list of strings with column names that are\nto be ignored.</p>\n",
         default_val: "None"
       },
       keep_features: {
@@ -375,10 +409,14 @@ const classificationSettings = {
         default_val: "[\u201cday\u201d, \u201cmonth\u201d, \u201cyear\u201d]"
       },
       text_features_method: {
-        type: "string",
-        tooltip:
-          "<p>Method with which to embed the text features in the dataset. Choose\nbetween \u201cbow\u201d (Bag of Words - CountVectorizer) or \u201ctf-idf\u201d (TfidfVectorizer).\nBe aware that the sparse matrix output of the transformer is converted\ninternally to its full array. This can cause memory issues for large\ntext embeddings.</p>\n",
-        default_val: "\u201ctf-idf\u201d"
+          type: "list",
+          tooltip:
+            "<p>Method used to embed text features in the dataset. Choose one of the following:</p>\n<blockquote>\n<ul>\n<li><p>'bow': Bag of Words using CountVectorizer.</p></li>\n<li><p>'tf-idf': TF-IDF using TfidfVectorizer (default).</p></li>\n</ul>\n<p>Note: The sparse matrix output is converted internally to a dense array, which may cause memory issues for large text embeddings.</p>\n</blockquote>",
+          default_val: "tf-idf",
+          choices: {
+              bow: "Bag of Words (CountVectorizer)",
+              "tf-idf": "TF-IDF (TfidfVectorizer, default)"
+          }
       },
       max_encoding_ohe: {
         type: "int",
@@ -427,10 +465,15 @@ const classificationSettings = {
         default_val: "None"
       },
       outliers_method: {
-        type: "string",
-        tooltip:
-          "<p>Method with which to remove outliers. Ignored when <cite>remove_outliers=False</cite>.\nPossible values are:</p>\n<blockquote>\n<div><ul >\n<li><p>\u2018iforest\u2019: Uses sklearn\u2019s IsolationForest.</p></li>\n<li><p>\u2018ee\u2019: Uses sklearn\u2019s EllipticEnvelope.</p></li>\n<li><p>\u2018lof\u2019: Uses sklearn\u2019s LocalOutlierFactor.</p></li>\n</ul>\n</div></blockquote>\n",
-        default_val: "\u201ciforest\u201d"
+          type: "list",
+          tooltip:
+            "<p>Method used to remove outliers. Ignored when <cite>remove_outliers=False</cite>. Choose one of the following:</p>\n<blockquote>\n<ul>\n<li><p>'iforest': Uses sklearn's IsolationForest (default).</p></li>\n<li><p>'ee': Uses sklearn's EllipticEnvelope.</p></li>\n<li><p>'lof': Uses sklearn's LocalOutlierFactor.</p></li>\n</ul>\n</blockquote>",
+          default_val: "iforest",
+          choices: {
+              iforest: "IsolationForest (default)",
+              ee: "EllipticEnvelope",
+              lof: "LocalOutlierFactor"
+          }
       },
       fix_imbalance: {
         type: "bool",
@@ -439,20 +482,16 @@ const classificationSettings = {
         default_val: "False"
       },
       fix_imbalance_method: {
-        type: "string",
-        tooltip:
-          "<p>Estimator with which to perform class balancing. Choose from the name\nof an <cite>imblearn</cite> estimator, or a custom instance of such. Ignored when\n<cite>fix_imbalance=False</cite>.</p>\n",
-        default_val: "\u201cSMOTE\u201d"
-      },
-      custom_pipeline: {
-        type: "list of (str, transformer), dict or Pipeline",
-        tooltip: "<p>Addidiotnal custom transformers. If passed, they are applied to the\npipeline last, after all the build-in transformers.</p>\n",
-        default_val: "None"
-      },
-      custom_pipeline_position: {
-        type: "int",
-        tooltip: "<p>Position of the custom pipeline in the overal preprocessing pipeline.\nThe default value adds the custom pipeline last.</p>\n",
-        default_val: "-1"
+          type: "list",
+          tooltip:
+            "<p>Estimator used to perform class balancing. Ignored when <cite>fix_imbalance=False</cite>. Choose one of the following:</p>\n<blockquote>\n<ul>\n<li><p>'SMOTE': Synthetic Minority Over-sampling Technique (default).</p></li>\n<li><p>'ADASYN': Adaptive Synthetic Sampling Approach.</p></li>\n<li><p>'RandomOverSampler': Randomly duplicates minority class samples.</p></li>\n<li><p>'RandomUnderSampler': Randomly removes majority class samples.</p></li>\n<li><p>'None': No balancing applied.</p></li>\n</ul>\n</blockquote>",
+          default_val: "SMOTE",
+          choices: {
+              SMOTE: "Synthetic Minority Over-sampling Technique (default)",
+              ADASYN: "Adaptive Synthetic Sampling Approach",
+              RandomOverSampler: "Randomly duplicates minority class samples",
+              RandomUnderSampler: "Randomly removes majority class samples"
+          }
       },
       data_split_shuffle: {
         type: "bool",
@@ -466,110 +505,16 @@ const classificationSettings = {
         default_val: "True"
       },
       fold_strategy: {
-        type: "string",
-        tooltip:
-          '<p>Choice of cross validation strategy. Possible values are:</p>\n<ul >\n<li><p>\u2018kfold\u2019</p></li>\n<li><p>\u2018stratifiedkfold\u2019</p></li>\n<li><p>\u2018groupkfold\u2019</p></li>\n<li><p>\u2018timeseries\u2019</p></li>\n<li><p>a custom CV generator object compatible with scikit-learn.</p></li>\n</ul>\n<p>For groupkfold, column name must be passed in fold_groups parameter.\nExample: setup(fold_strategy="groupkfold", fold_groups="COLUMN_NAME")</p>\n',
-        default_val: "stratifiedkfold"
-      },
-      fold: {
-        type: "int",
-        tooltip:
-          "<p>Number of folds to be used in cross validation. Must be at least 2. This is\na global setting that can be over-written at function level by using fold\nparameter. Ignored when fold_strategy is a custom object.</p>\n",
-        default_val: "10"
-      },
-      fold_shuffle: {
-        type: "bool",
-        tooltip:
-          "<p>Controls the shuffle parameter of CV. Only applicable when fold_strategy\nis \u2018kfold\u2019 or \u2018stratifiedkfold\u2019. Ignored when fold_strategy is a custom\nobject.</p>\n",
-        default_val: "False"
-      },
-      fold_groups: {
-        type: "string",
-        tooltip:
-          "<p>Optional group labels when \u2018GroupKFold\u2019 is used for the cross validation.\nIt takes an array with shape (n_samples, ) where n_samples is the number\nof rows in the training dataset. When string is passed, it is interpreted\nas the column name in the dataset containing group labels.</p>\n",
-        default_val: "None"
-      },
-      n_jobs: {
-        type: "int",
-        tooltip:
-          "<p>The number of jobs to run in parallel (for functions that supports parallel\nprocessing) -1 means using all processors. To run all functions on single\nprocessor set n_jobs to None.</p>\n",
-        default_val: "-1"
-      },
-      use_gpu: {
-        type: "list",
-        tooltip:
-          "<p>When set to True, it will use GPU for training with algorithms that support it,\nand fall back to CPU if they are unavailable. When set to \u2018force\u2019, it will only\nuse GPU-enabled algorithms and raise exceptions when they are unavailable. When\nFalse, all algorithms are trained using CPU only.</p>\n<p>GPU enabled algorithms:</p>\n<ul >\n<li><p>Extreme Gradient Boosting, requires no further installation</p></li>\n<li><p>CatBoost Classifier, requires no further installation</p></li>\n</ul>\n<p>(GPU is only enabled when data &gt; 50,000 rows)</p>\n<ul >\n<li><p>Light Gradient Boosting Machine, requires GPU installation</p></li>\n</ul>\n<p>https://lightgbm.readthedocs.io/en/latest/GPU-Tutorial.html</p>\n<ul >\n<li><p>Logistic Regression, Random Forest, K Neighbors Classifier,</p></li>\n</ul>\n<p>Support Vector Machine, requires cuML &gt;= 0.15\nhttps://github.com/rapidsai/cuml</p>\n",
-        default_val: "False",
-        choices: {
-          False: "tooltip False",
-          True: "tooltip True",
-          force: "tooltip force"
-        }
-      },
-      html: {
-        type: "bool",
-        tooltip:
-          "<p>When set to False, prevents runtime display of monitor. This must be set to False\nwhen the environment does not support IPython. For example, command line terminal,\nDatabricks Notebook, Spyder and other similar IDEs.</p>\n",
-        default_val: "True"
-      },
-      session_id: {
-        type: "int",
-        tooltip:
-          "<p>Controls the randomness of experiment. It is equivalent to \u2018random_state\u2019 in\nscikit-learn. When None, a pseudo random number is generated. This can be used\nfor later reproducibility of the entire experiment.</p>\n",
-        default_val: "42"
-      },
-      experiment_name: {
-        type: "string",
-        tooltip: "<p>Name of the experiment for logging. Ignored when log_experiment is False.</p>\n",
-        default_val: "None"
-      },
-      log_plots: {
-        type: "bool",
-        tooltip:
-          "<p>When set to True, certain plots are logged automatically in the MLFlow server.\nTo change the type of plots to be logged, pass a list containing plot IDs. Refer\nto documentation of plot_model. Ignored when log_experiment is False.</p>\n",
-        default_val: "False"
-      },
-      log_profile: {
-        type: "bool",
-        tooltip: "<p>When set to True, data profile is logged on the MLflow server as a html file.\nIgnored when log_experiment is False.</p>\n",
-        default_val: "False"
-      },
-      log_data: {
-        type: "bool",
-        tooltip: "<p>When set to True, dataset is logged on the MLflow server as a csv file.\nIgnored when log_experiment is False.</p>\n",
-        default_val: "False"
-      },
-      engine: {
-        type: "Optional[Dict[str, str]] = None",
-        tooltip:
-          "<p>The execution engines to use for the models in the form of a dict\nof <cite>model_id: engine</cite> - e.g. for Logistic Regression (\u201clr\u201d, users can\nswitch between \u201csklearn\u201d and \u201csklearnex\u201d by specifying\n<cite>engine={\u201clr\u201d: \u201csklearnex\u201d}</cite></p>\n",
-        default_val: ""
-      },
-      memory: {
-        type: "str, bool or Memory",
-        tooltip:
-          "<dl >\n<dt>Used to cache the fitted transformers of the pipeline.</dt><dd><p>If False: No caching is performed.\nIf True: A default temp directory is used.\nIf str: Path to the caching directory.</p>\n</dd>\n</dl>\n",
-        default_val: "rue"
-      },
-      profile: {
-        type: "bool",
-        tooltip: "<p>When set to True, an interactive EDA report is displayed.</p>\n",
-        default_val: "False"
-      },
-      profile_kwargs: {
-        type: "dict",
-        tooltip: "<p>Dictionary of arguments passed to the ProfileReport method used\nto create the EDA report. Ignored if profile is False.</p>\n",
-        default_val: "{} (empty dict)"
-      },
-      "time-point": {
-        type: "string",
-        default_val: "",
-        tooltip: "<p>Time point relative to where analysis is performed</p>"
-      },
-      split_experiment_by_institutions: {
-        type: "bool",
-        default_val: "False",
-        tooltip: "<p>Set this to true for analysis by institutions</p>"
+          type: "list",
+          tooltip:
+            "<p>Choice of cross-validation strategy. Possible values are:</p>\n<blockquote>\n<ul>\n<li><p>'kfold': K-Folds cross-validation.</p></li>\n<li><p>'stratifiedkfold': Stratified K-Folds cross-validation (default).</p></li>\n<li><p>'groupkfold': Group K-Folds cross-validation. Requires <cite>fold_groups</cite> parameter.</p></li>\n<li><p>'timeseries': Time Series split for sequential data.</p></li>\n<li><p>'custom': Any custom CV generator object compatible with scikit-learn.</p></li>\n</ul>\n</blockquote>\n",
+          default_val: "stratifiedkfold",
+          choices: {
+              kfold: "K-Fold cross-validation",
+              stratifiedkfold: "Stratified K-Folds cross-validation (default)",
+              groupkfold: "Group K-Folds cross-validation",
+              timeseries: "Time Series split for sequential data",
+          }
       }
     },
     code: "",
@@ -660,9 +605,19 @@ const classificationSettings = {
         default_val: "True"
       },
       sort: {
-        type: "string",
-        tooltip: "<p>The sort order of the score grid. It also accepts custom metrics that are\nadded through the add_metric function.</p>\n",
-        default_val: "Accuracy"
+          type: "list",
+          tooltip:
+            "<p>Sort order of the score grid. You can sort by any built-in metric or custom metrics added through <code>add_metric</code>.</p>",
+          default_val: "Accuracy",
+          choices: {
+              accuracy: "Accuracy (default)",
+              auc: "Area Under ROC Curve",
+              recall: "Recall",
+              precision: "Precision",
+              f1: "F1 Score",
+              kappa: "Cohen's Kappa",
+              mcc: "Matthews Correlation Coefficient"
+          }
       },
       n_select: {
         type: "int",
@@ -1046,159 +1001,7 @@ const classificationSettings = {
     code: "ensemble_model()",
     default: {}
   },
-  blend_models: {
-    options: {
-      fold: {
-        type: "int",
-        tooltip:
-          "<p>Controls cross-validation. If None, the CV generator in the fold_strategy\nparameter of the setup function is used. When an integer is passed,\nit is interpreted as the \u2018n_splits\u2019 parameter of the CV generator in the\nsetup function.</p>\n",
-        default_val: "None",
-        min: 2,
-        max: 20
-      },
-      round: {
-        type: "int",
-        tooltip: "<p>Number of decimal places the metrics in the score grid will be rounded to.</p>\n",
-        default_val: "4",
-        min: 0,
-        max: 6
-      },
-      choose_better: {
-        type: "bool",
-        tooltip: "<p>When set to True, the returned object is always better performing. The\nmetric used for comparison is defined by the optimize parameter.</p>\n",
-        default_val: "False"
-      },
-      optimize: {
-        type: "string",
-        tooltip: "<p>Metric to compare for model selection when choose_better is True.</p>\n",
-        default_val: "Accuracy"
-      },
-      method: {
-        type: "string",
-        tooltip:
-          "<p>\u2018hard\u2019 uses predicted class labels for majority rule voting. \u2018soft\u2019, predicts\nthe class label based on the argmax of the sums of the predicted probabilities,\nwhich is recommended for an ensemble of well-calibrated classifiers. Default\nvalue, \u2018auto\u2019, will try to use \u2018soft\u2019 and fall back to \u2018hard\u2019 if the former is\nnot supported.</p>\n",
-        default_val: "auto"
-      },
-      weights: {
-        type: "custom-list",
-        tooltip:
-          "<p>Sequence of weights (float or int) to weight the occurrences of predicted class\nlabels (hard voting) or class probabilities before averaging (soft voting). Uses\nuniform weights when None.</p>\n",
-        default_val: "None"
-      },
-      fit_kwargs: {
-        type: "dict",
-        tooltip: "<p>Dictionary of arguments passed to the fit method of the model.</p>\n",
-        default_val: "{} (empty dict)"
-      },
-      groups: {
-        type: "string",
-        tooltip:
-          "<p>Optional group labels when GroupKFold is used for the cross validation.\nIt takes an array with shape (n_samples, ) where n_samples is the number\nof rows in training dataset. When string is passed, it is interpreted as\nthe column name in the dataset containing group labels.</p>\n",
-        default_val: "None"
-      },
-      probability_threshold: {
-        type: "float",
-        tooltip:
-          "<p>Threshold for converting predicted probability to class label.\nIt defaults to 0.5 for all classifiers unless explicitly defined\nin this parameter. Only applicable for binary classification.</p>\n",
-        default_val: "None"
-      }
-    },
-    ml_types: "classification regression",
-    code: "blend_models()",
-    default: {}
-  },
-  stack_models: {
-    options: {
-      meta_model: {
-        type: "list",
-        tooltip: "<p>When None, Logistic Regression is trained as a meta model.</p>\n",
-        default_val: "None",
-        choices: {
-          lr: "Logistic Regression",
-          knn: "K Neighbors Classifier",
-          nb: "Naive Bayes",
-          dt: "Decision Tree Classifier",
-          svm: "SVM - Linear Kernel",
-          rbfsvm: "SVM - Radial Kernel",
-          gpc: "Gaussian Process Classifier",
-          mlp: "MLP Classifier",
-          rf: "Random Forest Classifier",
-          qda: "Quadratic Discriminant Analysis",
-          ada: "Ada Boost Classifier",
-          gbc: "Gradient Boosting Classifier",
-          lda: "Linear Discriminant Analysis",
-          et: "Extra Trees Classifier",
-          xgboost: "Extreme Gradient Boosting",
-          lightgbm: "Light Gradient Boosting Machine",
-          catboost: "CatBoost Classifier"
-        }
-      },
-      meta_model_fold: {
-        type: "int",
-        tooltip:
-          "<p>Controls internal cross-validation. Can be an integer or a scikit-learn\nCV generator. If set to an integer, will use (Stratifed)KFold CV with\nthat many folds. See scikit-learn documentation on Stacking for\nmore details.</p>\n",
-        default_val: "5",
-        min: 2,
-        max: 20
-      },
-      fold: {
-        type: "int",
-        tooltip:
-          "<p>Controls cross-validation. If None, the CV generator in the fold_strategy\nparameter of the setup function is used. When an integer is passed,\nit is interpreted as the \u2018n_splits\u2019 parameter of the CV generator in the\nsetup function.</p>\n",
-        default_val: "None",
-        min: 2,
-        max: 20
-      },
-      round: {
-        type: "int",
-        tooltip: "<p>Number of decimal places the metrics in the score grid will be rounded to.</p>\n",
-        default_val: "4",
-        min: 0,
-        max: 6
-      },
-      method: {
-        type: "string",
-        tooltip:
-          "<p>When set to \u2018auto\u2019, it will invoke, for each estimator, \u2018predict_proba\u2019,\n\u2018decision_function\u2019 or \u2018predict\u2019 in that order. Other, manually pass one\nof the value from \u2018predict_proba\u2019, \u2018decision_function\u2019 or \u2018predict\u2019.</p>\n",
-        default_val: "auto"
-      },
-      restack: {
-        type: "bool",
-        tooltip: "<p>When set to False, only the predictions of estimators will be used as\ntraining data for the meta_model.</p>\n",
-        default_val: "False"
-      },
-      choose_better: {
-        type: "bool",
-        tooltip: "<p>When set to True, the returned object is always better performing. The\nmetric used for comparison is defined by the optimize parameter.</p>\n",
-        default_val: "False"
-      },
-      optimize: {
-        type: "string",
-        tooltip: "<p>Metric to compare for model selection when choose_better is True.</p>\n",
-        default_val: "Accuracy"
-      },
-      fit_kwargs: {
-        type: "dict",
-        tooltip: "<p>Dictionary of arguments passed to the fit method of the model.</p>\n",
-        default_val: "{} (empty dict)"
-      },
-      groups: {
-        type: "string",
-        tooltip:
-          "<p>Optional group labels when GroupKFold is used for the cross validation.\nIt takes an array with shape (n_samples, ) where n_samples is the number\nof rows in training dataset. When string is passed, it is interpreted as\nthe column name in the dataset containing group labels.</p>\n",
-        default_val: "None"
-      },
-      probability_threshold: {
-        type: "float",
-        tooltip:
-          "<p>Threshold for converting predicted probability to class label.\nIt defaults to 0.5 for all classifiers unless explicitly defined\nin this parameter. Only applicable for binary classification.</p>\n",
-        default_val: "None"
-      }
-    },
-    ml_types: "classification regression",
-    code: "stack_models()",
-    default: {}
-  },
+  
   calibrate_model: {
     options: {
       method: {
@@ -1234,44 +1037,38 @@ const classificationSettings = {
                     "default_val": "False"
                 },
                 "optimize": {
-                    "type": "string",
-                    "tooltip": "<p>Metric to compare for model selection when choose_better is True.</p>\n",
-                    "default_val": "Accuracy"
-                },
-                "method": {
-                    "type": "string",
-                    "tooltip": "<p>\u2018hard\u2019 uses predicted class labels for majority rule voting. \u2018soft\u2019, predicts\nthe class label based on the argmax of the sums of the predicted probabilities,\nwhich is recommended for an ensemble of well-calibrated classifiers. Default\nvalue, \u2018auto\u2019, will try to use \u2018soft\u2019 and fall back to \u2018hard\u2019 if the former is\nnot supported.</p>\n",
-                    "default_val": "auto"
-                },
+                  "type": "list",
+                  "tooltip": "<p>Metric to compare for model selection when choose_better is True.</p>",
+                  "default_val": "Accuracy",
+                  "choices": {
+                      "Accuracy": "Accuracy",
+                      "AUC": "Area Under the Curve",
+                      "F1": "F1 Score",
+                      "Recall": "Recall",
+                      "Precision": "Precision",
+                      "Kappa": "Cohen's Kappa",
+                      "MCC": "Matthews Correlation Coefficient"
+                  }
+              },
+              "method": {
+                  "type": "list",
+                  "tooltip": "<p>Voting strategy for ensemble models. Choose between:</p>\n<ul>\n<li><p>'hard': Uses predicted class labels for majority rule voting.</p></li>\n<li><p>'soft': Predicts class label based on argmax of summed predicted probabilities. Recommended for well-calibrated classifiers.</p></li>\n<li><p>'auto': Attempts 'soft' first, falls back to 'hard' if not supported.</p></li>\n</ul>",
+                  "default_val": "auto",
+                  "choices": {
+                      "hard": "Majority rule voting (predicted class labels)",
+                      "soft": "Weighted voting (argmax of predicted probabilities)",
+                      "auto": "Try soft first, fallback to hard"
+                  }
+              },
                 "weights": {
                     "type": "custom-list",
                     "tooltip": "<p>Sequence of weights (float or int) to weight the occurrences of predicted class\nlabels (hard voting) or class probabilities before averaging (soft voting). Uses\nuniform weights when None.</p>\n",
-                    "default_val": "None"
-                },
-                "fit_kwargs": {
-                    "type": "dict",
-                    "tooltip": "<p>Dictionary of arguments passed to the fit method of the model.</p>\n",
-                    "default_val": "{} (empty dict)"
-                },
-                "groups": {
-                    "type": "string",
-                    "tooltip": "<p>Optional group labels when GroupKFold is used for the cross validation.\nIt takes an array with shape (n_samples, ) where n_samples is the number\nof rows in training dataset. When string is passed, it is interpreted as\nthe column name in the dataset containing group labels.</p>\n",
                     "default_val": "None"
                 },
                 "probability_threshold": {
                     "type": "float",
                     "tooltip": "<p>Threshold for converting predicted probability to class label.\nIt defaults to 0.5 for all classifiers unless explicitly defined\nin this parameter. Only applicable for binary classification.</p>\n",
                     "default_val": "None"
-                },
-                "verbose": {
-                    "type": "bool",
-                    "tooltip": "<p>Score grid is not printed when verbose is set to False.</p>\n",
-                    "default_val": "True"
-                },
-                "return_train_score": {
-                    "type": "bool",
-                    "tooltip": "<p>If False, returns the CV Validation scores only.\nIf True, returns the CV training scores along with the CV validation scores.\nThis is useful when the user wants to do bias-variance tradeoff. A high CV\ntraining score with a low corresponding CV validation score indicates overfitting.</p>\n",
-                    "default_val": "False"
                 }
             } },
       "stack_models": {
@@ -1287,9 +1084,14 @@ const classificationSettings = {
                 "default_val": "4"
               },
               "method": {
-                "type": "string",
-                "tooltip": "<p>Method used for aggregation: 'auto', 'predict', or 'predict_proba'.</p>",
-                "default_val": "auto"
+                  "type": "list",
+                  "tooltip": "<p>Method used for aggregation: 'auto', 'predict', or 'predict_proba'.</p>",
+                  "default_val": "auto",
+                  "choices": {
+                      "auto": "Try 'predict_proba' first, fallback to 'predict' if not supported",
+                      "predict": "Use predicted class labels for aggregation",
+                      "predict_proba": "Use predicted probabilities for aggregation"
+                  }
               },
               "restack": {
                 "type": "bool",
@@ -1297,10 +1099,18 @@ const classificationSettings = {
                 "default_val": "False"
               },
               "meta_model": {
-                "type": "string",
-                "tooltip": "<p>Estimator to be used as the meta-model. Defaults to LogisticRegression.</p>",
-                "default_val": "None"
-              },
+                "type": "list",
+                "tooltip": "<p>Estimator to be used as the meta-model. Defaults to LogisticRegression if None.</p>",
+                "default_val": "None",
+                "choices": {
+                    "None": "Use default meta-model (LogisticRegression)",
+                    "lr": "LogisticRegression",
+                    "rf": "RandomForestClassifier",
+                    "lightgbm": "LightGBM Classifier",
+                    "xgboost": "XGBoost Classifier",
+                    "catboost": "CatBoost Classifier"
+                }
+            },
               "meta_model_fold": {
                 "type": "int",
                 "tooltip": "<p>Number of cross-validation folds for the meta-model.</p>",
@@ -1312,34 +1122,23 @@ const classificationSettings = {
                 "default_val": "False"
               },
               "optimize": {
-                "type": "string",
-                "tooltip": "<p>Metric to compare models when choose_better is True. E.g., Accuracy, AUC, Recall.</p>",
-                "default_val": "Accuracy"
-              },
-              "fit_kwargs": {
-                "type": "dict",
-                "tooltip": "<p>Additional arguments to pass to the fit method of the model.</p>",
-                "default_val": "{}"
-              },
-              "groups": {
-                "type": "string",
-                "tooltip": "<p>Column name containing group labels, used when GroupKFold is specified.</p>",
-                "default_val": "None"
+                  "type": "list",
+                  "tooltip": "<p>Metric to compare for model selection when choose_better is True.</p>",
+                  "default_val": "Accuracy",
+                  "choices": {
+                      "Accuracy": "Accuracy",
+                      "AUC": "Area Under the Curve",
+                      "F1": "F1 Score",
+                      "Recall": "Recall",
+                      "Precision": "Precision",
+                      "Kappa": "Cohen's Kappa",
+                      "MCC": "Matthews Correlation Coefficient"
+                  }
               },
               "probability_threshold": {
                 "type": "float",
                 "tooltip": "<p>Threshold to convert predicted probabilities into class labels. Only applicable for binary classification.</p>",
                 "default_val": "None"
-              },
-              "verbose": {
-                "type": "bool",
-                "tooltip": "<p>If False, hides score grid and messages during model training.</p>",
-                "default_val": "True"
-              },
-              "return_train_score": {
-                "type": "bool",
-                "tooltip": "<p>If True, returns both training and validation scores to help diagnose overfitting.</p>",
-                "default_val": "False"
               }
             }
           },
