@@ -654,7 +654,7 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
     } else if (component === "dataTable") {
       const config = node.getConfig()
       if (node.getExtraData().data == null) {
-        const dfd = require("danfojs-node")
+        const dfd = require("../../../utilities/danfo.js")
         const whenDataLoaded = (data) => {
           const { globalData, setGlobalData } = this.props as DataContextType
           let globalDataCopy = globalData

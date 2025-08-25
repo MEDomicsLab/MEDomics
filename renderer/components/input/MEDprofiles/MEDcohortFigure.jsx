@@ -1,9 +1,12 @@
 /* eslint-disable camelcase */
 import { randomUUID } from "crypto"
 import * as d3 from "d3"
-import * as dfd from "danfojs-node"
-import * as echarts from "echarts"
-import ReactECharts from "echarts-for-react"
+import * as dfd from "../../../utilities/danfo.js"
+import dynamic from 'next/dynamic'
+
+// Import echarts only on client side
+const ReactECharts = dynamic(() => import("echarts-for-react"), { ssr: false })
+let echarts = null;
 import { Button } from "primereact/button"
 import { Checkbox } from "primereact/checkbox"
 import { confirmDialog } from "primereact/confirmdialog"
@@ -165,9 +168,14 @@ class MEDcohortFigureClass extends React.Component {
    * @returns {void}
    */
   componentDidUpdate(prevProps, prevState) {
-    // eslint-disable-next-line no-undef
-    echarts.registerTheme("dark", require("../../../styles/input/medCohortFigureDark.json"))
-
+    // Only run on client-side
+    if (typeof window !== 'undefined') {
+      // Dynamically import echarts if not already loaded
+      if (!echarts) {
+        echarts = require('echarts');
+      }
+      echarts.registerTheme("dark", require("../../../styles/input/medCohortFigureDark.json"))
+    }
     // Respond to changes in props or state
     if (prevProps.jsonData !== this.props.jsonData) {
       this.setState({ jsonData: this.props.jsonData }, () => {
@@ -1141,7 +1149,6 @@ class MEDcohortFigureClass extends React.Component {
    */
   timePointToCsv = async (timePoint, timePointData) => {
     // eslint-disable-next-line no-undef
-    const dfd = require("danfojs-node")
     if (timePointData === undefined) return
     if (Object.keys(timePointData).length >= 1) {
       // If there is at least one attribute
