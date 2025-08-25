@@ -447,6 +447,7 @@ export class MEDDataObject {
    */
   static async sync(dict, id, workspacePath, notify = true, syncedObjects = new Set(), isRemote) {
     const medDataObject = dict[id]
+    console.log(`Syncing MEDDataObject with id ${id}, name ${medDataObject ? medDataObject.name : "unknown"}, isRemote: ${isRemote}`)
 
     if (!medDataObject) {
       console.log(`MEDDataObject with id ${id} not found`)
@@ -504,12 +505,12 @@ export class MEDDataObject {
 
       // Sync child objects for specific types
       if (medDataObject.type === "medml" || medDataObject.type === "medeval" || medDataObject.type === "medmlres" || medDataObject.type === "medmodel") {
-        await this.syncChildren(dict, medDataObject.childrenIDs, workspacePath, notify, syncedObjects)
+        await this.syncChildren(dict, medDataObject.childrenIDs, workspacePath, notify, syncedObjects, isRemote)
       }
 
       // If the object is a directory, create it in the workspace and sync its children
       if (medDataObject.type === "directory") {
-        await this.syncChildren(dict, medDataObject.childrenIDs, workspacePath, notify, syncedObjects)
+        await this.syncChildren(dict, medDataObject.childrenIDs, workspacePath, notify, syncedObjects, isRemote)
       }
 
       // Update inWorkspace property to true after successful download
@@ -538,16 +539,17 @@ export class MEDDataObject {
    * @param {String} workspacePath - the root path of the workspace
    * @param {Boolean} notify - Whether to display a toast message while success
    * @param {Set} syncedObjects - A set to track already synced objects to avoid infinite loops
+   * @param {Set} isRemote - A flag indicating if the sync is for a remote workspace
    */
-  static async syncChildren(dict, childrenIDs, workspacePath, notify, syncedObjects) {
+  static async syncChildren(dict, childrenIDs, workspacePath, notify, syncedObjects, isRemote) {
     for (const childID of childrenIDs) {
       const child = dict[childID]
       if (!child) {
         console.log(`Child MEDDataObject with id ${childID} not found`)
         continue
       }
-      await this.sync(dict, childID, workspacePath, notify, syncedObjects)
-      await this.syncChildren(dict, child.childrenIDs, workspacePath, notify, syncedObjects)
+      await this.sync(dict, childID, workspacePath, notify, syncedObjects, isRemote)
+      await this.syncChildren(dict, child.childrenIDs, workspacePath, notify, syncedObjects, isRemote)
     }
   }
 
