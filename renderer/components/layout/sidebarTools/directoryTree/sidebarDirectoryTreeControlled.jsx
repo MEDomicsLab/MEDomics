@@ -247,7 +247,7 @@ const SidebarDirectoryTreeControlled = ({ setExternalSelectedItems, setExternalD
           onDeleteSequentially(globalData, workspace.workingDirectory.path, setIsDialogShowing, selectedItems, 0, workspace.isRemote)
           break
         case "rmFromWs":
-          MEDDataObject.deleteObjectAndChildrenFromWorkspace(globalData, props.index, workspace.workingDirectory.path)
+          MEDDataObject.deleteObjectAndChildrenFromWorkspace(globalData, props.index, workspace.workingDirectory.path, true, workspace.isRemote)
           break
         case "revealInFileExplorer":
           if (globalData[props.index]) {
