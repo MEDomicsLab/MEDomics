@@ -84,7 +84,7 @@ const SidebarDirectoryTreeControlled = ({ setExternalSelectedItems, setExternalD
   const handleKeyPress = (event) => {
     if (event.key === "Delete" && tree.current.isRenaming === false) {
       if (selectedItems.length > 0) {
-        onDeleteSequentially(globalData, workspace.workingDirectory.path, setIsDialogShowing, selectedItems)
+        onDeleteSequentially(globalData, workspace.workingDirectory.path, setIsDialogShowing, selectedItems, 0, workspace.isRemote)
       }
     } else if (event.code === "KeyC" && event.ctrlKey) {
       setCopiedItems(selectedItems)
@@ -131,7 +131,7 @@ const SidebarDirectoryTreeControlled = ({ setExternalSelectedItems, setExternalD
         }
       } else if (event.code === "Backspace" && event.metaKey) {
         if (selectedItems.length > 0) {
-          onDeleteSequentially(globalData, workspace.workingDirectory.path, setIsDialogShowing, selectedItems)
+          onDeleteSequentially(globalData, workspace.workingDirectory.path, setIsDialogShowing, selectedItems, 0, workspace.isRemote)
         }
       }
     }
@@ -244,7 +244,7 @@ const SidebarDirectoryTreeControlled = ({ setExternalSelectedItems, setExternalD
           onRename(props.index)
           break
         case "delete":
-          onDeleteSequentially(globalData, workspace.workingDirectory.path, setIsDialogShowing, [props.index])
+          onDeleteSequentially(globalData, workspace.workingDirectory.path, setIsDialogShowing, selectedItems, 0, workspace.isRemote)
           break
         case "rmFromWs":
           MEDDataObject.deleteObjectAndChildrenFromWorkspace(globalData, props.index, workspace.workingDirectory.path)

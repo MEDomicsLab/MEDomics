@@ -413,6 +413,12 @@ export async function getRemoteLStat(filePath) {
   }
 }
 
+/**
+ * @description This function uses SFTP to rename a remote file.
+ * @param {string} oldPath - The remote path of the file to rename
+ * @param {string} newPath - The new remote path of the file
+ * @returns {{ success: boolean, error: string }} - Returns an object indicating success or failure with an error message.
+ */
 ipcMain.handle('renameRemoteFile', async (_event, { oldPath, newPath }) => {
   function sftpRename(sftp, oldPath, newPath) {
     return new Promise((resolve, reject) => {
@@ -438,6 +444,108 @@ ipcMain.handle('renameRemoteFile', async (_event, { oldPath, newPath }) => {
       }
     })
   })
+})
+
+/**
+ * @description This function uses SFTP to delete a remote file.
+ * @param {string} path - The remote path of the file to delete
+ * @param {boolean} recursive - Whether do also delete all contents if the path is a directory
+ * @returns {{ success: boolean, error: string }} - Returns an object indicating success or failure with an error message.
+ */
+ipcMain.handle('deleteRemoteFile', async (_event, { path, recursive = true }) => {
+  const activeTunnel = getActiveTunnel()
+  if (!activeTunnel) return { success: false, error: 'No active SSH tunnel' }
+
+  function getSftp(callback) {
+    if (!activeTunnel) return callback(new Error('No active SSH tunnel'))
+    if (activeTunnel.sftp) {
+      return activeTunnel.sftp(callback)
+    } else if (activeTunnel.sshClient && activeTunnel.sshClient.sftp) {
+      return activeTunnel.sshClient.sftp(callback)
+    } else {
+      return callback(new Error('No SFTP available'))
+    }
+  }
+
+  // Helper: recursively delete files and folders
+  async function sftpDeleteRecursive(sftp, targetPath) {
+    // Stat the path to determine if file or directory
+    const stats = await new Promise((res, rej) => {
+      sftp.stat(targetPath, (err, stat) => {
+        if (err) return rej(err)
+        res(stat)
+      })
+    })
+    if (stats.isDirectory()) {
+      // List directory contents
+      const entries = await new Promise((res, rej) => {
+        sftp.readdir(targetPath, (err, list) => {
+          if (err) return rej(err)
+          res(list)
+        });
+      });
+      // Recursively delete each entry
+      for (const entry of entries) {
+        if (entry.filename === '.' || entry.filename === '..') continue
+        const entryPath = targetPath.replace(/[\\/]$/, '') + '/' + entry.filename
+        await sftpDeleteRecursive(sftp, entryPath)
+      }
+      // Remove the directory itself
+      await new Promise((res, rej) => {
+        sftp.rmdir(targetPath, (err) => {
+          if (err) return rej(err)
+          res()
+        })
+      })
+    } else {
+      // Remove file
+      await new Promise((res, rej) => {
+        sftp.unlink(targetPath, (err) => {
+          if (err) return rej(err)
+          res()
+        })
+      })
+    }
+  }
+
+  return new Promise((resolve) => {
+    getSftp(async (err, sftp) => {
+      if (err) return resolve({ success: false, error: err.message })
+      let sftpClosed = false
+      function closeSftp() {
+        if (sftp && !sftpClosed) {
+          if (typeof sftp.end === 'function') {
+            try { sftp.end() } catch (e) {}
+          } else if (typeof sftp.close === 'function') {
+            try { sftp.close() } catch (e) {}
+          }
+          sftpClosed = true
+        }
+      }
+      try {
+        if (recursive) {
+          await sftpDeleteRecursive(sftp, path);
+        } else {
+          // Non-recursive: try to delete as file, then as empty dir
+          try {
+            await new Promise((res, rej) => {
+              sftp.unlink(path, (err) => err ? rej(err) : res());
+            });
+          } catch (e) {
+            // If not a file, try as empty directory
+            await new Promise((res, rej) => {
+              sftp.rmdir(path, (err) => err ? rej(err) : res());
+            });
+          }
+        }
+        closeSftp();
+        resolve({ success: true });
+      } catch (e) {
+        closeSftp()
+        resolve({ success: false, error: e.message });
+      }
+    });
+  });
 })
 
 /**
