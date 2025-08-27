@@ -29,7 +29,9 @@ export const TunnelProvider = ({ children }) => {
   })
 
   const setTunnel = (info) => {
-    setTunnelInfo(prev => ({ ...prev, ...info, tunnelActive: true }));
+    // Exclude password if present
+    const { password, privateKey, ...safeInfo } = info
+    setTunnelInfo(prev => ({ ...prev, ...safeInfo, tunnelActive: true }))
   }
 
   const clearTunnel = () => {

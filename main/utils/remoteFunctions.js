@@ -48,7 +48,9 @@ let tunnelInfo = {
 };
 
 export function setTunnelState(info) {
-  tunnelInfo = { ...tunnelInfo, ...info, tunnelActive: info.tunnelActive }
+  // Exclude password
+  const { password, privateKey, ...safeInfo } = info
+  tunnelInfo = { ...tunnelInfo, ...safeInfo, tunnelActive: safeInfo.tunnelActive }
 }
 
 export function clearTunnelState() {

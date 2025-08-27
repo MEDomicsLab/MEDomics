@@ -164,7 +164,7 @@ const IconSidebar = ({ onSidebarItemSelect }) => {
           <Nav.Link
             className="connectionModalBtn btnSidebar"
             data-pr-at="right center"
-            data-pr-tooltip="ConnectionMenu"
+            data-pr-tooltip="Connection Menu"
             data-pr-my="left center"
             data-tooltip-id="tooltip-connection-menu"
             onClick={() => {

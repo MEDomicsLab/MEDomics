@@ -1,6 +1,9 @@
 import { useState, useEffect, useContext } from "react"
 import { Dialog } from "primereact/dialog"
 import { toast } from "react-toastify"
+import { InputText } from "primereact/inputtext"
+import { Password } from 'primereact/password'
+import { InputNumber } from 'primereact/inputnumber'
 import { ipcRenderer } from "electron"
 import { requestBackend } from "../../utilities/requests"
 import { ServerConnectionContext } from "../serverConnection/connectionContext"
@@ -464,17 +467,17 @@ const DirectoryBrowser = ({ directoryContents, onDirClick }) => {
         <h2>SSH Tunnel Connection</h2>
         <label>
           Remote Host:
-          <input type="text" value={host} onChange={e => setHost(e.target.value)} placeholder="e.g. example.com" />
+          <InputText value={host} onChange={e => setHost(e.target.value)} placeholder="e.g. example.com" style={{ marginLeft: "5px" }} />
           {inputErrors.host && <div style={{ color: 'red', fontSize: 13 }}>{inputErrors.host}</div>}
         </label>
         <label>
-          Username:
-          <input type="text" value={username} onChange={e => setUsername(e.target.value)} placeholder="SSH username" />
+          Username: 
+          <InputText value={username} onChange={e => setUsername(e.target.value)} placeholder="SSH username" style={{ marginLeft: "5px" }} />
           {inputErrors.username && <div style={{ color: 'red', fontSize: 13 }}>{inputErrors.username}</div>}
         </label>
         <label>
-          Password:
-          <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="SSH password" />
+          Password: 
+          <Password value={password} onChange={e => setPassword(e.target.value)} placeholder="SSH password" style={{ marginLeft: "5px" }} feedback={false} toggleMask />
         </label>
         <div style={{ marginBottom: 8 }}>
           <button
@@ -511,44 +514,44 @@ const DirectoryBrowser = ({ directoryContents, onDirClick }) => {
             aria-hidden={!showAdvanced}
           >
             {showAdvanced && <>
-            <div>
+            <div style={{ width: '100%'}}>
               <label>
                 Remote SSH Port:
-                <input type="number" style={{ marginLeft: '5px' }} value={remotePort} onChange={e => setRemotePort(e.target.value)} placeholder="22" />
+                <InputNumber value={remotePort} onChange={e => setRemotePort(e.target.value)} placeholder="22" useGrouping={false} min={1} max={65535} />
                 {inputErrors.remotePort && <div style={{ color: 'red', fontSize: 13 }}>{inputErrors.remotePort}</div>}
               </label>
               <label>
                 Local Backend Port:
-                <input type="number" style={{ marginLeft: '5px' }} value={localBackendPort} onChange={e => setLocalBackendPort(e.target.value)} placeholder="8888" />
+                <InputNumber value={localBackendPort} onChange={e => setLocalBackendPort(e.target.value)} placeholder="8888" useGrouping={false} min={1} max={65535} />
                 {inputErrors.localBackendPort && <div style={{ color: 'red', fontSize: 13 }}>{inputErrors.localBackendPort}</div>}
                 {localPortWarning && <div style={{ color: 'orange', fontSize: 13, marginTop: 2 }}>{localPortWarning}</div>}
               </label>
               <label>
                 Remote Backend Port:
-                <input type="number" style={{ marginLeft: '5px' }} value={remoteBackendPort} onChange={e => setRemoteBackendPort(e.target.value)} placeholder="8888" />
+                <InputNumber value={remoteBackendPort} onChange={e => setRemoteBackendPort(e.target.value)} placeholder="8888" useGrouping={false} min={1} max={65535} />
                 {inputErrors.remoteBackendPort && <div style={{ color: 'red', fontSize: 13 }}>{inputErrors.remoteBackendPort}</div>}
               </label>
             </div>
-            <div>
+            <div style={{ width: '100%'}}>
               <label>
                 Local MongoDB Port:
-                <input type="number" style={{ marginLeft: '5px' }} value={localDBPort} onChange={e => setLocalDBPort(e.target.value)} placeholder="54020" />
+                <InputNumber value={localDBPort} onChange={e => setLocalDBPort(e.target.value)} placeholder="54020" useGrouping={false} min={1} max={65535} />
               </label>
               <label>
                 Remote MongoDB Port:
-                <input type="number" style={{ marginLeft: '5px' }} value={remoteDBPort} onChange={e => setRemoteDBPort(e.target.value)} placeholder="54017" />
+                <InputNumber value={remoteDBPort} onChange={e => setRemoteDBPort(e.target.value)} placeholder="54017" useGrouping={false} min={1} max={65535} />
               </label>
               <label>
                 SSH Key Comment:
-                <input type="text" style={{ marginLeft: '5px' }} value={keyComment} onChange={e => setKeyComment(e.target.value)} placeholder="medomicslab-app" />
+                <InputText className="ssh-key-command" value={keyComment} onChange={e => setKeyComment(e.target.value)} placeholder="medomicslab-app" />
               </label>
             </div>
             </>}
           </div>
         </div>
-        <button onClick={handleGenerateKey} disabled={keyGenerated} style={{ background: keyGenerated ? '#ccc' : '#007ad9', color: 'white' }}>
+        <Button onClick={handleGenerateKey} disabled={keyGenerated} style={{ background: keyGenerated ? '#ccc' : '#007ad9', color: 'white' }}>
           {keyGenerated ? 'Key Generated' : 'Generate SSH Key'}
-        </button>
+        </Button>
         {inputErrors.key && <div style={{ color: 'red', fontSize: 13, marginTop: 4 }}>{inputErrors.key}</div>}
         {keyGenerated && (
           <div>
@@ -817,6 +820,18 @@ const DirectoryBrowser = ({ directoryContents, onDirClick }) => {
 
             .dir-browser-icon {
               display: inline-block
+            }
+
+            .p-inputnumber input {
+              width: 100px;
+              margin-left: 8px;
+              padding: 4px
+            }
+
+            .ssh-key-command {
+              width: 50%;
+              margin-left: 8px;
+              padding: 4px
             }
           `}
         </style>
