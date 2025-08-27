@@ -337,6 +337,7 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
       "/connection/connection_test_request",
       { data: "" },
       async (jsonResponse) => {
+        console.log("Test Request Response: ",jsonResponse)
         if (!jsonResponse.error) {
           setRegisterStatus("Test request successful!")
         } else {
