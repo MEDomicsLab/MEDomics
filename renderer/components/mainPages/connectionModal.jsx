@@ -13,6 +13,7 @@ import { Button } from "@blueprintjs/core"
 import { GoFile, GoFileDirectoryFill, GoChevronDown, GoChevronUp } from "react-icons/go"
 import { FaFolderPlus } from "react-icons/fa"
 import { WorkspaceContext } from "../workspace/workspaceContext"
+import { IoMdClose, IoIosRefresh } from "react-icons/io"
 import axios from "axios"
 
 /**
@@ -465,16 +466,19 @@ const DirectoryBrowser = ({ directoryContents, onDirClick }) => {
   return (
     <Dialog className="modal" visible={visible} style={{ width: "50vw" }} closable={closable} onHide={onClose}>
       <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-        <h2>SSH Tunnel Connection</h2>
+        <div className="title-header" > 
+          <h2>SSH Tunnel Connection</h2>
+          <Button style={{ padding: "0px", background: 'transparent' }} onClick={onClose}><IoMdClose style={{ fontSize: "18pt", color: 'var(--text-secondary)' }} /></Button>
+        </div>
         <label>
           Remote Host:
           <InputText value={host} onChange={e => setHost(e.target.value)} placeholder="e.g. example.com" style={{ marginLeft: "5px" }} />
-          {inputErrors.host && <div style={{ color: 'red', fontSize: 13 }}>{inputErrors.host}</div>}
+          {inputErrors.host && <div style={{ color: 'var(--danger)', fontSize: 13 }}>{inputErrors.host}</div>}
         </label>
         <label>
           Username: 
           <InputText value={username} onChange={e => setUsername(e.target.value)} placeholder="SSH username" style={{ marginLeft: "5px" }} />
-          {inputErrors.username && <div style={{ color: 'red', fontSize: 13 }}>{inputErrors.username}</div>}
+          {inputErrors.username && <div style={{ color: 'var(--danger)', fontSize: 13 }}>{inputErrors.username}</div>}
         </label>
         <label>
           Password: 
@@ -485,7 +489,7 @@ const DirectoryBrowser = ({ directoryContents, onDirClick }) => {
             type="button"
             onClick={() => setShowAdvanced(v => !v)}
             style={{
-              color: '#0000FF',
+              color: 'var(--button-bg)',
               background: 'transparent',
               border: 'none',
               cursor: 'pointer',
@@ -506,11 +510,11 @@ const DirectoryBrowser = ({ directoryContents, onDirClick }) => {
               transition: 'max-height 0.35s cubic-bezier(0.4,0,0.2,1)',
               opacity: showAdvanced ? 1 : 0,
               transitionProperty: 'max-height, opacity',
-              border: showAdvanced ? '1px solid #eee' : '1px solid transparent',
+              border: showAdvanced ? '1px solid var(--border-color)' : '1px solid transparent',
               borderRadius: 4,
               padding: showAdvanced ? 12 : 0,
               marginTop: showAdvanced ? 6 : 0,
-              background: showAdvanced ? '#fafbfc' : 'transparent',
+              background: showAdvanced ? 'var(--bg-secondary)' : 'transparent',
             }}
             aria-hidden={!showAdvanced}
           >
@@ -519,18 +523,18 @@ const DirectoryBrowser = ({ directoryContents, onDirClick }) => {
               <label>
                 Remote SSH Port:
                 <InputNumber value={remotePort} onChange={e => setRemotePort(e.target.value)} placeholder="22" useGrouping={false} min={1} max={65535} />
-                {inputErrors.remotePort && <div style={{ color: 'red', fontSize: 13 }}>{inputErrors.remotePort}</div>}
+                {inputErrors.remotePort && <div style={{ color: 'var(--danger)', fontSize: 13 }}>{inputErrors.remotePort}</div>}
               </label>
               <label>
                 Local Backend Port:
                 <InputNumber value={localBackendPort} onChange={e => setLocalBackendPort(e.target.value)} placeholder="8888" useGrouping={false} min={1} max={65535} />
                 {inputErrors.localBackendPort && <div style={{ color: 'red', fontSize: 13 }}>{inputErrors.localBackendPort}</div>}
-                {localPortWarning && <div style={{ color: 'orange', fontSize: 13, marginTop: 2 }}>{localPortWarning}</div>}
+                {localPortWarning && <div style={{ color: 'var(--warning)', fontSize: 13, marginTop: 2 }}>{localPortWarning}</div>}
               </label>
               <label>
                 Remote Backend Port:
                 <InputNumber value={remoteBackendPort} onChange={e => setRemoteBackendPort(e.target.value)} placeholder="8888" useGrouping={false} min={1} max={65535} />
-                {inputErrors.remoteBackendPort && <div style={{ color: 'red', fontSize: 13 }}>{inputErrors.remoteBackendPort}</div>}
+                {inputErrors.remoteBackendPort && <div style={{ color: 'var(--danger)', fontSize: 13 }}>{inputErrors.remoteBackendPort}</div>}
               </label>
             </div>
             <div style={{ width: '100%'}}>
@@ -550,21 +554,20 @@ const DirectoryBrowser = ({ directoryContents, onDirClick }) => {
             </>}
           </div>
         </div>
-        <Button onClick={handleGenerateKey} disabled={keyGenerated} style={{ background: keyGenerated ? '#ccc' : '#007ad9', color: 'white' }}>
+        <Button onClick={handleGenerateKey} disabled={keyGenerated} style={{ background: 'var(--button-bg)', color: 'var(--button-text)', opacity: keyGenerated ? 0.4 : 1 }}>
           {keyGenerated ? 'Key Generated' : 'Generate SSH Key'}
         </Button>
         {inputErrors.key && <div style={{ color: 'red', fontSize: 13, marginTop: 4 }}>{inputErrors.key}</div>}
         {keyGenerated && (
           <div>
             <strong>Public Key:</strong>
-            <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-all', background: '#f4f4f4', padding: '0.5em' }}>{publicKey}</pre>
-            {registerStatus && <div style={{ marginTop: '0.5em', color: registerStatus.includes('success') ? 'green' : 'red' }}>{registerStatus}</div>}
+            <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-all', background: 'var(--bg-tertiary)', marginTop: '10px', padding: '0.5em' }}>{publicKey}</pre>
+            {registerStatus && <div style={{ marginTop: '0.5em', color: registerStatus.includes('success') ? 'var(--success)' : 'var(--danger)' }}>{registerStatus}</div>}
           </div>
         )}
         <div style={{ display: "flex", gap: "1rem", justifyContent: "flex-end" }}>
-          <Button onClick={onClose}>Close</Button>
-          <Button className="connect-btn" onClick={() => handleConnectBackend()} style={{ background: "#007ad9", color: "white" }} disabled={!inputValid || tunnelActive}>Connect</Button>
-          <Button onClick={handleDisconnect} style={{ background: "#d9534f", color: "white" }}>Disconnect</Button>
+          <Button className="connect-btn" onClick={() => handleConnectBackend()} style={{ background: 'var(--button-bg)', color: 'var(--button-text)' }} disabled={!inputValid || tunnelActive}>Connect</Button>
+          <Button className="disconnect-btn" onClick={handleDisconnect} disabled={!tunnelActive} style={{ background: "#d9534f", color: "white" }}>Disconnect</Button>
         </div>
         {tunnelStatus && (
           <div style={{ marginTop: '0.5em', color: tunnelStatus.includes('established') ? 'green' : tunnelStatus.includes('Reconnecting') ? 'orange' : 'red' }}>{tunnelStatus}</div>
@@ -576,7 +579,7 @@ const DirectoryBrowser = ({ directoryContents, onDirClick }) => {
             <h3 style={{ fontSize: '1.1rem', margin: 0 }}>Remote Directory Browser</h3>
             <Button
               className="refresh-btn"
-              icon="refresh"
+              disabled={!tunnelActive}
               onClick={async () => {
                 try {
                   // Use new backend navigation handler
@@ -598,7 +601,9 @@ const DirectoryBrowser = ({ directoryContents, onDirClick }) => {
                 }
               }}
               title="Refresh directory contents"
-            ></Button>
+            >
+              <IoIosRefresh style={{ height: '21px', width: '18px' }} />
+            </Button>
             <Button
               className="new-folder-btn"
               onClick={() => {
@@ -608,7 +613,7 @@ const DirectoryBrowser = ({ directoryContents, onDirClick }) => {
               title="Create new folder"
               disabled={!tunnelActive}
             >
-              <FaFolderPlus style={{ height: '21px', width: '18px', color: '#5f6b7c' }} />
+              <FaFolderPlus style={{ height: '21px', width: '18px' }} />
             </Button>
             <Button
               id="set-workspace-btn"
@@ -641,7 +646,7 @@ const DirectoryBrowser = ({ directoryContents, onDirClick }) => {
               Set as Workspace
             </Button>
           </div>
-          <div style={{ color: '#666', fontSize: 13, marginBottom: 8, marginLeft: 2 }}>
+          <div style={{ color: 'var(--text-muted)', fontSize: 13, marginBottom: 8, marginLeft: 2 }}>
             Path: <span style={{ fontFamily: 'monospace' }}>{remoteDirPath}</span>
           </div>
           <DirectoryBrowser
@@ -761,20 +766,26 @@ const DirectoryBrowser = ({ directoryContents, onDirClick }) => {
             .refresh-btn {
               marginLeft: 8px;
               fontSize: 16px;
-              padding: 2px 8px;
-              color: gray
+              padding: 2px 4px;
+              background: var(--bg-secondary) !important;
+              color: var(--text-secondary) !important 
+            }
+
+            .refresh-btn:disabled {
+              opacity: 0.5;
+              cursor: default
             }
 
             .new-folder-btn {
               marginLeft: 8px;
               fontSize: 16px;
-              padding: 2px 2px;
-              color: gray
+              padding: 2px 4px;
+              background: var(--bg-secondary) !important;
+              color: var(--text-secondary) !important 
             }
 
             .new-folder-btn:disabled {
               opacity: 0.5;
-              color: white;
               cursor: default
             }
 
@@ -782,23 +793,23 @@ const DirectoryBrowser = ({ directoryContents, onDirClick }) => {
               marginLeft: 8px;
               fontSize: 16px;
               padding: 2px 8px;
-              background: #007ad9;
-              color: white
-            }
-
-            #set-workspace-btn > span {
-              color: white
+              background: var(--button-bg) !important;
+              color: var(--button-text) !important;
             }
 
             .set-workspace-btn:disabled {
               opacity: 0.5;
-              color: white;
+              color: var(--button-text) !important;
               cursor: default
             }
 
             .connect-btn:disabled {
               opacity: 0.5;
-              color: #666;
+              cursor: default
+            }
+
+            .disconnect-btn:disabled {
+              opacity: 0.5;
               cursor: default
             }
 
@@ -833,6 +844,12 @@ const DirectoryBrowser = ({ directoryContents, onDirClick }) => {
               width: 50%;
               margin-left: 8px;
               padding: 4px
+            }
+
+            .title-header {
+              display: flex;
+              align-items: center;
+              justify-content: space-between;
             }
           `}
         </style>

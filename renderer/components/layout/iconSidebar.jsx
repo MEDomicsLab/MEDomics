@@ -431,7 +431,6 @@ const IconSidebar = ({ onSidebarItemSelect }) => {
             onClick={() => {
               handleThemeToggleClick()
             }}
-            disabled={isDisabled}
           >
             {isDarkMode ? (
 

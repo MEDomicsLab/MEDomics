@@ -82,6 +82,7 @@ ipcMain.handle('setTunnelState', (_event, info) => {
 
 ipcMain.handle('clearTunnelState', () => {
   clearTunnelState()
+  mainWindow.webContents.send('tunnelStateClear')
 })
 
 

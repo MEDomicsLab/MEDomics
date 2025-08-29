@@ -15,7 +15,7 @@ import { WorkspaceProvider } from "../components/workspace/workspaceContext"
 import { loadMEDDataObjects, updateGlobalData } from "../utilities/appUtils/globalDataUtils"
 import { NotificationContextProvider } from "../components/generalPurpose/notificationContext"
 import { TunnelProvider } from "../components/tunnel/TunnelContext";
-import { setTunnelState } from "../utilities/tunnelState"
+import { setTunnelState, clearTunnelState } from "../utilities/tunnelState"
 import { downloadCollectionToFile, insertObjectIntoCollection } from "../components/mongoDB/mongoDBUtils"
 import { ThemeProvider } from "../components/theme/themeContext"
 
@@ -185,6 +185,10 @@ function App({ Component, pageProps }) {
 
     ipcRenderer.on("tunnelStateUpdate", (event, state) => {
       setTunnelState(state)
+    })
+
+    ipcRenderer.on("tunnelStateClear", () => {
+      clearTunnelState()
     })
 
     ipcRenderer.on("insertObjectIntoCollection", (event, data) => {
