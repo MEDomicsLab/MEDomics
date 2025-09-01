@@ -82,10 +82,8 @@ const SidebarDirectoryTreeControlled = ({ setExternalSelectedItems, setExternalD
    * @note - This function is called when the user presses a key.
    */
   const handleKeyPress = (event) => {
-    if (event.key === "Delete" && tree.current.isRenaming === false) {
-      if (selectedItems.length > 0) {
-        onDeleteSequentially(globalData, workspace.workingDirectory.path, setIsDialogShowing, selectedItems, 0, workspace.isRemote)
-      }
+    if (event.key === "Delete" && selectedItems.length > 0 && tree.current.isRenaming === false) {
+      onDeleteSequentially(globalData, workspace.workingDirectory.path, setIsDialogShowing, selectedItems, 0, workspace.isRemote)
     } else if (event.code === "KeyC" && event.ctrlKey) {
       setCopiedItems(selectedItems)
     } else if (event.code === "KeyX" && event.ctrlKey) {

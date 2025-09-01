@@ -4,6 +4,7 @@ import { toast } from "react-toastify"
 import { InputText } from "primereact/inputtext"
 import { Password } from 'primereact/password'
 import { InputNumber } from 'primereact/inputnumber'
+import { ProgressSpinner } from 'primereact/progressspinner'
 import { ipcRenderer } from "electron"
 import { requestBackend } from "../../utilities/requests"
 import { ServerConnectionContext } from "../serverConnection/connectionContext"
@@ -22,6 +23,8 @@ import axios from "axios"
  */
 const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
   const [showAdvanced, setShowAdvanced] = useState(false)
+
+  // Connection info form fields
   const [host, setHost] = useState("")
   const [username, setUsername] = useState("")
   const [password, setPassword] = useState("")
@@ -33,6 +36,8 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
   const [privateKey, setPrivateKey] = useState("")
   const [publicKey, setPublicKey] = useState("")
   const [keyComment, setKeyComment] = useState("medomicslab-app")
+
+  // Connection state
   const [keyGenerated, setKeyGenerated] = useState(false)
   const [registerStatus, setRegisterStatus] = useState("")
   const [tunnelStatus, setTunnelStatus] = useState("")
@@ -42,6 +47,10 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
   const reconnectDelay = 3000 // ms
   const [connectionInfo, setConnectionInfo] = useState(null)
   const { workspace, setWorkspace } = useContext(WorkspaceContext)
+
+  // Process/loading states
+  const [connectionProcessing, setConnectionProcessing] = useState(false)
+  const [navigationProcessing, setNavigationProcessing] = useState(false)
 
   // Validation state
   const [inputErrors, setInputErrors] = useState({})
@@ -114,8 +123,10 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
       return () => clearTimeout(timer)
     }
     if (reconnectAttempts > maxReconnectAttempts) {
+      setConnectionProcessing(false)
       setTunnelStatus("Failed to reconnect SSH tunnel after multiple attempts.")
       toast.error("Failed to reconnect SSH tunnel after multiple attempts.")
+      setReconnectAttempts(0)
     }
   }, [tunnelActive, reconnectAttempts, connectionInfo])
 
@@ -143,6 +154,7 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
 
   // Updated connect handler with error handling and auto-reconnect
   const handleConnectBackend = async (info, isReconnect = false) => {
+    setConnectionProcessing(true)
     setTunnelStatus(isReconnect ? "Reconnecting..." : "Connecting...")
     toast.info(isReconnect ? "Reconnecting SSH tunnel..." : "Establishing SSH tunnel...")
     const connInfo = info || { host, username, privateKey, password, remotePort, localBackendPort, remoteBackendPort, localDBPort, remoteDBPort }
@@ -152,11 +164,13 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
     if (!connInfo.host || connInfo.host.trim() === "") {
       setTunnelStatus("Error: Remote host is required.")
       toast.error("Remote host is required.")
+      setConnectionProcessing(false)
       return
     }
     if (!hostPattern.test(connInfo.host.trim())) {
       setTunnelStatus("Error: Invalid remote host. Please enter a valid hostname or IP address.")
       toast.error("Invalid remote host. Please enter a valid hostname or IP address.")
+      setConnectionProcessing(false)
       return
     }
     try {
@@ -209,9 +223,11 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
         setReconnectAttempts(0)
         if (onConnect) onConnect()
         toast.success("SSH tunnel established.")
+        setConnectionProcessing(false)
 
         // Fetch home directory contents via IPC and update directoryContents and remoteDirPath
         try {
+          setNavigationProcessing(true)
           const res = await ipcRenderer.invoke('listRemoteDirectory', { path: '~' })
           // res: { path, contents }
           if (res && typeof res === 'object') {
@@ -229,6 +245,8 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
           }
         } catch (err) {
           setDirectoryContents([])
+        } finally {
+          setNavigationProcessing(false)
         }
       } else if (result && result.error) {
         setTunnelStatus("Failed to establish SSH tunnel: " + result.error)
@@ -273,6 +291,7 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
   }
 
   const handleDisconnect = async () => {
+    setConnectionProcessing(true)
     setTunnelStatus("Disconnecting...")
     toast.info("Disconnecting SSH tunnel...")
     try {
@@ -298,6 +317,8 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
     } catch (err) {
       setTunnelStatus("Failed to disconnect tunnel: " + (err.message || err))
       toast.error("Disconnect Failed: ", err.message || String(err))
+    } finally {
+      setConnectionProcessing(false)
     }
   }
 
@@ -354,32 +375,49 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
   }
 
   // DirectoryBrowser component
-const DirectoryBrowser = ({ directoryContents, onDirClick }) => {
-  if (!directoryContents || directoryContents.length === 0) {
-    return <div style={{ color: '#888', fontSize: 14 }}>No files or folders to display.</div>
+  const DirectoryBrowser = ({ directoryContents, onDirClick, navigationProcessing }) => {
+    if (!directoryContents || directoryContents.length === 0) {
+      return <div style={{ color: 'var(--text-muted)', fontSize: 14 }}>No files or folders to display.</div>
+    }
+    return (
+      <div style={{ position: 'relative', opacity: navigationProcessing ? 0.3 : 1 }}>
+        <ul className="dir-browser-list">
+          {directoryContents.map((item, idx) => (
+            <li
+              className="dir-browser-item"
+              key={item.name + idx}
+              style={item.type === 'dir' ? { cursor: 'pointer', fontWeight: 500 } : {}}
+              onClick={item.type === 'dir' ? () => onDirClick && onDirClick(item.name) : undefined}
+            >
+              <span className="dir-browser-icon">
+                {item.type === 'dir' ? (
+                  <GoFileDirectoryFill size={20} style={{ color: '#2222ff' }} />
+                ) : (
+                  <GoFile size={20} style={{ color: '#6b7a90' }} />
+                )}
+              </span>
+              <span>{item.name}</span>
+            </li>
+          ))}
+        </ul>
+        {navigationProcessing && (
+          <div style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            width: '100%',
+            height: '100%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 2
+          }}>
+            <ProgressSpinner style={{ width: '40px', height: '40px' }} strokeWidth="4" />
+          </div>
+        )}
+      </div>
+    )
   }
-  return (
-    <ul className="dir-browser-list">
-      {directoryContents.map((item, idx) => (
-        <li
-          className="dir-browser-item"
-          key={item.name + idx}
-          style={item.type === 'dir' ? { cursor: 'pointer', fontWeight: 500 } : {}}
-          onClick={item.type === 'dir' ? () => onDirClick && onDirClick(item.name) : undefined}
-        >
-          <span className="dir-browser-icon">
-            {item.type === 'dir' ? (
-              <GoFileDirectoryFill size={20} style={{ color: '#2222ff' }} />
-            ) : (
-              <GoFile size={20} style={{ color: '#6b7a90' }} />
-            )}
-          </span>
-          <span>{item.name}</span>
-        </li>
-      ))}
-    </ul>
-  )
-}
 
   // Input validation logic
   useEffect(() => {
@@ -472,17 +510,17 @@ const DirectoryBrowser = ({ directoryContents, onDirClick }) => {
         </div>
         <label>
           Remote Host:
-          <InputText value={host} onChange={e => setHost(e.target.value)} placeholder="e.g. example.com" style={{ marginLeft: "5px" }} />
+          <InputText disabled={tunnelActive || connectionProcessing} value={host} onChange={e => setHost(e.target.value)} placeholder="e.g. example.com" style={{ marginLeft: "5px" }} />
           {inputErrors.host && <div style={{ color: 'var(--danger)', fontSize: 13 }}>{inputErrors.host}</div>}
         </label>
         <label>
           Username: 
-          <InputText value={username} onChange={e => setUsername(e.target.value)} placeholder="SSH username" style={{ marginLeft: "5px" }} />
+          <InputText disabled={tunnelActive || connectionProcessing} value={username} onChange={e => setUsername(e.target.value)} placeholder="SSH username" style={{ marginLeft: "5px" }} />
           {inputErrors.username && <div style={{ color: 'var(--danger)', fontSize: 13 }}>{inputErrors.username}</div>}
         </label>
         <label>
           Password: 
-          <Password value={password} onChange={e => setPassword(e.target.value)} placeholder="SSH password" style={{ marginLeft: "5px" }} feedback={false} toggleMask />
+          <Password disabled={tunnelActive || connectionProcessing} value={password} onChange={e => setPassword(e.target.value)} placeholder="SSH password" style={{ marginLeft: "5px" }} feedback={false} toggleMask />
         </label>
         <div style={{ marginBottom: 8 }}>
           <button
@@ -522,39 +560,39 @@ const DirectoryBrowser = ({ directoryContents, onDirClick }) => {
             <div style={{ width: '100%'}}>
               <label>
                 Remote SSH Port:
-                <InputNumber value={remotePort} onChange={e => setRemotePort(e.target.value)} placeholder="22" useGrouping={false} min={1} max={65535} />
+                <InputNumber disabled={tunnelActive || connectionProcessing} value={remotePort} onChange={e => setRemotePort(e.value)} placeholder="22" useGrouping={false} min={1} max={65535} />
                 {inputErrors.remotePort && <div style={{ color: 'var(--danger)', fontSize: 13 }}>{inputErrors.remotePort}</div>}
               </label>
               <label>
                 Local Backend Port:
-                <InputNumber value={localBackendPort} onChange={e => setLocalBackendPort(e.target.value)} placeholder="8888" useGrouping={false} min={1} max={65535} />
+                <InputNumber disabled={tunnelActive || connectionProcessing} onChange={e => setLocalBackendPort(e.value)} placeholder="8888" useGrouping={false} min={1} max={65535} />
                 {inputErrors.localBackendPort && <div style={{ color: 'red', fontSize: 13 }}>{inputErrors.localBackendPort}</div>}
                 {localPortWarning && <div style={{ color: 'var(--warning)', fontSize: 13, marginTop: 2 }}>{localPortWarning}</div>}
               </label>
               <label>
                 Remote Backend Port:
-                <InputNumber value={remoteBackendPort} onChange={e => setRemoteBackendPort(e.target.value)} placeholder="8888" useGrouping={false} min={1} max={65535} />
+                <InputNumber disabled={tunnelActive || connectionProcessing} onChange={e => setRemoteBackendPort(e.value)} placeholder="8888" useGrouping={false} min={1} max={65535} />
                 {inputErrors.remoteBackendPort && <div style={{ color: 'var(--danger)', fontSize: 13 }}>{inputErrors.remoteBackendPort}</div>}
               </label>
             </div>
             <div style={{ width: '100%'}}>
               <label>
                 Local MongoDB Port:
-                <InputNumber value={localDBPort} onChange={e => setLocalDBPort(e.target.value)} placeholder="54020" useGrouping={false} min={1} max={65535} />
+                <InputNumber disabled={tunnelActive || connectionProcessing} onChange={e => setLocalDBPort(e.value)} placeholder="54020" useGrouping={false} min={1} max={65535} />
               </label>
               <label>
                 Remote MongoDB Port:
-                <InputNumber value={remoteDBPort} onChange={e => setRemoteDBPort(e.target.value)} placeholder="54017" useGrouping={false} min={1} max={65535} />
+                <InputNumber disabled={tunnelActive || connectionProcessing} onChange={e => setRemoteDBPort(e.value)} placeholder="54017" useGrouping={false} min={1} max={65535} />
               </label>
               <label>
                 SSH Key Comment:
-                <InputText className="ssh-key-command" value={keyComment} onChange={e => setKeyComment(e.target.value)} placeholder="medomicslab-app" />
+                <InputText disabled={tunnelActive || connectionProcessing} className="ssh-key-command" value={keyComment} onChange={e => setKeyComment(e.target.value)} placeholder="medomicslab-app" />
               </label>
             </div>
             </>}
           </div>
         </div>
-        <Button onClick={handleGenerateKey} disabled={keyGenerated} style={{ background: 'var(--button-bg)', color: 'var(--button-text)', opacity: keyGenerated ? 0.4 : 1 }}>
+        <Button onClick={handleGenerateKey} disabled={keyGenerated || tunnelActive || connectionProcessing} style={{ background: 'var(--button-bg)', color: 'var(--button-text)', opacity: keyGenerated ? 0.4 : 1 }}>
           {keyGenerated ? 'Key Generated' : 'Generate SSH Key'}
         </Button>
         {inputErrors.key && <div style={{ color: 'red', fontSize: 13, marginTop: 4 }}>{inputErrors.key}</div>}
@@ -566,11 +604,15 @@ const DirectoryBrowser = ({ directoryContents, onDirClick }) => {
           </div>
         )}
         <div style={{ display: "flex", gap: "1rem", justifyContent: "flex-end" }}>
-          <Button className="connect-btn" onClick={() => handleConnectBackend()} style={{ background: 'var(--button-bg)', color: 'var(--button-text)' }} disabled={!inputValid || tunnelActive}>Connect</Button>
-          <Button className="disconnect-btn" onClick={handleDisconnect} disabled={!tunnelActive} style={{ background: "#d9534f", color: "white" }}>Disconnect</Button>
+          <Button className="connect-btn" onClick={() => handleConnectBackend()} style={{ background: 'var(--button-bg)', color: 'var(--button-text)' }} disabled={!inputValid || tunnelActive || connectionProcessing}>Connect</Button>
+          <Button className="disconnect-btn" onClick={handleDisconnect} disabled={!tunnelActive || connectionProcessing} style={{ background: "var(--danger)", color: "var(--button-text)" }}>Disconnect</Button>
         </div>
         {tunnelStatus && (
-          <div style={{ marginTop: '0.5em', color: tunnelStatus.includes('established') ? 'green' : tunnelStatus.includes('Reconnecting') ? 'orange' : 'red' }}>{tunnelStatus}</div>
+          <div>
+            <div style={{ marginTop: '0.5em', color: tunnelStatus.includes('established') ? 'var(--success)' : tunnelStatus.includes('onnecting') ? 'var(--warning)' : 'var(--danger)' }}>
+              { connectionProcessing && (<ProgressSpinner style={{width: '14px', height: '14px'}} strokeWidth="4" />)} {tunnelStatus}
+            </div>
+          </div>
         )}
         <Button onClick={sendTestRequest} style={{ background: "#d9534f", color: "white" }}>Send test request</Button>
         {/* Directory Browser Section */}
@@ -579,9 +621,10 @@ const DirectoryBrowser = ({ directoryContents, onDirClick }) => {
             <h3 style={{ fontSize: '1.1rem', margin: 0 }}>Remote Directory Browser</h3>
             <Button
               className="refresh-btn"
-              disabled={!tunnelActive}
+              disabled={!tunnelActive || navigationProcessing}
               onClick={async () => {
                 try {
+                  setNavigationProcessing(true)
                   // Use new backend navigation handler
                   const navResult = await ipcRenderer.invoke('navigateRemoteDirectory', {
                     action: 'list',
@@ -598,6 +641,8 @@ const DirectoryBrowser = ({ directoryContents, onDirClick }) => {
                   }
                 } catch {
                   setDirectoryContents([])
+                } finally {
+                  setNavigationProcessing(false)
                 }
               }}
               title="Refresh directory contents"
@@ -611,7 +656,7 @@ const DirectoryBrowser = ({ directoryContents, onDirClick }) => {
                 setShowNewFolderModal(true)
               }}
               title="Create new folder"
-              disabled={!tunnelActive}
+              disabled={!tunnelActive || navigationProcessing}
             >
               <FaFolderPlus style={{ height: '21px', width: '18px' }} />
             </Button>
@@ -621,6 +666,8 @@ const DirectoryBrowser = ({ directoryContents, onDirClick }) => {
               icon="folder-open"
               onClick={async () => {
                 const tunnelState = getTunnelState()
+                setConnectionProcessing(true)
+                setNavigationProcessing(true)
                 axios.post(`http://${tunnelState.host}:3000/set-working-directory`, { workspacePath: remoteDirPath })
                   .then(response => {
                     if (response.data.success) {
@@ -631,17 +678,23 @@ const DirectoryBrowser = ({ directoryContents, onDirClick }) => {
                         setWorkspace(workspaceToSet)
                         ipcRenderer.invoke("setRemoteWorkspacePath", remoteDirPath)
                         handleConnectMongoDB()
+                        setConnectionProcessing(false)
+                        setNavigationProcessing(false)
                       }
                     } else {
                       toast.error("Failed to set workspace: " + response.data.error)
+                      setConnectionProcessing(false)
+                      setNavigationProcessing(false)
                     }
                   })
                   .catch(err => {
                     toast.error("Failed to set workspace: " + (err && err.message ? err.message : String(err)))
+                    setConnectionProcessing(false)
+                    setNavigationProcessing(false)
                   })
               }}
               title="Set this directory as workspace on remote app"
-              disabled={!tunnelActive}
+              disabled={!tunnelActive || navigationProcessing || !remoteDirPath}
             >
               Set as Workspace
             </Button>
@@ -657,6 +710,8 @@ const DirectoryBrowser = ({ directoryContents, onDirClick }) => {
                 : directoryContents
             }
             onDirClick={async (dirName) => {
+              if (!tunnelActive || navigationProcessing) return
+              setNavigationProcessing(true)
               try {
                 let navResult
                 if (dirName === '..') {
@@ -682,8 +737,12 @@ const DirectoryBrowser = ({ directoryContents, onDirClick }) => {
                 }
               } catch {
                 setDirectoryContents([])
+              } finally {
+                setNavigationProcessing(false)
               }
-            }}
+            }
+          }
+          navigationProcessing={navigationProcessing}
           />
         </div>
       </div>
@@ -702,6 +761,7 @@ const DirectoryBrowser = ({ directoryContents, onDirClick }) => {
                 intent="primary"
                 onClick={async () => {
                   if (!newFolderName.trim()) return
+                  setNavigationProcessing(true)
                   setCreatingFolder(true)
                   try {
                     const result = await ipcRenderer.invoke('createRemoteFolder', {
@@ -732,6 +792,7 @@ const DirectoryBrowser = ({ directoryContents, onDirClick }) => {
                     toast.error('Failed to create folder: ' + (err && err.message ? err.message : String(err)))
                   } finally {
                     setCreatingFolder(false)
+                    setNavigationProcessing(false)
                   }
                 }}
                 disabled={!newFolderName.trim() || creatingFolder}
@@ -743,7 +804,7 @@ const DirectoryBrowser = ({ directoryContents, onDirClick }) => {
         >
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             <label htmlFor="new-folder-name">Folder Name:</label>
-            <input
+            <InputText
               id="new-folder-name"
               type="text"
               value={newFolderName}
@@ -850,6 +911,10 @@ const DirectoryBrowser = ({ directoryContents, onDirClick }) => {
               display: flex;
               align-items: center;
               justify-content: space-between;
+            }
+
+            .p-progress-spinner-circle {
+              stroke: var(--warning) !important;
             }
           `}
         </style>
