@@ -26,6 +26,7 @@ import { WorkspaceContext } from "../workspace/workspaceContext"
 import { requestBackend } from "../../utilities/requests"
 import { toast } from "react-toastify"
 import NotificationOverlay from "../generalPurpose/notificationOverlay"
+import SidebarLoadingOverlay from "./sidebarTools/SidebarLoadingOverlay"
 
 import os from "os"
 
@@ -286,8 +287,9 @@ const LayoutManager = (props) => {
         <div className="main-app-container">
           <PanelGroup autoSaveId="test" direction="horizontal">
             <Panel className={resizable.Panel} collapsible={true} minSize={20} maxSize={80} defaultSize={20} order={1} ref={sidebarRef}>
-              <div className={`${resizable.PanelContent} sidebar-content`} style={{ backgroundColor: "#353535" }}>
+              <div className={`${resizable.PanelContent} sidebar-content`} style={{ backgroundColor: "#353535", position: "relative" }}>
                 {renderSidebarComponent()}
+                <SidebarLoadingOverlay />
               </div>
             </Panel>
             <PanelResizeHandle className={resizable.ResizeHandleOuter}>

@@ -168,6 +168,7 @@ export async function startSSHTunnel({ host, username, privateKey, password, rem
  * @returns {Promise<boolean>}
  */
 async function checkRemotePortOpen(conn, port) {
+  mainWindow.webContents.send("setSidebarLoading", { processing: true, message: "Checking if MongoDB is running on server..." })
   // Use detectRemoteOS to determine the remote OS and select the right command
   const remoteOS = await detectRemoteOS()
   let checkCmd
@@ -207,6 +208,7 @@ async function checkRemotePortOpen(conn, port) {
  * @returns {Promise<{success: boolean}>}
  */
 export async function startMongoTunnel() {
+  mainWindow.webContents.send("setSidebarLoading", { processing: true, message: "Starting MongoDB Tunnel..." })
   return new Promise(async (resolve, reject) => {
     const conn = getActiveTunnel()
     if (!conn) {
@@ -275,6 +277,7 @@ export async function startMongoTunnel() {
  * @returns {Promise<{success: boolean, error?: string}>}
  */
 export async function confirmMongoTunnel() {
+  mainWindow.webContents.send("setSidebarLoading", { processing: true, message: "Confirming that the MongoDB tunnel is active..." })
   console.log("Confirming MongoDB tunnel is active...")
   return new Promise((resolve, reject) => {
     // Check the value of activeTunnelServer.mongoServer every 3000 ms, up to 10 times

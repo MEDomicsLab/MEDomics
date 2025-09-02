@@ -42,7 +42,7 @@ const SidebarDirectoryTreeControlled = ({ setExternalSelectedItems, setExternalD
   const [dirTree, setDirTree] = useState({}) // We get the directory tree from the workspace
   const [isDropping, setIsDropping] = useState(false) // Set if the item is getting dropped something in (for elements outside of the tree)
   const [isDirectoryTreeFocused, setIsDirectoryTreeFocused] = useState(false) // New state to track focus
-
+  
   const { globalData } = useContext(DataContext) // We get the global data from the context to retrieve the directory tree of the workspace, thus retrieving the data files
   const { dispatchLayout, developerMode, isEditorOpen } = useContext(LayoutModelContext)
   const { workspace } = useContext(WorkspaceContext)
@@ -435,7 +435,7 @@ const SidebarDirectoryTreeControlled = ({ setExternalSelectedItems, setExternalD
 
   return (
     <>
-      <div id="directory-tree-container" className="directory-tree-container">
+      <div id="directory-tree-container" className="directory-tree-container" style={{ position: "relative" }}>
         <Tooltip className="tooltip-small" target=".add-folder-icon" {...delayOptions} />
         <Tooltip className="tooltip-small" target=".refresh-icon" {...delayOptions} />
         <Tooltip className="tooltip-small" target=".context-menu-icon" {...delayOptions} />

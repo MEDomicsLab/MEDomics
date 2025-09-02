@@ -18,6 +18,7 @@ import { TunnelProvider } from "../components/tunnel/TunnelContext";
 import { setTunnelState, clearTunnelState } from "../utilities/tunnelState"
 import { downloadCollectionToFile, insertObjectIntoCollection } from "../components/mongoDB/mongoDBUtils"
 import { ThemeProvider } from "../components/theme/themeContext"
+import { SidebarLoadingProvider, useSidebarLoading } from "../components/layout/sidebarTools/SidebarLoadingContext"
 
 // CSS
 import "bootstrap/dist/css/bootstrap.min.css"
@@ -133,6 +134,7 @@ function App({ Component, pageProps }) {
   const [port, setPort] = useState() // The port of the server
 
   const [globalData, setGlobalData] = useState({}) // The global data object
+  const { setSidebarProcessing, setSidebarProcessingMessage } = useSidebarLoading()
 
   /**
    * @ReadMe
@@ -209,6 +211,10 @@ function App({ Component, pageProps }) {
       downloadCollectionToFile(data.collectionId, data.filePath, data.type)
     })
 
+    ipcRenderer.on("setSidebarLoading", (event, { processing, message }) => {
+      setSidebarProcessing(processing)
+      setSidebarProcessingMessage(message)
+    })
 
     /**
      * This is to log messages from the main process in the console
@@ -244,12 +250,15 @@ function App({ Component, pageProps }) {
       if (workspaceObject.isRemote) {
         result = await ipcRenderer.invoke("confirmMongoTunnel")
       }
-
+      setSidebarProcessing(true)
+      setSidebarProcessingMessage("Loading workspace data...")
       if (!result || (result && result.success)) {
         await updateGlobalData(workspaceObject)
         const newGlobalData = await loadMEDDataObjects(workspaceObject.isRemote)
         setGlobalData(newGlobalData)
       }
+      setSidebarProcessing(false)
+      setSidebarProcessingMessage("")
     }
     if (workspaceObject.hasBeenSet == true) {
       console.log("workspaceObject changed", workspaceObject)
@@ -281,15 +290,17 @@ function App({ Component, pageProps }) {
                   >
                     <ServerConnectionProvider port={port} setPort={setPort}>
                       <TunnelProvider>
-                        <LayoutModelProvider // This is the LayoutContextProvider, which provides the layout model to all the children components of the LayoutManager
-                          layoutModel={layoutModel}
-                          setLayoutModel={setLayoutModel}
-                        >
-                          {/* This is the WorkspaceProvider, which provides the workspace model to all the children components of the LayoutManager */}
-                          {/* This is the LayoutContextProvider, which provides the layout model to all the children components of the LayoutManager */}
-                          <LayoutManager layout={initialLayout} />
-                          {/** We pass the initialLayout as a parameter */}
-                        </LayoutModelProvider>
+                        <SidebarLoadingProvider>
+                          <LayoutModelProvider // This is the LayoutContextProvider, which provides the layout model to all the children components of the LayoutManager
+                            layoutModel={layoutModel}
+                            setLayoutModel={setLayoutModel}
+                          >
+                            {/* This is the WorkspaceProvider, which provides the workspace model to all the children components of the LayoutManager */}
+                            {/* This is the LayoutContextProvider, which provides the layout model to all the children components of the LayoutManager */}
+                            <LayoutManager layout={initialLayout} />
+                            {/** We pass the initialLayout as a parameter */}
+                          </LayoutModelProvider>
+                        </SidebarLoadingProvider>
                       </TunnelProvider>
                     </ServerConnectionProvider>
                   </WorkspaceProvider>
