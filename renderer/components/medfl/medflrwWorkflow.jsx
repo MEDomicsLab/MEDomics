@@ -665,6 +665,7 @@ const MedflrwWorkflow = ({ setWorkflowType, workflowType, mode = "fl" }) => {
    * execute the whole workflow
    */
   const onRun = useCallback(() => {
+    
     setServerRunning(true)
   }, [reactFlowInstance, MLType, nodes, edges, intersections, configPath])
 
@@ -794,7 +795,7 @@ const MedflrwWorkflow = ({ setWorkflowType, workflowType, mode = "fl" }) => {
     <>
       {/* RUN the fl pipeline modal  */}
       <ServerLogosModal
-        configs={nodes.filter((node) => node.type == "flRunServerNode") || []}
+        nodes={nodes}
         show={serverRunning}
         onHide={() => {
           setServerRunning(false)

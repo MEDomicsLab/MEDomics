@@ -8,6 +8,8 @@ import { LoaderContext } from "../../generalPurpose/loaderContext"
 import DataFilesLoader from "../dataFilesLoader"
 import ClientInfos from "../rw/ClientInfos"
 import { MEDDataObject } from "../../workspace/NewMedDataObject"
+import { getCollectionColumns } from "../../mongoDB/mongoDBUtils"
+import Input from "../../learning/input"
 
 export default function FlClientNode({ id, data }) {
   //states
@@ -36,11 +38,16 @@ export default function FlClientNode({ id, data }) {
   }
 
   const onFileSelection = async (inputUpdate) => {
+    console.log("onFileSelection", inputUpdate)
     data.internal.settings[inputUpdate.name] = inputUpdate.value
     if (inputUpdate.value.path != "") {
       setLoader(true)
-      let { columnsArray, columnsObject } = await MEDDataObject.getColumnsFromPath(inputUpdate.value.path, globalData, setGlobalData)
-      let steps = await MEDDataObject.getStepsFromPath(inputUpdate.value.path, globalData, setGlobalData)
+      let columnsArray = await getCollectionColumns(inputUpdate.value.id)
+      let columnsObject = {}
+      columnsArray.forEach((column) => {
+        columnsObject[column] = column
+      })
+      let steps = null
       setLoader(false)
       steps && (data.internal.settings.steps = steps)
       data.internal.settings.columns = columnsObject
@@ -102,7 +109,7 @@ export default function FlClientNode({ id, data }) {
                   type: "data-input",
                   tooltip: "<p>Specify a data file (xlsx, csv, json)</p>"
                 }}
-                currentValue={data.internal.settings.Node_Dataset || {}}
+                currentValue={data.internal.settings.Node_Dataset && data.internal.settings.Node_Dataset.id}
                 onInputChange={onFileSelection}
                 setHasWarning={() => {}}
                 acceptedExtensions={["csv"]}

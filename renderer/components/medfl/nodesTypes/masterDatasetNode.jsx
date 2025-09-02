@@ -12,6 +12,10 @@ import FlInput from "../flInput"
 import { loadCSVFromPath } from "../../../utilities/fileManagementUtils"
 import { MEDDataObject } from "../../workspace/NewMedDataObject"
 
+import { getCollectionColumns } from "../../mongoDB/mongoDBUtils"
+
+import Input from "../../learning/input"
+
 export default function MasterDatasetNode({ id, data }) {
   const [modalShow, setModalShow] = useState(false) // state of the modal
   const { updateNode } = useContext(FlowFunctionsContext)
@@ -64,6 +68,51 @@ export default function MasterDatasetNode({ id, data }) {
       updatedData: data.internal
     })
   }
+  /**
+   *
+   * @param {Object} inputUpdate The input update
+   *
+   * @description
+   * This function is used to update the node internal data when the files input changes.
+   */
+  const onMultipleFilesChange = async (inputUpdate) => {
+    data.internal.settings[inputUpdate.name] = inputUpdate.value
+    data.internal.settings.tags = []
+    if (inputUpdate.value.length > 0) {
+      data.internal.settings.multipleColumns = []
+      inputUpdate.value.forEach(async (inputUpdateValue) => {
+        if (inputUpdateValue.name != "") {
+          setLoader(true)
+          let columnsArray = await getCollectionColumns(inputUpdateValue.id)
+          let columnsObject = {}
+          columnsArray.forEach((column) => {
+            columnsObject[column] = column
+          })
+          let steps = null //await MedDataObject.getStepsFromPath(inputUpdateValue.path, globalData, setGlobalData)
+          setLoader(false)
+          let timePrefix = inputUpdateValue.name.split("_")[0]
+          steps && (data.internal.settings.steps = steps)
+          data.internal.settings.columns = columnsObject
+          columnsObject = Object.keys(columnsObject).reduce((acc, key) => {
+            acc[timePrefix + "_" + key] = timePrefix + "_" + columnsObject[key]
+            return acc
+          }, {})
+          let lastMultipleColumns = data.internal.settings.multipleColumns ? data.internal.settings.multipleColumns : []
+          data.internal.settings.multipleColumns = { ...lastMultipleColumns, ...columnsObject }
+          data.internal.settings.target = columnsArray[columnsArray.length - 1]
+        }
+      })
+    } else {
+      delete data.internal.settings.target
+      delete data.internal.settings.columns
+      delete data.internal.settings.tags
+      delete data.internal.settings.multipleColumns
+    }
+    updateNode({
+      id: id,
+      updatedData: data.internal
+    })
+  }
 
   /**
    *
@@ -74,10 +123,15 @@ export default function MasterDatasetNode({ id, data }) {
    */
   const onFilesChange = async (inputUpdate) => {
     data.internal.settings[inputUpdate.name] = inputUpdate.value
-    if (inputUpdate.value.path != "") {
+    console.log(data.internal.settings)
+    if (inputUpdate.value.id != "") {
       setLoader(true)
-      let { columnsArray, columnsObject } = await MEDDataObject.getColumnsFromPath(inputUpdate.value.path, globalData, setGlobalData)
-      let steps = await MEDDataObject.getStepsFromPath(inputUpdate.value.path, globalData, setGlobalData)
+      let columnsArray = await getCollectionColumns(inputUpdate.value.id)
+      let columnsObject = {}
+      columnsArray.forEach((column) => {
+        columnsObject[column] = column
+      })
+      let steps = null
       setLoader(false)
       steps && (data.internal.settings.steps = steps)
       data.internal.settings.columns = columnsObject
@@ -90,11 +144,6 @@ export default function MasterDatasetNode({ id, data }) {
       id: id,
       updatedData: data.internal
     })
-
-    data.internal.settings.files &&
-      loadCSVFromPath(data.internal.settings.files.path, (data) => {
-        console.log(data)
-      })
   }
 
   return (
@@ -126,7 +175,7 @@ export default function MasterDatasetNode({ id, data }) {
                     type: "data-input",
                     tooltip: "<p>Specify a data file (xlsx, csv, json)</p>"
                   }}
-                  currentValue={data.internal.settings.files || {}}
+                  currentValue={data.internal.settings.files && data.internal.settings.files.id}
                   onInputChange={onFilesChange}
                   setHasWarning={handleWarning}
                   acceptedExtensions={["csv"]}

@@ -1,5 +1,6 @@
 import React, { useRef } from "react"
 import { FaDesktop, FaLaptop, FaServer, FaMobile, FaChevronLeft, FaChevronRight } from "react-icons/fa"
+import { FaApple, FaLinux, FaWindows } from "react-icons/fa6"
 
 const ClientConnectionPanel = ({ connectedClients, minAvailableClients }) => {
   const scrollRef = useRef(null)
@@ -7,9 +8,9 @@ const ClientConnectionPanel = ({ connectedClients, minAvailableClients }) => {
   // OS to icon mapping
   const renderOsIcon = (os) => {
     const osLower = os.toLowerCase()
-    if (osLower.includes("windows")) return <FaDesktop className="text-primary" />
-    if (osLower.includes("mac")) return <FaLaptop className="text-secondary" />
-    if (osLower.includes("linux")) return <FaServer className="text-success" />
+    if (osLower.includes("windows")) return <FaWindows className="text-primary" />
+    if (osLower.includes("mac")) return <FaApple className="text-secondary" />
+    if (osLower.includes("linux")) return <FaLinux className="text-success" />
     return <FaLaptop className="text-secondary" />
   }
 
@@ -51,16 +52,14 @@ const ClientConnectionPanel = ({ connectedClients, minAvailableClients }) => {
         <div className="position-relative">
           <div ref={scrollRef} className="clients-carousel d-flex overflow-auto py-2" style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}>
             {connectedClients.map((client) => (
-              <div key={client.id} className="client-card d-flex flex-shrink-0 me-3 p-3 rounded border" style={{ minWidth: "220px" }}>
-                <div className="d-flex align-items-center mb-3">
+              <div key={client.id} className="client-card d-flex flex-shrink-0 me-3 p-3 rounded border" style={{ minWidth: "220px" , maxHeight: "70px" }}>
+                <div className="d-flex align-items-center ">
                   <div className="client-icon bg-light rounded-circle p-3 me-3">{renderOsIcon(client.os)}</div>
-                  {/* <div>
-                    <div className="status-indicator bg-success rounded-circle" style={{ width: "10px", height: "10px" }} />
-                  </div> */}
+      
                 </div>
 
                 <div className="client-info">
-                  <h6 className="fw-bold mb-1 text-truncate small">{client.name || client.id}</h6>
+                  <h6 className="fw-bold mb-1 text-truncate small">{client.hostname || client.id}</h6>
                   <div className="d-flex justify-content-between align-items-center">
                     <span className="text-muted small">{client.os}</span>
                     <span className="badge bg-success bg-opacity-10 text-success small">Active</span>
@@ -71,9 +70,9 @@ const ClientConnectionPanel = ({ connectedClients, minAvailableClients }) => {
           </div>
         </div>
       ) : (
-        <div className="text-center py-5 bg-light rounded">
+        <div className="text-center py-4 bg-light rounded">
           <div className="mb-3">
-            <FaDesktop className="text-muted" size={48} />
+            <FaDesktop className="text-muted" size={40} />
           </div>
           <h5 className="text-muted">No clients connected</h5>
           <p className="text-muted small mb-0">Waiting for client connections...</p>

@@ -15,7 +15,7 @@ export default function DataFilesLoader(props) {
     setGlobalData(data)
   }
 
-  !globalData && loadCSVFromPath(props.path, whenDataLoaded)
+  // !globalData && loadCSVFromPath(props.path, whenDataLoaded)
 
   return (
     <>

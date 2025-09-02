@@ -29,7 +29,7 @@ import { EXPERIMENTS } from "../../workspace/workspaceContext"
 import Path from "path"
 import { MEDDataObject } from "../../workspace/NewMedDataObject"
 
-const ServerLogosModal = ({ show, onHide, configs }) => {
+const ServerLogosModal = ({ show, onHide, nodes }) => {
   const { port } = useContext(WorkspaceContext)
   const { pageId } = useContext(PageInfosContext)
 
@@ -41,6 +41,9 @@ const ServerLogosModal = ({ show, onHide, configs }) => {
   const [trainingresults, setTraningResulsts] = useState([])
   const [isAggregating, setIsAggregating] = useState(false)
   const [runningClients, setRunningClients] = useState([])
+
+  const [strategyConfigs, setStrategyConfigs] = useState(nodes?.filter((node) => node.type == "flRunServerNode") || [])
+  const [modelConfigs, setModelConfigs] = useState(nodes?.filter((node) => node.type == "flModelNode") || [])
 
   const [displayView, setView] = useState("chart")
 
@@ -55,14 +58,14 @@ const ServerLogosModal = ({ show, onHide, configs }) => {
   const [clientEvalMetrics, setClientEvalMetrics] = useState([])
 
   // Configuration state
-  const [strategy, setStrategy] = useState(configs[0]?.data.internal.settings.strategy || "FedAvg")
-  const [serverAddress, setServerAddress] = useState(configs[0]?.data.internal.settings.serverAddress || "0.0.0.0:8080")
-  const [numRounds, setNumRounds] = useState(configs[0]?.data.internal.settings.numRounds || 10)
-  const [fractionFit, setFractionFit] = useState(configs[0]?.data.internal.settings.fractionFit || 1)
-  const [fractionEvaluate, setFractionEvaluate] = useState(configs[0]?.data.internal.settings.fractionEvaluate || 1)
-  const [minFitClients, setMinFitClients] = useState(configs[0]?.data.internal.settings.minFitClients || 3)
-  const [minEvaluateClients, setMinEvaluateClients] = useState(configs[0]?.data.internal.settings.minEvaluateClients || 3)
-  const [minAvailableClients, setMinAvailableClients] = useState(configs[0]?.data.internal.settings.minAvailableClients || 3)
+  const [strategy, setStrategy] = useState(strategyConfigs[0]?.data.internal.settings.strategy || "FedAvg")
+  const [serverAddress, setServerAddress] = useState(strategyConfigs[0]?.data.internal.settings.serverAddress || "0.0.0.0:8080")
+  const [numRounds, setNumRounds] = useState(strategyConfigs[0]?.data.internal.settings.numRounds || 10)
+  const [fractionFit, setFractionFit] = useState(strategyConfigs[0]?.data.internal.settings.fractionFit || 1)
+  const [fractionEvaluate, setFractionEvaluate] = useState(strategyConfigs[0]?.data.internal.settings.fractionEvaluate || 1)
+  const [minFitClients, setMinFitClients] = useState(strategyConfigs[0]?.data.internal.settings.minFitClients || 3)
+  const [minEvaluateClients, setMinEvaluateClients] = useState(strategyConfigs[0]?.data.internal.settings.minEvaluateClients || 3)
+  const [minAvailableClients, setMinAvailableClients] = useState(strategyConfigs[0]?.data.internal.settings.minAvailableClients || 3)
 
   const [fileName, setFileName] = useState("")
   const [isFileName, showFileName] = useState(false)
@@ -88,18 +91,18 @@ const ServerLogosModal = ({ show, onHide, configs }) => {
         clientEvalMetrics
       }
 
-      await MEDDataObject.writeFileSync({ data, date: Date.now() }, path + "/FL/RW", "fileName", "json")
-      await MEDDataObject.writeFileSync({ data, date: Date.now() }, path + "/FL/RW", "fileName", "medflrw")
+      await MEDDataObject.writeFileSync({ data, date: Date.now() }, path + "/FL/RW", fileName, "json")
+      await MEDDataObject.writeFileSync({ data, date: Date.now() }, path + "/FL/RW", fileName, "medflrw")
 
-      toast.success("Optimization results saved successfuly ")
+      toast.success("Optimization results saved under /FL/RW/")
     } catch {
       toast.error("Something went wrong ")
     }
   }
 
   useEffect(() => {
-    if (configs && configs.length > 0) {
-      const config = configs[0].data.internal.settings
+    if (strategyConfigs && strategyConfigs.length > 0) {
+      const config = strategyConfigs[0].data.internal.settings
       setStrategy(config.strategy || "FedAvg")
       setServerAddress(config.serverAddress || "")
       setNumRounds(config.numRounds || 10)
@@ -109,7 +112,16 @@ const ServerLogosModal = ({ show, onHide, configs }) => {
       setMinEvaluateClients(config.minEvaluateClients || 3)
       setMinAvailableClients(config.minAvailableClients || 3)
     }
-  }, [configs])
+  }, [strategyConfigs])
+
+  useEffect(() => {
+    setModelConfigs(nodes?.filter((node) => node.type == "flModelNode") || [])
+    setStrategyConfigs(nodes?.filter((node) => node.type == "flRunServerNode") || [])
+
+    console.log("Strategy Configs:", strategyConfigs)
+    console.log("Model Configs:", modelConfigs)
+    console.log("nodes:", nodes)
+  }, [nodes])
 
   useEffect(() => {
     // ipcRenderer.removeAllListeners("log")
@@ -122,10 +134,11 @@ const ServerLogosModal = ({ show, onHide, configs }) => {
           setServerPageId(pid)
         }
       }
-      if (data.includes("Requesting initial parameters from one random client")) {
+      if (data.includes("Starting Flower server")) {
         setIsAggregating(true)
         setWaitingForClients(true)
         setServerRunning(true)
+        setFinished(false)
       }
       if (data.includes("Finished running script")) {
         setWaitingForClients(false)
@@ -184,6 +197,15 @@ const ServerLogosModal = ({ show, onHide, configs }) => {
             setClientTrainMetrics((prev) => {
               const exists = prev.some((item) => item.clientId === cid && item.round === round)
               return exists ? prev : [...prev, trainResult]
+            })
+
+            setConnectedClients((prev) => {
+              return prev.map((client) => {
+                if (client.id === cid && (!client.hostname || client.hostname === "")) {
+                  return { ...client, hostname: metrics.hostname, os: metrics.os_type || "unknown" }
+                }
+                return client
+              })
             })
 
             console.log("Parsed CTM:", trainResult)
@@ -536,7 +558,9 @@ const ServerLogosModal = ({ show, onHide, configs }) => {
         min_fit_clients: minFitClients,
         min_evaluate_clients: minEvaluateClients,
         min_available_clients: minAvailableClients,
-        port: serverAddress?.split(":")[1]
+        port: serverAddress?.split(":")[1],
+        use_transfer_learning: modelConfigs[0]?.data.internal.settings.activateTl == "true" ? true : false,
+        pretrained_model_path: modelConfigs[0]?.data.internal.settings.file.path || ""
       },
       (json) => {
         if (json.error) {
@@ -609,7 +633,13 @@ const ServerLogosModal = ({ show, onHide, configs }) => {
           {!serverRunning ? (
             <>
               {/* <FederatedLearningAnimation  /> */}
-              <FederatedNetworkConfigView strategy={strategy} rounds={numRounds} setDevices={setDevices} />
+              <FederatedNetworkConfigView
+                config={{
+                  server: { rounds: numRounds, strategy: strategy },
+                  model: modelConfigs[0]?.data.internal.settings || {}
+                }}
+                setDevices={setDevices}
+              />
             </>
           ) : (
             <>
@@ -676,7 +706,7 @@ const ServerLogosModal = ({ show, onHide, configs }) => {
                         </Tabs>
                       </Tab.Pane>
                       <Tab.Pane eventKey="third">
-                        <CommunicationFlow connectedClients={connectedClients} isAggregating={isAggregating} runningClients={runningClients} finished={finishedruning} />
+                        <CommunicationFlow connectedClients={connectedClients} isAggregating={isAggregating} runningClients={runningClients} finished={finishedruning} currentRound={currentRound} />
                       </Tab.Pane>
                     </Tab.Content>
                   </Col>
@@ -704,20 +734,31 @@ const ServerLogosModal = ({ show, onHide, configs }) => {
         </Modal.Body>
         <Modal.Footer>
           {serverRunning ? (
-            <>
+            <div className="d-flex gap-3">
               {finishedruning ? (
-                <button className="btn btn-success" onClick={saveResults}>
-                  <span className="me-2">Save results</span>
-                  <FaSave />
-                </button>
+                !isFileName ? (
+                  <button className="btn btn-success text-nowrap" onClick={() => showFileName(true)}>
+                    <span className="me-2">Save results</span>
+                    <FaSave />
+                  </button>
+                ) : (
+                  <div class="input-group">
+                    <input type="text" class="form-control" placeholder="File name" value={fileName} onChange={(e) => setFileName(e.target.value)} />
+                    <div class="input-group-append">
+                      <button class="btn btn-success" type="button" onClick={saveResults}>
+                        <FaSave />
+                      </button>
+                    </div>
+                  </div>
+                )
               ) : null}
-              <button className="btn btn-secondary" onClick={stopServer}>
+              <button className="btn btn-secondary text-nowrap" onClick={stopServer}>
                 <span className="me-2">Stop Server</span>
                 <FaPause />
               </button>{" "}
-            </>
+            </div>
           ) : (
-            <button className="btn btn-secondary" onClick={runServer}>
+            <button className="btn btn-success" onClick={runServer}>
               <span className="me-2">Run Server</span>
               <FaPlay />
             </button>
