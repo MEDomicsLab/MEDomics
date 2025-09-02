@@ -202,6 +202,16 @@ const FlModelNode = ({ id, data }) => {
                         onInputChange={onModelInputChange}
                         setHasWarning={() => {}}
                       />
+                      <FlInput
+                        name="Local epochs"
+                        settingInfos={{
+                          type: "int",
+                          tooltip: "<p>Specify the local training epochs for each client</p>"
+                        }}
+                        currentValue={data.internal.settings["Local epochs"] || {}}
+                        onInputChange={onModelInputChange}
+                        setHasWarning={() => {}}
+                      />
                     </>
                   )
                 case "false":

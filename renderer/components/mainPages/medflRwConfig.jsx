@@ -39,7 +39,7 @@ const MEDflrwConfig = ({ pageId, configPath = "" }) => {
 
   const getOsIcon = (os) => {
     if (os.includes("win")) return <FaWindows size={20} />
-    if (os.includes("mac") || os.includes("apple")) return <FaApple size={20} />
+    if (os.includes("mac") || os.includes("apple") || os.includes("darwin"))  return <FaApple size={20} />
     if (os.includes("linux")) return <FcLinux size={23} />
     return null
   }

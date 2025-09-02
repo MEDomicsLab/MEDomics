@@ -78,6 +78,7 @@
     "cytoscape": "^3.32.0",
     "d3": "^7.8.5",
     "danfojs": "^1.2.0",
+    "danfojs-node": "^1.2.0",
     "decompress": "^4.2.1",
     "directory-tree": "^3.5.1",
     "drawflow": "^0.0.60",

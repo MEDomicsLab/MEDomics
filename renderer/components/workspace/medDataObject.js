@@ -327,12 +327,14 @@ export default class MedDataObject {
    */
   static loadTableFromDisk = async (filePath) => {
     // eslint-disable-next-line no-undef
+  
     const Path = require("path")
     let extension = Path.extname(filePath).slice(1)
     console.log("extension: ", extension)
     // let path = this.path
     let data = undefined
     // eslint-disable-next-line no-undef
+      console.log("Loading table from disk: 2", filePath)
     const dfd = require("danfojs")
     if (extension === "xlsx") {
       data = await dfd.readExcel(filePath)
@@ -421,12 +423,15 @@ export default class MedDataObject {
     try {
       let dataObject = MedDataObject.checkIfMedDataObjectInContextbyPath(path, globalData)
       let columnsArray = []
+      console.log('1')
       if (!dataObject) return { columnsArray: [], columnsObject: {} }
       if (dataObject.metadata.columns) {
         columnsArray = dataObject.metadata.columns
       } else {
+        console.log(2)
         console.log("dataObject: ", dataObject)
         columnsArray = await dataObject.getColumns(dataObject.path)
+        console.log(3)
         dataObject.metadata.columns = columnsArray
         setGlobalData && setGlobalData({ ...globalData })
       }
@@ -1203,6 +1208,7 @@ export default class MedDataObject {
    */
   async getColumns(path) {
     let newColumns = []
+    console.log("path: eefef ", path)
     const data = await MedDataObject.loadTableFromDisk(path)
     console.log("data-*--------------------: ", data)
     if (data.$columns) {

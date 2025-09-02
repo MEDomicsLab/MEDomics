@@ -69,6 +69,12 @@ export default function FlClientNode({ id, data }) {
         // the body of the node is a form select (particular to this node)
         nodeBody={
           <>
+            {data.isOnWs && (
+              <div className="text-center" style={{ fontSize: 10 }}>
+                Client is on socket 
+                
+              </div>
+            )}
             {data.internal.settings.Node_Dataset?.path && (
               <DataFilesLoader
                 title={"Client name: " + data.internal.name + " , Dataset: " + data.internal.settings.Node_Dataset.name}

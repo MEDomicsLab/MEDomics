@@ -15,7 +15,7 @@ import { VscChromeClose } from "react-icons/vsc"
 import { PiGraphFill } from "react-icons/pi"
 import { MdOutlineGroups3 } from "react-icons/md"
 import { TbServerCog } from "react-icons/tb"
-import { FaGlobeAfrica } from "react-icons/fa";
+import { FaGlobeAfrica } from "react-icons/fa"
 
 /**
  * @description Sidebar component containing icons for each page
@@ -29,6 +29,7 @@ const IconSidebar = ({ onSidebarItemSelect }) => {
   const [disabledIcon, setDisabledIcon] = useState("disabled") // disabled is the state of the page
   const [developerModeNav, setDeveloperModeNav] = useState(true)
   const [extractionBtnstate, setExtractionBtnstate] = useState(false)
+  const [flBtnState, setFlBtnState] = useState(false)
   const [buttonClass, setButtonClass] = useState("")
 
   const delayOptions = { showDelay: 750, hideDelay: 0 }
@@ -268,7 +269,7 @@ const IconSidebar = ({ onSidebarItemSelect }) => {
                 {" "}
                 <FaMagnifyingGlassChart style={{ height: "1.7rem", width: "auto" }} />
               </Nav.Link>
-                 <Nav.Link
+              {/* <Nav.Link
                 className="medflNav btnSidebar align-center"
                 data-pr-at="right center"
                 data-pr-my="left center"
@@ -279,19 +280,28 @@ const IconSidebar = ({ onSidebarItemSelect }) => {
                 disabled={disabledIcon}
               >
                 <PiGraphFill style={{ height: "2.2rem", width: "auto" }} />
-              </Nav.Link>
+              </Nav.Link> */}
             </div>
-            <div className="medomics-layer-text">Simulation</div>
+            <div className="medomics-layer-text">Design</div>
           </div>
           <NavDropdown.Divider style={{ height: "3rem" }} />
 
           <div className="medomics-layer development ">
             <div className="sidebar-icons">
-              {/* <Nav.Link className="learningNav btnSidebar align-center" data-pr-at="right center" data-pr-my="left center" data-pr-tooltip="Learning" eventKey="Learning" data-tooltip-id="tooltip-learning" onClick={(event) => handleClick(event, "learning")} disabled={disabledIcon}>
-                <LuNetwork style={{ height: "1.7rem", width: "auto", rotate: "-90deg" }} />
-              </Nav.Link> */}
-
               <Nav.Link
+                className="learningNav btnSidebar align-center"
+                data-pr-at="right center"
+                data-pr-my="left center"
+                data-pr-tooltip="Learning"
+                eventKey="Learning"
+                data-tooltip-id="tooltip-learning"
+                onClick={(event) => handleClick(event, "learning")}
+                disabled={disabledIcon}
+              >
+                <LuNetwork style={{ height: "1.7rem", width: "auto", rotate: "-90deg" }} />
+              </Nav.Link>
+
+              {/* <Nav.Link
                 className="medflNav btnSidebar align-center"
                 data-pr-at="right center"
                 data-pr-my="left center"
@@ -302,8 +312,8 @@ const IconSidebar = ({ onSidebarItemSelect }) => {
                 disabled={disabledIcon}
               >
                 <FileEarmarkCodeFill style={{ height: "2em", width: "auto" }} />
-              </Nav.Link>
-              <Nav.Link
+              </Nav.Link> */}
+              {/* <Nav.Link
                 className="medflNav btnSidebar align-center"
                 data-pr-at="right center"
                 data-pr-my="left center"
@@ -327,8 +337,8 @@ const IconSidebar = ({ onSidebarItemSelect }) => {
               >
                 <TbServerCog style={{ height: "2em", width: "auto" }} />
               </Nav.Link>
-                
-                <Nav.Link
+
+              <Nav.Link
                 className="medflNav btnSidebar align-center"
                 data-pr-at="right center"
                 data-pr-my="left center"
@@ -339,19 +349,112 @@ const IconSidebar = ({ onSidebarItemSelect }) => {
                 disabled={disabledIcon}
               >
                 <FaGlobeAfrica style={{ height: "2em", width: "auto" }} />
+              </Nav.Link> */}
+              <Nav.Link
+                className="extractionNav btnSidebar align-center"
+                data-pr-at="right center"
+                data-pr-my="left center"
+                data-pr-tooltip="Federated Learning Module > MEDfl"
+                data-pr-disabled={flBtnState}
+                eventKey="fl"
+                data-tooltip-id="tooltip-medfl"
+                onDoubleClick={(event) => {
+                  handleDoubleClick(event, "MEDflLandingPage")
+                  setFlBtnState(false)
+                }}
+                onClick={() => {
+                  setFlBtnState(!flBtnState)
+                }}
+                disabled={disabledIcon}
+                onBlur={(event) => {
+                  let clickedTarget = event.relatedTarget
+                  let blurAccepeted = true
+                  if (clickedTarget) {
+                    blurAccepeted = !clickedTarget.getAttribute("data-is-ext-btn")
+                  } else {
+                    blurAccepeted = true
+                  }
+                  blurAccepeted && setExtractionBtnstate(false)
+                }}
+              >
+                {flBtnState ? <VscChromeClose style={{ height: "1.7rem", width: "auto" }} /> : <PiGraphFill style={{ height: "2.2rem", width: "auto" }} />}
+                <div className={`btn-group-ext ${flBtnState ? "clicked" : ""}`}>
+                  <Button
+                    className="ext-MEDimg-btn"
+                    icon="pi pi-desktop"
+                    data-pr-at="right center"
+                    data-pr-my="left center"
+                    data-pr-tooltip="Simulation"
+                    data-is-ext-btn
+                    eventKey="MEDfl"
+                    onDoubleClick={(event) => handleDoubleClick(event, "MEDfl")}
+                    onClick={(event) => {
+                      event.stopPropagation()
+                      event.preventDefault()
+                      handleDoubleClick(event, "MEDfl")
+                      setFlBtnState(!flBtnState)
+                    }}
+                  />
+                  {/* <Button
+                    className="ext-img-btn"
+                    icon="pi pi-file"
+                    data-pr-at="right center"
+                    data-pr-my="left center"
+                    data-pr-tooltip="Scripts"
+                    data-is-ext-btn
+                    onClick={(event) => {
+                      event.stopPropagation()
+                      event.preventDefault()
+                      handleDoubleClick(event, "flrwConfig")
+                      setFlBtnState(!flBtnState)
+                    }}
+                    onDoubleClick={(event) => handleDoubleClick(event, "flrwConfig")}
+                  /> */}
+                  <Button
+                    className="ext-text-btn"
+                    icon="pi pi-globe"
+                    data-pr-at="right center"
+                    data-pr-my="left center"
+                    data-pr-tooltip="Real world"
+                    data-is-ext-btn
+                    onClick={(event) => {
+                      console.log("clicked extraction text", event)
+                      event.stopPropagation()
+                      event.preventDefault()
+                      setFlBtnState(!flBtnState)
+
+                      handleDoubleClick(event, "flRwWorkflow")
+                    }}
+                    onDoubleClick={(event) => handleDoubleClick(event, "flRwWorkflow")}
+                  />
+                </div>
               </Nav.Link>
-
-           
-
-              {/* <Nav.Link className="evaluationNav btnSidebar align-center" data-pr-at="right center" data-pr-my="left center" data-pr-tooltip="Evaluation" eventKey="Evaluation" onClick={(event) => handleClick(event, "evaluation")} disabled={disabledIcon}>
+              <Nav.Link
+                className="evaluationNav btnSidebar align-center"
+                data-pr-at="right center"
+                data-pr-my="left center"
+                data-pr-tooltip="Evaluation"
+                eventKey="Evaluation"
+                onClick={(event) => handleClick(event, "evaluation")}
+                disabled={disabledIcon}
+              >
                 <PiFlaskFill style={{ height: "2.2rem", width: "auto" }} />
               </Nav.Link>
 
-              <Nav.Link className="med3paNav btnSidebar align-center" data-pr-at="right center" data-pr-my="left center" data-pr-tooltip="MED3pa" eventKey="MED3pa" onDoubleClick={(event) => handleDoubleClick(event, "MED3pa")} onClick={(event) => handleClick(event, "med3pa")} disabled={disabledIcon}>
+              <Nav.Link
+                className="med3paNav btnSidebar align-center"
+                data-pr-at="right center"
+                data-pr-my="left center"
+                data-pr-tooltip="MED3pa"
+                eventKey="MED3pa"
+                onDoubleClick={(event) => handleDoubleClick(event, "MED3pa")}
+                onClick={(event) => handleClick(event, "med3pa")}
+                disabled={disabledIcon}
+              >
                 <MdOutlineGroups3 style={{ height: "2.2rem", width: "auto" }} />
-              </Nav.Link> */}
+              </Nav.Link>
             </div>
-            <div className="medomics-layer-text">Real world</div>
+            <div className="medomics-layer-text">Development</div>
           </div>
           <NavDropdown.Divider style={{ height: "3rem" }} />
 

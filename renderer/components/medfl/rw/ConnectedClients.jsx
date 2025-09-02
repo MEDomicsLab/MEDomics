@@ -10,7 +10,7 @@ const ClientConnectionPanel = ({ connectedClients, minAvailableClients }) => {
     const osLower = os.toLowerCase()
     if (osLower.includes("windows")) return <FaWindows className="text-primary" />
     if (osLower.includes("mac")) return <FaApple className="text-secondary" />
-    if (osLower.includes("linux")) return <FaLinux className="text-success" />
+    if (osLower.includes("linux") || osLower.includes("darwin")) return <FaLinux className="text-success" size={20} />
     return <FaLaptop className="text-secondary" />
   }
 
@@ -52,10 +52,9 @@ const ClientConnectionPanel = ({ connectedClients, minAvailableClients }) => {
         <div className="position-relative">
           <div ref={scrollRef} className="clients-carousel d-flex overflow-auto py-2" style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}>
             {connectedClients.map((client) => (
-              <div key={client.id} className="client-card d-flex flex-shrink-0 me-3 p-3 rounded border" style={{ minWidth: "220px" , maxHeight: "70px" }}>
+              <div key={client.id} className="client-card d-flex flex-shrink-0 me-3 p-3 rounded border" style={{ minWidth: "220px", maxHeight: "70px" }}>
                 <div className="d-flex align-items-center ">
                   <div className="client-icon bg-light rounded-circle p-3 me-3">{renderOsIcon(client.os)}</div>
-      
                 </div>
 
                 <div className="client-info">

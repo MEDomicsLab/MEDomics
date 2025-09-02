@@ -134,7 +134,7 @@ const ServerClientFlow = ({ connectedClients, isAggregating, runningClients, fin
     createClientNodes(editor)
 
     console.log("==================== running clients", runningClients)
-  }, [connectedClients, isAggregating, runningClients])
+  }, [connectedClients, isAggregating, runningClients, currentRound])
 
   return (
     <div style={{ border: "1px solid #ddd", borderRadius: "8px", background: "#fafafa", marginTop: "20px" }}>

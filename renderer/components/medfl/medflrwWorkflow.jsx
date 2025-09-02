@@ -12,6 +12,7 @@ import { EXPERIMENTS, WorkspaceContext } from "../workspace/workspaceContext"
 import { ErrorRequestContext } from "../generalPurpose/errorRequestContext.jsx"
 import MedDataObject from "../workspace/medDataObject"
 import { createZipFileSync, modifyZipFileSync } from "../../utilities/customZipFile.js"
+import ManageScriptsModal from "./rw/ManageScriptsModal.jsx"
 
 import { UUID_ROOT, DataContext } from "../workspace/dataContext"
 
@@ -49,12 +50,15 @@ import FlTrainModelNode from "./nodesTypes/flTrainModel.jsx"
 import FlSaveModelNode from "./nodesTypes/flSaveModelNode.jsx"
 import { useMEDflContext } from "../workspace/medflContext.jsx"
 import FlCompareResults from "./nodesTypes/flCompareResultsNode"
-import { Modal } from "react-bootstrap"
+import { ButtonGroup, Modal, ToggleButton } from "react-bootstrap"
 import FlInput from "./flInput"
 import FlRunServerNode from "./nodesTypes/flRunServerNode.jsx"
 import ServerLogosModal from "./rw/SeverLogsModal.jsx"
 import FlDatasetrwNode from "./nodesTypes/DatasetrwNode.jsx"
 import FlrwServerNode from "./nodesTypes/flrwServerNode.jsx"
+import { FaFileCode, FaGlobe } from "react-icons/fa6"
+import NewtworkCheckModal from "./rw/NetworkCheckModal.jsx"
+import ClientDatasetModal from "./rw/ClientDatasetModal.jsx"
 
 const staticNodesParams = nodesParams // represents static nodes parameters
 
@@ -82,17 +86,16 @@ const MedflrwWorkflow = ({ setWorkflowType, workflowType, mode = "fl" }) => {
     now: 0,
     currentLabel: ""
   })
+  const [showScriptConfigs, setShowScriptConfigs] = useState(false) // showScriptConfigs is used to show the script configurations modal
+  const [showNetworkCheckModal, setShowNetworkCheckModal] = useState(false) // showNetworkCheckModal is used to show the network check modal
 
   const [flWorkflowSettings, setflWorkflowSettings] = useState({})
-  const [showRunModal, setRunModal] = useState(false)
-
-  const [isUpdating, setIsUpdating] = useState(false) // we use this to store the progress value of the dashboard
-
-  const [flConfigFile, setConfigFile] = useState({ path: "" })
-
-  const [optimResults, setOptimResults] = useState(null)
 
   const [serverRunning, setServerRunning] = useState(false)
+  const [isServerRunning, setRunServer] = useState(false)
+
+  const [networkChecked, setNetworkChecked] = useState(false) // networkChecked is used to check if the network is checked
+  const [showClientsDatasetModal, setShowClientsDatasetModal] = useState(false) // showClientsDatasetModal is used to show the clients dataset modal
 
   const [isSaveModal, openSaveModal] = useState(false)
   const [scenName, setSceanName] = useState("")
@@ -105,10 +108,7 @@ const MedflrwWorkflow = ({ setWorkflowType, workflowType, mode = "fl" }) => {
   const { setError } = useContext(ErrorRequestContext)
 
   const { globalData } = useContext(DataContext)
-
-  const [allConfigResults, setAllresults] = useState([])
-
-  const { updatePipelineConfigs } = useMEDflContext()
+  const [socketAgents, setSocketAgents] = useState([]) // socketAgents is used to store the agents connected to the socket server
 
   // declare node types using useMemo hook to avoid re-creating component types unnecessarily (it memorizes the output) https://www.w3schools.com/react/react_usememo.asp
   const nodeTypes = useMemo(
@@ -262,7 +262,41 @@ const MedflrwWorkflow = ({ setWorkflowType, workflowType, mode = "fl" }) => {
       }
     })
   }, [intersections, hasNewConnection])
+  useEffect(() => {
+    getWSAgents()
+  }, [workflowType])
 
+  const getWSAgents = () => {
+    requestBackend(
+      port,
+      "/medfl/rw/ws/agents/" + pageId,
+      {},
+      (json) => {
+        if (json.error) {
+          // toast.error?.("Error: " + json.error)
+          console.error("WS Agents error:", json.error)
+        } else {
+          // The API returns the list in response_message (could be array or JSON string)
+          let agents = json || []
+          if (typeof agents === "string") {
+            try {
+              agents = JSON.parse(agents)
+            } catch {
+              agents = []
+            }
+          }
+          if (!Array.isArray(agents)) agents = []
+          setSocketAgents(agents)
+          // Keep selection in sync (preserve known selections, drop removed items)
+
+          console.log("WS Agents set:", agents)
+        }
+      },
+      (err) => {
+        console.error(err)
+      }
+    )
+  }
   useEffect(() => {
     if (workflowType === "rwflNetwork") {
       requestBackend(
@@ -290,7 +324,7 @@ const MedflrwWorkflow = ({ setWorkflowType, workflowType, mode = "fl" }) => {
     const serverNode = {
       id: `server-${server.id}`,
       type: "flrwServerNode",
-      position: { x: 0, y: 300 },
+      position: { x: 0, y: 100 + (clients.length - 1) * 50 },
       data: {
         setupParam: {
           classes: "flClientNode",
@@ -311,14 +345,15 @@ const MedflrwWorkflow = ({ setWorkflowType, workflowType, mode = "fl" }) => {
           img: "server.png"
         },
         tooltipBy: "node",
-        device: server
+        device: server,
+        isOnWs: socketAgents.some((agent) => agent.includes(server.hostname))
       }
     }
 
     const clientNodes = clients.map((c, i) => ({
       id: `client-${c.id}`,
       type: "flClientNode",
-      position: { x: 400, y: 100 + i * 400 },
+      position: { x: 400, y: 100 + i * 100 },
       data: {
         setupParam: {
           classes: "flClientNode",
@@ -339,7 +374,8 @@ const MedflrwWorkflow = ({ setWorkflowType, workflowType, mode = "fl" }) => {
           img: "node.png"
         },
         tooltipBy: "node",
-        device: c
+        device: c,
+        isOnWs: socketAgents.some((agent) => agent.includes(c.hostname))
       }
     }))
 
@@ -665,7 +701,6 @@ const MedflrwWorkflow = ({ setWorkflowType, workflowType, mode = "fl" }) => {
    * execute the whole workflow
    */
   const onRun = useCallback(() => {
-    
     setServerRunning(true)
   }, [reactFlowInstance, MLType, nodes, edges, intersections, configPath])
 
@@ -689,7 +724,9 @@ const MedflrwWorkflow = ({ setWorkflowType, workflowType, mode = "fl" }) => {
    */
   const onSave = useCallback(
     async (scean) => {
+      let dirPath = ""
       if (reactFlowInstance) {
+        console.log("Saving scene", scean)
         const flow = deepCopy(reactFlowInstance.toObject())
         flow.MLType = MLType
         console.log("flow debug", flow)
@@ -698,25 +735,39 @@ const MedflrwWorkflow = ({ setWorkflowType, workflowType, mode = "fl" }) => {
         })
         flow.intersections = intersections
         if (configPath != "") {
-          console.log("Heeeeeeere")
-          modifyZipFileSync(configPath, async (path) => {
-            // do custom actions in the folder while it is unzippsed
-            await MedDataObject.writeFileSync(flow, path, "metadata", "json")
-            toast.success("Scene has been saved successfully")
-          })
+          // 1. grab just “fileName.exe”
+          const base = configPath.slice(configPath.lastIndexOf("/") + 1)
+          // 2. drop everything after the last “.”
+          const nameWithoutExt = base.slice(0, base.lastIndexOf("."))
+
+          dirPath = configPath.substring(0, configPath.lastIndexOf("/"))
+
+          await MedDataObject.writeFileSync(flow, dirPath, nameWithoutExt, "rwfl")
+
+          toast.success("Scene has been saved successfully")
         } else {
-          console.log("here", scean)
-          let configPath = "C:\\Users\\HP User\\Desktop\\medfl_workspace\\EXPERIMENTS\\FL\\Sceans"
-          createSceneContent(configPath, scean, mode, null).then(() =>
-            modifyZipFileSync(configPath + "\\" + scean + ".fl", async (path) => {
-              // do custom actions in the folder while it is unzipped
-              await MedDataObject.writeFileSync(flow, path, "metadata", "json")
-              toast.success("Scene has been saved successfully")
-            })
-          )
+          const now = new Date()
+          const pad = (n) => String(n).padStart(2, "0")
+          const timestamp = [now.getFullYear(), pad(now.getMonth() + 1), pad(now.getDate())].join("") + "_" + [pad(now.getHours()), pad(now.getMinutes()), pad(now.getSeconds())].join("")
+
+          let configPath = globalData["UUID_ROOT"].path + "/EXPERIMENTS"
+
+          MedDataObject.createFolderFromPath(configPath + "/FL")
+          MedDataObject.createFolderFromPath(configPath + "/FL/Sceans")
+          MedDataObject.createFolderFromPath(configPath + "/FL/Sceans/FL_RW_" + timestamp)
+          MedDataObject.createFolderFromPath(configPath + "/FL/Sceans/FL_RW_" + timestamp + "/models")
+
+          dirPath = configPath + "/FL/Sceans/FL_RW_" + timestamp
+
+          await MedDataObject.writeFileSync(flow, dirPath, scean, "rwfl")
+
+          toast.success("Scene has been saved successfully")
         }
+
+        return dirPath
       }
     },
+
     [reactFlowInstance, MLType, intersections]
   )
 
@@ -781,16 +832,6 @@ const MedflrwWorkflow = ({ setWorkflowType, workflowType, mode = "fl" }) => {
     return result
   }
 
-  useEffect(() => {
-    if (flConfigFile?.path != "") {
-      setDBConfig(flConfigFile?.path)
-    }
-  }, [flConfigFile?.path])
-
-  useEffect(() => {
-    console.log(allConfigResults)
-  }, [allConfigResults.length])
-
   return (
     <>
       {/* RUN the fl pipeline modal  */}
@@ -800,9 +841,40 @@ const MedflrwWorkflow = ({ setWorkflowType, workflowType, mode = "fl" }) => {
         onHide={() => {
           setServerRunning(false)
         }}
+        onSaveScean={onSave}
+        setRunServer={setRunServer}
       ></ServerLogosModal>
 
+      <ManageScriptsModal onHide={() => setShowScriptConfigs(false)} show={showScriptConfigs} />
+      <NewtworkCheckModal onHide={() => setShowNetworkCheckModal(false)} show={showNetworkCheckModal} setNetworkChecked={setNetworkChecked} />
+      <ClientDatasetModal onHide={() => setShowClientsDatasetModal(false)} show={showClientsDatasetModal} clients={socketAgents} />
+      <Modal show={isSaveModal} onHide={() => openSaveModal(false)}>
+        <Modal.Header>
+          <Modal.Title> Save scean</Modal.Title>
+        </Modal.Header>
+
+        <Modal.Body>
+          <FlInput
+            name="file name"
+            settingInfos={{
+              type: "string",
+              tooltip: "<p>Specify a data file (xlsx, csv, json)</p>"
+            }}
+            currentValue={scenName}
+            onInputChange={(e) => {
+              setSceanName(e.value)
+              console.log(e.value)
+              console.log(scenName)
+            }}
+            setHasWarning={() => {}}
+          />
+        </Modal.Body>
+        <Modal.Footer>
+          <Button label="Save Scean" icon="pi pi-save" className="p-button-primary" onClick={() => onSave(scenName)} disabled={!scenName || scenName == ""}></Button>
+        </Modal.Footer>
+      </Modal>
       <FlWorflowBase
+        workflowType={workflowType}
         // mandatory props
         mandatoryProps={{
           reactFlowInstance: reactFlowInstance,
@@ -821,26 +893,63 @@ const MedflrwWorkflow = ({ setWorkflowType, workflowType, mode = "fl" }) => {
         onDeleteNode={onDeleteNode}
         groupNodeHandlingDefault={() => {}}
         onNodeDrag={onNodeDrag}
-        uiTopLeft={<></>}
+        uiTopLeft={
+          <>
+            {workflowType == mode && (
+              <div className="d-flex gap-2">
+                <Button
+                  badge={!networkChecked ? "!" : ""}
+                  badgeClassName="p-badge-danger"
+                  icon="pi pi-verified"
+                  rounded
+                  outlined={!networkChecked}
+                  severity={!networkChecked ? "secondary" : "success"}
+                  label={!networkChecked ? "Check Network" : "network checked"}
+                  onClick={() => setShowNetworkCheckModal(!showNetworkCheckModal)}
+                />
+              </div>
+            )}
+          </>
+        }
         // reprensents the visual over the workflow
         uiTopRight={
           <>
             {workflowType == mode && (
               <>
+                {isServerRunning && <Button variant="success" onClick={onRun}>Show results</Button>}
                 <BtnDiv
-                  buttonsList={[
-                    { type: "run", onClick: onRun, disabled: !canRun },
-                    { type: "clear", onClick: onClear },
-                    {
-                      type: "save",
-                      onClick: () => {
-                        configPath != "" ? onSave() : openSaveModal(true)
-                      }
-                    },
-                    { type: "load", onClick: onLoad }
-                  ]}
+                  buttonsList={
+                    isServerRunning
+                      ? [
+                          { type: "clear", onClick: onClear },
+                          {
+                            type: "save",
+                            onClick: () => {
+                              configPath != "" ? onSave() : openSaveModal(true)
+                            }
+                          },
+                          { type: "load", onClick: onLoad }
+                        ]
+                      : [
+                          { type: "run", onClick: onRun, disabled: !networkChecked || !canRun },
+                          { type: "clear", onClick: onClear },
+                          {
+                            type: "save",
+                            onClick: () => {
+                              configPath != "" ? onSave() : openSaveModal(true)
+                            }
+                          },
+                          { type: "load", onClick: onLoad }
+                        ]
+                  }
                 />
               </>
+            )}
+            {workflowType == "rwflNetwork" && (
+              <div className="d-flex gap-2">
+                <Button icon="pi pi-file" rounded outlined severity="secondary" label="Scripts" onClick={() => setShowScriptConfigs(!showScriptConfigs)} />
+                <Button icon="pi pi-database" rounded outlined severity="secondary" label="Database" onClick={() => setShowClientsDatasetModal(!showClientsDatasetModal)} />
+              </div>
             )}
           </>
         }
@@ -851,7 +960,7 @@ const MedflrwWorkflow = ({ setWorkflowType, workflowType, mode = "fl" }) => {
                 <div>
                   {groupNodeId.id != mode && (
                     <div className="subFlow-title">
-                      Network name
+                      Network
                       <BtnDiv
                         buttonsList={[
                           {
@@ -860,6 +969,18 @@ const MedflrwWorkflow = ({ setWorkflowType, workflowType, mode = "fl" }) => {
                           }
                         ]}
                       />
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+            {workflowType == "rwfl" && (
+              <>
+                <div>
+                  {groupNodeId.id != mode && (
+                    <div className="subFlow-title d-flex gap-2 align-items-center">
+                      Real world
+                      <FaGlobe size={22} />
                     </div>
                   )}
                 </div>

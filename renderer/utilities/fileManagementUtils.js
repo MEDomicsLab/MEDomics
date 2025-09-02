@@ -287,6 +287,7 @@ const loadCSVPath = (absPath, whenLoaded) => {
  */
 const loadCSVFromPath = (path, whenLoaded) => {
   let csvPath = path
+  console.log("reading csv file: " + csvPath)
   fs.readFile(csvPath, "utf8", (err, data) => {
     if (err) {
       console.error("Error reading file:", err)

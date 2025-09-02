@@ -10,16 +10,16 @@ export default function FlRunServerNode({ id, data }) {
   // context
   const { updateNode } = useContext(FlowFunctionsContext)
 
-  const [serverAddress, setServerAddress] = useState("0.0.0.0:8080")
-  const [numRounds, setNumRounds] = useState(10)
-  const [fractionFit, setFractionFit] = useState(1)
-  const [fractionEvaluate, setFractionEvaluate] = useState(1)
-  const [minFitClients, setMinFitClients] = useState(3)
-  const [minEvaluateClients, setMinEvaluateClients] = useState(3)
-  const [minAvailableClients, setMinAvailableClients] = useState(3)
-  const [strategy, setStrategy] = useState("FedAvg")
-
-
+  const [serverAddress, setServerAddress] = useState(data.internal.settings.serverAddress || "0.0.0.0:8080")
+  const [numRounds, setNumRounds] = useState(data.internal.settings.numRounds || 10)
+  const [fractionFit, setFractionFit] = useState(data.internal.settings.fractionFit || 1)
+  const [fractionEvaluate, setFractionEvaluate] = useState(data.internal.settings.fractionEvaluate || 1)
+  const [minFitClients, setMinFitClients] = useState(data.internal.settings.minFitClients || 3)
+  const [minEvaluateClients, setMinEvaluateClients] = useState(data.internal.settings.minEvaluateClients || 3)
+  const [minAvailableClients, setMinAvailableClients] = useState(data.internal.settings.minAvailableClients || 3)
+  const [strategy, setStrategy] = useState(data.internal.settings.strategy || "FedAvg")
+  const [isSaveModel, setIsSaveModel] = useState(data.internal.settings.isSaveModel || false)
+  const [saveOnRounds, setSaveRounds] = useState(data.internal.settings.saveOnRounds || 5)
 
   useEffect(() => {
     data.internal.settings.strategy = strategy
@@ -30,13 +30,15 @@ export default function FlRunServerNode({ id, data }) {
     data.internal.settings.minFitClients = minFitClients
     data.internal.settings.minEvaluateClients = minEvaluateClients
     data.internal.settings.minAvailableClients = minAvailableClients
+    data.internal.settings.isSaveModel = isSaveModel
+    data.internal.settings.saveOnRounds = saveOnRounds
 
     // Update the node
     updateNode({
       id: id,
       updatedData: data.internal
     })
-  }, [strategy, serverAddress, numRounds, fractionFit, fractionEvaluate, minFitClients, minEvaluateClients, minAvailableClients])
+  }, [strategy, serverAddress, numRounds, fractionFit, fractionEvaluate, minFitClients, minEvaluateClients, minAvailableClients, isSaveModel, saveOnRounds])
 
   return (
     <>
@@ -101,6 +103,15 @@ export default function FlRunServerNode({ id, data }) {
               setHasWarning={() => {}}
             />
             <FlInput name="Strategy" currentValue={strategy} onInputChange={(v) => setStrategy(v.value)} settingInfos={{ type: "string", tooltip: "e.g., FedAvg" }} setHasWarning={() => {}} />
+            <div className="form-check form-switch m-2 w-100 ">
+              <input className="form-check-input" type="checkbox" role="switch" id="flexSwitchCheckDefault" checked={isSaveModel} onChange={(e) => setIsSaveModel(e.target.checked)} />
+              <label className="form-check-label" for="flexSwitchCheckDefault">
+                Save model
+              </label>
+            </div>
+            {isSaveModel && (
+              <FlInput name="Save model every N rounds" currentValue={saveOnRounds} onInputChange={(v) => setSaveRounds(Number(v.value))} settingInfos={{ type: "int" }} setHasWarning={() => {}} />
+            )}
           </>
         }
         // node specific is the body of the node, so optional settings

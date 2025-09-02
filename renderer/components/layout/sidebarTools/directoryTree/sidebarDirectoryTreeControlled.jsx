@@ -337,7 +337,9 @@ const SidebarDirectoryTreeControlled = ({ setExternalSelectedItems, setExternalD
         dispatchLayout({ type: "openInMEDflRwResultsViewer", payload: item })
       }else if (item.type == "fl") {
         dispatchLayout({ type: "openInFlModule", payload: item })
-      }  else {
+      } else if (item.type == "rwfl") {
+        dispatchLayout({ type: "openInRwFlModule", payload: item })
+      } else {
         console.log("DBCLICKED", event, item)
       }
       setDbClickedItem(item)

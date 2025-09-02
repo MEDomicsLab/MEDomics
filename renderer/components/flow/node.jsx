@@ -115,24 +115,20 @@ const NodeObject = ({ id, data, nodeSpecific, nodeBody, defaultSettings, onClick
   return (
     <>
       <div className="node">
-          {data.device && (
-                <div
-                  style={{
-                  
-                   position: "absolute",
-                    display: "inline-block",
-                    marginRight: "0.5rem",
-                    marginTop: "0.2rem",
-                    top: "-25px"
-                  }}
-                >
-                  <img src={`/icon/${flowInfos.type}/` + `${data.internal.img.replaceAll(" ", "_")}`} alt={data.internal.img} style={{ width: "15px"  , marginRight : "5px"}} />
-                  {
-                    data.device.tags || [].includes("tag:server") ? "Central Server" : "Client"
-                  }
-                  
-                </div>
-              )}
+        {data.device && (
+          <div
+            style={{
+              position: "absolute",
+              display: "inline-block",
+              marginRight: "0.5rem",
+              marginTop: "0.2rem",
+              top: "-25px"
+            }}
+          >
+            <img src={`/icon/${flowInfos.type}/` + `${data.internal.img.replaceAll(" ", "_")}`} alt={data.internal.img} style={{ width: "15px", marginRight: "5px" }} />
+            {data.device.tags || [].includes("tag:server") ? "Central Server" : "Client"}
+          </div>
+        )}
         {data.internal.hasWarning.state && (
           <>
             <Tag className="node-warning-tag" icon="pi pi-exclamation-triangle" severity="warning" value="" rounded data-pr-position="left" data-pr-showdelay={200} />
@@ -155,14 +151,13 @@ const NodeObject = ({ id, data, nodeSpecific, nodeBody, defaultSettings, onClick
           // if the node has run and the results pane is displayed, the node is displayed normally
           // if the node has not run and the results pane is displayed, the node is displayed with a notRun class (see .css file)
           className={`text-left ${data.internal.hasRun && showResultsPane ? "" : showResultsPane ? "notRun" : ""} `}
-          style={{ backgroundColor: nodeStatus == "Online" ? "#C1E1C1" : nodeStatus == "Offline" ? "#F0808050" : "" }}
+          style={{ backgroundColor: nodeStatus == "Online" && data.isOnWs ? "#C1E1C1" : nodeStatus == "Offline" ? "#F0808050" : nodeStatus == "Online" && !data.isOnWs ? "#f0cc8050" : "" }}
           header={
             <>
-            
               {data.device && (
                 <span
                   style={{
-                    backgroundColor: nodeStatus == "Online" ? "#4CBB17" : nodeStatus == "Offline" ? "#FF0000" : "",
+                    backgroundColor: nodeStatus == "Online" && data.isOnWs ? "#4CBB17" : nodeStatus == "Offline" ? "#FF0000" : "#ff9900ff",
                     width: "0.5rem",
                     height: "0.5rem",
                     borderRadius: "50%",

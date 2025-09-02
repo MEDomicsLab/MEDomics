@@ -59,6 +59,7 @@ const NodeObject = ({ id, data, nodeSpecific, nodeBody, defaultSettings, onClick
   useEffect(() => {
     // if the node has run, we update the status of the node
     if (data.device) {
+      
       const lastSeen = new Date(data.device.lastSeen)
       const online = Date.now() - lastSeen.getTime() < 60 * 1000
       if (online) {

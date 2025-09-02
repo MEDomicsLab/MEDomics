@@ -4,9 +4,9 @@ import { Modal, Tabs } from "react-bootstrap"
 import { ipcRenderer } from "electron"
 
 import { Alert } from "react-bootstrap"
-import { FaServer } from "react-icons/fa6"
+import { FaDatabase, FaServer, FaSpinner } from "react-icons/fa6"
 import FederatedNetworkConfigView from "./NetworkConfig"
-import { FaApple, FaChartLine, FaLaptop, FaNetworkWired, FaPause, FaPlay, FaSave, FaTable, FaWindows } from "react-icons/fa"
+import { FaApple, FaChartLine, FaFileAlt, FaLaptop, FaNetworkWired, FaPause, FaPlay, FaSave, FaTable, FaWindows } from "react-icons/fa"
 import { requestBackend } from "../../../utilities/requests"
 import { WorkspaceContext } from "../../workspace/workspaceContext"
 import { PageInfosContext } from "../../mainPages/moduleBasics/pageInfosContext"
@@ -28,10 +28,14 @@ import { UUID_ROOT, DataContext } from "../../workspace/dataContext"
 import { EXPERIMENTS } from "../../workspace/workspaceContext"
 
 import Path from "path"
+import ClientDetails from "./ClientDetails"
+import ConnectedWSAgents from "./ConnectedWSAgents"
+import { FcLinux } from "react-icons/fc"
+import ClientLogs from "./ClientLogs"
 
-const ServerLogosModal = ({ show, onHide, nodes }) => {
+const ServerLogosModal = ({ show, onHide, nodes, onSaveScean, setRunServer }) => {
   const { port } = useContext(WorkspaceContext)
-  const { pageId } = useContext(PageInfosContext)
+  const { config, pageId, configPath } = useContext(PageInfosContext)
 
   // Logs and monitoring state
   const [serverLogs, setServerLogs] = useState([])
@@ -56,6 +60,9 @@ const ServerLogosModal = ({ show, onHide, nodes }) => {
   const [finishedruning, setFinished] = useState(false)
   const [clientTrainMetrics, setClientTrainMetrics] = useState([])
   const [clientEvalMetrics, setClientEvalMetrics] = useState([])
+  const [waitingForServer, setWaitingForServer] = useState(false)
+  const [clientProperties, setClientProperties] = useState({})
+  const [isListening, setIsListening] = useState(false)
 
   // Configuration state
   const [strategy, setStrategy] = useState(strategyConfigs[0]?.data.internal.settings.strategy || "FedAvg")
@@ -67,42 +74,72 @@ const ServerLogosModal = ({ show, onHide, nodes }) => {
   const [minEvaluateClients, setMinEvaluateClients] = useState(strategyConfigs[0]?.data.internal.settings.minEvaluateClients || 3)
   const [minAvailableClients, setMinAvailableClients] = useState(strategyConfigs[0]?.data.internal.settings.minAvailableClients || 3)
 
+  // for saving the results
   const [fileName, setFileName] = useState("")
   const [isFileName, showFileName] = useState(false)
+
+  // for saving the scean , model and results
+  const [savingPath, setSavingPath] = useState("")
+
+  const [wsAgents, setWSAgents] = React.useState(null) // e.g., ["DESKTOP-ENI5U7G-windows"]
+  const [selectedAgents, setSelectedAgents] = React.useState({}) // { "DESKTOP-...": true }
+  const [datasetStats, setDatasetStats] = React.useState({})
+
+  const [canRun, setCanRun] = React.useState(false)
 
   // context
   const { globalData } = useContext(DataContext)
 
+  const renderOsIcon = (os) => {
+    const osName = os?.toLowerCase()
+    if (!osName) return <FaLaptop className="text-secondary" />
+    if (osName.includes("linux")) return <FcLinux size={25} />
+    if (osName.includes("windows")) return <FaWindows style={{ color: "#357EC7" }} />
+    if (osName.includes("mac") || osName.includes("darwin")) return <FaApple />
+    return <FaLaptop className="text-secondary" />
+  }
+
   const saveResults = async () => {
     try {
-      let path = Path.join(globalData[UUID_ROOT].path, EXPERIMENTS)
-
-      MedDataObject.createFolderFromPath(path + "/FL")
-      MedDataObject.createFolderFromPath(path + "/FL/RW")
-
       // do custom actions in the folder while it is unzipped
-      let data = {
-        config: { strategy, numRounds },
 
+      let dirPath = ""
+      if (configPath != "") {
+        const base = configPath.slice(configPath.lastIndexOf("/") + 1)
+
+        dirPath = configPath.substring(0, configPath.lastIndexOf("/"))
+      } else {
+        dirPath = savingPath != "" ? savingPath : await onSaveScean(fileName)
+      }
+
+      let data = {
+        config: { strategy, numRounds, id: dirPath.slice(dirPath.lastIndexOf("/") + 1) },
         devices,
         trainingResults: trainingresults,
         evaluationResults: roundResults,
         clientTrainMetrics,
-        clientEvalMetrics
+        clientEvalMetrics,
+        clientProperties,
+        connectedClients
       }
 
-      await MedDataObject.writeFileSync({ data, date: Date.now() }, path + "/FL/RW", fileName, "json")
-      await MedDataObject.writeFileSync({ data, date: Date.now() }, path + "/FL/RW", fileName, "medflrw")
+      console.log("Saving results to directory:", dirPath, "with file name:", fileName)
+      await MedDataObject.writeFileSync({ data, date: Date.now() }, dirPath, fileName, "json")
+      await MedDataObject.writeFileSync({ data, date: Date.now() }, dirPath, fileName, "medflrw")
 
-      toast.success("Optimization results saved under /FL/RW/")
+      toast.success("Experimentation results saved successfully")
     } catch {
       toast.error("Something went wrong ")
     }
   }
 
   useEffect(() => {
+    setRunServer(serverRunning)
+  }, [serverRunning])
+  useEffect(() => {
     if (strategyConfigs && strategyConfigs.length > 0) {
       const config = strategyConfigs[0].data.internal.settings
+      console.log("Strategy config loaded:", config)
       setStrategy(config.strategy || "FedAvg")
       setServerAddress(config.serverAddress || "")
       setNumRounds(config.numRounds || 10)
@@ -111,382 +148,324 @@ const ServerLogosModal = ({ show, onHide, nodes }) => {
       setMinFitClients(config.minFitClients || 3)
       setMinEvaluateClients(config.minEvaluateClients || 3)
       setMinAvailableClients(config.minAvailableClients || 3)
+
+      const isSaveModel = strategyConfigs[0].data.internal.settings.isSaveModel || false
+      setTheSavingpath(isSaveModel)
     }
   }, [strategyConfigs])
+
+  const setTheSavingpath = async (isSaveModel) => {
+    if (isSaveModel) {
+      console.log("Saving path is set to:", savingPath)
+      if (savingPath != "") return
+      const savePath = await onSaveScean("FL_scean")
+      setSavingPath(savePath)
+    } else {
+      setSavingPath("")
+    }
+  }
 
   useEffect(() => {
     setModelConfigs(nodes?.filter((node) => node.type == "flModelNode") || [])
     setStrategyConfigs(nodes?.filter((node) => node.type == "flRunServerNode") || [])
-
-    console.log("Strategy Configs:", strategyConfigs)
-    console.log("Model Configs:", modelConfigs)
-    console.log("nodes:", nodes)
   }, [nodes])
+
+  const current = React.useRef(null)
 
   useEffect(() => {
     // ipcRenderer.removeAllListeners("log")
-    ipcRenderer.on("log", (event, data) => {
-      setServerLogs((prev) => [...prev, data])
-      if (data.includes("Server started with PID")) {
-        const match = data.match(/PID (\d+)/)
-        if (match) {
-          const pid = parseInt(match[1], 10)
-          setServerPageId(pid)
+    isListening &&
+      ipcRenderer.on("log", (event, data) => {
+        setServerLogs((prev) => [...prev, data])
+        if (data.includes("Server started with PID")) {
+          const match = data.match(/PID (\d+)/)
+          if (match) {
+            const pid = parseInt(match[1], 10)
+            setServerPageId(pid)
+          }
         }
-      }
-      if (data.includes("Starting Flower server")) {
-        setIsAggregating(true)
-        setWaitingForClients(true)
-        setServerRunning(true)
-        setFinished(false)
-      }
-      if (data.includes("Finished running script")) {
-        setWaitingForClients(false)
-        setFinished(true)
-      }
+        if (data.includes("Starting Flower server")) {
+          setIsAggregating(true)
+          setWaitingForClients(true)
+          setServerRunning(true)
 
-      if (data.includes("Client connected - CID:")) {
-        console.log("Client connected:", data)
-
-        // Extract CID using regex
-        const match = data.match(/CID:\s*([a-fA-F0-9]+)/)
-        if (!match) return // Exit if CID is not found
-
-        const cid = match[1]
-        console.log("Client connected with ID:", cid)
-
-        const connected = {
-          id: cid,
-          name: "",
-          os: "unknown",
-          joinedAt: new Date()
+          setFinished(false)
+          setWaitingForServer(false)
+        }
+        if (data.includes("Finished running script")) {
+          setWaitingForClients(false)
+          setFinished(true)
+          setIsListening(false)
         }
 
-        // Push only if CID doesn't already exist
-        setConnectedClients((prev) => {
-          const exists = prev.some((client) => client.id === cid)
-          return exists ? prev : [...prev, connected]
-        })
-      }
+        if (data.includes("Client connected - CID:")) {
+          console.log("Client connected:", data)
 
-      // ---- NEW: CLIENT TRAIN METRICS (CTM) ----
-      // ---- NEW: CLIENT TRAIN METRICS (CTM) ----
-      if (data.includes("CTM Round")) {
-        const ctmMatches = data.matchAll(/CTM Round (\d+) Client:([a-f0-9]+):\s*({.*})/g)
+          // Extract CID using regex
+          const match = data.match(/CID:\s*([a-fA-F0-9]+)/)
+          if (!match) return // Exit if CID is not found
 
-        for (const match of ctmMatches) {
-          const round = parseInt(match[1], 10)
-          const cid = match[2]
-          const metricsStr = match[3].replace(/'/g, '"') // Convert single quotes to double quotes for JSON
+          const cid = match[1]
+          console.log("Client connected with ID:", cid)
 
-          try {
-            const metrics = JSON.parse(metricsStr)
+          const connected = {
+            id: cid,
+            name: "",
+            os: "unknown",
+            joinedAt: new Date()
+          }
 
-            const trainResult = {
-              round,
-              clientId: cid,
-              auc: metrics.train_auc,
-              accuracy: metrics.train_accuracy,
-              loss: metrics.train_loss,
-              hostname: metrics.hostname,
-              type: "train",
-              timestamp: new Date()
-            }
+          // Push only if CID doesn't already exist
+          setConnectedClients((prev) => {
+            const exists = prev.some((client) => client.id === cid)
+            return exists ? prev : [...prev, connected]
+          })
+        }
 
-            // Add only if this (round, clientId) does not already exist
-            setClientTrainMetrics((prev) => {
-              const exists = prev.some((item) => item.clientId === cid && item.round === round)
-              return exists ? prev : [...prev, trainResult]
-            })
+        // ---- NEW: CLIENT TRAIN METRICS (CTM) ----
+        // ---- NEW: CLIENT TRAIN METRICS (CTM) ----
+        if (data.includes("CTM Round")) {
+          const ctmMatches = data.matchAll(/CTM Round (\d+) Client:([a-f0-9]+):\s*({.*})/g)
 
-            setConnectedClients((prev) => {
-              return prev.map((client) => {
-                if (client.id === cid && (!client.hostname || client.hostname === "")) {
-                  return { ...client, hostname: metrics.hostname, os: metrics.os_type || "unknown" }
-                }
-                return client
+          for (const match of ctmMatches) {
+            const round = parseInt(match[1], 10)
+            const cid = match[2]
+            const metricsStr = match[3].replace(/'/g, '"') // Convert single quotes to double quotes for JSON
+
+            try {
+              const metrics = JSON.parse(metricsStr)
+
+              const trainResult = {
+                round,
+                clientId: cid,
+                auc: metrics.train_auc,
+                accuracy: metrics.train_accuracy,
+                loss: metrics.train_loss,
+                hostname: metrics.hostname,
+                type: "train",
+                timestamp: new Date()
+              }
+
+              // Add only if this (round, clientId) does not already exist
+              setClientTrainMetrics((prev) => {
+                const exists = prev.some((item) => item.clientId === cid && item.round === round)
+                return exists ? prev : [...prev, trainResult]
               })
-            })
 
-            console.log("Parsed CTM:", trainResult)
+              setConnectedClients((prev) => {
+                return prev.map((client) => {
+                  if (client.id === cid && (!client.hostname || client.hostname === "")) {
+                    return { ...client, hostname: metrics.hostname, os: metrics.os_type || "unknown" }
+                  }
+                  return client
+                })
+              })
 
-            setRunningClients((prev) => prev.filter((id) => id !== cid))
-          } catch (err) {
-            console.error("Failed to parse CTM JSON for client", cid, "on round", round, err)
-          }
-        }
-        setIsAggregating(true)
-      }
+              console.log("Parsed CTM:", trainResult)
 
-      // ---- NEW: CLIENT EVAL METRICS (CEM) ----
-      if (data.includes("CEM Round")) {
-        const cemMatches = data.matchAll(/CEM Round (\d+) Client:([a-f0-9]+):\s*({.*})/g)
-
-        for (const match of cemMatches) {
-          const round = parseInt(match[1], 10)
-          const cid = match[2]
-          const metricsStr = match[3].replace(/'/g, '"') // Convert single quotes to JSON
-
-          try {
-            const metrics = JSON.parse(metricsStr)
-            const evalResult = {
-              round,
-              clientId: cid,
-              auc: metrics.eval_auc,
-              accuracy: metrics.eval_accuracy,
-              loss: metrics.eval_loss,
-              type: "eval",
-              timestamp: new Date()
+              setRunningClients((prev) => prev.filter((id) => id !== cid))
+            } catch (err) {
+              console.error("Failed to parse CTM JSON for client", cid, "on round", round, err)
             }
-
-            // Add only if this (round, clientId) does not already exist
-            setClientEvalMetrics((prev) => {
-              const exists = prev.some((item) => item.clientId === cid && item.round === round)
-              return exists ? prev : [...prev, evalResult]
-            })
-
-            setRunningClients((prev) => prev.filter((id) => id !== cid))
-
-            console.log("toooose ara te running ====", runningClients)
-            console.log("Parsed CEM:", evalResult)
-          } catch (err) {
-            console.error("Failed to parse CEM JSON for client", cid, "on round", round, err)
           }
-        }
-        setIsAggregating(true)
-      }
-
-      if (data.includes("Aggregated Training Metrics")) {
-        // setIsAggregating(true)
-        let roundNumber = 0
-
-        // Extract round number
-        const roundMatch = data.match(/Round (\d+) - Aggregated Training Metrics/)
-        if (roundMatch && roundMatch[1]) {
-          roundNumber = parseInt(roundMatch[1], 10)
-          console.log("Current Training Round:", roundNumber)
-        } else {
-          console.warn("Could not parse round number from line:", data)
-          return
+          setIsAggregating(true)
         }
 
-        // Extract JSON-like metrics part
-        const metricsMatch = data.match(/Aggregated Training Metrics:\s*(\{.*\})/)
-        if (!metricsMatch || !metricsMatch[1]) {
-          console.warn("Could not parse training metrics from line:", data)
-          return
+        // ---- NEW: CLIENT EVAL METRICS (CEM) ----
+        if (data.includes("CEM Round")) {
+          const cemMatches = data.matchAll(/CEM Round (\d+) Client:([a-f0-9]+):\s*({.*})/g)
+
+          for (const match of cemMatches) {
+            const round = parseInt(match[1], 10)
+            const cid = match[2]
+            const metricsStr = match[3].replace(/'/g, '"') // Convert single quotes to JSON
+
+            try {
+              const metrics = JSON.parse(metricsStr)
+              const evalResult = {
+                round,
+                clientId: cid,
+                auc: metrics.eval_auc,
+                accuracy: metrics.eval_accuracy,
+                loss: metrics.eval_loss,
+                type: "eval",
+                timestamp: new Date()
+              }
+
+              // Add only if this (round, clientId) does not already exist
+              setClientEvalMetrics((prev) => {
+                const exists = prev.some((item) => item.clientId === cid && item.round === round)
+                return exists ? prev : [...prev, evalResult]
+              })
+
+              setRunningClients((prev) => prev.filter((id) => id !== cid))
+
+              console.log("toooose ara te running ====", runningClients)
+              console.log("Parsed CEM:", evalResult)
+            } catch (err) {
+              console.error("Failed to parse CEM JSON for client", cid, "on round", round, err)
+            }
+          }
+          setIsAggregating(true)
         }
 
-        let metrics = {}
-        try {
-          const jsonStr = metricsMatch[1].replace(/'/g, '"') // Convert single quotes to double quotes for JSON parse
-          metrics = JSON.parse(jsonStr)
-        } catch (err) {
-          console.error("Error parsing training metrics JSON:", err)
-          return
+        if (data.includes("Aggregated Training Metrics")) {
+          // setIsAggregating(true)
+          let roundNumber = 0
+
+          // Extract round number
+          const roundMatch = data.match(/Round (\d+) - Aggregated Training Metrics/)
+          if (roundMatch && roundMatch[1]) {
+            roundNumber = parseInt(roundMatch[1], 10)
+            console.log("Current Training Round:", roundNumber)
+          } else {
+            console.warn("Could not parse round number from line:", data)
+            return
+          }
+
+          // Extract JSON-like metrics part
+          const metricsMatch = data.match(/Aggregated Training Metrics:\s*(\{.*\})/)
+          if (!metricsMatch || !metricsMatch[1]) {
+            console.warn("Could not parse training metrics from line:", data)
+            return
+          }
+
+          let metrics = {}
+          try {
+            const jsonStr = metricsMatch[1].replace(/'/g, '"') // Convert single quotes to double quotes for JSON parse
+            metrics = JSON.parse(jsonStr)
+          } catch (err) {
+            console.error("Error parsing training metrics JSON:", err)
+            return
+          }
+
+          const result = {
+            round: roundNumber,
+            loss: metrics.train_loss,
+            accuracy: metrics.train_accuracy,
+            auc: metrics.train_auc,
+            clientsTrained: 3, // You can update this with real client count if needed
+            timeTaken: (Math.random() * 3).toFixed(2), // Placeholder for duration
+            timestamp: new Date()
+          }
+
+          setTraningResulsts((prev) => {
+            const alreadyExists = prev.some((r) => r.round === roundNumber)
+            return alreadyExists ? prev : [...prev, result]
+          })
+
+          console.log("Parsed Aggregated Training Metrics for Round", roundNumber, result)
+          setTimeout(() => {
+            setIsAggregating(false)
+          }, 2000)
+
+          setRunningClients((prev) => {
+            const clientIds = connectedClients.map((client) => client.id)
+            // Add any client.id not already in runningClients
+            const newClients = clientIds.filter((id) => !prev.includes(id))
+            return [...prev, ...newClients]
+          })
         }
 
-        const result = {
-          round: roundNumber,
-          loss: metrics.train_loss,
-          accuracy: metrics.train_accuracy,
-          auc: metrics.train_auc,
-          clientsTrained: 3, // You can update this with real client count if needed
-          timeTaken: (Math.random() * 3).toFixed(2), // Placeholder for duration
-          timestamp: new Date()
+        if (data.includes("Aggregated Evaluation Metrics")) {
+          // setIsAggregating(true)
+          let roundNumber = 0
+          const match = data.match(/Round (\d+) - Aggregated Evaluation Metrics/)
+          if (match && match[1]) {
+            roundNumber = parseInt(match[1])
+            console.log("Current Round:", roundNumber)
+            // You can now set this to state or display it in your UI
+          }
+          // Extract the next line which contains the actual metrics
+          const metricsLineMatch = data.match(/Loss:\s*([\d.]+),\s*Metrics:\s*({.*})/)
+          if (!metricsLineMatch) {
+            console.warn("Could not parse metrics from line:", data)
+            return
+          }
+
+          const loss = parseFloat(metricsLineMatch[1])
+          const metricsStr = metricsLineMatch[2]
+
+          let metrics = {}
+          try {
+            // Convert Python-style dict to JSON-style (single to double quotes)
+            const jsonStr = metricsStr.replace(/'/g, '"')
+            metrics = JSON.parse(jsonStr)
+          } catch (err) {
+            console.error("Error parsing metrics JSON:", err)
+            return
+          }
+
+          const result = {
+            round: roundNumber,
+            loss,
+            accuracy: metrics.eval_accuracy,
+            auc: metrics.eval_auc,
+            clientsTrained: 3,
+            timeTaken: (Math.random() * 3).toFixed(2), // Simulated time taken
+            timestamp: new Date()
+          }
+
+          setRoundResults((prev) => {
+            const alreadyExists = prev.some((r) => r.round === roundNumber)
+            return alreadyExists ? prev : [...prev, result]
+          })
+          setTimeout(() => {
+            setIsAggregating(false)
+          }, 2000)
+          setRunningClients((prev) => {
+            const clientIds = connectedClients.map((client) => client.id)
+            // Add any client.id not already in runningClients
+            const newClients = clientIds.filter((id) => !prev.includes(id))
+            return [...prev, ...newClients]
+          })
+          console.log("this is the runing clients ", runningClients)
         }
 
-        setTraningResulsts((prev) => {
-          const alreadyExists = prev.some((r) => r.round === roundNumber)
-          return alreadyExists ? prev : [...prev, result]
-        })
-
-        console.log("Parsed Aggregated Training Metrics for Round", roundNumber, result)
-        setTimeout(() => {
+        if (data.includes("Properties:")) {
           setIsAggregating(false)
-        }, 2000)
+          console.log("Processing Properties entry ▶", data)
 
-        setRunningClients((prev) => {
-          const clientIds = connectedClients.map((client) => client.id)
-          // Add any client.id not already in runningClients
-          const newClients = clientIds.filter((id) => !prev.includes(id))
-          return [...prev, ...newClients]
-        })
-      }
+          // Match “📋” anywhere, then capture a mixed‑case hex CID, then the dict
+          const regex = /📋.*Client\s+([A-Fa-f0-9]+)\s+Properties:\s*(\{.*\})/
+          const m = data.match(regex)
+          if (!m) {
+            console.warn("Properties regex did not match CID:", data)
+            return
+          }
 
-      if (data.includes("Aggregated Evaluation Metrics")) {
-        // setIsAggregating(true)
-        let roundNumber = 0
-        const match = data.match(/Round (\d+) - Aggregated Evaluation Metrics/)
-        if (match && match[1]) {
-          roundNumber = parseInt(match[1])
-          console.log("Current Round:", roundNumber)
-          // You can now set this to state or display it in your UI
+          const cid = m[1]
+          const propsJson = m[2].replace(/'/g, '"')
+          let props
+          try {
+            props = JSON.parse(propsJson)
+          } catch (err) {
+            console.error("❌ Failed to JSON‑parse props:", propsJson, err)
+            return
+          }
+
+          const entry = { id: cid, ...props }
+          const host = props.hostname
+
+          setClientProperties((prev) => {
+            const bucket = prev[host] || []
+            // Only add if not already present
+            if (bucket.some((item) => item.id === cid)) {
+              console.log(`Client ${cid} @ ${host} already recorded, skipping.`)
+              return prev
+            }
+            const next = {
+              ...prev,
+              [host]: [...bucket, entry]
+            }
+            console.log("Updated clientProperties ▶", next)
+            return next
+          })
         }
-        // Extract the next line which contains the actual metrics
-        const metricsLineMatch = data.match(/Loss:\s*([\d.]+),\s*Metrics:\s*({.*})/)
-        if (!metricsLineMatch) {
-          console.warn("Could not parse metrics from line:", data)
-          return
-        }
-
-        const loss = parseFloat(metricsLineMatch[1])
-        const metricsStr = metricsLineMatch[2]
-
-        let metrics = {}
-        try {
-          // Convert Python-style dict to JSON-style (single to double quotes)
-          const jsonStr = metricsStr.replace(/'/g, '"')
-          metrics = JSON.parse(jsonStr)
-        } catch (err) {
-          console.error("Error parsing metrics JSON:", err)
-          return
-        }
-
-        const result = {
-          round: roundNumber,
-          loss,
-          accuracy: metrics.eval_accuracy,
-          auc: metrics.eval_auc,
-          clientsTrained: 3,
-          timeTaken: (Math.random() * 3).toFixed(2), // Simulated time taken
-          timestamp: new Date()
-        }
-
-        setRoundResults((prev) => {
-          const alreadyExists = prev.some((r) => r.round === roundNumber)
-          return alreadyExists ? prev : [...prev, result]
-        })
-        setTimeout(() => {
-          setIsAggregating(false)
-        }, 2000)
-        setRunningClients((prev) => {
-          const clientIds = connectedClients.map((client) => client.id)
-          // Add any client.id not already in runningClients
-          const newClients = clientIds.filter((id) => !prev.includes(id))
-          return [...prev, ...newClients]
-        })
-        console.log("this is the runing clients ", runningClients)
-      }
-    })
-  }, [])
+      })
+  }, [isListening])
 
   const styles = {
-    container: {
-      display: "flex",
-      flexDirection: "column",
-      maxWidth: "1200px",
-      margin: "0 auto",
-      padding: "2rem",
-      fontFamily: "'Segoe UI', Roboto, sans-serif",
-      color: "#333"
-    },
-    header: {
-      marginBottom: "2rem",
-      paddingBottom: "1rem",
-      borderBottom: "1px solid #eaeaea"
-    },
-    title: {
-      fontSize: "1.8rem",
-      fontWeight: "600",
-      margin: "0 0 0.5rem"
-    },
-    subtitle: {
-      fontSize: "1rem",
-      color: "#666",
-      margin: "0"
-    },
-    content: {
-      display: "grid",
-      gridTemplateColumns: "1fr 1fr",
-      gap: "2rem",
-      marginBottom: "2rem"
-    },
-    configPanel: {
-      backgroundColor: "#f8f9fa",
-      padding: "1.5rem",
-      borderRadius: "8px",
-      boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
-      border: "1px solid #e9ecef"
-    },
-    formGroup: {
-      marginBottom: "1.5rem"
-    },
-    label: {
-      display: "block",
-      marginBottom: "0.5rem",
-      fontWeight: "500",
-      color: "#495057",
-      fontSize: "0.9rem"
-    },
-    input: {
-      width: "100%",
-      padding: "0.75rem",
-      backgroundColor: "#fff",
-      border: "1px solid #ced4da",
-      color: "#212529",
-      borderRadius: "4px",
-      fontSize: "0.9rem"
-    },
-    select: {
-      width: "100%",
-      padding: "0.75rem",
-      backgroundColor: "#fff",
-      border: "1px solid #ced4da",
-      color: "#212529",
-      borderRadius: "4px",
-      fontSize: "0.9rem"
-    },
-    buttonGroup: {
-      display: "flex",
-      gap: "1rem",
-      marginTop: "1.5rem"
-    },
-    startButton: {
-      backgroundColor: "#28a745",
-      color: "white",
-      border: "none",
-      padding: "0.75rem 1.5rem",
-      borderRadius: "4px",
-      cursor: "pointer",
-      transition: "background 0.2s",
-      fontSize: "1rem",
-      fontWeight: "500",
-      flex: "1"
-    },
-    stopButton: {
-      backgroundColor: "#dc3545",
-      color: "white",
-      border: "none",
-      padding: "0.75rem 1.5rem",
-      borderRadius: "4px",
-      cursor: "pointer",
-      transition: "background 0.2s",
-      fontSize: "1rem",
-      fontWeight: "500",
-      flex: "1"
-    },
-    codePreview: {
-      backgroundColor: "#f8f9fa",
-      borderRadius: "8px",
-      overflow: "hidden",
-      border: "1px solid #e9ecef"
-    },
-    codeHeader: {
-      display: "flex",
-      justifyContent: "space-between",
-      alignItems: "center",
-      padding: "1rem",
-      backgroundColor: "#f8f9fa",
-      borderBottom: "1px solid #e9ecef"
-    },
-    monitoringSection: {
-      display: "grid",
-      gridTemplateColumns: "1fr 1fr",
-      gap: "2rem",
-      marginBottom: "2rem"
-    },
-
     logsContainer: {
       backgroundColor: "#f8f9fa",
       borderRadius: "8px",
@@ -511,41 +490,12 @@ const ServerLogosModal = ({ show, onHide, nodes }) => {
     logEntry: {
       padding: "0.25rem 0",
       borderBottom: "1px solid #f0f0f0"
-    },
-    sectionTitle: {
-      fontSize: "1.1rem",
-      fontWeight: 600,
-      margin: 0,
-      color: "#2d3748"
-    },
-    headerTitleGroup: {
-      display: "flex",
-      alignItems: "center",
-      gap: "12px"
-    },
-    statusPills: {
-      display: "flex",
-      gap: "8px"
-    },
-    statusPillActive: {
-      backgroundColor: "#e6f4ea",
-      color: "#137333",
-      borderRadius: "16px",
-      padding: "4px 10px",
-      fontSize: "0.8rem",
-      fontWeight: 500
-    },
-    statusPillTotal: {
-      backgroundColor: "#e8f0fe",
-      color: "#1a73e8",
-      borderRadius: "16px",
-      padding: "4px 10px",
-      fontSize: "0.8rem",
-      fontWeight: 500
     }
   }
 
   const runServer = () => {
+    setIsListening(true)
+    setWaitingForServer(true)
     requestBackend(
       port,
       "/medfl/rw/run-server/" + pageId,
@@ -555,18 +505,24 @@ const ServerLogosModal = ({ show, onHide, nodes }) => {
         num_rounds: numRounds,
         fraction_fit: fractionFit,
         fraction_evaluate: fractionEvaluate,
-        min_fit_clients: minFitClients,
-        min_evaluate_clients: minEvaluateClients,
+        min_fit_clients: minAvailableClients,
+        min_evaluate_clients: minAvailableClients,
         min_available_clients: minAvailableClients,
         port: serverAddress?.split(":")[1],
         use_transfer_learning: modelConfigs[0]?.data.internal.settings.activateTl == "true" ? true : false,
-        pretrained_model_path: modelConfigs[0]?.data.internal.settings.file.path || ""
+        pretrained_model_path: modelConfigs[0]?.data.internal.settings.file.path || "",
+        local_epochs: modelConfigs[0]?.data.internal.settings["Local epochs"] || 1,
+        threshold: modelConfigs[0]?.data.internal.settings.Threshold || 0.5,
+        optimizer: modelConfigs[0]?.data.internal.settings.optimizer || "SGD",
+        learning_rate: modelConfigs[0]?.data.internal.settings["Learning rate"] || 0.01,
+        savingPath: savingPath + "/models",
+        saveOnRounds: strategyConfigs[0]?.data.internal.settings.saveOnRounds || 5
       },
       (json) => {
         if (json.error) {
           toast.error("Error: " + json.error)
         } else {
-          console.log(json)
+          MedDataObject.updateWorkspaceDataObject()
         }
       },
       (err) => {
@@ -575,6 +531,62 @@ const ServerLogosModal = ({ show, onHide, nodes }) => {
         // setLoading(false)
       }
     )
+
+    const selectedClients = Object.keys(selectedAgents).filter((key) => selectedAgents[key])
+
+    selectedClients.reduce((promise, client) => {
+      return promise.then(() => {
+        return new Promise((resolve) => {
+          requestBackend(
+            port,
+            "/medfl/rw/ws/run/" + pageId,
+            {
+              id: client,
+              ServerAddr: "100.65.215.27:8080",
+              DP: "none"
+            },
+            (json) => {
+              if (json.error) {
+                toast.error("Error: " + json.error)
+              } else {
+                console.log("Client connected:", json)
+                toast.success("Client " + client + " connected successfully")
+              }
+            },
+            (err) => {
+              console.error(err)
+            }
+          )
+          setTimeout(resolve, 1000)
+        })
+      })
+    }, Promise.resolve())
+    // setTimeout(() => {
+    //   selectedClients.map((client) => {
+    //     requestBackend(
+    //       port,
+    //       "/medfl/rw/ws/run/" + pageId,
+    //       {
+    //         id: client,
+    //         ServerAddr: "100.65.215.27:8080",
+    //         DP: "none"
+    //       },
+    //       (json) => {
+    //         if (json.error) {
+    //           toast.error("Error: " + json.error)
+    //         } else {
+    //           console.log("Client connected:", json)
+    //           toast.success("Client " + client + " connected successfully")
+    //         }
+    //       },
+    //       (err) => {
+    //         console.error(err)
+    //         // toast.error("Fetch failed")
+    //         // setLoading(false)
+    //       }
+    //     )
+    //   })
+    // }, 4000)
   }
 
   const stopServer = () => {
@@ -602,6 +614,7 @@ const ServerLogosModal = ({ show, onHide, nodes }) => {
             setClientTrainMetrics([])
             setClientEvalMetrics([])
             setTraningResulsts([])
+            setClientProperties({})
           }
         },
         (err) => {
@@ -610,6 +623,46 @@ const ServerLogosModal = ({ show, onHide, nodes }) => {
           // setLoading(false)
         }
       )
+  }
+
+  useEffect(() => {
+    !wsAgents && getWSAgents()
+  }, [wsAgents])
+
+  const getWSAgents = () => {
+    requestBackend(
+      port,
+      "/medfl/rw/ws/agents/" + pageId,
+      {},
+      (json) => {
+        if (json.error) {
+          // toast.error?.("Error: " + json.error)
+          console.error("WS Agents error:", json.error)
+        } else {
+          // The API returns the list in response_message (could be array or JSON string)
+          let agents = json || []
+          if (typeof agents === "string") {
+            try {
+              agents = JSON.parse(agents)
+            } catch {
+              agents = []
+            }
+          }
+          if (!Array.isArray(agents)) agents = []
+          setWSAgents(agents)
+          // Keep selection in sync (preserve known selections, drop removed items)
+          setSelectedAgents((prev) => {
+            const next = {}
+            agents.forEach((a) => (next[a] = !!prev[a]))
+            return next
+          })
+          console.log("WS Agents set:", agents)
+        }
+      },
+      (err) => {
+        console.error(err)
+      }
+    )
   }
 
   return (
@@ -636,10 +689,21 @@ const ServerLogosModal = ({ show, onHide, nodes }) => {
               <FederatedNetworkConfigView
                 config={{
                   server: { rounds: numRounds, strategy: strategy },
-                  model: modelConfigs[0]?.data.internal.settings || {}
+                  model: modelConfigs[0]?.data.internal.settings || {},
+                  savingPath: savingPath
                 }}
                 setDevices={setDevices}
               />
+
+              <ConnectedWSAgents
+                wsAgents={wsAgents}
+                selectedAgents={selectedAgents}
+                setSelectedAgents={setSelectedAgents}
+                setMinAvailableClients={setMinAvailableClients}
+                getWSAgents={getWSAgents}
+                setCanRun={setCanRun}
+                renderOsIcon={renderOsIcon}
+              ></ConnectedWSAgents>
             </>
           ) : (
             <>
@@ -664,17 +728,27 @@ const ServerLogosModal = ({ show, onHide, nodes }) => {
                           <FaNetworkWired />
                         </Nav.Link>
                       </Nav.Item>
+                      <Nav.Item>
+                        <Nav.Link eventKey="fourth">
+                          <FaDatabase />
+                        </Nav.Link>
+                      </Nav.Item>
+                      <Nav.Item>
+                        <Nav.Link eventKey="fifth">
+                          <FaFileAlt />
+                        </Nav.Link>
+                      </Nav.Item>
                     </Nav>
                   </Col>
                   <Col sm={11}>
-                    <div className={`d-flex justify-content-end `}>
+                    {/* <div className={`d-flex justify-content-end `}>
                       <button className={`btn ${displayView == "chart" ? "border" : ""}`} onClick={() => setView("chart")}>
                         <FaChartLine />
                       </button>
                       <button className={`btn ${displayView == "table" ? "border" : ""}`} onClick={() => setView("table")}>
                         <FaTable />
                       </button>
-                    </div>
+                    </div> */}
                     <Tab.Content>
                       <Tab.Pane eventKey="first">
                         <Tabs defaultActiveKey="Training" id="uncontrolled-tab-example" className="mb-3">
@@ -707,6 +781,18 @@ const ServerLogosModal = ({ show, onHide, nodes }) => {
                       </Tab.Pane>
                       <Tab.Pane eventKey="third">
                         <CommunicationFlow connectedClients={connectedClients} isAggregating={isAggregating} runningClients={runningClients} finished={finishedruning} currentRound={currentRound} />
+                      </Tab.Pane>
+                      <Tab.Pane eventKey="fourth">
+                        <ClientDetails clientProperties={clientProperties} />
+                      </Tab.Pane>
+                      <Tab.Pane eventKey="fifth">
+                        <ClientLogs
+                          clients={wsAgents.map((agent) => {
+                            return { id: agent }
+                          })}
+                          pageId={pageId}
+                          port={port}
+                        />
                       </Tab.Pane>
                     </Tab.Content>
                   </Col>
@@ -758,9 +844,9 @@ const ServerLogosModal = ({ show, onHide, nodes }) => {
               </button>{" "}
             </div>
           ) : (
-            <button className="btn btn-success" onClick={runServer}>
-              <span className="me-2">Run Server</span>
-              <FaPlay />
+            <button className="btn btn-success w-25" onClick={runServer} disabled={waitingForServer}>
+              <span className="me-2"> {waitingForServer ? "waiting for server" : "Run Server"} </span>
+              {waitingForServer ? <FaSpinner /> : <FaPlay />}
             </button>
           )}
         </Modal.Footer>
