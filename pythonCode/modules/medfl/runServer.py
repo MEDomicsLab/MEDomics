@@ -76,7 +76,14 @@ class GoExecScriptRunPipelineFromMEDfl(GoExecutionScript):
             min_fit_clients=json_config['min_fit_clients'],
             min_evaluate_clients=json_config['min_evaluate_clients'],
             min_available_clients=json_config['min_available_clients'],
-            initial_parameters=initial_weights
+            initial_parameters=initial_weights , 
+            local_epochs=json_config['local_epochs'],
+            learning_rate=json_config['learning_rate'],
+            optimizer_name=json_config['optimizer'],
+            threshold=json_config['threshold'],
+            savingPath=json_config['savingPath'],
+            saveOnRounds=json_config['saveOnRounds'],
+            total_rounds=json_config['num_rounds'],
         )
 
         server = FederatedServer(

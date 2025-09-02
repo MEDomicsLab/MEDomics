@@ -62,6 +62,9 @@ import MEDflrwConfig from "../../mainPages/medflRwConfig"
 import MEDflSeverPage from "../../mainPages/medflServer"
 import MEDflrwFlowPage from "../../mainPages/medflrw"
 import RwResultsPage from "../../medfl/rw/rwResultsPage"
+import MedflWelcomePage from "../../medfl/medflWelcomePage"
+import { PiGraphFill } from "react-icons/pi"
+import { BsFileEarmarkBarGraphFill } from "react-icons/bs"
 
 var fields = ["Name", "Field1", "Field2", "Field3", "Field4", "Field5"]
 
@@ -755,7 +758,16 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
           return <MEDflPage pageId={"MEDflPage"} />
         }
       }
-    }  else if (component === "flClientsPage") {
+    }else if (component === "medflLandingPage") {
+      if (node.getExtraData().data == null) {
+        const config = node.getConfig()
+        if (config.path !== null) {
+          return <MedflWelcomePage  />
+        } else {
+          return <MedflWelcomePage />
+        }
+      }
+    }   else if (component === "flClientsPage") {
       if (node.getExtraData().data == null) {
         const config = node.getConfig()
         if (config.path !== null) {
@@ -931,7 +943,13 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
         case "xls":
           return <Icons.FiletypeXls />
         case "fl":
-          return <Icons.FiletypeXls />
+          return <PiGraphFill style={{ color: "#228B22" }}/>
+        case "rwfl":
+          return <PiGraphFill style={{ color: "#228B22" }}/>
+        case "medflrw":
+          return <BsFileEarmarkBarGraphFill />
+
+
       }
       let icon = <span style={{ marginRight: 3 }}>{iconToReturn}</span>
       return icon
@@ -963,17 +981,14 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
       if (component === "extractionTSPage") {
         return <span style={{ marginRight: 3 }}>📈</span>
       }
-      if (component === "medflPage") {
-        return <span style={{ marginRight: 3 }}>🌐</span>
-      }
        if (component === "flClientsPage") {
         return <span style={{ marginRight: 3 }}>🖧</span>
       }
       if (component === "flServerPage") {
         return <span style={{ marginRight: 3 }}>🖥</span>
       }
-        if (component === "flRwWorkflowPage") {
-        return <span style={{ marginRight: 3 }}>🌐</span>
+        if (component === "flRwWorkflowPage" || component === "medflLandingPage" || component === "medflPage") {
+        return <PiGraphFill style={{ color: "#228B22" }}/>
       }
       if (component === "flrwConfigPage") {
         return <span style={{ marginRight: 3 }}>📄</span>

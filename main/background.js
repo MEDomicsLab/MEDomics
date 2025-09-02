@@ -576,6 +576,185 @@ if (isProd) {
     }
   })
 
+
+  // --- OAuth Key handlers ---
+ipcMain.handle("tailscale-save-oauth-key", async (_event, oauthKey) => {
+  try {
+    const userDataPath = app.getPath("userData");
+    const settingsFilePath = path.join(userDataPath, "settings.json");
+    let settings = {};
+    if (fs.existsSync(settingsFilePath)) {
+      settings = JSON.parse(fs.readFileSync(settingsFilePath, "utf8"));
+    }
+    settings.tailscale = settings.tailscale || {};
+    // optional: base64 encode to avoid raw-plaintext-looking, not real security
+    settings.tailscale.oauthKey = Buffer.from(oauthKey, "utf8").toString("base64");
+    settings.tailscale.oauthSavedAt = new Date().toISOString();
+    fs.writeFileSync(settingsFilePath, JSON.stringify(settings, null, 2));
+    return { success: true };
+  } catch (e) {
+    console.error("Failed to save OAuth key:", e);
+    return { success: false, message: e.message };
+  }
+});
+
+ipcMain.handle("tailscale-get-oauth-key", async () => {
+  try {
+    const userDataPath = app.getPath("userData");
+    const settingsFilePath = path.join(userDataPath, "settings.json");
+    if (!fs.existsSync(settingsFilePath)) return { success: false, message: "no settings file" };
+    const settings = JSON.parse(fs.readFileSync(settingsFilePath, "utf8"));
+    if (!settings.tailscale || !settings.tailscale.oauthKey) {
+      return { success: false, message: "oauth key not saved" };
+    }
+    const oauthKey = Buffer.from(settings.tailscale.oauthKey, "base64").toString("utf8");
+    return { success: true, oauthKey };
+  } catch (e) {
+    console.error("Failed to get OAuth key:", e);
+    return { success: false, message: e.message };
+  }
+});
+
+ipcMain.handle("tailscale-delete-oauth-key", async () => {
+  try {
+    const userDataPath = app.getPath("userData");
+    const settingsFilePath = path.join(userDataPath, "settings.json");
+    if (!fs.existsSync(settingsFilePath)) return { success: true };
+    const settings = JSON.parse(fs.readFileSync(settingsFilePath, "utf8"));
+    if (settings.tailscale && settings.tailscale.oauthKey) {
+      delete settings.tailscale.oauthKey;
+      delete settings.tailscale.oauthSavedAt;
+      fs.writeFileSync(settingsFilePath, JSON.stringify(settings, null, 2));
+    }
+    return { success: true };
+  } catch (e) {
+    console.error("Failed to delete OAuth key:", e);
+    return { success: false, message: e.message };
+  }
+});
+
+ipcMain.handle("tailscale-has-oauth-key", async () => {
+  try {
+    const userDataPath = app.getPath("userData");
+    const settingsFilePath = path.join(userDataPath, "settings.json");
+    if (!fs.existsSync(settingsFilePath)) return { success: true, hasKey: false };
+    const settings = JSON.parse(fs.readFileSync(settingsFilePath, "utf8"));
+    return { success: true, hasKey: !!(settings.tailscale && settings.tailscale.oauthKey) };
+  } catch (e) {
+    console.error("Failed to check OAuth key presence:", e);
+    return { success: false, message: e.message };
+  }
+});
+
+// --- Auth Key handlers ---
+ipcMain.handle("tailscale-save-auth-key", async (_event, args) => {
+  try {
+    if (!args || typeof args !== "object") {
+      return { success: false, message: "Expected an object with authKey and expires" };
+    }
+    const { authKey, expires } = args;
+    console.log("Saving Auth key:", authKey, "Expires:", expires);
+
+    const userDataPath = app.getPath("userData");
+    const settingsFilePath = path.join(userDataPath, "settings.json");
+    let settings = {};
+    if (fs.existsSync(settingsFilePath)) {
+      settings = JSON.parse(fs.readFileSync(settingsFilePath, "utf8"));
+    }
+    settings.tailscale = settings.tailscale || {};
+    settings.tailscale.authKey = Buffer.from(authKey, "utf8").toString("base64");
+    settings.tailscale.authSavedAt = new Date().toISOString();
+        const expDate = new Date(expires);
+    if (isNaN(expDate)) {
+      return { success: false, message: "Invalid expiry format" };
+    }
+    settings.tailscale.expires = expDate.toISOString();
+    fs.writeFileSync(settingsFilePath, JSON.stringify(settings, null, 2));
+    return { success: true };
+  } catch (e) {
+    console.error("Failed to save Auth key:", e);
+    return { success: false, message: e.message };
+  }
+});
+
+ipcMain.handle("tailscale-get-auth-key", async () => {
+  try {
+    const userDataPath = app.getPath("userData");
+    const settingsFilePath = path.join(userDataPath, "settings.json");
+    if (!fs.existsSync(settingsFilePath)) {
+      return { success: false, message: "no settings file" };
+    }
+
+    const settings = JSON.parse(fs.readFileSync(settingsFilePath, "utf8"));
+    if (!settings.tailscale || !settings.tailscale.authKey) {
+      return { success: false, message: "auth key not saved" };
+    }
+
+    const authKey = Buffer.from(settings.tailscale.authKey, "base64").toString("utf8");
+
+    let expires = null;
+    let expired = false;
+    let remainingSeconds = null;
+
+    if (settings.tailscale.expires) {
+      const expDate = new Date(settings.tailscale.expires);
+      if (!isNaN(expDate)) {
+        const now = Date.now();
+        remainingSeconds = Math.max(0, Math.floor((expDate.getTime() - now) / 1000));
+        expired = remainingSeconds === 0;
+        expires = expDate.toISOString();
+      } else {
+        console.warn("Invalid expires value in settings:", settings.tailscale.expires);
+      }
+    }
+
+    return {
+      success: true,
+      authKey,
+      expires, // ISO string or null if absent/invalid
+      expired,
+      remainingSeconds, // null if unknown
+      savedAt: settings.tailscale?.authSavedAt || null,
+    };
+  } catch (e) {
+    console.error("Failed to get Auth key:", e);
+    return { success: false, message: e.message };
+  }
+});
+
+
+ipcMain.handle("tailscale-delete-auth-key", async () => {
+  try {
+    const userDataPath = app.getPath("userData");
+    const settingsFilePath = path.join(userDataPath, "settings.json");
+    if (!fs.existsSync(settingsFilePath)) return { success: true };
+    const settings = JSON.parse(fs.readFileSync(settingsFilePath, "utf8"));
+    if (settings.tailscale && settings.tailscale.authKey) {
+      delete settings.tailscale.authKey;
+      delete settings.tailscale.authSavedAt;
+      fs.writeFileSync(settingsFilePath, JSON.stringify(settings, null, 2));
+    }
+    return { success: true };
+  } catch (e) {
+    console.error("Failed to delete Auth key:", e);
+    return { success: false, message: e.message };
+  }
+});
+
+ipcMain.handle("tailscale-has-auth-key", async () => {
+  try {
+    const userDataPath = app.getPath("userData");
+    const settingsFilePath = path.join(userDataPath, "settings.json");
+    if (!fs.existsSync(settingsFilePath)) return { success: true, hasKey: false };
+    const settings = JSON.parse(fs.readFileSync(settingsFilePath, "utf8"));
+    return { success: true, hasKey: !!(settings.tailscale && settings.tailscale.authKey) };
+  } catch (e) {
+    console.error("Failed to check Auth key presence:", e);
+    return { success: false, message: e.message };
+  }
+});
+
+
   app.on("toggleDarkMode", () => {
     console.log("toggleDarkMode")
     mainWindow.webContents.send("toggleDarkMode")
@@ -589,7 +768,7 @@ if (isProd) {
     mainWindow.webContents.openDevTools()
   }
 
-  splashScreen.destroy()
+  splashScreen?.destroy()
   mainWindow.maximize()
   mainWindow.show()
 })()

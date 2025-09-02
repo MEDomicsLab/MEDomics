@@ -3,7 +3,9 @@ import DropzoneComponent from "../../../mainPages/dataComponents/dropzoneCompone
 import medomicsImg from "../../../../../resources/medomics.svg"
 import * as Icon from "react-bootstrap-icons"
 import Image from "next/image"
-import { PiGraph } from "react-icons/pi"
+import { PiGraph, PiGraphFill } from "react-icons/pi"
+import { FaGlobe } from "react-icons/fa"
+import { BsFillFileEarmarkBarGraphFill } from "react-icons/bs"
 
 const iconExtension = {
   folder: (isExpanded) => (isExpanded ? <span style={{ paddingBottom: "0.15rem" }}>📂</span> : <span style={{ paddingBottom: "0.15rem" }}>📁</span>),
@@ -32,6 +34,8 @@ const iconExtension = {
   zip: <span className="emoji">🔒</span>,
   ini: <span className="emoji">⚙️ </span>,
   pth: <span className="emoji">🧬 </span>,
+  npz: <span className="emoji">🧬 </span>,
+  db: <span className="emoji">🛢️ </span>,
   medflres: <span className="emoji">📊</span>,
   db: (
     <span>
@@ -77,6 +81,15 @@ const iconExtension = {
   svg: (
     <span>
       <Icon.Image className="icon-offset" style={{ color: "#5b95ff" }} />
+    </span>
+  ),
+  medflrw: <span>
+      <BsFillFileEarmarkBarGraphFill className="icon-offset" style={{ color: "#5b95ff" }} size={15}/>
+    </span>
+  ,
+  rwfl: (
+    <span>
+      <PiGraphFill className="icon-offset" style={{ color: "#50C878	" }} size={17}/>
     </span>
   )
 

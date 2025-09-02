@@ -53,7 +53,9 @@ export default function FlrwServerNode({ id, data }) {
         data={data}
         setupParam={data.setupParam}
         // the body of the node is a form select (particular to this node)
-        nodeBody={<></>}
+        nodeBody={<>
+        
+        </>}
         // default settings are the default settings of the node, so mandatory settings
         defaultSettings={
           <>

@@ -4,13 +4,14 @@ import { WorkspaceContext } from "../../workspace/workspaceContext"
 import { requestBackend } from "../../../utilities/requests"
 import { FaLinux, FaWindows, FaApple, FaServer, FaLaptop, FaNetworkWired, FaSyncAlt } from "react-icons/fa"
 import { FcLinux, FcSettings } from "react-icons/fc"
+import ConnectedWSAgents from "./ConnectedWSAgents"
 
 function getOSIcon(os) {
   const osName = os?.toLowerCase()
   if (!osName) return <FaLaptop className="text-secondary" />
   if (osName.includes("linux")) return <FcLinux size={25} />
   if (osName.includes("windows")) return <FaWindows style={{ color: "#357EC7" }} />
-  if (osName.includes("mac")) return <FaApple />
+  if (osName.includes("mac") || osName.includes("darwin")) return <FaApple />
   return <FaLaptop className="text-secondary" />
 }
 
@@ -22,7 +23,47 @@ export default function FederatedNetworkConfigView({ config, setDevices }) {
   const [server, setServer] = useState(null)
   const [isLoading, setIsLoading] = useState(true)
 
-  console.log("FederatedNetworkConfigView config:", config)
+  // WebSocket agents
+  const [wsAgents, setWSAgents] = React.useState(null) // e.g., ["DESKTOP-ENI5U7G-windows"]
+  const [selectedAgents, setSelectedAgents] = React.useState({}) // { "DESKTOP-...": true }
+
+  const [canRun, setCanRun] = React.useState(false)
+
+  const getWSAgents = () => {
+    requestBackend(
+      port,
+      "/medfl/rw/ws/agents/" + pageId,
+      {},
+      (json) => {
+        if (json.error) {
+          // toast.error?.("Error: " + json.error)
+          console.error("WS Agents error:", json.error)
+        } else {
+          // The API returns the list in response_message (could be array or JSON string)
+          let agents = json || []
+          if (typeof agents === "string") {
+            try {
+              agents = JSON.parse(agents)
+            } catch {
+              agents = []
+            }
+          }
+          if (!Array.isArray(agents)) agents = []
+          setWSAgents(agents)
+          // Keep selection in sync (preserve known selections, drop removed items)
+          setSelectedAgents((prev) => {
+            const next = {}
+            agents.forEach((a) => (next[a] = !!prev[a]))
+            return next
+          })
+          console.log("WS Agents set:", agents)
+        }
+      },
+      (err) => {
+        console.error(err)
+      }
+    )
+  }
   useEffect(() => {
     const fetchDevices = () => {
       setIsLoading(true)
@@ -52,6 +93,7 @@ export default function FederatedNetworkConfigView({ config, setDevices }) {
     }
 
     !clients && fetchDevices()
+    getWSAgents()
   }, [pageId, port])
 
   return (
@@ -149,6 +191,14 @@ export default function FederatedNetworkConfigView({ config, setDevices }) {
                     <div className="d-flex align-items-center">
                       <span className="fw-bold me-2">Pretrained model:</span>
                       <span className="">{config.model.file?.name}</span>
+                    </div>
+                  </div>
+                )}
+                {config.savingPath != "" && (
+                  <div className="col-md-6">
+                    <div className="d-flex align-items-center">
+                      <span className="fw-bold me-2">Saving models on:</span>
+                      <span className="">{config.savingPath}/models</span>
                     </div>
                   </div>
                 )}

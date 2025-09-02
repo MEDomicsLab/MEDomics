@@ -1,20 +1,20 @@
 /* eslint-disable */
 const nodesParams = {
-  dataset: {
-    type: "DatasetrwNode",
-    classes: "object startNode",
-    nbInput: 0,
-    nbOutput: 1,
-    input: [],
-    output: ["dataset"],
-    img: "dataset.png",
-    title: "Dataset",
-    possibleSettings: {}
-  },
+  // dataset: {
+  //   type: "DatasetrwNode",
+  //   classes: "object startNode",
+  //   nbInput: 0,
+  //   nbOutput: 1,
+  //   input: [],
+  //   output: ["dataset"],
+  //   img: "dataset.png",
+  //   title: "Dataset",
+  //   possibleSettings: {}
+  // },
   model: {
     type: "flModelNode",
     classes: "object model",
-    nbInput: 1,
+    nbInput: 0,
     nbOutput: 1,
     input: ["dataset"],
     output: ["model"],
@@ -31,6 +31,17 @@ const nodesParams = {
     output: ["network"],
     img: "network.png",
     title: "Network",
+    possibleSettings: {}
+  },
+  optimize: {
+    type: "flOptimizeNode",
+    classes: "action optimize run",
+    nbInput: 2,
+    nbOutput: 1,
+    input: ["dataset", "model"],
+    output: ["model"],
+    img: "optimize.png",
+    title: "Optimize",
     possibleSettings: {}
   },
   // optimize: {
@@ -51,34 +62,34 @@ const nodesParams = {
   //   nbInput: 1,
   //   nbOutput: 1,
   //   input: ["model"],
-  //   output: ["server_strategy"],
+  //   output: ["strategy"],
   //   img: "strategy.png",
   //   title: "FL Strategy",
   //   possibleSettings: {}
   // },
-  server_strategy: {
+  fl_strategy: {
     type: "flRunServerNode",
     classes: "object",
     nbInput: 1,
     nbOutput: 1,
     input: ["network"],
     output: ["results"],
-    img: "server.png",
-    title: "Server Strategy",
+    img: "strategy.png",
+    title: "FL Strategy",
     possibleSettings: {}
   },
 
-  save_results: {
-    type: "flSaveModelNode",
-    classes: "object",
-    nbInput: 1,
-    nbOutput: 0,
-    input: ["results"],
-    output: [],
-    img: "save_model.png",
-    title: "Save results",
-    possibleSettings: {}
-  }
+  // save_results: {
+  //   type: "flSaveModelNode",
+  //   classes: "object",
+  //   nbInput: 1,
+  //   nbOutput: 0,
+  //   input: ["results"],
+  //   output: [],
+  //   img: "save_model.png",
+  //   title: "Save results",
+  //   possibleSettings: {}
+  // }
 }
 
 export default nodesParams

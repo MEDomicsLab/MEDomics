@@ -51,6 +51,7 @@ import { useMEDflContext } from "../workspace/medflContext.jsx"
 import FlCompareResults from "./nodesTypes/flCompareResultsNode"
 import { Modal } from "react-bootstrap"
 import FlInput from "./flInput"
+import { FaLaptop } from "react-icons/fa6"
 
 const staticNodesParams = nodesParams // represents static nodes parameters
 
@@ -107,156 +108,6 @@ const MedflWorkflow = ({ setWorkflowType, workflowType }) => {
 
   const { updatePipelineConfigs } = useMEDflContext()
 
-  let ALL_CONFIGS = [
-    {
-      masterDatasetNode: {
-        name: "Mimic_2017.csv",
-        // path: "C:\\Users\\HP User\\Desktop\\MEDomicsLab\\DATA\\Mimic_ouael.csv",
-        path: "C:\\Users\\HP User\\Desktop\\medfl_workspace\\DATA\\client_3_dataset.csv",
-        target: "diabetes"
-      },
-      Network: {
-        name: "Network",
-        clients: [
-          {
-            name: "Client",
-            type: "Train Node",
-            dataset: {
-              name: "Mimic_2017.csv",
-              // path: "C:\\Users\\HP User\\Desktop\\MEDomicsLab\\DATA\\Mimic_ouael.csv"
-              path: "C:\\Users\\HP User\\Desktop\\medfl_workspace\\DATA\\client_2_dataset.csv"
-            }
-          },
-          {
-            name: "Client",
-            type: "Train node",
-            dataset: {
-              name: "Mimic_2017.csv",
-              // path: "C:\\Users\\HP User\\Desktop\\MEDomicsLab\\DATA\\Mimic_ouael.csv"
-              path: "C:\\Users\\HP User\\Desktop\\medfl_workspace\\DATA\\client_1_dataset.csv"
-            }
-          }
-        ],
-        server: {
-          name: "FL Server",
-          nRounds: 2,
-          activateDP: "Deactivate"
-        }
-      },
-      flSetupNode: {
-        name: "FL Setup",
-        description: "fsfsf"
-      },
-      flDatasetNode: {
-        name: "FL Dataset",
-        validationFraction: 0.1,
-        testFraction: 0.2
-      },
-      flModelNode: {
-        activateTl: "true",
-        file: {
-          name: "grid_search_classifier.pth",
-          path: "C:\\Users\\HP User\\Desktop\\MEDomicsLab\\DATA\\diabetes_model2.pth"
-        },
-        optimizer: "Adam",
-        "learning rate": 0.0001,
-        Threshold: 0.4
-      },
-      flStrategyNode: {
-        "Aggregation algorithm": "FedAvg",
-        "Evaluation fraction": 1,
-        "Training fraction": 1,
-        "Minimal used clients for evaluation": 1,
-        "Minimal used clients for training": 1,
-        "Minimal available clients": 1
-      },
-      flTrainModelNode: { clientRessources: "Use GPU" },
-      flSaveModelNode: { fileName: "resultsauto" },
-      flMergeresultsNode: {
-        files: [
-          {
-            name: "testResults.medflres",
-            path: "C:\\Users\\HP User\\Desktop\\MEDomicsLab\\EXPERIMENTS\\FL\\Results\\testResults.medflres"
-          }
-        ],
-        fileName: "automerge"
-      }
-    },
-    {
-      masterDatasetNode: {
-        name: "Mimic_2017.csv",
-        // path: "C:\\Users\\HP User\\Desktop\\MEDomicsLab\\DATA\\Mimic_ouael.csv",
-        path: "C:\\Users\\HP User\\Desktop\\medfl_workspace\\DATA\\client_1_dataset.csv",
-        target: "diabetes"
-      },
-      Network: {
-        name: "Network",
-        clients: [
-          {
-            name: "Client",
-            type: "Train Node",
-            dataset: {
-              name: "Mimic_2017.csv",
-              // path: "C:\\Users\\HP User\\Desktop\\MEDomicsLab\\DATA\\Mimic_ouael.csv"
-              path: "C:\\Users\\HP User\\Desktop\\medfl_workspace\\DATA\\client_1_dataset.csv"
-            }
-          },
-          {
-            name: "Client",
-            type: "Train node",
-            dataset: {
-              name: "Mimic_2017.csv",
-              // path: "C:\\Users\\HP User\\Desktop\\MEDomicsLab\\DATA\\Mimic_ouael.csv"
-              path: "C:\\Users\\HP User\\Desktop\\medfl_workspace\\DATA\\client_2_dataset.csv"
-            }
-          }
-        ],
-        server: {
-          name: "FL Server",
-          nRounds: 2,
-          activateDP: "Deactivate"
-        }
-      },
-      flSetupNode: {
-        name: "FL Setup",
-        description: "fsfsf"
-      },
-      flDatasetNode: {
-        name: "FL Dataset",
-        validationFraction: 0.1,
-        testFraction: 0.2
-      },
-      flModelNode: {
-        activateTl: "true",
-        file: {
-          name: "grid_search_classifier.pth",
-          path: "C:\\Users\\HP User\\Desktop\\MEDomicsLab\\DATA\\diabetes_model2.pth"
-        },
-        optimizer: "Adam",
-        "learning rate": 0.0001,
-        Threshold: 0.1
-      },
-      flStrategyNode: {
-        "Aggregation algorithm": "FedAvg",
-        "Evaluation fraction": 1,
-        "Training fraction": 1,
-        "Minimal used clients for evaluation": 1,
-        "Minimal used clients for training": 1,
-        "Minimal available clients": 1
-      },
-      flTrainModelNode: { clientRessources: "Use GPU" },
-      flSaveModelNode: { fileName: "resultsauto" },
-      flMergeresultsNode: {
-        files: [
-          {
-            name: "testResults.medflres",
-            path: "C:\\Users\\HP User\\Desktop\\MEDomicsLab\\EXPERIMENTS\\FL\\Results\\testResults.medflres"
-          }
-        ],
-        fileName: "automerge"
-      }
-    }
-  ]
   // declare node types using useMemo hook to avoid re-creating component types unnecessarily (it memorizes the output) https://www.w3schools.com/react/react_usememo.asp
   const nodeTypes = useMemo(
     () => ({
@@ -758,9 +609,9 @@ const MedflWorkflow = ({ setWorkflowType, workflowType }) => {
           })
         } else {
           console.log("here", scean)
-          let configPath = globalData[UUID_ROOT].path + "\\EXPERIMENTS\\FL\\Sceans"
+          let configPath = globalData["UUID_ROOT"].path + "/EXPERIMENTS/FL/Sceans"
           createSceneContent(configPath, scean, "fl", null).then(() =>
-            modifyZipFileSync(configPath + "\\" + scean + ".fl", async (path) => {
+            modifyZipFileSync(configPath + "/" + scean + ".fl", async (path) => {
               // do custom actions in the folder while it is unzipped
               await MedDataObject.writeFileSync(flow, path, "metadata", "json")
               toast.success("Scene has been saved successfully")
@@ -1201,6 +1052,16 @@ const MedflWorkflow = ({ setWorkflowType, workflowType }) => {
                       />
                     </div>
                   )}
+                </div>
+              </>
+            )}
+            {workflowType == "fl" && (
+              <>
+                <div>
+                  <div className="subFlow-title d-flex gap-2 align-items-center">
+                    Simulation
+                    <FaLaptop size={22} />
+                  </div>
                 </div>
               </>
             )}

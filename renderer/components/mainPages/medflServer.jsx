@@ -106,7 +106,7 @@ const MEDflSeverPage = ({ pageId, configPath = "" }) => {
 
         console.log(currentRound, "round completed")
         const result = {
-          round : currentRound,
+          round: currentRound,
           loss,
           accuracy: metrics.eval_accuracy,
           clientsTrained: 3,
@@ -291,6 +291,8 @@ server.start()
       case "macos":
         return <FaApple />
       case "linux":
+        return <FcLinux />
+      case "darwin":
         return <FcLinux />
       default:
         return <FaLaptop />

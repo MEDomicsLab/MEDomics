@@ -6,7 +6,7 @@ export default function ClientInfos({ device, onClose }) {
   const getOsIcon = () => {
     const os = device.os.toLowerCase()
     if (os.includes("win")) return <FaWindows style={{ color: "#00adef" }} />
-    if (os.includes("mac") || os.includes("apple")) return <FaApple />
+    if (os.includes("mac") || os.includes("apple") || os.includes("darwin")) return <FaApple />
     if (os.includes("linux")) return <FcLinux />
     return null
   }

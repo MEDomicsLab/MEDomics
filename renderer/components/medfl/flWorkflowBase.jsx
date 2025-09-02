@@ -12,6 +12,7 @@ import Row from "react-bootstrap/Row"
 import Col from "react-bootstrap/Col"
 import { Button } from "primereact/button"
 import { ErrorRequestContext } from "../generalPurpose/errorRequestContext"
+import { ButtonGroup } from "react-bootstrap"
 
 /**
  *
@@ -46,7 +47,7 @@ import { ErrorRequestContext } from "../generalPurpose/errorRequestContext"
  * This component is used to display a workflow.
  * It manages base workflow functions such as node creation, node deletion, node connection, etc.
  */
-const FlWorflowBase = ({ isGoodConnection, groupNodeHandlingDefault, onDeleteNode, onNodeDrag, mandatoryProps, ui, uiTopLeft, uiTopRight, uiTopCenter, customOnConnect }) => {
+const FlWorflowBase = ({ workflowType = "fl", isGoodConnection, groupNodeHandlingDefault, onDeleteNode, onNodeDrag, mandatoryProps, ui, uiTopLeft, uiTopRight, uiTopCenter, customOnConnect }) => {
   const { reactFlowInstance, setReactFlowInstance, addSpecificToNode, nodeTypes, nodes, setNodes, onNodesChange, edges, setEdges, onEdgesChange, runNode } = mandatoryProps
 
   const edgeUpdateSuccessful = useRef(true)
@@ -472,17 +473,19 @@ const FlWorflowBase = ({ isGoodConnection, groupNodeHandlingDefault, onDeleteNod
                 className="btn-ctl-available-nodes"
               />
 
-              <ToggleButton
-                onLabel="Results mode on"
-                offLabel="See results"
-                onIcon="pi pi-chart-bar"
-                offIcon="pi pi-eye"
-                disabled={!isResults}
-                checked={showResultsPane}
-                onChange={(e) => setShowResultsPane(e.value)}
-                severity="success"
-                className="btn-show-results"
-              />
+              {workflowType === "fl" && (
+                <ToggleButton
+                  onLabel="Results mode on"
+                  offLabel="See results"
+                  onIcon="pi pi-chart-bar"
+                  offIcon="pi pi-eye"
+                  disabled={!isResults}
+                  checked={showResultsPane}
+                  onChange={(e) => setShowResultsPane(e.value)}
+                  severity="success"
+                  className="btn-show-results"
+                />
+              )}
               {uiTopLeft}
             </Col>
             <Col md="auto" className="center">
