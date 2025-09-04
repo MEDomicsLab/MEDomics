@@ -1,4 +1,3 @@
-import React from "react"
 import Parameters from "../utilities/parameters"
 import DataTablePath from "../utilities/dataTablePath"
 import DataTable from "../../../dataTypeVisualisation/dataTableWrapper"
@@ -7,9 +6,10 @@ import { Accordion, AccordionTab } from "primereact/accordion"
 /**
  *
  * @param {Object} selectedResults The selected results
+ * @param {String} type The type of the node (Dataset or Clean)
  * @returns {JSX.Element} The DataParamResults component
  */
-const DataParamResults = ({ selectedResults }) => {
+const DataParamResults = ({ selectedResults, type }) => {
 
   const generateDataTables = (data) => {
     console.log(data)
@@ -49,13 +49,13 @@ const DataParamResults = ({ selectedResults }) => {
             columnNames={["Parameter", "Value"]}
           />
         </AccordionTab>
-        <AccordionTab header="Data">
+        {(type!== "clean") && (<AccordionTab header="Data">
           <div className="card">
             {
               generateDataTables(selectedResults.data)
             }
           </div>
-        </AccordionTab>
+        </AccordionTab>)}
       </Accordion>
     </>
   )

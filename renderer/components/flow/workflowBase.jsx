@@ -1,5 +1,5 @@
 /* eslint-disable react/prop-types */
-import React, { useRef, useCallback, useEffect, useContext, useState } from "react"
+import { useRef, useCallback, useEffect, useContext, useState } from "react"
 import { toast } from "react-toastify"
 import ReactFlow, { Controls, ControlButton, Background, MiniMap, addEdge, useReactFlow } from "reactflow"
 import { FlowFunctionsContext } from "./context/flowFunctionsContext"
@@ -46,7 +46,7 @@ import { ErrorRequestContext } from "../generalPurpose/errorRequestContext"
  * This component is used to display a workflow.
  * It manages base workflow functions such as node creation, node deletion, node connection, etc.
  */
-const WorkflowBase = ({ isGoodConnection, groupNodeHandlingDefault, onDeleteNode, onNodeDrag, mandatoryProps, ui, uiTopLeft, uiTopRight, uiTopCenter, customOnConnect }) => {
+const WorkflowBase = ({ isGoodConnection, groupNodeHandlingDefault, onDeleteNode, onNodeDrag, isExperiment, mandatoryProps, ui, uiTopLeft, uiTopRight, uiTopCenter, customOnConnect }) => {
   const { reactFlowInstance, setReactFlowInstance, addSpecificToNode, nodeTypes, nodes, setNodes, onNodesChange, edges, setEdges, onEdgesChange, runNode } = mandatoryProps
 
   const edgeUpdateSuccessful = useRef(true)
@@ -156,13 +156,13 @@ const WorkflowBase = ({ isGoodConnection, groupNodeHandlingDefault, onDeleteNode
       const setHasRunRec = (obj) => {
         Object.keys(obj).forEach((id) => {
           setHasRun(id)
-          setHasRunRec(obj[id].next_nodes)
+          obj[id].next_nodes && setHasRunRec(obj[id].next_nodes)
         })
       }
       if (Object.keys(flowResults).length > 0) {
         Object.keys(flowResults).forEach((id) => {
           setHasRun(id)
-          setHasRunRec(flowResults[id].next_nodes)
+          flowResults[id].next_nodes && setHasRunRec(flowResults[id].next_nodes)
         })
       } else {
         nodes.forEach((node) => {
@@ -245,10 +245,12 @@ const WorkflowBase = ({ isGoodConnection, groupNodeHandlingDefault, onDeleteNode
 
       const setHasRunRec = (obj) => {
         Object.keys(obj).forEach((id) => {
-          Object.keys(obj[id].next_nodes).forEach((nextId) => {
-            setHasRun(id, nextId)
-          })
-          setHasRunRec(obj[id].next_nodes)
+          if (obj[id].next_nodes) {
+            Object.keys(obj[id].next_nodes).forEach((nextId) => {
+              setHasRun(id, nextId)
+            })
+            obj[id].next_nodes && setHasRunRec(obj[id].next_nodes)
+          }
         })
       }
 
@@ -256,7 +258,7 @@ const WorkflowBase = ({ isGoodConnection, groupNodeHandlingDefault, onDeleteNode
         Object.keys(flowResults[id].next_nodes).forEach((nextId) => {
           setHasRun(id, nextId)
         })
-        setHasRunRec(flowResults[id].next_nodes)
+        flowResults[id].next_nodes && setHasRunRec(flowResults[id].next_nodes)
       })
       edges.forEach((edge) => {
         edge.data ? (edge.data.hasRun = edgesHasRun.includes(edge.id)) : (edge.data = { hasRun: edgesHasRun.includes(edge.id) })
@@ -281,7 +283,7 @@ const WorkflowBase = ({ isGoodConnection, groupNodeHandlingDefault, onDeleteNode
         node.data = {
           ...node.data
         }
-        node.draggable = !showResultsPane
+        node.draggable = node.id.startsWith("box-") ? false : !showResultsPane
         return node
       })
     )
@@ -325,6 +327,11 @@ const WorkflowBase = ({ isGoodConnection, groupNodeHandlingDefault, onDeleteNode
           isValidConnection = true
         }
       })
+
+      // Special check: split -> clean is not allowed
+      if (sourceNode.data.internal.type === "split" && targetNode.data.internal.type === "clean") {
+        isValidConnection = false
+      }
 
       // if isGoodConnection is defined, check if the connection is valid again with the isGoodConnection function
       isGoodConnection && (isValidConnection = isValidConnection && isGoodConnection(params))
@@ -605,10 +612,9 @@ const WorkflowBase = ({ isGoodConnection, groupNodeHandlingDefault, onDeleteNode
                 onChange={(e) => setShowAvailableNodes(!e.value)}
                 className="btn-ctl-available-nodes"
               />
-
               <ToggleButton
-                onLabel="Results mode on"
-                offLabel="See results"
+                onLabel={isExperiment ? "Results mode on" : "Analysis mode on"}
+                offLabel={isExperiment ? "See results" : "Analysis mode"}
                 onIcon="pi pi-chart-bar"
                 offIcon="pi pi-eye"
                 disabled={!isResults}

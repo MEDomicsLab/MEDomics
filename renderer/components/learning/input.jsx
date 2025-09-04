@@ -8,9 +8,7 @@ import { Markup } from "interweave"
 import WsSelect from "../mainPages/dataComponents/wsSelect"
 import WsSelectMultiple from "../mainPages/dataComponents/wsSelectMultiple"
 import TagsSelectMultiple from "../mainPages/dataComponents/tagsSelectMultiple"
-import { customZipFile2Object } from "../../utilities/customZipFile"
 import { DataContext } from "../workspace/dataContext"
-import MedDataObject from "../workspace/medDataObject"
 import { Dropdown } from "primereact/dropdown"
 import { MultiSelect } from "primereact/multiselect"
 import VarsSelectMultiple from "../mainPages/dataComponents/varsSelectMultiple"
@@ -39,10 +37,10 @@ const createOption = (label) => ({
  * This component is used to display a Input component.
  * it handles multiple types of input and format them to be similar
  */
-const Input = ({ name, settingInfos, currentValue, onInputChange, disabled, setHasWarning = () => {}, customProps }) => {
+const Input = ({ name, settingInfos, currentValue, onInputChange, disabled = false, setHasWarning = () => {}, customProps }) => {
   const [inputUpdate, setInputUpdate] = useState({})
   const [inputValue, setInputValue] = useState("")
-  const { globalData, setGlobalData } = useContext(DataContext)
+  const { globalData } = useContext(DataContext)
 
   /**
    *
@@ -143,7 +141,10 @@ const Input = ({ name, settingInfos, currentValue, onInputChange, disabled, setH
               <Form.Control
                 disabled={disabled}
                 type="number"
-                defaultValue={currentValue}
+                step={settingInfos.step || "1"}
+                min={settingInfos.min}
+                max={settingInfos.max}
+                value={currentValue}
                 onChange={(e) =>
                   setInputUpdate({
                     name: name,
@@ -164,8 +165,10 @@ const Input = ({ name, settingInfos, currentValue, onInputChange, disabled, setH
               <Form.Control
                 disabled={disabled}
                 type="number"
-                step="0.1"
-                defaultValue={currentValue}
+                step={settingInfos.step || "0.05"}
+                min={settingInfos.min}
+                max={settingInfos.max}
+                value={currentValue}
                 onChange={(e) =>
                   setInputUpdate({
                     name: name,
@@ -234,7 +237,7 @@ const Input = ({ name, settingInfos, currentValue, onInputChange, disabled, setH
         return (
           <>
             <FloatingLabel controlId={name} label={name} className=" input-hov">
-              <Form.Select
+              <Form.Control
                 disabled={disabled}
                 defaultValue={currentValue}
                 onChange={(e) => {
@@ -257,11 +260,7 @@ const Input = ({ name, settingInfos, currentValue, onInputChange, disabled, setH
                     type: settingInfos.type
                   })
                 }}
-              >
-                <option value="" hidden></option>
-                <option value="True">True</option>
-                <option value="False">False</option>
-              </Form.Select>
+              />
             </FloatingLabel>
             {createTooltip(settingInfos.tooltip, name)}
           </>
@@ -276,13 +275,13 @@ const Input = ({ name, settingInfos, currentValue, onInputChange, disabled, setH
                 {...customProps}
                 disabled={disabled}
                 value={{ name: currentValue }}
-                onChange={(e) =>
+                onChange={(e) => {
                   setInputUpdate({
                     name: name,
                     value: e.target.value.name,
                     type: settingInfos.type
                   })
-                }
+                }}
                 options={Object.entries(settingInfos.choices).map(([option]) => {
                   return {
                     name: option
@@ -296,33 +295,76 @@ const Input = ({ name, settingInfos, currentValue, onInputChange, disabled, setH
         )
       // for list input (form select of all the options, multiple selection possible)
       case "list-multiple":
-        return (
-          <>
-            <MultiSelect
-              key={name}
-              disabled={disabled}
-              value={currentValue ? currentValue.value : []}
-              onChange={(newValue) =>
-                setInputUpdate({
-                  name: name,
-                  value: newValue,
-                  type: settingInfos.type
-                })
-              }
-              options={Object.entries(currentValue).map(([option]) => {
-                return {
-                  label: option,
-                  value: option
-                }
-              })}
-              optionLabel="name"
-              display="chip"
-              className="w-full md:w-20rem"
-            />
+      const safeValue = Array.isArray(currentValue) ? currentValue : (currentValue ? [currentValue] : []);
 
-            {createTooltip(settingInfos.tooltip, name)}
-          </>
-        )
+      return (
+        <>
+          <label htmlFor={name} className="block mb-2 text-sm font-medium text-gray-700">
+            {settingInfos.label || name}
+          </label>
+
+          <MultiSelect
+            key={name}
+            id={name}
+            disabled={disabled}
+            value={safeValue}
+            filter
+            onChange={(e) => {
+              setInputUpdate({
+                name,
+                value: e.value,
+                type: settingInfos.type,
+              });
+            }}
+            options={Object.entries(settingInfos?.choices || {}).map(([option, label]) => ({
+              label,
+              value: option,
+            }))}
+            optionLabel="label"
+            display="chip"
+            className="w-full md:w-20rem"
+          />
+
+          {createTooltip(settingInfos.tooltip, name)}
+        </>
+      );
+
+      // for list input but with name not indexes (form select of all the options, multiple selection possible)
+      case "list-multiple-name":
+      const safeValue1 = Array.isArray(currentValue) ? currentValue : (currentValue ? [currentValue] : []);
+
+      return (
+        <>
+          <label htmlFor={name} className="block mb-2 text-sm font-medium text-gray-700">
+            {settingInfos.label || name}
+          </label>
+
+          <MultiSelect
+            key={name}
+            id={name}
+            disabled={disabled}
+            value={safeValue1}
+            filter
+            onChange={(e) => {
+              setInputUpdate({
+                name,
+                value: e.value,
+                type: settingInfos.type,
+              });
+            }}
+            options={Object.entries(settingInfos?.choices || {}).map(([option, label]) => ({
+              name: label,
+              value: label,
+            }))}
+            optionLabel="name"
+            display="chip"
+            className="w-full md:w-20rem"
+          />
+
+          {createTooltip(settingInfos.tooltip, name)}
+        </>
+      );
+
       // for range input
       case "range":
         return (
@@ -405,16 +447,15 @@ const Input = ({ name, settingInfos, currentValue, onInputChange, disabled, setH
                 selectedPath={currentValue}
                 acceptedExtensions={["csv"]}
                 acceptFolder={settingInfos.acceptFolder ? settingInfos.acceptFolder : false}
-                onChange={(e, path) => {
-                  console.log("e", e, path)
-                  if (path == "") {
-                    setHasWarning({ state: true, tooltip: <p>No file selected</p> })
+                onChange={(e) => {
+                  if (!e.target.value) {
+                    setHasWarning({ state: true, tooltip: <p>No file(s) selected</p> })
                   } else {
                     setHasWarning({ state: false })
                   }
                   setInputUpdate({
                     name: name,
-                    value: { name: e.target.value, path: path },
+                    value: { id: e.target.value, name: globalData[e.target.value]?.name || "" },
                     type: settingInfos.type
                   })
                 }}
@@ -425,9 +466,6 @@ const Input = ({ name, settingInfos, currentValue, onInputChange, disabled, setH
         )
 
       case "data-input-multiple":
-        console.log("currentValue", currentValue)
-        console.log("settingInfos", settingInfos)
-        console.log("name", name)
         return (
           <>
             <WsSelectMultiple
@@ -440,7 +478,6 @@ const Input = ({ name, settingInfos, currentValue, onInputChange, disabled, setH
               matchRegex={new RegExp("T[0-9]*_(w+)?")}
               acceptFolder={settingInfos.acceptFolder ? settingInfos.acceptFolder : false}
               onChange={(value) => {
-                console.log("e", value)
                 if (value.length === 0) {
                   setHasWarning({ state: true, tooltip: <p>No file(s) selected</p> })
                 } else {
@@ -454,6 +491,7 @@ const Input = ({ name, settingInfos, currentValue, onInputChange, disabled, setH
               }}
               setHasWarning={setHasWarning}
               whenEmpty={<Message severity="warn" text="No file(s) found in the workspace under '/learning' folder containing 'TX_' prefix (X is a number)" />}
+              customProps={customProps}
             />
             {createTooltip(settingInfos.tooltip, name)}
           </>
@@ -490,7 +528,6 @@ const Input = ({ name, settingInfos, currentValue, onInputChange, disabled, setH
               selectedDatasets={settingInfos.selectedDatasets}
               selectedVars={currentValue}
               onChange={(value) => {
-                console.log("e", value)
                 setInputUpdate({
                   name: name,
                   value: value,
@@ -509,39 +546,74 @@ const Input = ({ name, settingInfos, currentValue, onInputChange, disabled, setH
               <WsSelect
                 selectedPath={currentValue}
                 acceptedExtensions={["medmodel"]}
-                onChange={(e, path) => {
-                  console.log("e", e, path)
+                onChange={(e) => {
+                  if (!e.target.value) {
+                    setHasWarning({ state: true, tooltip: <p>No file(s) selected</p> })
+                  } else {
+                    setHasWarning({ state: false })
+                  }
                   setInputUpdate({
                     name: name,
-                    value: { name: e.target.value, path: path },
+                    value: { id: e.target.value, name: globalData[e.target.value]?.name || "" },
                     type: settingInfos.type
                   })
-                  if (path != "") {
-                    customZipFile2Object(path)
-                      .then((content) => {
-                        setInputUpdate({
-                          name: name,
-                          value: { name: e.target.value, path: path, metadata: content.metadata },
-                          type: settingInfos.type
-                        })
-                        console.log("content", content)
-                        let modelDataObject = MedDataObject.checkIfMedDataObjectInContextbyPath(path, globalData)
-                        modelDataObject.metadata.content = content.metadata
-                        setGlobalData({ ...globalData })
-                      })
-                      .catch((error) => {
-                        console.log("error", error)
-                      })
-                    setHasWarning({ state: false })
-                  } else {
-                    setHasWarning({ state: true, tooltip: <p>No model selected</p> })
-                  }
                 }}
               />
             </FloatingLabel>
             {createTooltip(settingInfos.tooltip, name)}
           </>
         )
+      case "dataframe":
+        return (
+          <>
+            <FloatingLabel id={name} controlId={name} label={name} className=" input-hov">
+              <WsSelect
+                disabled={disabled}
+                selectedPath={currentValue}
+                acceptedExtensions={["csv"]}
+                acceptFolder={settingInfos.acceptFolder ? settingInfos.acceptFolder : false}
+                onChange={(e, path) => {
+                  console.log("e", e, path)
+                  if (path == "") {
+                    setHasWarning({ state: true, tooltip: <p>No file selected</p> })
+                  } else {
+                    setHasWarning({ state: false })
+                  }
+                  setInputUpdate({
+                    name: name,
+                    value: { name: e.target.value, path: path },
+                    type: settingInfos.type
+                  })
+                }}
+              />
+            </FloatingLabel>
+            {createTooltip(settingInfos.tooltip, name)}
+          </>
+        )
+
+        case "float-bool":
+          return (
+            <>
+              <FloatingLabel controlId={name} label={name} className=" input-hov">
+                <Form.Control
+                  disabled={settingInfos.disabled || disabled || settingInfos.forceBootstrap632}
+                  type="number"
+                  step={settingInfos.step || "0.05"}
+                  min={settingInfos.min}
+                  max={settingInfos.max}
+                  value={settingInfos.forceBootstrap632 ? 0.632 : currentValue}
+                  onChange={(e) =>
+                    setInputUpdate({
+                      name: name,
+                      value: parseFloat(e.target.value),
+                      type: "float"
+                    })
+                  }
+                />
+              </FloatingLabel>
+              {createTooltip(settingInfos.tooltip, name)}
+            </>
+          )
 
       // for all the other types of input (basically a string input for now)
       default:

@@ -1,10 +1,10 @@
 import React, { useEffect, useState, useCallback, useRef, useContext } from "react"
+import { ipcRenderer } from "electron"
 import { PanelGroup, Panel, PanelResizeHandle } from "react-resizable-panels"
 import Image from "next/image"
 import resizable from "../../styles/resizable.module.css"
 import IconSidebar from "../layout/iconSidebar"
 import Home from "../mainPages/home"
-import Input from "../mainPages/input"
 import Learning from "../mainPages/learning"
 import ExtractionMEDimagePage from "../mainPages/extractionMEDimage"
 import ExtractionImagePage from "../mainPages/extractionImage"
@@ -15,24 +15,18 @@ import ExploratoryPage from "../mainPages/exploratory"
 import ResultsPage from "../mainPages/results"
 import ApplicationPage from "../mainPages/application"
 import HomeSidebar from "./sidebarTools/pageSidebar/homeSidebar"
+import GeneralModuleSidebar from "./sidebarTools/pageSidebar/generalModuleSidebar"
 import ExplorerSidebar from "./sidebarTools/pageSidebar/explorerSidebar"
-import SearchSidebar from "./sidebarTools/pageSidebar/searchSidebar"
-import LayoutTestSidebar from "./sidebarTools/pageSidebar/layoutTestSidebar"
-import InputSidebar from "./sidebarTools/pageSidebar/inputSidebar"
 import FlowSceneSidebar from "./sidebarTools/pageSidebar/flowSceneSidebar"
-import ExtractionSidebar from "./sidebarTools/pageSidebar/extractionSidebar"
 import EvaluationSidebar from "./sidebarTools/pageSidebar/evaluationSidebar"
-import MEDflSidebar from "./sidebarTools/pageSidebar/medflSidebar"
-import MED3paSidebar from "./sidebarTools/pageSidebar/med3paSidebar"
-import { ipcRenderer } from "electron"
 import { MainContainer } from "./flexlayout/mainContainerClass"
 import EvaluationPage from "../mainPages/evaluation"
-import SidebarDirectoryTreeControlled from "./sidebarTools/directoryTree/sidebarDirectoryTreeControlled"
-import { Accordion, Stack } from "react-bootstrap"
 import { LayoutModelContext } from "./layoutContext"
 import { WorkspaceContext } from "../workspace/workspaceContext"
 import { requestBackend } from "../../utilities/requests"
 import { toast } from "react-toastify"
+import NotificationOverlay from "../generalPurpose/notificationOverlay"
+
 import os from "os"
 
 const LayoutManager = (props) => {
@@ -55,19 +49,24 @@ const LayoutManager = (props) => {
   useEffect(() => {
     console.log("port set to: ", port)
     if (port) {
-      requestBackend(
-        port,
-        "clearAll",
-        { data: "clearAll" },
-        (data) => {
-          console.log("clearAll received data:", data)
-          toast.success("Go server is connected and ready !")
-        },
-        (error) => {
-          console.log("clearAll error:", error)
-          toast.error("Go server is not connected !")
+      ipcRenderer.invoke("getBundledPythonEnvironment").then((res) => {
+        console.log("Python embedded: " + res)
+        if (res !== null) {
+          requestBackend(
+            port,
+            "clearAll",
+            { data: "clearAll" },
+            (data) => {
+              console.log("clearAll received data:", data)
+              toast.success("Go server is connected and ready !")
+            },
+            (error) => {
+              console.log("clearAll error:", error)
+              toast.error("Go server is not connected !")
+            }
+          )
         }
-      )
+      })
     }
   }, [port])
 
@@ -110,7 +109,7 @@ const LayoutManager = (props) => {
    */
   const handleSidebarItemSelect = (selectedItem) => {
     setActiveSidebarItem(selectedItem) // Update activeNavItem state with selected item
-    ipcRenderer.send("messageFromNext", "updateWorkingDirectory")
+    //ipcRenderer.send("messageFromNext", "updateWorkingDirectory")
   }
 
   // Render content component based on activeNavItem state
@@ -121,8 +120,6 @@ const LayoutManager = (props) => {
       switch (activeSidebarItem) {
         case "home":
           return <Home />
-        case "input":
-          return <Input pageId="42" />
         case "learning":
           return <Learning pageId="123" />
         case "extractionMEDimage":
@@ -143,8 +140,6 @@ const LayoutManager = (props) => {
           return <EvaluationPage />
         case "application":
           return <ApplicationPage />
-        case "layoutTest":
-          return <MainContainer />
         default:
       }
     }
@@ -156,24 +151,18 @@ const LayoutManager = (props) => {
         return <HomeSidebar />
       case "explorer":
         return <ExplorerSidebar />
-      case "search":
-        return <SearchSidebar />
-      case "layoutTest":
-        return <LayoutTestSidebar />
-      case "input":
-        return <InputSidebar />
       case "learning":
-        return <FlowSceneSidebar type="learning" />
-      case "extractionText":
-        return <ExtractionSidebar />
-      case "extractionTS":
-        return <ExtractionSidebar />
-      case "extractionImage":
-        return <ExtractionSidebar />
+        return (
+          <GeneralModuleSidebar pageTitle="Learning">
+            <FlowSceneSidebar type="learning" />
+          </GeneralModuleSidebar>
+        )
       case "extractionMEDimage":
-        return <FlowSceneSidebar type="extractionMEDimage" />
-      case "MEDprofilesViewer":
-        return <InputSidebar />
+        return (
+          <GeneralModuleSidebar pageTitle="Extraction MEDimage">
+            <FlowSceneSidebar type="extractionMEDimage" />
+          </GeneralModuleSidebar>
+        )
       case "evaluation":
         return <EvaluationSidebar />
       case "medfl":
@@ -186,12 +175,7 @@ const LayoutManager = (props) => {
       default:
         return (
           <>
-            <Stack direction="vertical" gap={3} style={{ marginLeft: "0.5rem" }}>
-              <h5 style={{ color: "#d3d3d3", marginLeft: "0.5rem" }}>{activeSidebarItem}</h5>
-              <Accordion defaultActiveKey={["0"]} alwaysOpen>
-                <SidebarDirectoryTreeControlled />
-              </Accordion>
-            </Stack>
+            <GeneralModuleSidebar pageTitle={activeSidebarItem.charAt(0).toUpperCase() + activeSidebarItem.slice(1)} />
           </>
         )
     }
@@ -288,8 +272,16 @@ const LayoutManager = (props) => {
               {renderContentComponent({ props })} {/* Render content component based on activeNavItem state */}
             </Panel>
           </PanelGroup>
+          <NotificationOverlay />
           <div className="quebec-flag-div">
-            <Image className="quebec-flag" src="/images/QUEBEC-FLAG.jpg" alt="Quebec flag" width="750" height="500" style={{ opacity: quebecFlagDisplay ? "1" : "0", height: quebecFlagDisplayHeight, zIndex: quebecFlagZIndex }} />
+            <Image
+              className="quebec-flag"
+              src="/images/QUEBEC-FLAG.jpg"
+              alt="Quebec flag"
+              width="750"
+              height="500"
+              style={{ opacity: quebecFlagDisplay ? "1" : "0", height: quebecFlagDisplayHeight, zIndex: quebecFlagZIndex }}
+            />
           </div>
         </div>
       </div>

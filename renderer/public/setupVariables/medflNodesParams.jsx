@@ -11,7 +11,8 @@ const nodesParams = {
     output: ["dataset"],
     img: "dataset.png",
     title: "Dataset",
-    possibleSettings: flSettings["dataset"]
+    section: "initialization",
+    possibleSettings: {}
   },
 
   network: {
@@ -23,28 +24,30 @@ const nodesParams = {
     output: ["network"],
     img: "network.png",
     title: "Network",
+    section: "initialization",
     possibleSettings: {}
   },
-  fl_setup: {
-    type: "flSetupNode",
-    classes: "object ",
-    nbInput: 1,
-    nbOutput: 1,
-    input: ["network"],
-    output: ["fl_setup"],
-    img: "flsetup.png",
-    title: "FL Setup",
-    possibleSettings: {}
-  },
+  // fl_setup: {
+  //   type: "flSetupNode",
+  //   classes: "object ",
+  //   nbInput: 1,
+  //   nbOutput: 1,
+  //   input: ["network"],
+  //   output: ["fl_setup"],
+  //   img: "flsetup.png",
+  //   title: "FL Setup",
+  //   possibleSettings: {}
+  // },
   fl_dataset: {
     type: "flDatasetNode",
     classes: "object dataset",
     nbInput: 1,
     nbOutput: 1,
-    input: ["fl_setup"],
+    input: ["network"],
     output: ["fl_dataset"],
     img: "fldatabase.png",
     title: "FL Dataset",
+    section: "initialization",
     possibleSettings: {}
   },
   model: {
@@ -52,7 +55,7 @@ const nodesParams = {
     classes: "object model",
     nbInput: 1,
     nbOutput: 1,
-    input: ["fl_dataset" ],
+    input: ["fl_dataset"],
     output: ["model"],
     img: "model.png",
     title: "Model",
@@ -64,10 +67,11 @@ const nodesParams = {
     classes: "action optimize run",
     nbInput: 2,
     nbOutput: 1,
-    input: ["dataset"  , "model"],
+    input: ["dataset", "model"],
     output: ["model"],
     img: "optimize.png",
     title: "Optimize",
+    section: "train",
     possibleSettings: {}
   },
 
@@ -80,6 +84,7 @@ const nodesParams = {
     output: ["fl_strategy"],
     img: "strategy.png",
     title: "FL Strategy",
+    section: "train",
     possibleSettings: {}
   },
   // fl_pipeline: {
@@ -125,7 +130,7 @@ const nodesParams = {
     img: "save_model.png",
     title: "Save results",
     possibleSettings: {}
-  }, 
+  },
   merge_results: {
     type: "flMergeresultsNode",
     classes: "object",

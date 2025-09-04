@@ -1,15 +1,21 @@
+import json
 import os
+import sys
 import threading
 import time
-import json
-from explainerdashboard import RegressionExplainer, ClassifierExplainer, ExplainerDashboard
-import sys
+import types
 from pathlib import Path
-sys.path.append(
-    str(Path(os.path.dirname(os.path.abspath(__file__))).parent.parent))
-from med_libs.server_utils import go_print, find_next_available_port, load_csv, get_model_from_path, is_port_in_use, load_med_standard_data
+
+import numpy as np
+from explainerdashboard import ClassifierExplainer, ExplainerDashboard, RegressionExplainer
+
+sys.path.append(str(Path(os.path.dirname(os.path.abspath(__file__))).parent.parent))
 from med_libs.GoExecutionScript import GoExecutionScript, parse_arguments
-from med_libs.CustomZipFile import CustomZipFile
+from med_libs.mongodb_utils import (connect_to_mongo, get_child_id_by_name,
+                                    get_dataset_as_pd_df,
+                                    get_pickled_model_from_collection)
+from med_libs.server_utils import (find_next_available_port, go_print,
+                                   is_port_in_use, load_csv, load_med_standard_data)
 
 CLASSIFIER_NOT_SUPPORTING_NAN = [
     "LogisticRegression",
@@ -28,18 +34,12 @@ CLASSIFIER_NOT_SUPPORTING_NAN = [
     "LinearDiscriminantAnalysis",
     "ExtraTreesClassifier",
     ]
-
 REGRESSOR_NOT_SUPPORTING_NAN = [] # TODO: add regressors not supporting nan
     
-import numpy as np
-import types 
+
 def predict_proba(self, X):
     pred = self.predict(X)
     return np.array([1-pred, pred]).T 
-
-
-
-
 
 json_params_dict, id_ = parse_arguments()
 
@@ -59,7 +59,6 @@ class GoExecScriptOpenDashboard(GoExecutionScript):
         self.speed = 2  # rows/second
         self.row_count = 10000
         self.ed:ExplainerDashboard = None
-        self.CustZipFileModel = CustomZipFile(".medmodel")
         self.is_calculating = True
         self.progress_thread = threading.Thread(target=self._update_progress_periodically, args=())
         self.progress_thread.daemon = True
@@ -72,16 +71,20 @@ class GoExecScriptOpenDashboard(GoExecutionScript):
         This function is the main script opening the dashboard
         """
         go_print(json.dumps(json_config, indent=4))
+
+        # Initialize data and load model
+        db = connect_to_mongo()
         model_infos = json_config['model']
-        ml_type = model_infos['metadata']['ml_type']
-        dashboard_name = json_config['dashboardName']
         dataset_infos = json_config['dataset']
+        ml_type = json_config['ml_type']
+        target = json_config['target']
+        dashboard_name = json_config['dashboardName']
         sample_size = json_config['sampleSizeFrac']
-        pickle_path = json_config['modelObjPath']
-        self.model = get_model_from_path(pickle_path)
-        os.remove(pickle_path)
+        pickle_object_id = get_child_id_by_name(model_infos['id'], "model.pkl")
+        self.model = get_pickled_model_from_collection(pickle_object_id)
 
         go_print(f"model loaded: {self.model}")
+        
         columns_to_keep = None
         # Get the feature names from the model
         if dir(self.model).__contains__('feature_names_in_'):
@@ -92,10 +95,20 @@ class GoExecScriptOpenDashboard(GoExecutionScript):
             
         use_med_standard = json_config['useMedStandard']
         if use_med_standard:
-            temp_df = load_med_standard_data(dataset_infos['selectedDatasets'], model_infos['metadata']['selectedTags'],
-                                         model_infos['metadata']['selectedVariables'], model_infos['metadata']['target'])
+            temp_df = load_med_standard_data(
+                db,
+                dataset_infos['selectedDatasets'],
+                json_config['selectedVariables'], 
+                target
+            )
+        elif 'path' in dataset_infos:
+            temp_df = load_csv(dataset_infos['path'], model_infos['target'])
+        elif 'id' in dataset_infos:
+            temp_df = get_dataset_as_pd_df(dataset_infos['id'])
         else:
-            temp_df = load_csv(dataset_infos['path'], model_infos['metadata']['target'])
+            print("dataset_infos", dataset_infos)
+            raise ValueError("Dataset has no ID and is not MEDomicsLab standard")
+            
         if sample_size < 1:
             temp_df = temp_df.sample(frac=sample_size)
 
@@ -109,18 +122,27 @@ class GoExecScriptOpenDashboard(GoExecutionScript):
         if ml_type == "classification" and self.model.__class__.__name__ in CLASSIFIER_NOT_SUPPORTING_NAN:
             # temp_df.fillna(temp_df.mean(), inplace=True)
             temp_df.dropna(how='any', inplace=True)
-
+        
+        # Remove columns with spaces in the name
+        temp_df.columns = temp_df.columns.str.replace(' ', '_')
+        
+        # Add the target to the columns to keep if it's not already there
         if columns_to_keep is not None:
-            # Add the target to the columns to keep if it's not already there
-            if model_infos['metadata']['target'] not in columns_to_keep:
-                columns_to_keep.append(model_infos['metadata']['target'])        
+            if target not in columns_to_keep:
+                columns_to_keep.append(target)        
             # Keep only the columns that are in the model
             temp_df = temp_df[columns_to_keep]     
 
-        X_test = temp_df.drop(columns=model_infos['metadata']['target'])
-        y_test = temp_df[model_infos['metadata']['target']]
+        X_test = temp_df.drop(columns=target)
+        y_test = temp_df[target]
         explainer = None
         if ml_type == "classification":
+            # Check if y is binary (only two unique values)
+            unique_values = y_test.squeeze().unique()
+            if len(unique_values) == 2:
+                # Proceed with conversion
+                print(f"Converting y to binary {unique_values[0]} is now 0 and {unique_values[1]} is now 1")
+                y_test = y_test.apply(lambda x: 1 if x == unique_values[1] else 0)
             explainer = ClassifierExplainer(self.model, X_test, y_test)
         elif ml_type == "regression":
             explainer = RegressionExplainer(self.model, X_test, y_test)

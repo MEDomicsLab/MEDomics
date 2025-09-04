@@ -2,17 +2,18 @@
 /* eslint-disable no-unused-vars */
 import * as React from "react"
 import { Button } from "primereact/button"
-import { Menu, MenuItem, Intent, HotkeysTarget2, Divider, Collapse } from "@blueprintjs/core"
+import { Collapse, Divider, HotkeysTarget2, Intent, Menu, MenuItem } from "@blueprintjs/core"
 import xlxs from "xlsx"
-import { Column, ColumnHeaderCell, CopyCellsMenuItem, MenuContext, Table2, Utils, EditableCell2, EditableName } from "@blueprintjs/table"
+import { Column, ColumnHeaderCell, CopyCellsMenuItem, EditableCell2, EditableName, MenuContext, Table2, Utils } from "@blueprintjs/table"
 import { Stack } from "react-bootstrap"
 import { ChevronRight, FiletypeCsv, FiletypeJson, FiletypeXlsx } from "react-bootstrap-icons"
 import { PiFloppyDisk } from "react-icons/pi"
 import { toast } from "react-toastify"
-const dfd = require("danfojs")
-import { DataFrame, Utils as danfoUtils } from "danfojs"
+import { DataFrame, Utils as danfoUtils } from "../../utilities/danfo.js"
 import { DataTablePopoverBP } from "./dataTablePopoverBPClass"
 import { deepCopy } from "../../utilities/staticFunctions"
+
+const dfd = require("../../utilities/danfo.js")
 const dfUtils = new danfoUtils()
 
 export type CellLookup = (rowIndex: number, columnIndex: number) => any // function that returns the cell data
@@ -381,9 +382,9 @@ export class DataTableWrapperBPClass extends React.PureComponent<{}, {}> {
   }
 
   /**
-   * @description This function returns the modified data with the sparse cell data
-   * @param data - data to be modified
-   * @returns modifiedData - modified data with the sparse cell data
+   * @description This function returns the modified data with updated values from sparseCellData
+   * @param data - original data
+   * @returns modifiedData - data with updated values from sparseCellData
    */
   public getModifiedData(data: any[]) {
     let modifiedData = []
@@ -681,8 +682,22 @@ export class DataTableWrapperBPClass extends React.PureComponent<{}, {}> {
    * @returns void
    */
   public async saveData(event: React.MouseEvent<HTMLButtonElement, MouseEvent>, data: any) {
-    data = this.getModifiedData(data)
-    let df = new dfd.DataFrame(data)
+    const modifiedData = this.getModifiedData(data)
+    Object.keys(this.state.sparseCellData).forEach((dataKey: string) => {
+      const [rowIndex, columnIndex] = this.decoupleDataKey(dataKey)
+      modifiedData[rowIndex][this.state.columnsNames[columnIndex]] = this.state.sparseCellData[dataKey]
+    })
+
+    // Check if any value in modifiedData contains a comma, if yes, replace it with a point.
+    for (let i = 0; i < modifiedData.length; i++) {
+      for (let j = 0; j < this.state.columnsNames.length; j++) {
+        if (String(modifiedData[i][this.state.columnsNames[j]]).includes(",")) {
+          modifiedData[i][this.state.columnsNames[j]] = modifiedData[i][this.state.columnsNames[j]].replace(",", ".")
+        }
+      }
+    }
+
+    let df = new dfd.DataFrame(modifiedData)
     this.saveColumnsNewNames(df)
     let finalDf = this.addTagsToData(df)
     let finalData = dfd.toJSON(finalDf)
@@ -760,7 +775,9 @@ export class DataTableWrapperBPClass extends React.PureComponent<{}, {}> {
     return (
       <div className="bp-datatable-wrapper">
         <ChevronRight
-          className={`bp-datatable-wrapper-options-icon ${this.state.options.isOpen ? "bp-datatable-wrapper-options-icon-open rotate-90-cw" : "bp-datatable-wrapper-options-icon-closed rotate--90-cw"}`}
+          className={`bp-datatable-wrapper-options-icon ${
+            this.state.options.isOpen ? "bp-datatable-wrapper-options-icon-open rotate-90-cw" : "bp-datatable-wrapper-options-icon-closed rotate--90-cw"
+          }`}
         />
         <div
           className="bp-datatable-wrapper-title"
@@ -930,7 +947,10 @@ export class DataTableWrapperBPClass extends React.PureComponent<{}, {}> {
         intent={this.state.sparseCellIntent[`${rowIndex}-${[this.state.columnIndexMap[columnIndex]]}`]}
         value={this.getCellData(rowIndex, columnIndex)}
         onCancel={this.cellValidator(rowIndex, columnIndex)}
-        onChange={this.cellValidator(rowIndex, columnIndex)}
+        onChange={(newValue) => {
+          this.handleCellChange(rowIndex, columnIndex, newValue)
+          this.cellValidator(rowIndex, columnIndex)(newValue)
+        }}
         onConfirm={this.cellSetter(rowIndex, columnIndex)}
       ></EditableCell2>
     )
@@ -1043,6 +1063,17 @@ export class DataTableWrapperBPClass extends React.PureComponent<{}, {}> {
       const intent = this.isValidValue(value) ? null : Intent.DANGER
       this.setSparseState("sparseCellData", dataKey, value)
     }
+  }
+
+  /**
+   * @description Add event handlers to your table cells to detect modifications
+   * @param rowIndex - row index
+   * @param columnIndex  - column index
+   * @param newValue - new value
+   */
+  private handleCellChange = (rowIndex: number, columnIndex: number, newValue: string) => {
+    const dataKey = this.dataKey(rowIndex, columnIndex)
+    this.setSparseState("sparseCellData", dataKey, newValue)
   }
 
   /**

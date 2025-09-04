@@ -1,16 +1,12 @@
 import "reactflow/dist/style.css"
-import React, { useContext, useEffect, useRef, useState } from "react"
+import { useContext, useEffect, useRef, useState } from "react"
 import SidebarAvailableNodes from "./sidebarAvailableNodes"
 import { ReactFlowProvider } from "reactflow"
 import { FlowInfosProvider, FlowInfosContext } from "./context/flowInfosContext"
 import { FlowResultsContext, FlowResultsProvider } from "./context/flowResultsContext"
 import { FlowFunctionsProvider } from "./context/flowFunctionsContext"
-import { PageInfosContext } from "../mainPages/moduleBasics/pageInfosContext"
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels"
-import { WorkspaceContext, EXPERIMENTS } from "../workspace/workspaceContext"
 import ResultsPane from "./results/resultsPane"
-import MedDataObject from "../workspace/medDataObject"
-import { loadJsonPath } from "../../utilities/fileManagementUtils"
 
 /**
  *
@@ -21,13 +17,11 @@ import { loadJsonPath } from "../../utilities/fileManagementUtils"
  * @description This component is the base for all the flow pages. It contains the sidebar, the flow and the results pane.
  *
  */
-const FlowPageBaseWithFlowInfos = ({ children, workflowType, id }) => {
+const FlowPageBaseWithFlowInfos = ({ children, workflowType, id, isExperiment, runFinalizeAndSave }) => {
   // here is the use of the context to update the flowInfos
   const [isDragging, setIsDragging] = useState(false)
-  const { updateFlowInfos, showAvailableNodes, setSceneName } = useContext(FlowInfosContext)
-  const { showResultsPane, setShowResultsPane, updateFlowResults } = useContext(FlowResultsContext)
-  const { configPath } = useContext(PageInfosContext)
-  const { getBasePath } = useContext(WorkspaceContext)
+  const { updateFlowInfos, showAvailableNodes } = useContext(FlowInfosContext)
+  const { showResultsPane, setShowResultsPane } = useContext(FlowResultsContext)
   const sidebarPanelRef = useRef(null)
   const resultsPanelRef = useRef(null)
 
@@ -37,26 +31,6 @@ const FlowPageBaseWithFlowInfos = ({ children, workflowType, id }) => {
       type: workflowType
     })
   }, [workflowType])
-
-  // this useEffect is used to get the experiment name
-  useEffect(() => {
-    if (configPath) {
-      let pathList = configPath.split(MedDataObject.getPathSeparator())
-      let length = pathList.length
-      let sceneName = pathList[length - 1].split(".")[0]
-      setSceneName(sceneName)
-
-      // check if there are results for this scene
-      let path = [getBasePath(EXPERIMENTS), sceneName, sceneName].join(MedDataObject.getPathSeparator()) + ".medmlres"
-      if (MedDataObject.isPathExists(path)) {
-        let flowResults = loadJsonPath(path)
-        updateFlowResults(flowResults)
-        console.log("Results loaded")
-      } else {
-        console.log("No results")
-      }
-    }
-  }, [configPath])
 
   // useeffect to collapse the sidebar when showAvailableNodes is false and expand it when it is true
   useEffect(() => {
@@ -89,7 +63,7 @@ const FlowPageBaseWithFlowInfos = ({ children, workflowType, id }) => {
       <PanelGroup className="width-100 height-100" style={{ height: "100%", display: "flex", flexGrow: 1 }} direction="horizontal" id={id}>
         {/* Panel is used to create the sidebar, used to be able to resize it on click */}
         <Panel ref={sidebarPanelRef} id={"sidebar" + id} minSize={18.5} maxSize={18.5} defaultSize={0} order={1} collapsible={true} collapsibleSize={5} className="smooth-transition">
-          <SidebarAvailableNodes title="Available Nodes" sidebarType={workflowType} />
+          <SidebarAvailableNodes title="Available Nodes" sidebarType={workflowType} experimenting={isExperiment}/>
         </Panel>
         
         <PanelResizeHandle />
@@ -122,7 +96,7 @@ const FlowPageBaseWithFlowInfos = ({ children, workflowType, id }) => {
                 size > 5 ? setShowResultsPane(true) : setShowResultsPane(false)
               }}
             >
-              <ResultsPane />
+              <ResultsPane runFinalizeAndSave={runFinalizeAndSave} isExperiment={isExperiment} />
             </Panel>
           </PanelGroup>
         </Panel>

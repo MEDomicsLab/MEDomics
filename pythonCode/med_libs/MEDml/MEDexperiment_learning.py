@@ -56,6 +56,9 @@ class MEDexperimentLearning(MEDexperiment):
         if node_type == "dataset":
             from med_libs.MEDml.nodes.Dataset import Dataset
             return Dataset(node_config['id'], self.global_json_config)
+        elif node_type == "split":
+            from med_libs.MEDml.nodes.Split import Split
+            return Split(node_config['id'], self.global_json_config)
         elif node_type == "clean":
             from med_libs.MEDml.nodes.Clean import Clean
             return Clean(node_config['id'], self.global_json_config)
@@ -65,7 +68,7 @@ class MEDexperimentLearning(MEDexperiment):
         elif node_type == "tune_model" or node_type == "ensemble_model" or node_type == "blend_models" or node_type == "stack_models" or node_type == "calibrate_model":
             from med_libs.MEDml.nodes.Optimize import Optimize
             return Optimize(node_config['id'], self.global_json_config)
-        elif node_type == "analyze":
+        elif node_type == "analysis" or node_type == "analyze":
             from med_libs.MEDml.nodes.Analyze import Analyze
             return Analyze(node_config['id'], self.global_json_config)
         elif node_type == "save_model" or node_type == "load_model":
@@ -74,6 +77,9 @@ class MEDexperimentLearning(MEDexperiment):
         elif node_type == "finalize":
             from med_libs.MEDml.nodes.Finalize import Finalize
             return Finalize(node_config['id'], self.global_json_config)
+        elif node_type == "combine_models":
+            from med_libs.MEDml.nodes.CombineModels import CombineModels
+            return CombineModels(node_config['id'], self.global_json_config)
 
     def setup_dataset(self, node: Node):
         """Sets up the dataset for the experiment.\n
@@ -111,9 +117,16 @@ class MEDexperimentLearning(MEDexperiment):
             elif kwargs['use_gpu'] == "False":
                 kwargs['use_gpu'] = False
 
+        if 'index' in kwargs:
+            if kwargs['index'] == "True":
+                kwargs['index'] = True
+            elif kwargs['index'] == "False":
+                kwargs['index'] = False
+
         # add the imports
         node.CodeHandler.add_import("import numpy as np")
         node.CodeHandler.add_import("import pandas as pd")
+        node.CodeHandler.add_import("import pymongo")
         node.CodeHandler.add_import(
             f"from pycaret.{self.global_json_config['MLType']} import *")
 
@@ -134,9 +147,16 @@ class MEDexperimentLearning(MEDexperiment):
         medml_logger = MEDml_logger()
 
         # setup the experiment
-        pycaret_exp.setup(temp_df, log_experiment=medml_logger, **kwargs)
-        node.CodeHandler.add_line(
-            "code", f"pycaret_exp.setup(temp_df, {node.CodeHandler.convert_dict_to_params(kwargs)})")
+        if 'test_data' in kwargs:
+            test_data_df = pd.read_csv(kwargs['test_data']['path'])
+            node.CodeHandler.add_line("code", f"test_data_df = pd.read_csv('{kwargs['test_data']}'")
+            node.CodeHandler.add_line("code", f"pycaret_exp.setup(temp_df, test_data=test_data_df, {node.CodeHandler.convert_dict_to_params(kwargs)})")
+            del kwargs['test_data']
+            pycaret_exp.setup(temp_df, test_data=test_data_df, log_experiment=medml_logger, **kwargs)
+        else:
+            pycaret_exp.setup(temp_df, log_experiment=medml_logger, **kwargs)
+            node.CodeHandler.add_line("code", f"pycaret_exp.setup(temp_df, {node.CodeHandler.convert_dict_to_params(kwargs)})")
+        
         node.CodeHandler.add_line(
             "code", f"dataset = pycaret_exp.get_config('X').join(pycaret_exp.get_config('y'))")
         dataset_metaData = {
@@ -148,12 +168,14 @@ class MEDexperimentLearning(MEDexperiment):
         self.global_json_config["columns"] = copy.deepcopy(list(
             temp_df.columns.values.tolist()))
         self.global_json_config["target_column"] = kwargs['target']
-        self.global_json_config["steps"] = node.settings['steps']
+        if "steps" in node.settings:
+            self.global_json_config["steps"] = node.settings['steps']
+        else:
+            self.global_json_config["steps"] = None
         if 'tags' in node.settings:
             self.global_json_config["selectedTags"] = node.settings['tags']
         if 'variables' in node.settings:
             self.global_json_config["selectedVariables"] = node.settings['variables']
-        self.global_json_config["steps"] = node.settings['steps']
         self.pipelines_objects[node.id]['results']['data'] = {
             "table": dataset_metaData['dataset'].to_json(orient='records'),
             "paths": node.get_path_list(),

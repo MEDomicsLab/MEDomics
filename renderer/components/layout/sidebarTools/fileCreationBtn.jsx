@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect } from "react"
+import { useRef, useState, useEffect } from "react"
 import { Button } from "primereact/button"
 import { InputText } from "primereact/inputtext"
 import { OverlayPanel } from "primereact/overlaypanel"
@@ -15,12 +15,13 @@ import { InputSwitch } from 'primereact/inputswitch';
  * @description - This component is used to create a file in the sidebar
  * @returns - A button to create a file
  */
-const FileCreationBtn = ({ createEmptyFile, label = "Create Page", piIcon = "pi-plus", handleClickCreateScene, checkIsNameValid, hasMedStandrad }) => {
+const FileCreationBtn = ({ createEmptyFile, label = "Create Page", piIcon = "pi-plus", handleClickCreateScene, checkIsNameValid, hasMedStandrad, type }) => {
   const createSceneRef = useRef(null)
   const [btnCreateSceneState, setBtnCreateSceneState] = useState(false)
   const [sceneName, setSceneName] = useState("") // We initialize the experiment name state to an empty string
   const [showErrorMessage, setShowErrorMessage] = useState(false) // We initialize the create experiment error message state to an empty string
   const [useMedStandard, setUseMedStandard] = useState(false)
+  const [experimentScene, setExperimentScene] = useState(false)
 
   // We use the useEffect hook to update the create experiment error message state when the experiment name changes
   useEffect(() => {
@@ -62,7 +63,11 @@ const FileCreationBtn = ({ createEmptyFile, label = "Create Page", piIcon = "pi-
    */
   const handleFileCreation = (e) => {
     createSceneRef.current.toggle(e)
-    createEmptyFile(sceneName, useMedStandard)
+    if (type && type === "learning") {
+      createEmptyFile(sceneName, experimentScene)
+    } else {
+      createEmptyFile(sceneName, useMedStandard)
+    }
   }
 
   /**
@@ -73,7 +78,11 @@ const FileCreationBtn = ({ createEmptyFile, label = "Create Page", piIcon = "pi-
     if (e.key === "Enter") {
       if (defaultCheckIsNameValid(sceneName)) {
         createSceneRef.current.toggle(e)
-        createEmptyFile(sceneName, useMedStandard)
+        if (type && type === "learning") {
+          createEmptyFile(sceneName, experimentScene)
+        } else {
+          createEmptyFile(sceneName, useMedStandard)
+        }
       }
     }
   }
@@ -97,6 +106,13 @@ const FileCreationBtn = ({ createEmptyFile, label = "Create Page", piIcon = "pi-
                 {showErrorMessage ? "Page name is empty, contains spaces or already exists" : ""}
               </small>
               {
+                (type && type === "learning") &&
+                  <div className="p-field-checkbox">
+                    <label htmlFor="medStandard">Experimental Scene</label>
+                    <InputSwitch id="medStandard" checked={experimentScene} onChange={(e) => setExperimentScene(e.value)} />
+                  </div>
+              }
+              {
                 hasMedStandrad &&
                 <div>
                   <div className="p-field-checkbox">
@@ -109,8 +125,8 @@ const FileCreationBtn = ({ createEmptyFile, label = "Create Page", piIcon = "pi-
 
             <hr className="solid" />
             <div className="button-group">
-              <Button label="Cancel" icon="pi pi-times" iconPos="right" onClick={(e) => createSceneRef.current.toggle(e)} />
-              <Button label="Create" type="submit" icon="pi pi-plus" iconPos="right" disabled={!btnCreateSceneState} onClick={handleFileCreation} />
+              <Button label="Create" type="submit" icon="pi pi-plus" iconPos="left" disabled={!btnCreateSceneState} onClick={handleFileCreation} />
+              <Button label="Cancel" icon="pi pi-times" iconPos="left" onClick={(e) => createSceneRef.current.toggle(e)} />
             </div>
           </div>
         </div>

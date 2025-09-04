@@ -1,12 +1,15 @@
 import json
 import os
-import pandas as pd
 import sys
 from pathlib import Path
-sys.path.append(
-    str(Path(os.path.dirname(os.path.abspath(__file__))).parent.parent))
-from med_libs.server_utils import go_print
+
+import pandas as pd
+
+sys.path.append(str(Path(os.path.dirname(os.path.abspath(__file__))).parent.parent))
+
 from med_libs.GoExecutionScript import GoExecutionScript, parse_arguments
+from med_libs.mongodb_utils import connect_to_mongo
+from med_libs.server_utils import go_print
 
 json_params_dict, id_ = parse_arguments()
 go_print("running script.py:" + id_)
@@ -25,12 +28,12 @@ class GoExecGetMasterCsv(GoExecutionScript):
         super().__init__(json_params, _id)
         self.results = {"data": "nothing to return"}
 
-    def file_matching_master_format(self, csv_path):
+    def file_matching_master_format(self, df):
         """
         Return True if the csv file in parameter match the master table format.
         """
-        df = pd.read_csv(csv_path, low_memory=False, skiprows=[1])
-        df_start = pd.read_csv(csv_path, nrows=1)
+        df_start = df.iloc[:1]  # Simulating nrows=1
+        df = df.drop(index=0).reset_index(drop=True)  # Simulating skiprows=[1]
         
         # The column names must be 'PatientID', 'Date', 'Time_point' and the others must contains '_'
         if df.columns[0] != "PatientID" or df.columns[1] != "Date" or df.columns[2] != "Time_point":
@@ -48,7 +51,7 @@ class GoExecGetMasterCsv(GoExecutionScript):
                 return False
 
         # The first column (removing 1st line) must contains str or int
-        if df.dtypes[0] != "int64" and not (df.dtypes[0] == "object" and isinstance(df[df.columns[0]].values[0], str)):
+        if first_line[0] != "num" and not (df.dtypes[0] == "object" and first_line[0] == "string"):
             return False
 
         # The second column (removing 1st line) must contains datetime values
@@ -62,18 +65,16 @@ class GoExecGetMasterCsv(GoExecutionScript):
             return False
 
         # The others columns (removing 1st line) must contains num values
-        for i in range(3, len(df.dtypes)):
-            if df.dtypes[i] != "float64" and df.dtypes[i] != "int64":
+        for i in range(3, len(first_line)):
+            if first_line[i] != "num":
                 return False
             
         return True
 
-    def file_matching_submaster_format(self, csv_path):
+    def file_matching_submaster_format(self, df):
         """
         Return True if the csv file in parameter match the submaster table format.
         """
-        df = pd.read_csv(csv_path, low_memory=False)
-
         # The first column must be identifiers
         if df.dtypes[0] != "int64" and not (df.dtypes[0] == "object" and isinstance(df[df.columns[0]].values[0], str)):
             return False
@@ -100,19 +101,25 @@ class GoExecGetMasterCsv(GoExecutionScript):
         go_print(json.dumps(json_config, indent=4))
 
         # Get csv path
-        csv_paths = json_config["csvPaths"]
+        collections = json_config["csvCollections"]
 
         # Initialize lists of csv matching formats
         submaster_csv = []
         master_csv = []
 
-        # Identify csv paths matching the formats
-        for csv_path in csv_paths:
-            if self.file_matching_master_format(csv_path):
-                master_csv.append(csv_path)
-            if self.file_matching_submaster_format(csv_path):
-                submaster_csv.append(csv_path)
+        # Connect to MongoDB
+        db = connect_to_mongo()
 
+        # Identify csv paths matching the formats
+        for collection in collections:
+            df = pd.DataFrame(list(db[collection].find()))
+            if '_id' in df.columns:
+                df = df.drop('_id', axis=1)
+                if self.file_matching_master_format(df):
+                    master_csv.append(collection)
+                if self.file_matching_submaster_format(df):
+                    submaster_csv.append(collection)
+        
         # Update json_config
         json_config["master_csv"] = master_csv
         json_config["submaster_csv"] = submaster_csv

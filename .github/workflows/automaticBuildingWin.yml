@@ -1,0 +1,119 @@
+name: Full build and publish with versioning
+on:
+  push:
+    tags:
+      - "w*" # Push events to matching v*, i.e. v1.0, v20.15.10
+permissions:
+  contents: write
+jobs:
+  build-windows:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18.13
+
+      - name: Get tag name
+        shell: bash
+        run: |
+          VERSION=${GITHUB_REF/refs\/tags\//} # Remove "refs/tags/" from the beginning of the tag name 
+          NEW_VERSION="${VERSION#w}"
+          node -p "let pkg=require('./package.json'); pkg.version='$NEW_VERSION'; require('fs').writeFileSync('package.json', JSON.stringify(pkg, null, 2));"
+
+      - name: Print package.json
+        run: Get-Content package.json
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Setup Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: 1.21
+
+      - name: Build go
+        run: |
+          cd go_server
+          go build main.go 
+          cd ..
+
+      - name: Prebuild libmongocrypt
+        run: bash ./utilScripts/libmongocrypt_prebuild.sh
+
+      - name: Build for Windows
+        run: npm run build:win
+
+      - name: Get tag name
+        id: get-tag
+        shell: bash
+        run: |
+          VERSION=${GITHUB_REF/refs\/tags\//}
+          echo "::set-output name=VERSION::${VERSION#w}"
+
+      - name: Archive Windows
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-built
+          path: ./build/dist/MEDomicsLab-${{ env.VERSION }}-win.exe
+        env:
+          VERSION: ${{ steps.get-tag.outputs.VERSION }}
+
+  # Publish to GitHub
+  publish:
+    needs: [build-windows]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download Windows
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-built
+
+      - name: Install zip
+        run: sudo apt-get install zip
+
+      - name: Move files out of pythonEnv - to root
+        run: |
+          mv ./pythonEnv/requirements.txt ./requirements.txt
+          mv ./pythonEnv/requirements_mac.txt ./requirements_mac.txt
+          mv ./pythonEnv/conda_env_osx64.yml ./conda_env_osx64.yml
+          mv ./pythonEnv/create_conda_env_win.bat ./create_conda_env_win.bat
+          mv ./pythonEnv/create_conda_env_linux.sh ./create_conda_env_linux.sh
+          mv ./pythonEnv/create_conda_env_mac_yml.sh ./create_conda_env_mac_yml.sh
+          mv ./pythonEnv/create_conda_env_mac.sh ./create_conda_env_mac.sh
+          ls -R
+
+      - name: zip Windows
+        run: zip -r MEDomicsLab-PythonEnv-win.zip ./requirements.txt ./create_conda_env_win.bat
+
+      - name: Get tag name
+        id: get-tag
+        run: |
+          VERSION=${GITHUB_REF/refs\/tags\//}
+          echo "::set-output name=VERSION::${VERSION#w}"
+
+      - name: Publish to GitHub
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            ./MEDomicsLab-${{ env.VERSION }}-win.exe
+            ./MEDomicsLab-PythonEnv-win.zip
+          name: MEDomicsLab-${{ env.VERSION }}
+          body: |
+            MEDomicsLab-${{ env.VERSION }}
+            This is a full release of MEDomicsLab. This release includes the MEDomicsLab application and the Python environment.
+            Refer to the [Documentation](https://medomics-udes.gitbook.io/medomicslab-docs/)
+            ${{ github.ref }}
+          draft: true
+          prerelease: false
+          token: ${{ secrets.GITHUB_TOKEN }}
+        env:
+          VERSION: ${{ steps.get-tag.outputs.VERSION }}

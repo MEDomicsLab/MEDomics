@@ -7,8 +7,9 @@ import * as Icon from "react-bootstrap-icons"
 import { FlowFunctionsContext } from "../../flow/context/flowFunctionsContext"
 import { Stack } from "react-bootstrap"
 import { DataContext } from "../../workspace/dataContext"
-import MedDataObject from "../../workspace/medDataObject"
 import { FlowInfosContext } from "../../flow/context/flowInfosContext"
+import { getCollectionData } from "../../dbComponents/utils"
+import { MEDDataObject } from "../../workspace/NewMedDataObject"
 
 /**
  *
@@ -36,14 +37,17 @@ const LoadModelNode = ({ id, data }) => {
 
   // update the node internal data when the selection changes
   useEffect(() => {
-    if (globalData && modelInfo) {
-      let modelDataObject = MedDataObject.checkIfMedDataObjectInContextbyPath(data.internal.settings.model_to_load.path, globalData)
-      if (modelDataObject && modelDataObject.metadata.content) {
-        let modelData = modelDataObject.metadata.content
-        console.log("modelData", modelData)
-        checkPreviousDatasetFormat(modelData)
+    const getModelData = async () => {
+      if (globalData && modelInfo) {
+        const modelDataObject = globalData[modelInfo.id]
+        if (modelDataObject) {
+          const metadataObjectID = MEDDataObject.getChildIDWithName(globalData, modelDataObject.id, "metadata.json")
+          const modelData = await getCollectionData(metadataObjectID)
+          checkPreviousDatasetFormat(modelData[0])
+        }
       }
     }
+    getModelData()
   }, [globalData, modelInfo])
 
   /**
@@ -132,22 +136,15 @@ const LoadModelNode = ({ id, data }) => {
   const checkPreviousDatasetFormat = (modelData) => {
     let pipelines = findAllPaths(flowContent)
     pipelines.forEach((pipeline) => {
-      console.log("pipeline", pipeline)
       if (pipeline.includes(id)) {
-        console.log("id", id)
-        console.log(flowContent)
         let datasetNode = flowContent.nodes.find((node) => node.id == pipeline[0])
-        console.log("datasetNode", datasetNode)
 
         let datasetNodeModelData = datasetNode.data.internal.settings
-        console.log("datasetNodeModelData", datasetNodeModelData)
         let datasetNodeModelDataFormatted = {}
         if (datasetNodeModelData.columns && datasetNodeModelData.target) {
           datasetNodeModelDataFormatted = { columns: Object.keys(datasetNodeModelData.columns), target: datasetNodeModelData.target }
         }
-        console.log("datasetNodeModelDataFormatted", datasetNodeModelDataFormatted)
         let modelDataFormatted = { columns: modelData.columns, target: modelData.target }
-        console.log("modelData", modelData)
         if (JSON.stringify(datasetNodeModelDataFormatted) == JSON.stringify(modelDataFormatted)) {
           datasetNode.data.internal.hasWarning = { state: false }
         } else {
@@ -229,7 +226,16 @@ const LoadModelNode = ({ id, data }) => {
               <>
                 <Stack direction="vertical" gap={1}>
                   {Object.entries(data.setupParam.possibleSettings.default).map(([settingName, setting]) => {
-                    return <Input setHasWarning={handleWarning} key={settingName} name={settingName} settingInfos={setting} currentValue={data.internal.settings[settingName]} onInputChange={onInputChange} />
+                    return (
+                      <Input
+                        setHasWarning={handleWarning}
+                        key={settingName}
+                        name={settingName}
+                        settingInfos={setting}
+                        currentValue={data.internal.settings[settingName].id}
+                        onInputChange={onInputChange}
+                      />
+                    )
                   })}
                 </Stack>
               </>
@@ -247,10 +253,20 @@ const LoadModelNode = ({ id, data }) => {
             <ModalSettingsChooser show={modalShow} onHide={() => setModalShow(false)} options={data.setupParam.possibleSettings.options} data={data} id={id} />
             {/* the inputs for the options */}
             {data.internal.checkedOptions.map((optionName) => {
-              return <Input key={optionName} name={optionName} settingInfos={data.setupParam.possibleSettings.options[optionName]} currentValue={data.internal.settings[optionName]} onInputChange={onInputChange} />
+              return (
+                <Input
+                  key={optionName}
+                  name={optionName}
+                  settingInfos={data.setupParam.possibleSettings.options[optionName]}
+                  currentValue={data.internal.settings[optionName]}
+                  onInputChange={onInputChange}
+                />
+              )
             })}
           </>
         }
+        // Link to documentation
+        nodeLink={"https://medomics-udes.gitbook.io/medomicslab-docs/tutorials/development/learning-module"}
       />
     </>
   )

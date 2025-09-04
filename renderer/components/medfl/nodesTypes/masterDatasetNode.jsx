@@ -29,6 +29,8 @@ export default function MasterDatasetNode({ id, data }) {
       id: id,
       updatedData: data.internal
     })
+
+    console.log("MasterDatasetNode data", data)
   }, [])
 
   /**
@@ -164,7 +166,7 @@ export default function MasterDatasetNode({ id, data }) {
                 <Icon.Plus width="30px" height="30px" className="img-fluid" />
               </Button>
               {/* the modal component*/}
-              <ModalSettingsChooser show={modalShow} onHide={() => setModalShow(false)} options={data.setupParam.possibleSettings.options} data={data} id={id} />
+              {/* <ModalSettingsChooser show={modalShow} onHide={() => setModalShow(false)} options={data.setupParam.possibleSettings.options} data={data} id={id} /> */}
               {/* the inputs for the options */}
               {data.internal.checkedOptions.map((optionName) => {
                 return (

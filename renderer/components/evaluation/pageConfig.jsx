@@ -41,11 +41,6 @@ const PageConfig = ({
   useEffect(() => {
     setChosenDataset({ selectedDatasets })
     updateWarnings(useMedStandard)
-  }, [])
-
-  useEffect(() => {
-    setChosenDataset({ selectedDatasets })
-    updateWarnings(useMedStandard)
   }, [selectedDatasets])
 
   // header template
@@ -78,7 +73,7 @@ const PageConfig = ({
             <Input
               name="Choose model to evaluate"
               settingInfos={{ type: "models-input", tooltip: "" }}
-              currentValue={config.model}
+              currentValue={config.model?.id}
               onInputChange={(data) => setChosenModel(data.value)}
               setHasWarning={setModelHasWarning}
             />

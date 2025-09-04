@@ -5,6 +5,8 @@ import pandas as pd
 import dtale
 import sys
 import os
+import pymongo
+
 from pathlib import Path
 sys.path.append(
     str(Path(os.path.dirname(os.path.abspath(__file__))).parent.parent))
@@ -74,9 +76,15 @@ class GoExecScriptDTale(GoExecutionScript):
         """
         This function is used to run the dashboard
         """
+        # MongoDB setup
+        mongo_client = pymongo.MongoClient("mongodb://localhost:54017/")
+        database = mongo_client["data"]
+        collection = database[self.json_config["dataset"]["id"]]
+        collection_data = collection.find({}, {'_id': False})
+        df = pd.DataFrame(list(collection_data))
+
+        # DTale
         self.dataset = self.json_config['dataset']
-        df = pd.read_csv(self.dataset['path'])
-        # startup(data_id=self.dtale_id, data=df, name=self.dataset['name'].split(".")[0].capitalize())
         d = dtale.show(df, subprocess=False, port=self.port, force=True)
         self.is_calculating = False
 

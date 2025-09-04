@@ -1,11 +1,11 @@
-import React, { useContext, useState, useEffect } from "react"
 import { Button } from "primereact/button"
-import { InputText } from "primereact/inputtext"
-import { Row, Col } from "react-bootstrap"
 import { Dropdown } from "primereact/dropdown"
-import MedDataObject from "../workspace/medDataObject"
-import { DataContext } from "../workspace/dataContext"
+import { InputText } from "primereact/inputtext"
 import { Message } from "primereact/message"
+import React, { useContext, useEffect, useState } from "react"
+import { Col, Row } from "react-bootstrap"
+import { getPathSeparator } from "../../utilities/fileManagementUtils"
+import { DataContext } from "../workspace/dataContext"
 
 /**
  * Component for saving datasets with options to set name, extension, and overwrite existing datasets.
@@ -47,10 +47,10 @@ const SaveDataset = ({
     if (newDatasetName?.length > 0 && selectedDataset) {
       let pathToCheck = ""
       if (pathToCheckInto) {
-        pathToCheck = pathToCheckInto + MedDataObject.getPathSeparator() + name
+        pathToCheck = pathToCheckInto + getPathSeparator() + name
       } else {
         let newDatasetPathParent = globalData[selectedDataset.parentID].path
-        pathToCheck = newDatasetPathParent + MedDataObject.getPathSeparator() + name
+        pathToCheck = newDatasetPathParent + getPathSeparator() + name
       }
       Object.entries(globalData).map((arr) => {
         if (arr[1].path === pathToCheck) {

@@ -1,7 +1,7 @@
 import React, { useContext, useState } from "react"
 import { PageInfosContext } from "../mainPages/moduleBasics/pageInfosContext"
 import ProgressBarRequests from "../generalPurpose/progressBarRequests"
-import DataTableWrapperBPClass from "../dataTypeVisualisation/dataTableWrapperBPClass"
+import DataTableFromDB from "../dbComponents/dataTableFromDB"
 
 /**
  *
@@ -11,7 +11,7 @@ import DataTableWrapperBPClass from "../dataTypeVisualisation/dataTableWrapperBP
  * @returns the PredictPanel of the evaluation page content
  */
 const PredictPanel = ({ isUpdating, setIsUpdating, data }) => {
-  const { pageId, config } = useContext(PageInfosContext) // we get the pageId to send to the server
+  const { pageId } = useContext(PageInfosContext) // we get the pageId to send to the server
   const [progressValue, setProgressValue] = useState(0) // we use this to store the progress value of the dashboard
 
   /**
@@ -31,18 +31,18 @@ const PredictPanel = ({ isUpdating, setIsUpdating, data }) => {
       {!isUpdating && data ? (
         <>
           <div style={{ overflow: "auto", height: "500px" }}>
-            <DataTableWrapperBPClass
-              data={data.data}
-              config={{
-                extension: "csv",
-                name: "predictedData",
-                path: config.model.path.replace(".medmodel", ".csv")
-              }}
-            />
+            <DataTableFromDB data={{ id: data.collection_id }} isReadOnly={true} />
           </div>
         </>
       ) : (
-        <ProgressBarRequests isUpdating={isUpdating} setIsUpdating={setIsUpdating} progress={{ now: progressValue }} setProgress={(prog) => setProgressValue(prog.now)} requestTopic={"evaluation/progress/predict/" + pageId} onDataReceived={onProgressDataReceived} />
+        <ProgressBarRequests
+          isUpdating={isUpdating}
+          setIsUpdating={setIsUpdating}
+          progress={{ now: progressValue }}
+          setProgress={(prog) => setProgressValue(prog.now)}
+          requestTopic={"evaluation/progress/predict/" + pageId}
+          onDataReceived={onProgressDataReceived}
+        />
       )}
     </div>
   )

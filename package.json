@@ -2,7 +2,7 @@
   "private": true,
   "name": "medomicslab-application",
   "description": "MEDomicsLab application",
-  "version": "0.0.1",
+  "version": "1.5.0",
   "author": "MEDomicsLab Team",
   "main": "app/background.js",
   "build": {
@@ -21,6 +21,7 @@
       "./pythonCode/**/*",
       "./baseFiles/**/*",
       "./go_executables/**/*",
+      "./pythonEnv/**/*",
       "!./pythonCode/venv/**/*",
       "!./pythonCode/.idea/**/*",
       "!*.git/**/*"
@@ -32,8 +33,13 @@
     ],
     "extends": null,
     "mac": {
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false,
       "category": "public.app-category.developer-tools",
-      "target": "dmg"
+      "target": "pkg"
+    },
+    "pkg": {
+      "isRelocatable": false
     },
     "win": {
       "target": "nsis",
@@ -42,8 +48,11 @@
     "nsis": {},
     "linux": {
       "target": "deb",
-      "icon": "app/assets/icon.png",
+      "icon": "resources/icons",
       "maintainer": "medomicslab.udes@gmail.com"
+    },
+    "deb": {
+      "afterInstall": "build/after-install.sh"
     },
     "publish": null
   },
@@ -79,6 +88,7 @@
     "d3": "^7.8.5",
     "danfojs": "^1.2.0",
     "danfojs-node": "^1.2.0",
+    "csv-parser": "^3.0.0",
     "decompress": "^4.2.1",
     "directory-tree": "^3.5.1",
     "drawflow": "^0.0.60",
@@ -90,7 +100,8 @@
     "electron-store": "^8.1.0",
     "eslint-config-next": "^13.5.3",
     "eslint-config-prettier": "^8.10.0",
-    "eslint-plugin-prettier": "^5.0.0",
+    "eslint-plugin-prettier": "^5.2.3",
+    "file-saver": "^2.0.5",
     "flexlayout-react": "^0.7.7",
     "html-react-parser": "^3.0.12",
     "html5-file-selector": "^2.1.0",
@@ -103,10 +114,15 @@
     "msw": "^2.4.3",
     "nock": "^14.0.4",
     "prettier": "^3.0.3",
-    "primeicons": "^6.0.1",
+    "lodash": "^4.17.21",
+    "mongodb": "^6.6.2",
+    "mongodb-client-encryption": "^6.0.1",
+    "node-sys": "^1.2.4",
+    "papaparse": "^5.4.1",
+    "primeicons": "^7.0.0",
     "primereact": "^9.6.2",
-    "prismjs": "^1.30.0",
-    "react-ace": "^10.1.0",
+    "prismjs": "^1.29.0",
+    "react-ace": "^14.0.1",
     "react-bootstrap-icons": "^1.10.3",
     "react-bootstrap-sidebar-menu": "^2.0.3",
     "react-complex-tree": "^2.2.2",
@@ -152,7 +168,7 @@
     "eslint-plugin-react": "^7.32.2",
     "next": "^13.5.3",
     "nextron": "^8.5.0",
-    "prettier": "^3.0.3",
+    "prettier": "^3.4.2",
     "react": "^18.2.0",
     "react-bootstrap": "^2.7.1",
     "react-dom": "^18.2.0"

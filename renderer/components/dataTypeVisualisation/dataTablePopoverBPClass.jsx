@@ -4,10 +4,9 @@ import { Select } from "@blueprintjs/select"
 import { Tag } from "react-bootstrap-icons"
 import { Stack } from "react-bootstrap"
 import { DataContext } from "../workspace/dataContext"
-import { Utils as danfoUtils } from "danfojs"
+import { Utils as danfoUtils } from "../../utilities/danfo.js"
 import { deepCopy } from "../../utilities/staticFunctions"
 import { Chip } from "primereact/chip"
-import { generateRandomColor } from "../input/taggingUtils"
 
 const dfUtils = new danfoUtils()
 
@@ -46,6 +45,16 @@ const DataTablePopoverBP = (props) => {
       default:
         return "Numerical"
     }
+  }
+
+  /**
+   * Generate random color
+   * @returns {string} - Random color
+   * @summary This function is used to generate a random color
+   */
+  const generateRandomColor = () => {
+    let color = "#" + Math.floor(Math.random() * 16777215).toString(16)
+    return color
   }
 
   const getColumnNameFromIndex = (index) => {
@@ -213,14 +222,30 @@ const DataTablePopoverBP = (props) => {
   return (
     <>
       <div direction="vertical" style={{ cursor: "default", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
-        <div className="datatable-tags" direction="horizontal" style={{ overflowX: "auto", padding: "0rem", border: "1px solid transparent", display: "flex", width: "100%", whiteSpace: "nowrap", textAlign: "center" }}>
+        <div
+          className="datatable-tags"
+          direction="horizontal"
+          style={{ overflowX: "auto", padding: "0rem", border: "1px solid transparent", display: "flex", width: "100%", whiteSpace: "nowrap", textAlign: "center" }}
+        >
           {tags &&
             Object.keys(tags).map((tag, index) => {
               let color = tags[tag].color
               let fontColor = tags[tag].fontColor
-              let style = { backgroundColor: color, color: fontColor, cursor: "default", marginRight: "5px", textAlign: "center", display: "inline-flex", alignItems: "strech", justifyContent: "center" }
+              let style = {
+                backgroundColor: color,
+                color: fontColor,
+                cursor: "default",
+                marginRight: "5px",
+                textAlign: "center",
+                display: "inline-flex",
+                alignItems: "strech",
+                justifyContent: "center"
+              }
               return (
-                <div key={"div_chip" + index} style={{ minWidth: "fit-content", width: "100%", display: "inline-flex", flexGrow: "1", alignSelf: "center", justifyContent: "center", alignContent: "center", alignItems: "center" }}>
+                <div
+                  key={"div_chip" + index}
+                  style={{ minWidth: "fit-content", width: "100%", display: "inline-flex", flexGrow: "1", alignSelf: "center", justifyContent: "center", alignContent: "center", alignItems: "center" }}
+                >
                   <Chip className="custom-token custom-bp-table" key={"chip" + index} label={tag} style={style} />
                 </div>
               )
@@ -245,7 +270,17 @@ const DataTablePopoverBP = (props) => {
               <Select
                 items={getUniqueValues()}
                 itemRenderer={(item, { handleClick, modifiers }) => {
-                  return <MenuItem selected={item === props.filterValue(props.index).filterValue} active={modifiers.active} disabled={modifiers.disabled} key={item} onClick={handleClick} text={item} roleStructure="listoption" />
+                  return (
+                    <MenuItem
+                      selected={item === props.filterValue(props.index).filterValue}
+                      active={modifiers.active}
+                      disabled={modifiers.disabled}
+                      key={item}
+                      onClick={handleClick}
+                      text={item}
+                      roleStructure="listoption"
+                    />
+                  )
                 }}
                 onItemSelect={(item, dict) => {
                   console.log("Item selected", item, props.index, dict)
@@ -268,7 +303,13 @@ const DataTablePopoverBP = (props) => {
                 }}
                 filterable={false}
               >
-                <Button rightIcon="caret-down" placeholder="Select value" text={props.filterValue(props.index).filterValue !== "" && props.filterValue(props.index).filterValue ? props.filterValue(props.index).filterValue : "Select value"} style={{ width: "auto", height: "1.5rem" }} small={true} />
+                <Button
+                  rightIcon="caret-down"
+                  placeholder="Select value"
+                  text={props.filterValue(props.index).filterValue !== "" && props.filterValue(props.index).filterValue ? props.filterValue(props.index).filterValue : "Select value"}
+                  style={{ width: "auto", height: "1.5rem" }}
+                  small={true}
+                />
               </Select>
             </>
           )}{" "}

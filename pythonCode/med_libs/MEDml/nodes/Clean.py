@@ -1,13 +1,13 @@
-import pandas as pd
-import numpy as np
 import json
 from typing import Union
-from .NodeObj import *
-from typing import Union
+
+import numpy as np
+import pandas as pd
 from colorama import Fore
+
 from ..logger.MEDml_logger_pycaret import MEDml_logger
 from ..MEDexperiment_learning import create_pycaret_exp
-
+from .NodeObj import *
 
 DATAFRAME_LIKE = Union[dict, list, tuple, np.ndarray, pd.DataFrame]
 TARGET_LIKE = Union[int, str, list, tuple, np.ndarray, pd.Series]
@@ -31,7 +31,6 @@ class Clean(Node):
         """
         This function is used to execute the node.
         """
-        print()
         print(Fore.BLUE + "=== cleaning === " +
               Fore.YELLOW + f"({self.username})" + f"({self.settings})" + Fore.RESET)
 
@@ -57,6 +56,8 @@ class Clean(Node):
                 "code", f"pycaret_exp.setup(data=temp_df, {self.CodeHandler.convert_dict_to_params(setup_settings)})")
         self.CodeHandler.add_line(
             "code", f"dataset = pycaret_exp.get_config('X').join(pycaret_exp.get_config('y'))")
+        self._info_for_next_node = kwargs
+        self._info_for_next_node["cleaning_settings"] = self.settings
         return {
             "experiment": {
             'pycaret_exp': pycaret_exp,

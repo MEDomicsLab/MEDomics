@@ -1,12 +1,15 @@
 import json
 import os
-import pandas as pd
 import sys
 from pathlib import Path
-sys.path.append(
-    str(Path(os.path.dirname(os.path.abspath(__file__))).parent.parent))
-from med_libs.server_utils import go_print
+
+import pandas as pd
+
+sys.path.append(str(Path(os.path.dirname(os.path.abspath(__file__))).parent.parent))
+
 from med_libs.GoExecutionScript import GoExecutionScript, parse_arguments
+from med_libs.mongodb_utils import connect_to_mongo
+from med_libs.server_utils import go_print
 
 MODULE_DIR = str(Path(os.path.dirname(os.path.abspath(__file__))).parent.parent / 'submodules' / 'MEDprofiles')
 sys.path.append(MODULE_DIR)
@@ -14,8 +17,9 @@ sys.path.append(MODULE_DIR)
 SUBMODULE_DIR = str(Path(os.path.dirname(os.path.abspath(__file__))).parent.parent.parent)
 sys.path.append(SUBMODULE_DIR)
 
-# Importation du submodule MEDprofiles
-import submodules.MEDprofiles.MEDprofiles as MEDprofiles
+
+from submodules.MEDprofiles.MEDprofiles.src.back.instantiate_data_from_master_table import *
+from submodules.MEDprofiles.MEDprofiles.src.back.constant import *
 
 json_params_dict, id_ = parse_arguments()
 go_print("running script.py:" + id_)
@@ -43,23 +47,28 @@ class GoExecInitializeMEDprofilesInstantiation(GoExecutionScript):
         go_print(json.dumps(json_config, indent=4))
         
         # Set local variables
-        master_table_path = json_config["masterTablePath"]
+        master_table_id = json_config["masterTableID"]
         MEDprofiles_folder = json_config["MEDprofilesFolderPath"]
-        filename = json_config["filename"]
         MEDclasses_module = os.path.join(MEDprofiles_folder, "MEDclasses")
         if MEDclasses_module not in sys.path:
             sys.path.append(MEDclasses_module)
+                
+        # Connect to MongoDB and get the master table
+        db = connect_to_mongo()
+        master_table = pd.DataFrame(list(db[master_table_id].find())).drop('_id', axis=1)
 
-        # Create MEDprofiles binary file
-        destination_file = os.path.join(MEDprofiles_folder, filename)
-        data_file = open(destination_file, 'ab')
-        data_file.close()
-        json_config["destination_file"] = destination_file
+        # Append indexes to the master table top row
+        master_table.loc[-1] = master_table.columns
+        master_table.index += 1  # shifting index
+        master_table.sort_index(inplace=True)
+        master_table = master_table.drop(INDEX_TYPE_ROW).drop(INDEX_ATTRIBUTE_ROW)
 
-        # Get patient list
-        patient_list = MEDprofiles.src.back.instantiate_data_from_master_table.get_patient_id_list(master_table_path)
+        # Get all the patient id
+        patient_list = list(master_table.transpose().loc[FIXED_COLUMNS[0]].drop_duplicates())
+
+        # Convert all patient ids to string
+        patient_list = [str(patient) for patient in patient_list]        
         json_config["patient_list"] = patient_list
-
 
         self.results = json_config
         return self.results

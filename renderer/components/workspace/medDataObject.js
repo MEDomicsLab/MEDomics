@@ -3,7 +3,7 @@ import * as fs from "fs-extra"
 import { toast } from "react-toastify"
 import { ipcRenderer } from "electron"
 import process from "process"
-import { generateRandomColor } from "../input/taggingUtils"
+// import { generateRandomColor } from "../input/taggingUtils"
 
 /**
  * Represents a data object in the workspace.
@@ -1282,7 +1282,7 @@ export default class MedDataObject {
         for (let tag of tags) {
           if (tag !== "") {
             if (this.metadata.tagsDict[tag] === undefined || this.metadata.tagsDict[tag] === null) {
-              this.metadata.tagsDict[tag] = { color: generateRandomColor(), fontColor: "white" }
+              this.metadata.tagsDict[tag] = { color: "generateRandomColor()", fontColor: "white" }
             }
           }
         }

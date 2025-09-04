@@ -8,14 +8,13 @@ import { Tooltip } from "primereact/tooltip"
 import { LayoutModelContext } from "./layoutContext"
 import { PiFlaskFill } from "react-icons/pi"
 import { FaMagnifyingGlassChart } from "react-icons/fa6"
+import { FaDatabase } from "react-icons/fa6"
 import { LuNetwork } from "react-icons/lu"
 import { Button } from "primereact/button"
 import { TbFileExport, TbDeviceDesktopCog } from "react-icons/tb"
 import { VscChromeClose } from "react-icons/vsc"
 import { PiGraphFill } from "react-icons/pi"
 import { MdOutlineGroups3 } from "react-icons/md"
-import { TbServerCog } from "react-icons/tb"
-import { FaGlobeAfrica } from "react-icons/fa"
 
 /**
  * @description Sidebar component containing icons for each page
@@ -148,7 +147,7 @@ const IconSidebar = ({ onSidebarItemSelect }) => {
           <div className="medomics-layer design">
             <div className="sidebar-icons">
               <Nav.Link
-                className="inputNav btnSidebar"
+                className="inputNav btnSidebar align-center"
                 data-pr-at="right center"
                 data-pr-my="left center"
                 data-pr-tooltip="Input"

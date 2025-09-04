@@ -14,6 +14,20 @@ jobs:
         uses: actions/checkout@v4
         with:
           submodules: recursive
+          fetch-depth: 0 # Fetch full history for branches
+      
+      - name: Checking out the correct branches for submodules
+        run: |
+          git submodule foreach '
+          if [ "$name" = "pythonCode/submodules/MEDimage" ]; then
+            git fetch origin && git checkout -B dev_lab origin/dev_lab && git pull origin dev_lab
+          elif [ "$name" = "pythonCode/submodules/MEDprofiles" ]; then
+            git fetch origin && git checkout -B fusion_MEDomicsLab origin/fusion_MEDomicsLab && git pull origin fusion_MEDomicsLab
+          else
+            echo "No branch specified for $name"
+          fi
+          '
+
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
@@ -43,6 +57,9 @@ jobs:
           go build main.go 
           cd ..
 
+      - name: Prebuild libmongocrypt
+        run: bash ./utilScripts/libmongocrypt_prebuild.sh
+
       - name: Build for Windows
         run: npm run build:win
 
@@ -54,7 +71,7 @@ jobs:
           echo "::set-output name=VERSION::${VERSION#v}"
 
       - name: Archive Windows
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: windows-built
           path: ./build/dist/MEDomicsLab-${{ env.VERSION }}-win.exe
@@ -69,6 +86,19 @@ jobs:
         uses: actions/checkout@v4
         with:
           submodules: recursive
+          fetch-depth: 0 # Fetch full history for branches
+      
+      - name: Checking out the correct branches for submodules
+        run: |
+          git submodule foreach '
+          if [ "$name" = "pythonCode/submodules/MEDimage" ]; then
+            git fetch origin && git checkout -B dev_lab origin/dev_lab && git pull origin dev_lab
+          elif [ "$name" = "pythonCode/submodules/MEDprofiles" ]; then
+            git fetch origin && git checkout -B fusion_MEDomicsLab origin/fusion_MEDomicsLab && git pull origin fusion_MEDomicsLab
+          else
+            echo "No branch specified for $name"
+          fi
+          '
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -98,6 +128,9 @@ jobs:
           go build main.go 
           cd ..
 
+      - name: Prebuild libmongocrypt
+        run: bash ./utilScripts/libmongocrypt_prebuild.sh
+
       - name: Build for Linux
         run: npm run build:linux
 
@@ -113,7 +146,7 @@ jobs:
           VERSION: ${{ steps.get-tag.outputs.VERSION }}
 
       - name: Archive Linux
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: linux-built-ubuntu
           path: ./build/dist/MEDomicsLab-${{ env.VERSION }}-ubuntu.deb
@@ -128,6 +161,20 @@ jobs:
         uses: actions/checkout@v4
         with:
           submodules: recursive
+          fetch-depth: 0 # Fetch full history for branches
+      
+      - name: Checking out the correct branches for submodules
+        run: |
+          git submodule foreach '
+          if [ "$name" = "pythonCode/submodules/MEDimage" ]; then
+            git fetch origin && git checkout -B dev_lab origin/dev_lab && git pull origin dev_lab
+          elif [ "$name" = "pythonCode/submodules/MEDprofiles" ]; then
+            git fetch origin && git checkout -B fusion_MEDomicsLab origin/fusion_MEDomicsLab && git pull origin fusion_MEDomicsLab
+          else
+            echo "No branch specified for $name"
+          fi
+          '
+          
       - name: Setup Go
         uses: actions/setup-go@v4
         with:
@@ -150,7 +197,7 @@ jobs:
       - name: Install Python 2.7
         uses: actions/setup-python@v2
         with:
-          python-version: 3.7
+          python-version: 3.9
       - name: Bash python 1st try
         run: |
           echo $PATH
@@ -205,10 +252,17 @@ jobs:
       - name: Install dependencies
         run: npm install
 
+      - name: Prebuild libmongocrypt
+        run: bash ./utilScripts/libmongocrypt_prebuild.sh
+
       - name: Update version
         run: |
           node -p "let pkg=require('./package.json'); pkg.version='${GITHUB_REF/refs\/tags\//}'; require('fs').writeFileSync('package.json', JSON.stringify(pkg, null, 2));"
           echo "Version updated to ${GITHUB_REF/refs\/tags\//}"
+
+      # Before building the app, allocate more memory to the shell
+      - name: Allocate more memory
+        run: export NODE_OPTIONS=--max-old-space-size=8192
 
       - name: Build for Mac
         run: npm run build:mac
@@ -220,10 +274,10 @@ jobs:
           echo "::set-output name=VERSION::${VERSION#v}"
 
       - name: Archive Mac
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: mac-built
-          path: ./build/dist/MEDomicsLab-${{ env.VERSION }}-mac.dmg
+          path: ./build/dist/MEDomicsLab-${{ env.VERSION }}-mac.pkg
         env:
           VERSION: ${{ steps.get-tag.outputs.VERSION }}
 
@@ -236,17 +290,17 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Download Windows
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: windows-built
 
       - name: Download Linux Ubuntu
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: linux-built-ubuntu
 
       - name: Download Mac
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: mac-built
 
@@ -284,10 +338,7 @@ jobs:
           files: |
             ./MEDomicsLab-${{ env.VERSION }}-win.exe
             ./MEDomicsLab-${{ env.VERSION }}-ubuntu.deb
-            ./MEDomicsLab-${{ env.VERSION }}-mac.dmg
-            ./MEDomicsLab-PythonEnv-win.zip
-            ./MEDomicsLab-PythonEnv-linux.zip
-            ./MEDomicsLab-PythonEnv-mac.zip
+            ./MEDomicsLab-${{ env.VERSION }}-mac.pkg
           name: MEDomicsLab-${{ env.VERSION }}
           body: |
             MEDomicsLab-${{ env.VERSION }}

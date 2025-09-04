@@ -1,16 +1,19 @@
 /* eslint-disable no-undef */
 import React, { useContext, useRef, useState, useEffect } from "react"
-import { Trash, BoxArrowUpRight, Eraser, FolderPlus, ArrowClockwise, EyeFill, EyeSlashFill } from "react-bootstrap-icons"
+import { Trash, BoxArrowUpRight, Eraser, FolderPlus, ArrowClockwise, EyeFill, EyeSlashFill, ArrowRepeat } from "react-bootstrap-icons"
+import { FiFolder } from "react-icons/fi"
 import { Accordion, Stack } from "react-bootstrap"
 import { ControlledTreeEnvironment, Tree } from "react-complex-tree"
 import { DataContext } from "../../../workspace/dataContext"
-import MedDataObject from "../../../workspace/medDataObject"
 import { toast } from "react-toastify"
 import { LayoutModelContext } from "../../layoutContext"
 import { useContextMenu, Menu, Item, Submenu } from "react-contexify"
 import renderItem from "./renderItem"
 import { Tooltip } from "primereact/tooltip"
-import { confirmDialog } from "primereact/confirmdialog"
+import { WorkspaceContext } from "../../../workspace/workspaceContext"
+import { rename, onPaste, onDeleteSequentially, createFolder, onDrop, fromJSONtoTree, evaluateIfTargetIsAChild } from "./utils"
+import { MEDDataObject } from "../../../workspace/NewMedDataObject"
+import { PiImage, PiNotebook, PiPen } from "react-icons/pi"
 
 /**
  * @description - This component is the sidebar tools component that will be used in the sidebar component
@@ -22,6 +25,7 @@ const SidebarDirectoryTreeControlled = ({ setExternalSelectedItems, setExternalD
   const tree = useRef() // This ref is used to get the directory tree
   const MENU_ID = "tree-2" // This is the id of the context menu
   const { show } = useContextMenu() // This is the context menu
+  const { exec } = require("child_process")
 
   const [focusedItem, setFocusedItem] = useState() // This state is used to keep track of the item that is currently focused
   const [expandedItems, setExpandedItems] = useState([]) // This state is used to keep track of the items that are currently expanded
@@ -33,19 +37,39 @@ const SidebarDirectoryTreeControlled = ({ setExternalSelectedItems, setExternalD
   const [isHovering, setIsHovering] = useState(false) // This state is used to know if the mouse is hovering the directory tree
   const [showHiddenFiles, setShowHiddenFiles] = useState(false) // This state is used to know if the user wants to see hidden files or not
   const [isAccordionShowing, setIsAccordionShowing] = useState(true) // This state is used to know if the accordion is collapsed or not
-  const { globalData, setGlobalData } = useContext(DataContext) // We get the global data from the context to retrieve the directory tree of the workspace, thus retrieving the data files
-  const { dispatchLayout, developerMode } = useContext(LayoutModelContext)
   const [isDialogShowing, setIsDialogShowing] = useState(false) // This state is used to know if the dialog is showing or not
   const [dirTree, setDirTree] = useState({}) // We get the directory tree from the workspace
   const [isDropping, setIsDropping] = useState(false) // Set if the item is getting dropped something in (for elements outside of the tree)
+  const [isDirectoryTreeFocused, setIsDirectoryTreeFocused] = useState(false); // New state to track focus
 
+  const { globalData } = useContext(DataContext) // We get the global data from the context to retrieve the directory tree of the workspace, thus retrieving the data files
+  const { dispatchLayout, developerMode, isEditorOpen } = useContext(LayoutModelContext)
+  const { workspace } = useContext(WorkspaceContext)
+
+  const delayOptions = { showDelay: 750, hideDelay: 0 }
+
+  /**
+   * This useEffect hook updates the directory tree when the global data changes.
+   */
   useEffect(() => {
-    console.log("isDialogShowing", isDialogShowing)
-  }, [isDialogShowing])
+    if (globalData) {
+      let newTree = fromJSONtoTree({ ...globalData })
+      setDirTree(newTree)
+    }
+  }, [globalData, showHiddenFiles])
 
   useEffect(() => {
     setExternalSelectedItems && setExternalSelectedItems(selectedItems)
   }, [selectedItems])
+
+  /**
+   * This useEffect hook sets the external double click item when the double click item changes.
+   */
+  useEffect(() => {
+    if (setExternalDBClick) {
+      setExternalDBClick(dbClickedItem)
+    }
+  }, [dbClickedItem])
 
   /**
    * This function handles the key press event. It is attached to the document.
@@ -54,12 +78,9 @@ const SidebarDirectoryTreeControlled = ({ setExternalSelectedItems, setExternalD
    * @note - This function is called when the user presses a key.
    */
   const handleKeyPress = (event) => {
-    if (event.key === "Delete") {
+    if (event.key === "Delete" && tree.current.isRenaming === false) {
       if (selectedItems.length > 0) {
-        console.log("DELETE", selectedItems[0])
-        selectedItems.forEach((item) => {
-          onDelete(item)
-        })
+        onDeleteSequentially(globalData, workspace.workingDirectory.path, setIsDialogShowing, selectedItems)
       }
     } else if (event.code === "KeyC" && event.ctrlKey) {
       setCopiedItems(selectedItems)
@@ -67,9 +88,8 @@ const SidebarDirectoryTreeControlled = ({ setExternalSelectedItems, setExternalD
       setCutItems(selectedItems)
     } else if (event.code === "KeyV" && event.ctrlKey) {
       if (copiedItems.length > 0) {
-        console.log("PASTE", copiedItems)
         copiedItems.forEach((item) => {
-          onPaste(item, selectedItems[0])
+          onPaste(globalData, item, selectedItems[0])
         })
       }
     } else if (event.code === "KeyH" && event.ctrlKey) {
@@ -82,9 +102,8 @@ const SidebarDirectoryTreeControlled = ({ setExternalSelectedItems, setExternalD
       setCutItems(selectedItems)
     } else if (event.code === "KeyV" && event.metaKey) {
       if (copiedItems.length > 0) {
-        console.log("PASTE", copiedItems)
         copiedItems.forEach((item) => {
-          onPaste(item, selectedItems[0])
+          onPaste(globalData, item, selectedItems[0])
         })
       }
     } else if (event.code === "KeyH" && event.metaKey) {
@@ -93,9 +112,8 @@ const SidebarDirectoryTreeControlled = ({ setExternalSelectedItems, setExternalD
     // For mac, add Enter key to rename
     // If os is mac and enter key is pressed
     if (navigator.platform.indexOf("Mac") > -1) {
-      if (event.code === "Enter" && !isDialogShowing) {
+      if (event.code === "Enter" && !isDialogShowing && isDirectoryTreeFocused) {
         // We check if the dialog is showing to avoid renaming when the user is in the process of deleting a file
-        console.log("ENTER", selectedItems[0], tree.current)
         if (tree.current !== undefined) {
           if (tree.current.isRenaming) {
             tree.current.completeRenamingItem()
@@ -103,14 +121,14 @@ const SidebarDirectoryTreeControlled = ({ setExternalSelectedItems, setExternalD
             event.preventDefault()
             event.stopPropagation()
             if (selectedItems.length === 1) {
-              console.log("RENAME", selectedItems[0])
               tree.current.startRenamingItem(selectedItems[0])
             }
           }
         }
       } else if (event.code === "Backspace" && event.metaKey) {
-        console.log("BACKSPACE", selectedItems[0])
-        onDelete(selectedItems[0])
+        if (selectedItems.length > 0) {
+          onDeleteSequentially(globalData, workspace.workingDirectory.path, setIsDialogShowing, selectedItems)
+        }
       }
     }
   }
@@ -119,6 +137,9 @@ const SidebarDirectoryTreeControlled = ({ setExternalSelectedItems, setExternalD
    * This useEffect hook attaches an event listener to the document to listen for key presses.
    */
   useEffect(() => {
+    if(isEditorOpen) {
+      return
+    }
     // attach the event listener
     document.addEventListener("keydown", handleKeyPress)
     // remove the event listener
@@ -128,103 +149,42 @@ const SidebarDirectoryTreeControlled = ({ setExternalSelectedItems, setExternalD
   }, [handleKeyPress])
 
   /**
-   * This function renames a `MedDataObject` in the workspace.
-   * @param {string} uuid - The UUID of the `MedDataObject` to rename
+   * @description This function renames a `MedDataObject` in the workspace.
+   * @param {string} id - The ID of the `MedDataObject` to rename
    * @returns {void}
    * @note this function is useful to rename
    */
-  function onRename(uuid) {
-    setSelectedItems([uuid])
-    tree.current.startRenamingItem(uuid)
+  function onRename(id) {
+    setSelectedItems([id])
+    tree.current.startRenamingItem(id)
+  }
+
+  /**
+   * @description Handles name change in the directory tree
+   * @param {TreeItem} item
+   * @param {String} newName
+   */
+  function handleNameChange(item, newName) {
+    if (isEditorOpen) {
+      toast.error("Please close the editor before renaming")
+      return
+    }
+    rename(globalData, workspace.workingDirectory.path, item, newName)
   }
 
   /**
    * This function opens a `MedDataObject` in the workspace.
-   * @param {string} uuid - The UUID of the `MedDataObject` to open
+   * @param {string} id - The ID of the `MedDataObject` to open
    * @returns {void}
    * @note - This function is called when the user double-clicks on a file or folder in the directory tree, or when the user right-clicks and selects "Open".
    * @todo - This function should open the file in the default application.
    * @README - This function is not implemented yet.
    */
-  function onOpen(uuid) {
-    let dataObjectUUID = uuid
+  function onOpen(id) {
+    let dataObjectID = id
     // eslint-disable-next-line no-unused-vars
-    let path = globalData[dataObjectUUID].path
+    let path = globalData[dataObjectID].path
     // NOOP
-  }
-
-  /**
-   * This function pastes a `MedDataObject` in the workspace.
-   * @param {string} uuid - The UUID of the `MedDataObject` to paste
-   * @param {string} selectedItem - The UUID of the copied `MedDataObject`
-   * @returns {void}
-   * @note - This function is called when the user pastes a file or folder in the directory tree, either by pressing Ctrl+V or by right-clicking and selecting "Paste".
-   */
-  function onPaste(uuid, selectedItem) {
-    let dataObject = globalData[uuid]
-    if (selectedItem == undefined) {
-      console.warn("PASTE - selectedItem undefined")
-      return
-    }
-
-    let selectedItemObject = globalData[selectedItem]
-    if (selectedItemObject.type !== undefined) {
-      if (selectedItemObject.type == "folder") {
-        MedDataObject.copy(dataObject, selectedItemObject, globalData, setGlobalData)
-        MedDataObject.updateWorkspaceDataObject(300)
-      } else {
-        let parentObject = globalData[selectedItemObject.parentID]
-        MedDataObject.copy(dataObject, parentObject, globalData, setGlobalData)
-        MedDataObject.updateWorkspaceDataObject(300)
-      }
-    }
-  }
-
-  /**
-   * This function deletes a `MedDataObject` in the workspace.
-   * @param {string} uuid - The UUID of the `MedDataObject` to delete
-   * @returns {void}
-   * @note - This function is called when the user deletes a file or folder in the directory tree, either by pressing the delete key or by right-clicking and selecting "Delete".
-   */
-  function onDelete(uuid) {
-    // Get the UUID of the `MedDataObject` with the current name from the `globalData` object.
-    const namesYouCantDelete = ["UUID_ROOT", "DATA", "EXPERIMENTS"]
-    if (uuid == "") {
-      toast.warning("Error: UUID not found")
-      return
-    } else if (uuid == "UUID_ROOT") {
-      toast.warning("Error: Cannot delete root")
-      return
-    } else if (globalData[uuid] == undefined) {
-      toast.warning("Error: UUID not found in globalData")
-      return
-    } else if (boolNameInArray(globalData[uuid].name, namesYouCantDelete)) {
-      console.log("Error: This name cannot be deleted")
-      toast.error(`Error: ${globalData[uuid].name} cannot be deleted`)
-      return
-    } else {
-      setIsDialogShowing(true)
-      confirmDialog({
-        message: `Are you sure you want to delete ${globalData[uuid].name}?`,
-        header: "Delete Confirmation",
-        icon: "pi pi-info-circle",
-        closable: false,
-        accept: () => {
-          // If the user confirms the deletion, we delete the `MedDataObject` with the current name and update the `globalData` object.
-          let globalDataCopy = { ...globalData }
-          globalDataCopy = MedDataObject.delete(globalDataCopy[uuid], globalData, dispatchLayout)
-          setGlobalData(globalDataCopy)
-          toast.success(`Deleted ${globalData[uuid].name}`)
-          MedDataObject.updateWorkspaceDataObject(300)
-          setIsDialogShowing(false)
-        },
-        reject: () => {
-          // If the user cancels the deletion, we do nothing.
-          toast.info("Delete cancelled")
-          setIsDialogShowing(false)
-        }
-      })
-    }
   }
 
   /**
@@ -233,11 +193,11 @@ const SidebarDirectoryTreeControlled = ({ setExternalSelectedItems, setExternalD
    *  @param {string} param0.id - The id of the context menu action
    *  @param {Object} param0.props - The props of the context menu action
    */
-  function handleContextMenuAction({ id, props }) {
+  async function handleContextMenuAction({ id, props }) {
     if (developerMode) {
       switch (id) {
-        case "openInDataTableViewer":
-          dispatchLayout({ type: "openInDataTable", payload: props })
+        case "openInDataTableFromDBViewer":
+          dispatchLayout({ type: "openInDataTableFromDBViewer", payload: props })
           break
         case "openInCodeEditor":
           dispatchLayout({ type: "openInCodeEditor", payload: props })
@@ -247,9 +207,6 @@ const SidebarDirectoryTreeControlled = ({ setExternalSelectedItems, setExternalD
           break
         case "openInPDFViewer":
           dispatchLayout({ type: "openInPDFViewer", payload: props })
-          break
-        case "openInTextEditor":
-          dispatchLayout({ type: "openInTextEditor", payload: props })
           break
         case "openInModelViewer":
           dispatchLayout({ type: "openInModelViewer", payload: props })
@@ -273,25 +230,34 @@ const SidebarDirectoryTreeControlled = ({ setExternalSelectedItems, setExternalD
           dispatchLayout({ type: "openInJSONViewer", payload: props })
           break
         case "open":
-          onOpen(props.UUID)
+          onOpen(props.index)
+          break
+        case "sync":
+          MEDDataObject.sync(globalData, props.index, workspace.workingDirectory.path)
+          MEDDataObject.updateWorkspaceDataObject()
           break
         case "rename":
-          onRename(props.UUID)
+          onRename(props.index)
           break
         case "delete":
-          onDelete(props.UUID)
+          onDeleteSequentially(globalData, workspace.workingDirectory.path, setIsDialogShowing, [props.index])
+          break
+        case "rmFromWs":
+          MEDDataObject.deleteObjectAndChildrenFromWorkspace(globalData, props.index, workspace.workingDirectory.path)
           break
         case "revealInFileExplorer":
-          if (globalData[props.UUID] !== undefined) {
-            if (globalData[props.UUID].path !== undefined) {
+          if (globalData[props.index]) {
+            if (globalData[props.index].path) {
               // eslint-disable-next-line no-undef
-              require("electron").shell.showItemInFolder(globalData[props.UUID].path)
+              require("electron").shell.showItemInFolder(globalData[props.index].path)
             } else {
-              toast.error("Error: No path found")
+              toast.error("Error: No path found. The item is not saved locally")
             }
           } else {
             toast.error("Error: No item selected")
           }
+          break
+        default:
           break
       }
     } else {
@@ -305,7 +271,7 @@ const SidebarDirectoryTreeControlled = ({ setExternalSelectedItems, setExternalD
    * @param {Object} item - The item that was double clicked
    * @returns {void}
    */
-  const onDBClickItem = (event, item) => {
+  const onDBClickItem = async (event, item) => {
     if (developerMode) {
       if (item.type == "medml" ) {
         dispatchLayout({ type: "openInLearningModule", payload: item })
@@ -313,11 +279,9 @@ const SidebarDirectoryTreeControlled = ({ setExternalSelectedItems, setExternalD
         dispatchLayout({ type: "openInExtractionMEDimageModule", payload: item })
       } else if (item.type == "medeval") {
         dispatchLayout({ type: "openInEvaluationModule", payload: item })
-      } else if (item.type == "csv" || item.type == "tsv" || item.type == "xlsx") {
-        dispatchLayout({ type: "openInDataTable", payload: item })
-      } else if (item.type == "json") {
-        dispatchLayout({ type: "openInJSONViewer", payload: item })
-      } else if (item.type == "py" || item.type == "ipynb") {
+      } else if (item.type == "csv" || item.type == "tsv" || item.type == "xlsx" || item.type == "view") {
+        dispatchLayout({ type: "openInDataTableFromDBViewer", payload: item })
+      } else if (item.type == "py" || item.type == "json" || item.type == "txt" || item.type == "md") {
         dispatchLayout({ type: "openInCodeEditor", payload: item })
       } else if (item.type == "png" || item.type == "jpg" || item.type == "jpeg" || item.type == "gif" || item.type == "svg") {
         dispatchLayout({ type: "openInImageViewer", payload: item })
@@ -325,8 +289,6 @@ const SidebarDirectoryTreeControlled = ({ setExternalSelectedItems, setExternalD
         dispatchLayout({ type: "openInPDFViewer", payload: item })
       } else if (item.type == "html") {
         dispatchLayout({ type: "openHtmlViewer", payload: item })
-      } else if (item.type == "txt") {
-        dispatchLayout({ type: "openInTextEditor", payload: item })
       } else if (item.type == "medmodel") {
         dispatchLayout({ type: "openInModelViewer", payload: item })
       } else if (item.type == "medflres") {
@@ -343,20 +305,10 @@ const SidebarDirectoryTreeControlled = ({ setExternalSelectedItems, setExternalD
         console.log("DBCLICKED", event, item)
       }
       setDbClickedItem(item)
-      // console.log("DBCLICKED", event, item)
     } else {
       toast.error("Error: Developer mode is enabled")
     }
   }
-
-  /**
-   * This useEffect hook sets the external double click item when the double click item changes.
-   */
-  useEffect(() => {
-    if (setExternalDBClick) {
-      setExternalDBClick(dbClickedItem)
-    }
-  }, [dbClickedItem])
 
   /**
    * This function displays the context menu.
@@ -366,6 +318,7 @@ const SidebarDirectoryTreeControlled = ({ setExternalSelectedItems, setExternalD
    */
   function displayMenu(e, data) {
     console.log("DISPLAY MENU", e, data)
+    setSelectedItems([data.index])
     if (data.isFolder) {
       show({
         id: "MENU_FOLDER",
@@ -378,7 +331,7 @@ const SidebarDirectoryTreeControlled = ({ setExternalSelectedItems, setExternalD
         event: e,
         props: data
       })
-    } else if (data.type == "csv" || data.type == "tsv" || data.type == "xlsx") {
+    } else if (data.type == "csv" || data.type == "tsv" || data.type == "xlsx" || data.type == "view") {
       show({
         id: "MENU_DATA",
         event: e,
@@ -390,9 +343,15 @@ const SidebarDirectoryTreeControlled = ({ setExternalSelectedItems, setExternalD
         event: e,
         props: data
       })
-    } else if (data.type == "py" || data.type == "ipynb") {
+    } else if (data.type == "py") {
       show({
         id: "MENU_CODE",
+        event: e,
+        props: data
+      })
+    } else if (data.type == "ipynb") {
+      show({
+        id: "MENU_JUPYTER",
         event: e,
         props: data
       })
@@ -408,7 +367,7 @@ const SidebarDirectoryTreeControlled = ({ setExternalSelectedItems, setExternalD
         event: e,
         props: data
       })
-    } else if (data.type == "txt") {
+    } else if (data.type == "txt" || data.type == "md") {
       show({
         id: "MENU_TEXT",
         event: e,
@@ -430,202 +389,6 @@ const SidebarDirectoryTreeControlled = ({ setExternalSelectedItems, setExternalD
   }
 
   /**
-   * This function handles the drop of an item in the directory tree.
-   * @param {Array} items - The array of items to drop
-   * @param {Object} target - The target object
-   * @returns {void}
-   * @note - This function is called when the user drops an item in the directory tree.
-   */
-  const onDrop = async (items, target) => {
-    const currentItems = tree.current.treeEnvironmentContext.items
-    for (const item of items) {
-      const parent = Object.values(currentItems).find((potentialParent) => potentialParent.children?.includes(item.index))
-
-      if (!parent) {
-        throw Error(`Could not find parent of item "${item.index}"`)
-      }
-
-      if (!parent.children) {
-        throw Error(`Parent "${parent.index}" of item "${item.index}" did not have any children`)
-      }
-
-      if (target.targetType === "item" || target.targetType === "root") {
-        if (target.targetItem === parent.index) {
-          // NO Operation
-        } else {
-          let dataObject = globalData[item.UUID]
-          if (dataObject.type == "folder") {
-            MedDataObject.move(dataObject, globalData[target.targetItem], globalData, setGlobalData)
-            MedDataObject.updateWorkspaceDataObject()
-          } else {
-            MedDataObject.move(dataObject, globalData[target.targetItem], globalData, setGlobalData)
-            MedDataObject.updateWorkspaceDataObject()
-          }
-        }
-      } else {
-        if (target.parentItem === item.index) {
-          // Trying to drop inside itself
-          return
-        }
-        let dataObject = globalData[item.UUID]
-        if (target.parentItem === dataObject.parentID) {
-          // NO Operation
-        } else {
-          MedDataObject.move(dataObject, globalData[target.parentItem], globalData, setGlobalData)
-          MedDataObject.updateWorkspaceDataObject()
-        }
-      }
-    }
-  }
-
-  /**
-   * This function renames a `MedDataObject` in the workspace.
-   * @param {Object} medObject - The `MedDataObject` to rename
-   * @param {string} newName - The new name of the `MedDataObject`
-   * @returns {void}
-   * @note - This function is called when the user renames a file or folder in the directory tree, either by F2 or by right-clicking and selecting "Rename".
-   */
-  function handleNameChange(medObject, newName) {
-    const namesYouCantRename = ["UUID_ROOT", "DATA", "EXPERIMENTS"]
-    if (newName == "") {
-      toast.error("Error: Name cannot be empty")
-      return
-    } else if (medObject.name == newName) {
-      toast.error("Error: You really wanted to rename to the same name?")
-      return
-    } else if (boolNameInArray(newName, namesYouCantRename)) {
-      toast.error("Error: This name is reserved and cannot be used")
-      return
-    } else if (boolNameInArray(medObject.name, namesYouCantRename)) {
-      console
-      toast.error("Error: This name cannot be changed")
-      return
-    } else if (boolNameInArray(newName, Object.keys(globalData))) {
-      toast.error("Error: This name is already used")
-      return
-    } else {
-      // Check if the new name is the same as the current name.
-      // Get the UUID of the `MedDataObject` with the current name from the `globalData` object.
-      let dataObject = globalData[medObject.UUID]
-      let uuid = medObject.UUID
-      // Rename the `MedDataObject` with the new name and update the `globalData` object.
-      let renamedDataObject = MedDataObject.rename(dataObject, newName, globalData)
-      let globalDataCopy = { ...globalData }
-      globalDataCopy[uuid] = renamedDataObject
-      setGlobalData(globalDataCopy)
-      MedDataObject.updateWorkspaceDataObject()
-    }
-  }
-
-  function boolNameInArray(name, array) {
-    let nameInArray = false
-    array.includes(name) ? (nameInArray = true) : (nameInArray = false)
-    return nameInArray
-  }
-
-  /**
-   * This function creates a new folder in the workspace with the name "New Folder" and the parent folder being the selected folder.
-   * The button that triggers this function is only visible if the accordion is not collapsed.
-   * @param {Array} selectedItems - The array of selected items in the directory tree
-   * @returns {void}
-   */
-  function createFolder(selectedItems) {
-    let selectedItem = selectedItems[0]
-    let selectedItemObject = globalData[selectedItem]
-    let parentObject = undefined
-    if (selectedItemObject !== undefined && selectedItemObject.type !== undefined) {
-      if (selectedItemObject.type == "folder") {
-        parentObject = selectedItemObject
-      } else {
-        parentObject = globalData[selectedItemObject.parentID]
-      }
-
-      MedDataObject.createEmptyFolderFS("New Folder", parentObject.path)
-      MedDataObject.updateWorkspaceDataObject()
-      tree.current.expandItem(parentObject.getUUID()) // We expand the parent folder so that we see the new folder
-    } else {
-      toast.error("Error: Please select a folder")
-    }
-  }
-
-  /**
-   * This function reorders the array of folders and files so that the folders are first and the files are last.
-   * @param {Array} array - The array of folders and files
-   * @param {Object} dataContextObject - The data context object
-   * @returns {Array} - The reordered array of folders and files
-   */
-  function reorderArrayOfFoldersAndFiles(array, dataContextObject) {
-    let folders = []
-    let files = []
-    array.forEach((item) => {
-      if (dataContextObject[item] !== undefined) {
-        if (!dataContextObject[item].name.startsWith(".") || showHiddenFiles) {
-          if (dataContextObject[item].type == "folder") {
-            folders.push(item)
-          } else {
-            files.push(item)
-          }
-        }
-      }
-    })
-    return folders.concat(files)
-  }
-
-  /**
-   * This function converts the data context object to a tree object that can be used by the directory tree component.
-   * @param {Object} medDataContext - The data context object
-   * @returns {Object} - The tree object
-   */
-  function fromJSONtoTree(medDataContext) {
-    const treeToSend = {}
-    const namesYouCantRename = ["UUID_ROOT", "DATA", "EXPERIMENTS", ".medomics"] // These names cannot be renamed
-
-    Object.keys(medDataContext).forEach((key) => {
-      let medDataItem = medDataContext[key]
-      let medDataItemName = medDataItem.name
-      if (showHiddenFiles == false) {
-        // Check if the name starts with a dot
-        let nameStartsWithDot = medDataItemName.startsWith(".")
-        let parentNameStartsWithDot = false
-        if (medDataItem.parentID !== undefined) {
-          let parentID = medDataItem.parentID
-          let parentObject = medDataContext[parentID]
-          if (parentObject !== undefined) {
-            let parentName = parentObject.name
-            parentNameStartsWithDot = parentName.startsWith(".")
-          }
-        }
-        if (nameStartsWithDot || parentNameStartsWithDot) {
-          return
-        }
-      }
-      if (medDataItem !== undefined && medDataItem.type !== undefined) {
-        let itemIsFolder = medDataItem.type === "folder"
-        let ableToRename = !boolNameInArray(medDataItemName, namesYouCantRename)
-        let treeItem = {
-          index: key,
-          isFolder: itemIsFolder,
-          UUID: key,
-          name: medDataItemName,
-          type: medDataItem.extension,
-          path: medDataItem.path,
-          acceptedFiles: medDataItem.acceptedFileTypes,
-          children: medDataItem.childrenIDs ? reorderArrayOfFoldersAndFiles(medDataItem.childrenIDs, medDataContext) : [],
-          data: medDataItemName,
-          canRename: ableToRename,
-          canMove: ableToRename
-        }
-        treeToSend[key] = treeItem
-        if (medDataItem.parentID && medDataItem.parentID.length == 0) {
-          treeToSend.root.children.push(key)
-        }
-      }
-    })
-
-    return treeToSend
-  }
-
-  /**
    * This function handles the blur event on the selected items.
    * @param {Object} event - The blur event
    * @returns {void}
@@ -634,6 +397,25 @@ const SidebarDirectoryTreeControlled = ({ setExternalSelectedItems, setExternalD
     if (!evaluateIfTargetIsAChild(event, "directory-tree-container")) {
       setSelectedItems([])
     }
+  }
+
+  /**
+   * This function opens a given file in visual code studio.
+   * @param {string} filePath - The file path to open
+   * @returns {void}
+   */
+  function openInVSCode(filePath) {
+    exec(`code "${filePath}"`, (error, stdout, stderr) => {
+      if (error) {
+        console.error(`exec error: ${error}`)
+        toast.error("Error: Could not open in Visual Studio Code")
+        return
+      }
+      console.log(`stdout: ${stdout}`)
+      if (stderr) {
+        console.error(`stderr: ${stderr}`)
+      }
+    })
   }
 
   /**
@@ -646,38 +428,6 @@ const SidebarDirectoryTreeControlled = ({ setExternalSelectedItems, setExternalD
     }
   }, [])
 
-  /**
-   * This useEffect hook updates the directory tree when the global data changes.
-   */
-  useEffect(() => {
-    if (globalData) {
-      let newTree = fromJSONtoTree({ ...globalData })
-      setDirTree(newTree)
-    }
-  }, [globalData, showHiddenFiles])
-
-  const delayOptions = { showDelay: 750, hideDelay: 0 }
-
-  /**
-   * Function to evaluate if the target of an event is a child of a given id
-   * @param {Object} event - The event
-   * @param {string} id - The id of the parent
-   * @returns {boolean} - True if the target is a child of the given id, false otherwise
-   */
-  function evaluateIfTargetIsAChild(event, id) {
-    let target = event.target
-    let parent = target.parentElement
-    let isChild = false
-    while (parent !== null) {
-      if (parent.id === id) {
-        isChild = true
-        break
-      }
-      parent = parent.parentElement
-    }
-    return isChild
-  }
-
   return (
     <>
       <div id="directory-tree-container" className="directory-tree-container">
@@ -685,7 +435,7 @@ const SidebarDirectoryTreeControlled = ({ setExternalSelectedItems, setExternalD
         <Tooltip className="tooltip-small" target=".refresh-icon" {...delayOptions} />
         <Tooltip className="tooltip-small" target=".context-menu-icon" {...delayOptions} />
         <Accordion.Item eventKey="dirTree">
-          <Accordion.Header onClick={() => MedDataObject.updateWorkspaceDataObject()}>
+          <Accordion.Header /* onClick={() => MedDataObject.updateWorkspaceDataObject()} */>
             <Stack direction="horizontal" style={{ flexGrow: "1" }}>
               <p>
                 <strong>WORKSPACE</strong>
@@ -699,7 +449,7 @@ const SidebarDirectoryTreeControlled = ({ setExternalSelectedItems, setExternalD
                       onClick={(e) => {
                         e.preventDefault()
                         e.stopPropagation()
-                        createFolder(selectedItems)
+                        createFolder(globalData, selectedItems, workspace.workingDirectory.path)
                       }}
                     >
                       <FolderPlus size={"1rem"} className="context-menu-icon add-folder-icon" data-pr-at="right bottom" data-pr-tooltip="New Folder" data-pr-my="left top" />
@@ -708,7 +458,8 @@ const SidebarDirectoryTreeControlled = ({ setExternalSelectedItems, setExternalD
                       onClick={(e) => {
                         e.preventDefault()
                         e.stopPropagation()
-                        MedDataObject.updateWorkspaceDataObject()
+                        MEDDataObject.updateWorkspaceDataObject()
+                        MEDDataObject.verifyLockedObjects(globalData)
                       }}
                     >
                       <ArrowClockwise size={"1rem"} className="context-menu-icon refresh-icon" data-pr-at="right bottom" data-pr-tooltip="Refresh" data-pr-my="left top" />
@@ -731,7 +482,7 @@ const SidebarDirectoryTreeControlled = ({ setExternalSelectedItems, setExternalD
             </Stack>
           </Accordion.Header>
           <Accordion.Body className="sidebar-acc-body" onEnter={() => setIsAccordionShowing(true)} onExit={() => setIsAccordionShowing(false)}>
-            <div className="directory-tree" onMouseEnter={() => setIsHovering(true)} onMouseLeave={() => setIsHovering(false)}>
+            <div className="directory-tree" onMouseEnter={() => setIsHovering(true)} onMouseLeave={() => setIsHovering(false)} onFocus={() => setIsDirectoryTreeFocused(true)} onBlur={() => setIsDirectoryTreeFocused(false)}>
               <ControlledTreeEnvironment
                 ref={environment}
                 items={dirTree}
@@ -744,10 +495,11 @@ const SidebarDirectoryTreeControlled = ({ setExternalSelectedItems, setExternalD
                     onDBClickItem,
                     setSelectedItems,
                     setIsDropping,
-                    isDropping
+                    isDropping,
+                    dirTree
                   })
                 }
-                getItemTitle={(item) => item.data}
+                getItemTitle={(item) => item ? item.data : ""}
                 viewState={{
                   ["tree-2"]: {
                     focusedItem,
@@ -762,12 +514,12 @@ const SidebarDirectoryTreeControlled = ({ setExternalSelectedItems, setExternalD
                 canReorderItems={true}
                 canDropOnFolder={true}
                 canRename={true}
-                canDragAndDrop={true}
+                canDragAndDrop={false}
                 onRenameItem={handleNameChange}
                 onDrop={onDrop}
                 isHovering={isHovering}
               >
-                <Tree treeId="tree-2" rootItem="UUID_ROOT" treeLabel="Tree Example" ref={tree} />
+                <Tree treeId="tree-2" rootItem="ROOT" treeLabel="Tree Example" ref={tree} />
               </ControlledTreeEnvironment>
             </div>
           </Accordion.Body>
@@ -783,10 +535,10 @@ const SidebarDirectoryTreeControlled = ({ setExternalSelectedItems, setExternalD
               </>
             }
           >
-            <Item id="openInJSONViewer" onClick={handleContextMenuAction}>
-              JSON Viewer (default)
+            <Item id="openInCodeEditor" onClick={handleContextMenuAction}>
+              Code editor (default)
             </Item>
-            <Item id="openInDataTableViewer" onClick={handleContextMenuAction}>
+            <Item id="openInDataTableFromDBViewer" onClick={handleContextMenuAction}>
               DataTable Viewer
             </Item>
             <Item id="openInDtale" onClick={handleContextMenuAction}>
@@ -797,8 +549,12 @@ const SidebarDirectoryTreeControlled = ({ setExternalSelectedItems, setExternalD
             </Item>
           </Submenu>
           <Item id="revealInFileExplorer" onClick={handleContextMenuAction}>
-            {/* <BoxArrowUpRight size={"1rem"} className="context-menu-icon" /> */}
+            <FiFolder size={"1rem"} className="context-menu-icon" />
             Reveal in File Explorer
+          </Item>
+          <Item id="sync" onClick={handleContextMenuAction}>
+            <ArrowRepeat size={"1rem"} className="context-menu-icon" />
+            Sync
           </Item>
           <Item id="rename" onClick={handleContextMenuAction}>
             <Eraser size={"1rem"} className="context-menu-icon" />
@@ -807,6 +563,10 @@ const SidebarDirectoryTreeControlled = ({ setExternalSelectedItems, setExternalD
           <Item id="delete" onClick={handleContextMenuAction}>
             <Trash size={"1rem"} className="context-menu-icon" />
             Delete
+          </Item>
+          <Item id="rmFromWs" onClick={handleContextMenuAction}>
+            <Trash size={"1rem"} className="context-menu-icon" />
+            Remove from Workspace
           </Item>
         </Menu>
         <Menu id={"MENU_DATA"}>
@@ -819,7 +579,7 @@ const SidebarDirectoryTreeControlled = ({ setExternalSelectedItems, setExternalD
               </>
             }
           >
-            <Item id="openInDataTableViewer" onClick={handleContextMenuAction}>
+            <Item id="openInDataTableFromDBViewer" onClick={handleContextMenuAction}>
               DataTable Viewer (default)
             </Item>
             <Item id="openInDtale" onClick={handleContextMenuAction}>
@@ -830,8 +590,12 @@ const SidebarDirectoryTreeControlled = ({ setExternalSelectedItems, setExternalD
             </Item>
           </Submenu>
           <Item id="revealInFileExplorer" onClick={handleContextMenuAction}>
-            {/* <BoxArrowUpRight size={"1rem"} className="context-menu-icon" /> */}
+            <FiFolder size={"1rem"} className="context-menu-icon" />
             Reveal in File Explorer
+          </Item>
+          <Item id="sync" onClick={handleContextMenuAction}>
+            <ArrowRepeat size={"1rem"} className="context-menu-icon" />
+            Sync
           </Item>
           <Item id="rename" onClick={handleContextMenuAction}>
             <Eraser size={"1rem"} className="context-menu-icon" />
@@ -840,6 +604,10 @@ const SidebarDirectoryTreeControlled = ({ setExternalSelectedItems, setExternalD
           <Item id="delete" onClick={handleContextMenuAction}>
             <Trash size={"1rem"} className="context-menu-icon" />
             Delete
+          </Item>
+          <Item id="rmFromWs" onClick={handleContextMenuAction}>
+            <Trash size={"1rem"} className="context-menu-icon" />
+            Remove from Workspace
           </Item>
         </Menu>
 
@@ -858,8 +626,12 @@ const SidebarDirectoryTreeControlled = ({ setExternalSelectedItems, setExternalD
             </Item>
           </Submenu>
           <Item id="revealInFileExplorer" onClick={handleContextMenuAction}>
-            {/* <BoxArrowUpRight size={"1rem"} className="context-menu-icon" /> */}
+            <FiFolder size={"1rem"} className="context-menu-icon" />
             Reveal in File Explorer
+          </Item>
+          <Item id="sync" onClick={handleContextMenuAction}>
+            <ArrowRepeat size={"1rem"} className="context-menu-icon" />
+            Sync
           </Item>
           <Item id="rename" onClick={handleContextMenuAction}>
             <Eraser size={"1rem"} className="context-menu-icon" />
@@ -868,13 +640,21 @@ const SidebarDirectoryTreeControlled = ({ setExternalSelectedItems, setExternalD
           <Item id="delete" onClick={handleContextMenuAction}>
             <Trash size={"1rem"} className="context-menu-icon" />
             Delete
+          </Item>
+          <Item id="rmFromWs" onClick={handleContextMenuAction}>
+            <Trash size={"1rem"} className="context-menu-icon" />
+            Remove from Workspace
           </Item>
         </Menu>
 
         <Menu id="MENU_FOLDER">
           <Item id="revealInFileExplorer" onClick={handleContextMenuAction}>
-            {/* <BoxArrowUpRight size={"1rem"} className="context-menu-icon" /> */}
+            <FiFolder size={"1rem"} className="context-menu-icon" />
             Reveal in File Explorer
+          </Item>
+          <Item id="sync" onClick={handleContextMenuAction}>
+            <ArrowRepeat size={"1rem"} className="context-menu-icon" />
+            Sync
           </Item>
           <Item id="rename" onClick={handleContextMenuAction}>
             <Eraser size={"1rem"} className="context-menu-icon" />
@@ -883,6 +663,10 @@ const SidebarDirectoryTreeControlled = ({ setExternalSelectedItems, setExternalD
           <Item id="delete" onClick={handleContextMenuAction}>
             <Trash size={"1rem"} className="context-menu-icon" />
             Delete
+          </Item>
+          <Item id="rmFromWs" onClick={handleContextMenuAction}>
+            <Trash size={"1rem"} className="context-menu-icon" />
+            Remove from Workspace
           </Item>
         </Menu>
 
@@ -897,6 +681,7 @@ const SidebarDirectoryTreeControlled = ({ setExternalSelectedItems, setExternalD
             }
           >
             <Item id="openInCodeEditor" onClick={handleContextMenuAction}>
+              <PiPen size={"1rem"} className="context-menu-icon" />
               Code editor (default)
             </Item>
             <Item
@@ -905,16 +690,21 @@ const SidebarDirectoryTreeControlled = ({ setExternalSelectedItems, setExternalD
                 console.log("OPEN IN JUPYTER")
               }}
             >
+              <PiNotebook size={"1rem"} className="context-menu-icon" />
               Jupyter Notebook
             </Item>
-            <Item id="openInVSCode" onClick={() => require("electron").shell.openPath(globalData[selectedItems[0]].path)}>
-              {/* <BoxArrowUpRight size={"1rem"} className="context-menu-icon" /> */}
+            <Item id="openInVSCode" onClick={() => openInVSCode(globalData[selectedItems[0]].path)}>
+              <FiFolder size={"1rem"} className="context-menu-icon" />
               VSCode
             </Item>
           </Submenu>
           <Item id="revealInFileExplorer" onClick={handleContextMenuAction}>
-            {/* <BoxArrowUpRight size={"1rem"} className="context-menu-icon" /> */}
+            <FiFolder size={"1rem"} className="context-menu-icon" />
             Reveal in File Explorer
+          </Item>
+          <Item id="sync" onClick={handleContextMenuAction}>
+            <ArrowRepeat size={"1rem"} className="context-menu-icon" />
+            Sync
           </Item>
           <Item id="rename" onClick={handleContextMenuAction}>
             <Eraser size={"1rem"} className="context-menu-icon" />
@@ -923,6 +713,56 @@ const SidebarDirectoryTreeControlled = ({ setExternalSelectedItems, setExternalD
           <Item id="delete" onClick={handleContextMenuAction}>
             <Trash size={"1rem"} className="context-menu-icon" />
             Delete
+          </Item>
+          <Item id="rmFromWs" onClick={handleContextMenuAction}>
+            <Trash size={"1rem"} className="context-menu-icon" />
+            Remove from Workspace
+          </Item>
+        </Menu>
+
+        <Menu id="MENU_JUPYTER">
+          <Submenu
+            className="context-submenu"
+            label={
+              <>
+                <BoxArrowUpRight size={"1rem"} className="context-menu-icon" />
+                Open in...
+              </>
+            }
+          >
+            <Item
+              id="openInJupyter"
+              onClick={() => {
+                console.log("OPEN IN JUPYTER")
+              }}
+            >
+              <PiNotebook size={"1rem"} className="context-menu-icon" />
+              Jupyter Notebook
+            </Item>
+            <Item id="openInVSCode" onClick={() => openInVSCode(globalData[selectedItems[0]].path)}>
+              <FiFolder size={"1rem"} className="context-menu-icon" />
+              VSCode
+            </Item>
+          </Submenu>
+          <Item id="revealInFileExplorer" onClick={handleContextMenuAction}>
+            <FiFolder size={"1rem"} className="context-menu-icon" />
+            Reveal in File Explorer
+          </Item>
+          <Item id="sync" onClick={handleContextMenuAction}>
+            <ArrowRepeat size={"1rem"} className="context-menu-icon" />
+            Sync
+          </Item>
+          <Item id="rename" onClick={handleContextMenuAction}>
+            <Eraser size={"1rem"} className="context-menu-icon" />
+            Rename
+          </Item>
+          <Item id="delete" onClick={handleContextMenuAction}>
+            <Trash size={"1rem"} className="context-menu-icon" />
+            Delete
+          </Item>
+          <Item id="rmFromWs" onClick={handleContextMenuAction}>
+            <Trash size={"1rem"} className="context-menu-icon" />
+            Remove from Workspace
           </Item>
         </Menu>
 
@@ -937,12 +777,17 @@ const SidebarDirectoryTreeControlled = ({ setExternalSelectedItems, setExternalD
             }
           >
             <Item id="openInImageViewer" onClick={handleContextMenuAction}>
+              <PiImage size={"1rem"} className="context-menu-icon" />
               Image viewer (default)
             </Item>
           </Submenu>
           <Item id="revealInFileExplorer" onClick={handleContextMenuAction}>
-            {/* <BoxArrowUpRight size={"1rem"} className="context-menu-icon" /> */}
+            <FiFolder size={"1rem"} className="context-menu-icon" />
             Reveal in File Explorer
+          </Item>
+          <Item id="sync" onClick={handleContextMenuAction}>
+            <ArrowRepeat size={"1rem"} className="context-menu-icon" />
+            Sync
           </Item>
           <Item id="rename" onClick={handleContextMenuAction}>
             <Eraser size={"1rem"} className="context-menu-icon" />
@@ -951,6 +796,10 @@ const SidebarDirectoryTreeControlled = ({ setExternalSelectedItems, setExternalD
           <Item id="delete" onClick={handleContextMenuAction}>
             <Trash size={"1rem"} className="context-menu-icon" />
             Delete
+          </Item>
+          <Item id="rmFromWs" onClick={handleContextMenuAction}>
+            <Trash size={"1rem"} className="context-menu-icon" />
+            Remove from Workspace
           </Item>
         </Menu>
 
@@ -969,8 +818,12 @@ const SidebarDirectoryTreeControlled = ({ setExternalSelectedItems, setExternalD
             </Item>
           </Submenu>
           <Item id="revealInFileExplorer" onClick={handleContextMenuAction}>
-            {/* <BoxArrowUpRight size={"1rem"} className="context-menu-icon" /> */}
+            <FiFolder size={"1rem"} className="context-menu-icon" />
             Reveal in File Explorer
+          </Item>
+          <Item id="sync" onClick={handleContextMenuAction}>
+            <ArrowRepeat size={"1rem"} className="context-menu-icon" />
+            Sync
           </Item>
           <Item id="rename" onClick={handleContextMenuAction}>
             <Eraser size={"1rem"} className="context-menu-icon" />
@@ -979,6 +832,10 @@ const SidebarDirectoryTreeControlled = ({ setExternalSelectedItems, setExternalD
           <Item id="delete" onClick={handleContextMenuAction}>
             <Trash size={"1rem"} className="context-menu-icon" />
             Delete
+          </Item>
+          <Item id="rmFromWs" onClick={handleContextMenuAction}>
+            <Trash size={"1rem"} className="context-menu-icon" />
+            Remove from Workspace
           </Item>
         </Menu>
 
@@ -992,11 +849,18 @@ const SidebarDirectoryTreeControlled = ({ setExternalSelectedItems, setExternalD
               </>
             }
           >
-            <Item>Text editor (default)</Item>
+            <Item id="openInCodeEditor" onClick={handleContextMenuAction}>
+              <PiPen size={"1rem"} className="context-menu-icon" />
+              Text editor (default)
+            </Item>
           </Submenu>
           <Item id="revealInFileExplorer" onClick={handleContextMenuAction}>
-            {/* <BoxArrowUpRight size={"1rem"} className="context-menu-icon" /> */}
+            <FiFolder size={"1rem"} className="context-menu-icon" />
             Reveal in File Explorer
+          </Item>
+          <Item id="sync" onClick={handleContextMenuAction}>
+            <ArrowRepeat size={"1rem"} className="context-menu-icon" />
+            Sync
           </Item>
           <Item id="rename" onClick={handleContextMenuAction}>
             <Eraser size={"1rem"} className="context-menu-icon" />
@@ -1005,6 +869,10 @@ const SidebarDirectoryTreeControlled = ({ setExternalSelectedItems, setExternalD
           <Item id="delete" onClick={handleContextMenuAction}>
             <Trash size={"1rem"} className="context-menu-icon" />
             Delete
+          </Item>
+          <Item id="rmFromWs" onClick={handleContextMenuAction}>
+            <Trash size={"1rem"} className="context-menu-icon" />
+            Remove from Workspace
           </Item>
         </Menu>
 
@@ -1029,8 +897,12 @@ const SidebarDirectoryTreeControlled = ({ setExternalSelectedItems, setExternalD
             </Item>
           </Submenu>
           <Item id="revealInFileExplorer" onClick={handleContextMenuAction}>
-            {/* <BoxArrowUpRight size={"1rem"} className="context-menu-icon" /> */}
+            <FiFolder size={"1rem"} className="context-menu-icon" />
             Reveal in File Explorer
+          </Item>
+          <Item id="sync" onClick={handleContextMenuAction}>
+            <ArrowRepeat size={"1rem"} className="context-menu-icon" />
+            Sync
           </Item>
           <Item id="rename" onClick={handleContextMenuAction}>
             <Eraser size={"1rem"} className="context-menu-icon" />
@@ -1039,13 +911,21 @@ const SidebarDirectoryTreeControlled = ({ setExternalSelectedItems, setExternalD
           <Item id="delete" onClick={handleContextMenuAction}>
             <Trash size={"1rem"} className="context-menu-icon" />
             Delete
+          </Item>
+          <Item id="rmFromWs" onClick={handleContextMenuAction}>
+            <Trash size={"1rem"} className="context-menu-icon" />
+            Remove from Workspace
           </Item>
         </Menu>
 
         <Menu id="MENU_DEFAULT">
           <Item id="revealInFileExplorer" onClick={handleContextMenuAction}>
-            {/* <BoxArrowUpRight size={"1rem"} className="context-menu-icon" /> */}
+            <FiFolder size={"1rem"} className="context-menu-icon" />
             Reveal in File Explorer
+          </Item>
+          <Item id="sync" onClick={handleContextMenuAction}>
+            <ArrowRepeat size={"1rem"} className="context-menu-icon" />
+            Sync
           </Item>
           <Item id="rename" onClick={handleContextMenuAction}>
             <Eraser size={"1rem"} className="context-menu-icon" />
@@ -1054,6 +934,10 @@ const SidebarDirectoryTreeControlled = ({ setExternalSelectedItems, setExternalD
           <Item id="delete" onClick={handleContextMenuAction}>
             <Trash size={"1rem"} className="context-menu-icon" />
             Delete
+          </Item>
+          <Item id="rmFromWs" onClick={handleContextMenuAction}>
+            <Trash size={"1rem"} className="context-menu-icon" />
+            Remove from Workspace
           </Item>
         </Menu>
       </div>

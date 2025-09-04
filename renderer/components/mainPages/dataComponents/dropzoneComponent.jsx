@@ -1,10 +1,15 @@
 import React, { useCallback, useState, useContext } from "react"
 import { useDropzone } from "react-dropzone"
-import fs from "fs"
-import { WorkspaceContext } from "../../workspace/workspaceContext"
-import MedDataObject from "../../workspace/medDataObject"
+import { MEDDataObject } from "../../workspace/NewMedDataObject"
 import { toast } from "react-toastify"
 import { getDroppedOrSelectedFiles } from "html5-file-selector"
+import { DataContext } from "../../workspace/dataContext"
+import { randomUUID } from "crypto"
+import { insertMEDDataObjectIfNotExists } from "../../mongoDB/mongoDBUtils"
+
+// Import fs and path
+const fs = require("fs")
+const path = require("path")
 
 /**
  * @typedef {React.FunctionComponent} DropzoneComponent
@@ -22,34 +27,7 @@ export default function DropzoneComponent({ children, item = undefined, setIsDro
     borderWidth: "0px"
   })
 
-  const { workspace } = useContext(WorkspaceContext)
-
-  let directoryPath = `${workspace.workingDirectory.path}/DATA`
-  if (item !== undefined) {
-    if (item.path !== undefined) {
-      directoryPath = item.path
-    }
-  }
-
-  let acceptedFiles = undefined
-  if (item !== undefined) {
-    if (item.acceptedFiles !== undefined) {
-      acceptedFiles = item.acceptedFiles
-    }
-  }
-
-  /**
-   * Splits the provided `string` at the last occurrence of the provided `separator`.
-   * @param {string} string - The string to split.
-   * @param {string} separator - The separator to split the string at.
-   * @returns {Array} - An array containing the first elements of the split string and the last element of the split string.
-   */
-  function splitStringAtTheLastSeparator(string, separator) {
-    let splitString = string.split(separator)
-    let lastElement = splitString.pop()
-    let firstElements = splitString.join(separator)
-    return [firstElements, lastElement]
-  }
+  const { globalData } = useContext(DataContext)
 
   /**
    * @description This function is used to get the fullPath of the dragged files, in order to know if we drag only file(s) or a folder
@@ -58,42 +36,78 @@ export default function DropzoneComponent({ children, item = undefined, setIsDro
    */
   async function myCustomFileGetter(event) {
     const fileObjects = []
-    const newDirectoriesNames = {}
-    const newFilesNames = {}
     let files = await getDroppedOrSelectedFiles(event)
-    files.forEach((file) => {
+
+    const folderMap = new Map() // Map to store folder path and MEDDataObject
+    const parentID = item.index
+    let globalDataCopy = { ...globalData }
+
+    for (const file of files) {
       let fileObject = file.fileObject
-      let fullPath = file.fullPath
-      let splittedPath = fullPath.split("/")
-      console.log("splitted path", splittedPath)
-      if (splittedPath.length > 2) {
-        // If we drop a folder
-        // Check if the name of the folder to drop is not already in the directory
-        let newName = MedDataObject.getNewNameForFolder({ name: splittedPath[1], folderPath: directoryPath + "/" })
-        if (newName != splittedPath[1]) {
-          newDirectoriesNames[splittedPath[1]] = newName
-          splittedPath[1] = newName
-          fullPath = splittedPath.join("/")
-        }
-      } else {
-        // If we drop a file
-        // Check if the name of the file to drop is not already in the directory
-        let extension = splitStringAtTheLastSeparator(fileObject.name, ".")[1]
-        let newName = MedDataObject.getNewNameForFile({ name: fileObject.name, folderPath: directoryPath + "/", extension: extension })
-        if (newName != fileObject.name) {
-          newFilesNames[fileObject.name] = newName
-          fullPath = fullPath.replace(fileObject.name, newName)
+      const stats = fs.lstatSync(fileObject.path)
+      const isDirectory = stats.isDirectory()
+
+      // Get the relative path from the parent directory
+      const pathParts = file.fullPath.split("/").slice(1)
+
+      let currentParentID = parentID
+      for (let i = 0; i < pathParts.length; i++) {
+        const partPath = pathParts[i]
+
+        if (i < pathParts.length - 1) {
+          console.log("Folder")
+          // It's a folder
+          if (!folderMap.has(partPath)) {
+            const folderUUID = randomUUID()
+            const folderUniqueName = MEDDataObject.getUniqueNameForCopy(globalDataCopy, partPath, currentParentID)
+            const folderObject = new MEDDataObject({
+              id: folderUUID,
+              name: folderUniqueName,
+              type: "directory",
+              parentID: currentParentID,
+              childrenIDs: [],
+              inWorkspace: false
+            })
+            folderMap.set(partPath, folderObject)
+            globalDataCopy[folderUUID] = folderObject
+
+            // Update parent with new child
+            if (currentParentID !== parentID) {
+              const parentObject = globalDataCopy[currentParentID]
+              parentObject.childrenIDs.push(folderUUID)
+            }
+
+            currentParentID = folderUUID
+          } else {
+            currentParentID = folderMap.get(partPath).id
+          }
+        } else {
+          // It's a file or the last folder in the path
+          const fileUUID = randomUUID()
+          const fileUniqueName = MEDDataObject.getUniqueNameForCopy(globalDataCopy, file.name, currentParentID)
+          const fileType = isDirectory ? "directory" : path.extname(fileObject.path).slice(1)
+          const medObject = new MEDDataObject({
+            id: fileUUID,
+            name: fileUniqueName,
+            type: fileType,
+            parentID: currentParentID,
+            childrenIDs: [],
+            inWorkspace: false
+          })
+          Object.defineProperty(fileObject, "medObject", { value: medObject })
+          globalDataCopy[fileUUID] = medObject
+          fileObjects.push(fileObject)
+
+          if (!isDirectory) {
+            const parentObject = globalDataCopy[currentParentID]
+            parentObject.childrenIDs.push(fileUUID)
+          }
         }
       }
-      Object.defineProperty(fileObject, "fullPath", { value: fullPath })
-      fileObjects.push(fileObject)
-    })
-    // Set toast warnings if some names have been changed
-    for (const [oldName, newName] of Object.entries(newDirectoriesNames)) {
-      toast.warning(`Dropped directory ${oldName} renamed to ${newName}`)
     }
-    for (const [oldName, newName] of Object.entries(newFilesNames)) {
-      toast.warning(`Dropped file ${oldName} renamed to ${newName}`)
+    // Set new folders in globalData
+    for (const folder of folderMap) {
+      await insertMEDDataObjectIfNotExists(folder[1])
     }
     return fileObjects
   }
@@ -101,23 +115,13 @@ export default function DropzoneComponent({ children, item = undefined, setIsDro
   /**
    * @description The function to be executed when a file is dropped in the dropzone
    */
-  const onDrop = useCallback((acceptedFiles) => {
-    console.log("accepted files", acceptedFiles)
-    if (acceptedFiles && acceptedFiles.length > 0) {
-      acceptedFiles.forEach((file) => {
-        let firstElements = splitStringAtTheLastSeparator(file.fullPath, "/")[0]
-        MedDataObject.createFolderFromPath(`${directoryPath}/${firstElements}`)
-        fs.copyFile(file.path, `${directoryPath}/${file.fullPath}`, (err) => {
-          if (err) {
-            console.error("Error copying file:", err)
-          } else {
-            console.log("File copied successfully")
-          }
-        })
-      })
-      console.log("UPDATE")
-      MedDataObject.updateWorkspaceDataObject()
+  const onDrop = useCallback(async (files) => {
+    if (files && files.length > 0) {
+      for (const file of files) {
+        await insertMEDDataObjectIfNotExists(file.medObject, file.path)
+      }
     }
+    MEDDataObject.updateWorkspaceDataObject()
     setIsDropping(false)
     setStyle({ ...style, ...baseStyle })
   }, [])
@@ -159,7 +163,6 @@ export default function DropzoneComponent({ children, item = undefined, setIsDro
    * @param {Object} onDrop - The function to be executed when a file is dropped in the dropzone
    * @param {Object} onDropRejected - The function to be executed when a file is dropped in the dropzone but is rejected
    * @param {Object} noClick - A boolean that indicates if the dropzone should not be clickable
-   * @param {Object} accept - The file types that are accepted by the dropzone
    * @returns {JSX.Element}
    * @see SidebarDirectoryTreeControlled - "../../layout/sidebarTools/sidebarDirectoryTreeControlled.jsx" This component is used in the SidebarDirectoryTreeControlled component
    */
@@ -170,7 +173,6 @@ export default function DropzoneComponent({ children, item = undefined, setIsDro
     onDragOver,
     onDragLeave,
     noClick: props.noClick || false,
-    accept: acceptedFiles ? acceptedFiles : undefined,
     noDragEventsBubbling: true
   })
 

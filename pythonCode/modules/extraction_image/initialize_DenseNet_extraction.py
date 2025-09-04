@@ -79,7 +79,7 @@ class GoExecScriptInitializeDenseNetExtraction(GoExecutionScript):
         self.download_model(weights)
 
         # Create folder for extracted features if not exists
-        data_folder_path = json_config["dataFolderPath"]
+        '''data_folder_path = json_config["dataFolderPath"]
         extracted_folder_path = os.path.join(str(Path(data_folder_path)), "extracted_features")
         if not os.path.exists(extracted_folder_path):
             os.makedirs(extracted_folder_path)
@@ -91,7 +91,7 @@ class GoExecScriptInitializeDenseNetExtraction(GoExecutionScript):
         df.to_csv(csv_path, index=False)
 
         # Save csv result path
-        json_config["csv_result_path"] = csv_path
+        json_config["csv_result_path"] = csv_path'''
         self.results = json_config
 
         return self.results

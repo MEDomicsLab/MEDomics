@@ -11,7 +11,7 @@ import { FlowResultsContext } from "../flow/context/flowResultsContext"
 import { EXPERIMENTS, WorkspaceContext } from "../workspace/workspaceContext"
 import { ErrorRequestContext } from "../generalPurpose/errorRequestContext.jsx"
 import MedDataObject from "../workspace/medDataObject"
-import { createZipFileSync, modifyZipFileSync } from "../../utilities/customZipFile.js"
+// import { createZipFileSync, modifyZipFileSync } from "../../utilities/customZipFile.js"
 import ManageScriptsModal from "./rw/ManageScriptsModal.jsx"
 
 import { UUID_ROOT, DataContext } from "../workspace/dataContext"
@@ -714,10 +714,10 @@ const MedflrwWorkflow = ({ setWorkflowType, workflowType, mode = "fl" }) => {
     const emptyScene = { useMedStandard: useMedStandard }
     // create custom zip file
     console.log("zipFilePath", Path.join(path, sceneName + "." + extension))
-    await createZipFileSync(Path.join(path, sceneName + "." + extension), async (path) => {
-      // do custom actions in the folder while it is unzipped
-      await MedDataObject.writeFileSync(emptyScene, path, "metadata", "json")
-    })
+    // await createZipFileSync(Path.join(path, sceneName + "." + extension), async (path) => {
+    //   // do custom actions in the folder while it is unzipped
+    //   await MedDataObject.writeFileSync(emptyScene, path, "metadata", "json")
+    // })
   }
   /**
    * save the workflow as a json file

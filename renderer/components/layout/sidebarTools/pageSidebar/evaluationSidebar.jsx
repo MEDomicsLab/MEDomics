@@ -3,11 +3,11 @@ import { Stack } from "react-bootstrap"
 import { WorkspaceContext } from "../../../workspace/workspaceContext"
 import SidebarDirectoryTreeControlled from "../directoryTree/sidebarDirectoryTreeControlled"
 import { Accordion } from "react-bootstrap"
-import MedDataObject from "../../../workspace/medDataObject"
 import { DataContext } from "../../../workspace/dataContext"
-import { createZipFileSync } from "../../../../utilities/customZipFile"
-import Path from "path"
 import FileCreationBtn from "../fileCreationBtn"
+import { insertMEDDataObjectIfNotExists } from "../../../mongoDB/mongoDBUtils"
+import { MEDDataObject } from "../../../workspace/NewMedDataObject"
+import { randomUUID } from "crypto"
 
 // Variable used to store some modularity information about the module
 const typeInfo = {
@@ -28,20 +28,15 @@ const EvaluationSidebar = () => {
 
   // We use the useEffect hook to update the experiment list state when the workspace changes
   useEffect(() => {
-    let experimentList = []
-    if (globalData) {
-      let element = globalData["UUID_ROOT"]
-      element.childrenIDs.forEach((childID) => {
-        if (globalData[childID].type == "file" && globalData[childID].extension == typeInfo.extension) {
-          experimentList.push(globalData[childID].name.replace("." + typeInfo.extension, ""))
-        }
-      })
+    let localExperimentList = []
+    for (const experimentId of globalData["EXPERIMENTS"].childrenIDs) {
+      localExperimentList.push(globalData[experimentId].name)
     }
-    setExperimentList(experimentList)
+    setExperimentList(localExperimentList)
   }, [workspace, globalData]) // We log the workspace when it changes
 
   const checkIsNameValid = (name) => {
-    return name != "" && !experimentList.includes(name) && !name.includes(" ")
+    return name != "" && !experimentList.includes(name + "." + typeInfo.extension) && !name.includes(" ")
   }
 
   /**
@@ -49,36 +44,54 @@ const EvaluationSidebar = () => {
    * @description - This function is used to create an empty scene
    */
   const createEmptyScene = async (name, useMedStandard = null) => {
-    let path = globalData["UUID_ROOT"].path
-    await createSceneContent(path, name, typeInfo.extension, useMedStandard)
+    await createSceneContent("EXPERIMENTS", name, typeInfo.extension, useMedStandard)
   }
 
   /**
    *
-   * @param {String} path The path of the folder where the scene will be created
+   * @param {String} parentId The id of the folder where the scene will be created
    * @param {String} sceneName The name of the scene
    * @param {String} extension The extension of the scene
    */
-  const createSceneContent = async (path, sceneName, extension, useMedStandard) => {
-    const emptyScene = {'useMedStandard': useMedStandard}
-    // create custom zip file
-    console.log("zipFilePath", Path.join(path, sceneName + "." + extension))
-    await createZipFileSync(Path.join(path, sceneName + "." + extension), async (path) => {
-      // do custom actions in the folder while it is unzipped
-      await MedDataObject.writeFileSync(emptyScene, path, "metadata", "json")
-
-      typeInfo.internalFolders.forEach(async (folder) => {
-        await MedDataObject.createEmptyFolderFSsync(folder, path, false)
-      })
+  const createSceneContent = async (parentId, sceneName, extension, useMedStandard) => {
+    // Create custom zip file
+    let sceneObject = new MEDDataObject({
+      id: randomUUID(),
+      name: sceneName + "." + extension,
+      type: extension,
+      parentID: parentId,
+      childrenIDs: [],
+      inWorkspace: false
     })
-  }
+    let sceneObjectId = await insertMEDDataObjectIfNotExists(sceneObject)
 
-  /**
-   * @description - This function is used to handle the click on the create scene button
-   */
-  const handleClick = () => {
-    // setSelectedItems([...selectedItems])
-    console.log("eval clicked")
+    // Create hidden metadata file
+    const emptyScene = [{ useMedStandard: useMedStandard }]
+    let metadataObject = new MEDDataObject({
+      id: randomUUID(),
+      name: "metadata.json",
+      type: "json",
+      parentID: sceneObjectId,
+      childrenIDs: [],
+      inWorkspace: false
+    })
+    await insertMEDDataObjectIfNotExists(metadataObject, null, emptyScene)
+
+    // Create internal folders
+    for (const folder of typeInfo.internalFolders) {
+      let medObject = new MEDDataObject({
+        id: randomUUID(),
+        name: folder,
+        type: "directory",
+        parentID: sceneObjectId,
+        childrenIDs: [],
+        inWorkspace: false
+      })
+      await insertMEDDataObjectIfNotExists(medObject)
+    }
+
+    // Load everything in globalData
+    MEDDataObject.updateWorkspaceDataObject()
   }
 
   return (
@@ -95,10 +108,10 @@ const EvaluationSidebar = () => {
         >
           {typeInfo.title} Module
         </p>
-        <FileCreationBtn hasMedStandrad label="Create evaluation page" piIcon="pi-plus" createEmptyFile={createEmptyScene} checkIsNameValid={checkIsNameValid} handleClickCreateScene={handleClick} />
+        <FileCreationBtn hasMedStandrad label="Create evaluation page" piIcon="pi-plus" createEmptyFile={createEmptyScene} checkIsNameValid={checkIsNameValid} />
 
         <Accordion defaultActiveKey={["dirTree"]} alwaysOpen>
-          <SidebarDirectoryTreeControlled/>
+          <SidebarDirectoryTreeControlled />
         </Accordion>
       </Stack>
     </>

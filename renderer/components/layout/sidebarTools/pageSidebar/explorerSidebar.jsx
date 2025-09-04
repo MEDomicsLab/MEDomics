@@ -28,7 +28,7 @@ const ExplorerSidebar = () => {
             margin: "0 0 0 0"
           }}
         >
-          EXPLORER - TO BE IMPLEMENTED
+          Explorer
         </p>
         <Accordion defaultActiveKey={["0", "1"]} alwaysOpen>
           <Accordion.Item eventKey="0">

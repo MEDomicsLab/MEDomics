@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react"
-import { MultiSelect } from 'primereact/multiselect';
+import { MultiSelect } from "primereact/multiselect"
 
 /**
  * @typedef {React.FunctionComponent} VarsSelectMultiple
@@ -20,8 +20,7 @@ const VarsSelectMultiple = ({ key, onChange, selectedVars, selectedTags, selecte
    * @description This useEffect is used to set the localVars when the component is mounted
    */
   useEffect(() => {
-    console.log(selectedVars)
-    if(selectedVars !== undefined && Array.isArray(selectedVars)) {
+    if (selectedVars !== undefined && Array.isArray(selectedVars)) {
       setLocalVars(selectedVars)
     }
   }, [])
@@ -30,8 +29,7 @@ const VarsSelectMultiple = ({ key, onChange, selectedVars, selectedTags, selecte
    * @description This useEffect is used to set the localVars from the selectedVars
    */
   useEffect(() => {
-    console.log(selectedVars)
-    if(selectedVars !== undefined && Array.isArray(selectedVars)) {
+    if (selectedVars !== undefined && Array.isArray(selectedVars)) {
       setLocalVars(selectedVars)
     }
   }, [selectedVars])
@@ -39,76 +37,65 @@ const VarsSelectMultiple = ({ key, onChange, selectedVars, selectedTags, selecte
   /**
    * @description This function is used to update the localVars and call the onChange function
    */
-  const updateCurrentVars = useCallback((newVars) => {
-    console.log("selectedVars", selectedVars)
-    let newLocalVars = selectedVars.filter((localVar) => {
-      return newVars.map((varToShow) => varToShow.value).includes(localVar)
-    })
-    setLocalVars(newLocalVars)
-    onChange(newLocalVars)
-  }, [selectedVars])
+  const updateCurrentVars = useCallback(
+    (newVars) => {
+      let newLocalVars = selectedVars.filter((localVar) => {
+        return newVars.map((varToShow) => varToShow.value).includes(localVar)
+      })
+      setLocalVars(newLocalVars)
+      onChange(newLocalVars)
+    },
+    [selectedVars]
+  )
 
-  /**
-   * @description This useEffect is used to debug the localVars
-   */
-  useEffect(() => {
-    console.log("localVars", localVars)
-  }, [localVars])
-
-  
   /**
    * @description This useEffect is used to generate the dataset list from the global data context if it's defined
    * @returns {void} calls the generateDatasetListFromDataContext function
    */
   useEffect(() => {
-    if(Array.isArray(selectedDatasets) && selectedDatasets.length > 0) {
-      console.log("selectedDatasets", selectedDatasets)
-      console.log("selectedTags", selectedTags)
+    if (Array.isArray(selectedDatasets) && selectedDatasets.length > 0) {
       let varsToShow = []
       selectedDatasets.forEach((dataset) => {
-        console.log("selectedDataset", dataset)
-          let timePrefix = dataset.name.split("_")[0]
-          let columnsTag = dataset.columnsTags
+        let timePrefix = dataset.name.split("_")[0]
+        let columnsTag = dataset.columnsTags
 
-          Object.entries(columnsTag).map(([key, value]) => {
-            let isInSelectedTags = false
-            selectedTags.forEach((tag) => {
-              if (value.includes(tag)) {
-                isInSelectedTags = true
-              }
-            })
-            isInSelectedTags && varsToShow.push({name: key + " | " + timePrefix + "_" + value.join("_"), value: key + "_" + timePrefix})
+        Object.entries(columnsTag).map(([key, value]) => {
+          let isInSelectedTags = false
+          selectedTags.forEach((tag) => {
+            if (value.includes(tag)) {
+              isInSelectedTags = true
+            }
           })
+          isInSelectedTags && varsToShow.push({ name: key + " | " + timePrefix + "_" + value.join("_"), value: key + "_" + timePrefix })
+        })
       })
-    
+
       updateCurrentVars(varsToShow)
       setVarsList(varsToShow)
-      console.log("varsToShow", varsToShow)
     } else {
       setVarsList([])
     }
-    
   }, [selectedDatasets, selectedTags])
 
-return (
-  <>
-    {
-      <MultiSelect
-        key={key}
-        disabled={varsList.length == 0 || disabled}
-        placeholder={placeholder}
-        value={localVars} 
-        onChange={(e) => {
-          console.log("VarsSelectMultiple", e)
-          onChange(e.target.value)
-        }} 
-        options={varsList} 
-        optionLabel="name" display="chip"
-      />
-    }
-  </>
-)
-    
+  return (
+    <>
+      {
+        <MultiSelect
+          key={key}
+          disabled={varsList.length == 0 || disabled}
+          placeholder={placeholder}
+          value={localVars}
+          onChange={(e) => {
+            onChange(e.target.value)
+          }}
+          options={varsList}
+          optionLabel="name"
+          display="chip"
+          filter
+        />
+      }
+    </>
+  )
 }
 
 export default VarsSelectMultiple

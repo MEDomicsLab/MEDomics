@@ -26,7 +26,23 @@ const Dashboard = ({ isUpdating, setIsUpdating }) => {
     }
   }
 
-  return <>{url && !isUpdating ? <Iframe url={url} width="100%" height="100%" frameBorder="0" /> : <ProgressBarRequests delayMS={1000} isUpdating={isUpdating} setIsUpdating={setIsUpdating} progress={{ now: progressValue }} setProgress={(prog) => setProgressValue(prog.now)} requestTopic={"evaluation/progress/dashboard/" + pageId} onDataReceived={onProgressDataReceived} />}</>
+  return (
+    <>
+      {url && !isUpdating ? (
+        <Iframe url={url} width="100%" height="100%" frameBorder="0" />
+      ) : (
+        <ProgressBarRequests
+          delayMS={1000}
+          isUpdating={isUpdating}
+          setIsUpdating={setIsUpdating}
+          progress={{ now: progressValue }}
+          setProgress={(prog) => setProgressValue(prog.now)}
+          requestTopic={"evaluation/progress/dashboard/" + pageId}
+          onDataReceived={onProgressDataReceived}
+        />
+      )}
+    </>
+  )
 }
 
 export default Dashboard

@@ -1,0 +1,58 @@
+#!/bin/bash
+# Install MongoDB Community Edition on MacOS
+# https://docs.mongodb.com/manual/tutorial/install-mongodb-on-os-x/
+# Create a log file
+LOG_FILE=/tmp/medomics_postinstall.log
+
+# Default MEDomics configuration directory
+MEDOMICS_DIR=~/.medomics
+
+# Name of the requirements file
+REQUIREMENTS_FILE=merged_requirements.txt
+
+# Function to locate the MEDomicsLab installation path
+find_medomics_path() {
+    if [ -d "/Applications/MEDomicsLab.app" ]; then
+        echo "/Applications/MEDomicsLab.app"
+    elif [ -d "$HOME/Applications/MEDomicsLab.app" ]; then
+        echo "$HOME/Applications/MEDomicsLab.app"
+    else
+        echo ""
+    fi
+}
+
+# Locate MEDomicsLab installation path
+MEDOMICS_PATH=$(find_medomics_path)
+
+if [ -z "$MEDOMICS_PATH" ]; then
+    echo "MEDomicsLab installation not found." >>$LOG_FILE
+    echo "Postinstall script failed: MEDomicsLab not installed." >>$LOG_FILE
+    exit 1
+fi
+
+# Construct the full requirements path
+REQUIREMENTS_FULL_PATH="$MEDOMICS_PATH/Contents/Resources/pythonEnv/$REQUIREMENTS_FILE"
+
+echo "Checking if $REQUIREMENTS_FULL_PATH exists" >>$LOG_FILE
+if [ -f "$REQUIREMENTS_FULL_PATH" ]; then
+    echo "Found requirements file at $REQUIREMENTS_FULL_PATH" >>$LOG_FILE
+
+    # Check if pip3 exists in the specified directory
+    if [ -f "$MEDOMICS_DIR/python/bin/pip3" ]; then
+        echo "Installing requirements from $REQUIREMENTS_FULL_PATH" >>$LOG_FILE
+        $MEDOMICS_DIR/python/bin/pip3 install -r "$REQUIREMENTS_FULL_PATH" >>$LOG_FILE 2>&1
+        if [ $? -eq 0 ]; then
+            echo "Requirements installed successfully." >>$LOG_FILE
+        else
+            echo "Failed to install requirements." >>$LOG_FILE
+        fi
+    else
+        echo "pip3 not found in $MEDOMICS_DIR/python/bin" >>$LOG_FILE
+    fi
+else
+    echo "Requirements file $REQUIREMENTS_FULL_PATH not found." >>$LOG_FILE
+fi
+
+echo "Postinstall script completed" >>$LOG_FILE
+
+exit 0

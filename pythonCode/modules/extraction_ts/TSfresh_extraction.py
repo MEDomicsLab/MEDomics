@@ -4,6 +4,7 @@ import json
 import os
 import pandas as pd
 import sys
+import pymongo
 
 from pathlib import Path
 from tsfresh import extract_features
@@ -31,11 +32,12 @@ class GoExecScriptTSfreshExtraction(GoExecutionScript):
         super().__init__(json_params, _id)
         self.results = {"data": "nothing to return"}
 
-    def generate_TSfresh_embeddings(self, dataframe, identifiers_list, frequency, column_id, column_weight, column_kind, column_value, default_fc_parameters, master_table_compatible, column_prefix, column_admission="", column_admission_time="", column_time=""):
+    def generate_TSfresh_embeddings(self, collection, result_collection, identifiers_list, frequency, column_id, column_weight, column_kind, column_value, default_fc_parameters, master_table_compatible, column_prefix, column_admission="", column_admission_time="", column_time=""):
         """
         Function generating TSfresh embeddings for time series.
 
-        :param dataframe: Pandas dataframe containing necessary data to proceed.
+        :param collection: MongoDB collection containing necessary data to proceed.
+        :param result_collection: MongoDB collection in which we want to save the data.
         :param identifiers_list: List of identifiers in order to proceed by batch.
         :param frequency: May be "Patient" "Admission" or a timedelta range, depending on the desired type of extraction.
         :param column_id: Column name in the dataframe containing patient identifiers.
@@ -49,86 +51,117 @@ class GoExecScriptTSfreshExtraction(GoExecutionScript):
         :param column_admission_time: Column name in the dataframe containing admission time, may be null if frequency is not "Admission".
         :param column_time: Time column in the dataframe, may be null if frequency is not a hour range.
 
-        :return: df_notes_embeddings: Pandas Dataframe of generated notes embeddings from BioBERT.
-
         """
-
-        # Create dataframe
-        df_ts_embeddings = pd.DataFrame()
-
         if frequency == "Patient":
             # Iterate over patients
             for patient_id in identifiers_list:
-                df_patient = dataframe.loc[dataframe[column_id] == patient_id]
-                df_patient_embeddings = extract_features(df_patient, column_id=column_id, 
-                                                        column_sort=column_weight, 
-                                                        column_kind=column_kind, 
-                                                        column_value=column_value,
-                                                        disable_progressbar=True,
-                                                        default_fc_parameters=default_fc_parameters, n_jobs=0)
-                # Add prefix to extracted columns
-                columns = list(df_patient_embeddings.columns)
-                new_columns = [column_prefix + col for col in columns]
-                df_patient_embeddings.columns = new_columns
-                # Insert patient_id in the dataframe
-                df_patient_embeddings.insert(0, column_id, patient_id)
-                df_ts_embeddings = pd.concat([df_ts_embeddings, df_patient_embeddings], ignore_index=True)
-
-        elif frequency == "Admission":
-            # Iterate over combinations of [patients, admissions]
-            for identifiers in identifiers_list:
-                df_admission = pd.DataFrame(dataframe.loc[(dataframe[column_id] == identifiers[0]) & (dataframe[column_admission] == identifiers[1])])
-                if len(df_admission) > 0:
-                    df_admission_embeddings = extract_features(df_admission, column_id=column_id, 
+                patient_records = collection.find({column_id: patient_id})
+                df_patient = pd.DataFrame(list(patient_records))
+                df_patient[column_value] = pd.to_numeric(df_patient[column_value])
+                if column_time:
+                    df_patient = df_patient.astype({column_time : "datetime64[ns]"})
+                df_patient.dropna(subset=[column_id, column_weight, column_kind, column_value], inplace=True)
+                if not df_patient.empty:
+                    embeddings = extract_features(df_patient, column_id=column_id, 
                                                             column_sort=column_weight, 
                                                             column_kind=column_kind, 
                                                             column_value=column_value,
                                                             disable_progressbar=True,
                                                             default_fc_parameters=default_fc_parameters, n_jobs=0)
-                    # Add prefix to extracted columns
-                    columns = list(df_admission_embeddings.columns)
-                    new_columns = [column_prefix + col for col in columns]
-                    df_admission_embeddings.columns = new_columns
-                    # Insert admission_time in the dataframe
-                    df_admission_embeddings.insert(0, column_admission_time, df_admission[column_admission_time].iloc[0])
-                    # Insert admission_id in the dataframe (except if the dataframe must respect submaster table format)
-                    df_admission_embeddings.insert(0, column_admission, identifiers[1])
+                    df_patient_embeddings = pd.DataFrame(embeddings)
                     # Insert patient_id in the dataframe
-                    df_admission_embeddings.insert(0, column_id, identifiers[0])
-                    df_ts_embeddings = pd.concat([df_ts_embeddings, df_admission_embeddings], ignore_index=True)
+                    df_patient_embeddings.insert(0, column_id, patient_id)
+                    # Rename columns
+                    col_number = len(df_patient_embeddings.columns) - 1
+                    df_patient_embeddings.columns = [column_id] + [column_prefix + str(i) for i in range(col_number)]
+                    # If Master Table Compatible
+                    if master_table_compatible:
+                        min_time_record = df_patient.loc[df_patient[column_time].idxmin()]
+                        df_patient_embeddings.insert(1, column_time, min_time_record[column_time])
+                    # Insert data in the result database
+                    records = df_patient_embeddings.to_dict("records")
+                    result_collection.insert_many(records)
+
+        elif frequency == "Admission":
+            # Iterate over combinations of [patients, admissions]
+            for patient_id in identifiers_list:
+                patient_records = collection.find({column_id: patient_id})
+                df_patient = pd.DataFrame(list(patient_records))
+                df_patient[column_value] = pd.to_numeric(df_patient[column_value])
+                if column_admission_time:
+                    df_patient = df_patient.astype({column_admission_time : "datetime64[ns]"})
+                    df_patient.dropna(subset=[column_id, column_admission_time, column_weight, column_kind, column_value], inplace=True)
+                else:
+                    df_patient.dropna(subset=[column_id, column_weight, column_kind, column_value], inplace=True)
+                admissions = df_patient[column_admission].unique()
+                for admission_id in admissions:
+                    df_admission = df_patient[df_patient[column_admission] == admission_id]
+                    if not df_admission.empty:
+                        embeddings = extract_features(df_admission, column_id=column_id, 
+                                                                column_sort=column_weight, 
+                                                                column_kind=column_kind, 
+                                                                column_value=column_value,
+                                                                disable_progressbar=True,
+                                                                default_fc_parameters=default_fc_parameters, n_jobs=0)
+                        df_admission_embeddings = pd.DataFrame(embeddings)
+                        # Insert admission_time in the dataframe
+                        df_admission_embeddings.insert(0, column_admission_time, df_admission[column_admission_time].iloc[0])
+                        # Insert admission_id in the dataframe
+                        df_admission_embeddings.insert(0, column_admission, admission_id)
+                        # Insert patient_id in the dataframe
+                        df_admission_embeddings.insert(0, column_id, patient_id)
+                        # Rename columns
+                        col_number = len(df_admission_embeddings.columns) - 3
+                        df_admission_embeddings.columns = [column_id, column_admission, column_admission_time] + [column_prefix + str(i) for i in range(col_number)]
+                        # Insert data in the result database
+                        records = df_admission_embeddings.to_dict("records")
+                        result_collection.insert_many(records)
+                        # If Master Table Compatible
+                        if master_table_compatible:
+                            result_collection.update_many(
+                                {column_id: patient_id, column_admission: int(admission_id)},
+                                {"$unset": {column_admission: ""}}
+                            )
         
         elif column_time != "":
             # Iterate over patients
             for patient_id in identifiers_list:
-                df_patient = dataframe.loc[dataframe[column_id] == patient_id].sort_values(by=[column_time])
-                if len(df_patient) > 0:
+                patient_records = collection.find({column_id: patient_id}).sort(column_time)
+                df_patient = pd.DataFrame(list(patient_records))
+                df_patient[column_value] = pd.to_numeric(df_patient[column_value])
+                df_patient = df_patient.astype({column_time : "datetime64[ns]"})
+                df_patient.dropna(subset=[column_id, column_weight, column_kind, column_value], inplace=True)
+                if not df_patient.empty:
                     # Iterate over time
                     start_date = df_patient[column_time].iloc[0]
                     end_date = start_date + frequency
                     last_date = df_patient[column_time].iloc[-1]
                     while start_date <= last_date:
                         df_time = df_patient[(df_patient[column_time] >= start_date) & (df_patient[column_time] < end_date)]
-                        if len(df_time) > 0:
-                            df_time_embeddings = extract_features(df_time, column_id=column_id, 
+                        if not df_time.empty:
+                            embeddings = extract_features(df_time, column_id=column_id, 
                                                                 column_sort=column_weight, 
                                                                 column_kind=column_kind, 
                                                                 column_value=column_value,
                                                                 disable_progressbar=True,
                                                                 default_fc_parameters=default_fc_parameters,n_jobs=0)
-                            # Add prefix to extracted columns
-                            columns = list(df_time_embeddings.columns)
-                            new_columns = [column_prefix + col for col in columns]
-                            df_time_embeddings.columns = new_columns
+                            df_time_embeddings = pd.DataFrame(embeddings)
                             # Insert time in the dataframe
                             df_time_embeddings.insert(0, "end_date", end_date)
                             df_time_embeddings.insert(0, "start_date", start_date)
                             # Insert patient_id in the dataframe
                             df_time_embeddings.insert(0, column_id, patient_id)
-                            df_ts_embeddings = pd.concat([df_ts_embeddings, df_time_embeddings], ignore_index=True)
+                            # Rename columns
+                            col_number = len(df_time_embeddings.columns) - 3
+                            df_time_embeddings.columns = [column_id, "start_date", "end_date"] + [column_prefix + str(i) for i in range(col_number)]
+                            # Insert data in the result database
+                            records = df_time_embeddings.to_dict("records")
+                            result_collection.insert_many(records)
                         start_date += frequency
                         end_date += frequency
-
-        return df_ts_embeddings
+            # If Master Table Compatible
+            if master_table_compatible:
+                result_collection.update_many({}, {"$unset": {"end_date": ""}})
 
     def _custom_process(self, json_config: dict) -> dict:
         """
@@ -141,7 +174,6 @@ class GoExecScriptTSfreshExtraction(GoExecutionScript):
 
         # Set local variables
         identifiers_list = json_config["identifiersList"]
-        csv_result_path = json_config["csvResultsPath"]
         selected_columns = json_config["relativeToExtractionType"]["selectedColumns"]
         column_prefix = json_config["relativeToExtractionType"]["columnPrefix"] + '_attr_'
         columnKeys = [key for key in selected_columns]
@@ -153,14 +185,11 @@ class GoExecScriptTSfreshExtraction(GoExecutionScript):
         if frequency == "HourRange":
             frequency = datetime.timedelta(hours=json_config["relativeToExtractionType"]["hourRange"])
 
-        # Read extraction data
-        df_ts = dd.read_csv(json_config["csvPath"], dtype={selected_columns["measurementValue"]: 'float64'})
-        df_ts = df_ts[columnValues]
-
-        # Pre-processing on data
-        if selected_columns["time"] != "":
-                df_ts = df_ts.astype({selected_columns["time"] : "datetime64[ns]"})
-        df_ts = df_ts.dropna(subset=columnValues).compute()
+        # MongoDB setup
+        mongo_client = pymongo.MongoClient("mongodb://localhost:54017/")
+        database = mongo_client[json_config["DBName"]]
+        collection = database[json_config["collectionName"]]
+        result_collection = database[json_config["resultCollectionName"]]
 
         # Feature extraction
         if json_config["relativeToExtractionType"]["featuresOption"] == "Efficient":
@@ -170,8 +199,8 @@ class GoExecScriptTSfreshExtraction(GoExecutionScript):
         else:
             settings = ComprehensiveFCParameters()
 
-        df_extracted_features = self.generate_TSfresh_embeddings(df_ts, identifiers_list, frequency, 
-                                                                 selected_columns["patientIdentifier"], 
+        self.generate_TSfresh_embeddings(collection, result_collection, identifiers_list, frequency, 
+                                                            selected_columns["patientIdentifier"], 
                                                             selected_columns["measurementWeight"], 
                                                             selected_columns["measuredItemIdentifier"], 
                                                             selected_columns["measurementValue"], settings,
@@ -180,16 +209,10 @@ class GoExecScriptTSfreshExtraction(GoExecutionScript):
                                                             selected_columns["admissionIdentifier"],
                                                             selected_columns["admissionTime"],
                                                             selected_columns["time"])
-        # Save extracted features
-        if os.path.getsize(csv_result_path) > 2:
-            all_extracted_data = pd.read_csv(csv_result_path)
-        else:
-            all_extracted_data = pd.DataFrame([])
-        all_extracted_data = pd.concat([all_extracted_data, pd.DataFrame(df_extracted_features)], ignore_index=True)
-        all_extracted_data.to_csv(csv_result_path, index=False)
 
+        # Send results to front
+        json_config["collection_length"] = len(list(result_collection.find()))
         self.results = json_config
-
         return self.results
 
 

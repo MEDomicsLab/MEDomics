@@ -11,7 +11,8 @@ import { FlowResultsContext } from "../flow/context/flowResultsContext"
 import { EXPERIMENTS, WorkspaceContext } from "../workspace/workspaceContext"
 import { ErrorRequestContext } from "../generalPurpose/errorRequestContext.jsx"
 import MedDataObject from "../workspace/medDataObject"
-import { createZipFileSync, modifyZipFileSync } from "../../utilities/customZipFile.js"
+import uuid from "react-native-uuid"
+// import { createZipFileSync, modifyZipFileSync } from "../../utilities/customZipFile.js"
 
 import { UUID_ROOT, DataContext } from "../workspace/dataContext"
 
@@ -53,6 +54,9 @@ import { Modal } from "react-bootstrap"
 import FlInput from "./flInput"
 import { FaLaptop } from "react-icons/fa6"
 
+import boxNode from "../learning/nodesTypes/boxNode.jsx"
+import analysisBoxNode from "../learning/nodesTypes/analysisBoxNode.jsx"
+
 const staticNodesParams = nodesParams // represents static nodes parameters
 
 /**
@@ -80,6 +84,8 @@ const MedflWorkflow = ({ setWorkflowType, workflowType }) => {
     currentLabel: ""
   })
 
+  const [boxIntersections, setBoxIntersections] = useState({})
+
   const [flWorkflowSettings, setflWorkflowSettings] = useState({})
   const [showRunModal, setRunModal] = useState(false)
 
@@ -94,6 +100,7 @@ const MedflWorkflow = ({ setWorkflowType, workflowType }) => {
 
   const [isSaveModal, openSaveModal] = useState(false)
   const [scenName, setSceanName] = useState("")
+  const [isInitialized, setIsInitialized] = useState(true)
 
   const { groupNodeId, changeSubFlow, hasNewConnection } = useContext(FlowFunctionsContext)
   const { config, pageId, configPath } = useContext(PageInfosContext) // used to get the page infos such as id and config path
@@ -112,7 +119,7 @@ const MedflWorkflow = ({ setWorkflowType, workflowType }) => {
   const nodeTypes = useMemo(
     () => ({
       standardNode: StandardNode,
-      groupNode: GroupNode,
+      groupNode: NetworkNode,
       masterDatasetNode: MasterDatasetNode,
       networkNode: NetworkNode,
       flClientNode: FlClientNode,
@@ -126,7 +133,9 @@ const MedflWorkflow = ({ setWorkflowType, workflowType }) => {
       flResultsNode: FlResultsNode,
       flTrainModelNode: FlTrainModelNode,
       flSaveModelNode: FlSaveModelNode,
-      flMergeresultsNode: FlCompareResults
+      flMergeresultsNode: FlCompareResults,
+      boxNode: boxNode,
+      analysisBoxNode: analysisBoxNode
     }),
     []
   )
@@ -140,6 +149,186 @@ const MedflWorkflow = ({ setWorkflowType, workflowType }) => {
       console.log("No config file found for this page, base workflow will be used")
     }
   }, [config])
+
+  const createBoxNode = (position, node, id) => {
+    const { nodeType, name, draggable, selectable, image, size, borderColor, selectedBorderColor } = node
+    let newNode = {
+      id: id,
+      type: nodeType,
+      name: name,
+      draggable: draggable, // if draggable is not defined, it is set to true by default
+      selectable: selectable, // if selectable is not defined, it is set to true by default
+      position,
+      style: {
+        zIndex: -1
+      }, // style of the node, used to set the zIndex of the node
+      data: {
+        // here is the data accessible by children components
+        internal: {
+          name: name,
+          img: image,
+          type: name.toLowerCase().replaceAll(" ", "_"),
+          results: { checked: false, contextChecked: false },
+          borderColor: borderColor, // borderColor is used to set the border color of the node
+          selectedBorderColor: selectedBorderColor, // selectedBorderColor is used to set the border color of the node when it is selected
+          subflowId: "MAIN", // subflowId is used to know which group the node belongs to
+          hasRun: false
+        },
+        setupParam: {
+          possibleSettings: {}
+        },
+        size: size, // size of the node, used to set the width and height of the node
+        tooltipBy: "node" // this is a default value that can be changed in addSpecificToNode function see workflow.jsx for example
+      }
+    }
+    if (nodeType == "analysisBoxNode") {
+      newNode.data.setupParam = {
+        input: ["model"],
+        output: [],
+        classes: "action analyze run endNode",
+        possibleSettings: {
+          plot: "auc",
+          scale: "1"
+        }
+      }
+    }
+    return newNode
+  }
+
+  useEffect(() => {
+    const createDefaultBoxes = () => {
+      let boxes = []
+      let newId = ""
+      let initBox = createBoxNode(
+        { x: 0, y: 0 },
+        {
+          nodeType: "boxNode",
+          name: "Initialization",
+          draggable: false,
+          selectable: true,
+          image: "",
+          size: { width: 700, height: 1000 },
+          borderColor: "rgba(173, 230, 150, 0.8)",
+          selectedBorderColor: "rgb(255, 187, 0)"
+        },
+        "box-initialization"
+      )
+      let trainBox = createBoxNode(
+        { x: 800, y: 250 },
+        {
+          nodeType: "boxNode",
+          name: "Training",
+          draggable: false,
+          selectable: true,
+          image: "",
+          size: { width: 500, height: 500 },
+          borderColor: "rgba(173, 230, 150, 0.8)",
+          selectedBorderColor: "rgb(255, 187, 0)"
+        },
+        "box-training"
+      )
+      let analysisBox = createBoxNode(
+        { x: 1500, y: 350 },
+        {
+          nodeType: "analysisBoxNode",
+          name: "Analysis",
+          draggable: false,
+          selectable: true,
+          image: "",
+          size: { width: 500, height: 300 },
+          borderColor: "rgba(150, 201, 230, 0.8)",
+          selectedBorderColor: "rgb(255, 187, 0)"
+        },
+        "box-analysis"
+      )
+      const newBoxes = [initBox, trainBox, analysisBox]
+      newBoxes.forEach((box) => {
+        const exists = nodes.find((node) => node.name == box.name && (node.type == "boxNode" || node.type == "analysisBoxNode"))
+        if (exists && exists.type === "analysisBoxNode" && !exists.data.setupParam) {
+          // If the analysis box exists but does not have setupParam, we need to update it
+          setNodes((nds) =>
+            nds.map((node) => {
+              if (node.id === exists.id) {
+                node.data.setupParam = {
+                  input: ["model"],
+                  output: [],
+                  classes: "action analyze run endNode",
+                  possibleSettings: {
+                    plot: "auc",
+                    scale: "1"
+                  }
+                }
+              }
+              return node
+            })
+          )
+          return
+        }
+        if (exists) return
+        newId = `box-node_${uuid.v4()}`
+        box = addSpecificToNode(box)
+        boxes.push(box)
+      })
+      if (boxes.length > 0) setNodes((nds) => [...nds, ...boxes]) // add the boxes to the nodes array
+    }
+    if (isInitialized) {
+      createDefaultBoxes() // create default boxes to add to the workflow
+    }
+    // checkDuplicateModelNodes(nodes) // check for duplicate model nodes and show a warning
+    setTreeData(createTreeFromNodes())
+    // updateTrainModelNode(nodes, edges)
+    // cleanTrainModelNode(nodes)
+    // updateSplitNodesColumns(nodes)
+  }, [nodes, edges, isInitialized])
+
+  const checkDuplicateModelNodes = (nodes) => {
+    const duplicateNodes = nodes.filter((node, index) => node.data.internal.nameID && nodes.findIndex((n) => n.data.internal.nameID === node.data.internal.nameID) !== index)
+    if (duplicateNodes.length > 0) {
+      const nonDuplicateNodes = nodes.filter((node) => !duplicateNodes.includes(node))
+      duplicateNodes.forEach((node) => {
+        if (node.data.internal.hasWarning && !node.data.internal.hasWarning.state) {
+          node.data.internal.hasWarning = { state: true, tooltip: <p>This node shares the same ID with another node. To avoid conflicts, please update it.</p> }
+          setNodes((nds) =>
+            nds.map((n) => {
+              if (n.id === node.id) {
+                n.data.internal = node.data.internal
+              }
+              return n
+            })
+          )
+        }
+      })
+      nonDuplicateNodes.length > 0 &&
+        nonDuplicateNodes.forEach((node) => {
+          if (node.data.internal.hasWarning && node.data.internal.hasWarning.state && node.data.internal.hasWarning.tooltip.props.children.startsWith("This node shares the same ID")) {
+            node.data.internal.hasWarning = { state: false }
+            setNodes((nds) =>
+              nds.map((n) => {
+                if (n.id === node.id) {
+                  n.data.internal = node.data.internal
+                }
+                return n
+              })
+            )
+          }
+        })
+    } else {
+      // Remove warnings if no duplicates are found
+      nodes.forEach((node) => {
+        if (node.data.internal.hasWarning && node.data.internal.hasWarning.state && node.data.internal.hasWarning.tooltip.props.children.startsWith("This node shares the same ID")) {
+          node.data.internal.hasWarning = { state: false }
+          setNodes((nds) =>
+            nds.map((n) => {
+              if (n.id === node.id) {
+                n.data.internal = node.data.internal
+              }
+              return n
+            })
+          )
+        }
+      })
+    }
+  }
 
   // when isResults is changed, we set the progressBar to completed state
   useEffect(() => {
@@ -160,9 +349,17 @@ const MedflWorkflow = ({ setWorkflowType, workflowType }) => {
         node.data = {
           ...node.data
         }
-        if (!node.id.includes("opt")) {
-          let subworkflowType = node.data.internal.subflowId != "MAIN" ? "flNetwork" : "fl"
-          node.data.setupParam.possibleSettings = deepCopy(staticNodesParams[subworkflowType][node.data.internal.type]["possibleSettings"])
+        if (!node.id.includes("opt") && !node.id.startsWith("box-")) {
+          let subworkflowType = node.data.internal.subflowId != "MAIN" ? "optimize" : "learning"
+          node.data.setupParam.possibleSettings = deepCopy(staticNodesParams[subworkflowType][node.data.internal.type]["possibleSettings"][MLType])
+          console.log(node.type)
+          if (node.type == "trainModelNode") {
+            node.data.setupParam.possibleSettingsTuning = deepCopy(staticNodesParams["optimize"]["tune_model"]["possibleSettings"][MLType])
+            node.data.internal.checkedOptionsTuning = []
+            node.data.internal.settingsTuning = {}
+            node.data.internal.settingsCalibration = {}
+            node.data.internal.settingsEnsembling = {}
+          }
           node.data.internal.settings = {}
           node.data.internal.checkedOptions = []
           if (node.type == "selectionNode") {
@@ -336,6 +533,40 @@ const MedflWorkflow = ({ setWorkflowType, workflowType }) => {
     return treeMenuData
   }
 
+  const handleIntersectionWithBox = (source, targets = []) => {
+    // This function checks if the node is intersecting with a box node
+    // If it is, it adds the intersection to the intersections array
+    if (targets.length !== 0) {
+      let newIntersections = targets.filter((int) => int.startsWith("box-"))
+      newIntersections.forEach((int) => {
+        if (!Object.keys(boxIntersections).includes(int) || boxIntersections[int].length == 0 || !boxIntersections[int].includes(source.id)) {
+          setBoxIntersections((prev) => ({
+            ...prev,
+            [int]: [...new Set([...(prev[int] || []), source.id])]
+          }))
+        }
+      })
+      // Remove source.id from boxes not listed in targets
+      Object.keys(boxIntersections).forEach((boxId) => {
+        if (!newIntersections.includes(boxId) && boxIntersections[boxId]?.includes(source.id)) {
+          setBoxIntersections((prev) => ({
+            ...prev,
+            [boxId]: prev[boxId].filter((item) => item !== source.id)
+          }))
+        }
+      })
+    } else {
+      // Remove source.id from all box intersections
+      Object.keys(boxIntersections).forEach((boxId) => {
+        if (!boxIntersections[boxId]?.includes(source.id)) return
+        setBoxIntersections((prev) => ({
+          ...prev,
+          [boxId]: prev[boxId].filter((item) => item !== source.id)
+        }))
+      })
+    }
+  }
+
   /**
    * @param {Object} event event object
    * @param {Object} node node object
@@ -346,7 +577,13 @@ const MedflWorkflow = ({ setWorkflowType, workflowType }) => {
    */
   const onNodeDrag = useCallback(
     (event, node) => {
-      let rawIntersects = getIntersectingNodes(node).map((n) => n.id)
+      const intersectingNodes = getIntersectingNodes(node)
+      let rawIntersects = intersectingNodes.map((n) => n.id)
+
+      // Handle intersection with box nodes
+      handleIntersectionWithBox(node, rawIntersects)
+
+      // Filter out nodes that are not in the same subflow as the current node
       rawIntersects = rawIntersects.filter((n) => nodes.find((node) => node.id == n).data.internal.subflowId == node.data.internal.subflowId)
       let isNew = false
 
@@ -380,6 +617,19 @@ const MedflWorkflow = ({ setWorkflowType, workflowType }) => {
         } else {
           setIntersections((intersects) => intersects.filter((int) => int.sourceId !== node.id))
         }
+      }
+
+      if (!node.data.setupParam.section) return
+      const boxNode = nodes.find((n) => n.id.startsWith("box-") && n.name.toLowerCase() === node.data.setupParam.section.toLowerCase())
+      if (!boxNode) return
+      const maxPosX = boxNode ? boxNode.position.x + boxNode.width - node.width : 1000 // Default max position if no box node found
+      const minPosX = boxNode ? boxNode.position.x + 60 : 0 // Default min position if no box node  (60 is side bar width)
+      const maxPosY = boxNode ? boxNode.position.y + boxNode.height - node.height : 1000 // Default max position if no box node found
+      const minPosY = boxNode ? boxNode.position.y : 0 // Default min position if no box node found
+      if (node.position.x < minPosX || node.position.x > maxPosX || node.position.y < minPosY || node.position.y > maxPosY) {
+        node.data.className = "misplaced"
+      } else {
+        node.data.className = ""
       }
     },
     [nodes, intersections]
@@ -476,32 +726,80 @@ const MedflWorkflow = ({ setWorkflowType, workflowType }) => {
    * @returns
    */
   const addSpecificToNode = (newNode, associatedNode) => {
-    console.log(newNode)
     // if the node is not a static node for a optimize subflow, it needs possible settings
     let setupParams = {}
-    if (!newNode.id.includes("opt")) {
+    if (!newNode.id.includes("opt") && !newNode.id.startsWith("box-")) {
       setupParams = deepCopy(staticNodesParams[workflowType][newNode.data.internal.type])
-      console.log("this is the setup", staticNodesParams[workflowType])
+      setupParams.possibleSettings = {}
+      if (newNode.type == "trainModelNode") {
+        let setupParamsTuning = deepCopy(staticNodesParams["optimize"]["tune_model"])
+        setupParams.possibleSettingsTuning = setupParamsTuning["possibleSettings"][MLType]
+        newNode.data.internal.checkedOptionsTuning = []
+        newNode.data.internal.settingsTuning = {}
+        newNode.data.internal.settingsCalibration = {}
+        newNode.data.internal.settingsEnsembling = {}
+      }
     }
     newNode.id = `${newNode.id}${associatedNode ? `.${associatedNode}` : ""}` // if the node is a sub-group node, it has the id of the parent node seperated by a dot. useful when processing only ids
     newNode.hidden = newNode.type == "optimizeIO"
     newNode.zIndex = newNode.type == "optimizeIO" ? 1 : 1010
     newNode.data.tooltipBy = "type"
+    // if analysis box, add input and output
+    if (newNode.type == "analysisBoxNode") {
+      setupParams = {
+        ...newNode.data.setupParam,
+        input: ["model"],
+        output: [],
+        classes: "action analyze run endNode",
+        possibleSettings: {
+          plot: "auc",
+          scale: "1"
+        }
+      }
+    }
     newNode.data.setupParam = setupParams
+    newNode.data.internal.nameID = newNode.data.setupParam.nameID
     newNode.data.internal.code = ""
     newNode.className = setupParams.classes
 
     let tempDefaultSettings = {}
-    if (newNode.data.setupParam.possibleSettings) {
+    if (newNode.data.setupParam.possibleSettings && newNode.type !== "splitNode") {
       "default" in newNode.data.setupParam.possibleSettings &&
         Object.entries(newNode.data.setupParam.possibleSettings.default).map(([settingName, setting]) => {
           tempDefaultSettings[settingName] = defaultValueFromType[setting.type]
         })
+    } else if (newNode.data.setupParam.possibleSettings && newNode.type == "splitNode") {
+      const settings = newNode.data.setupParam.possibleSettings.default || newNode.data.setupParam.possibleSettings
+
+      Object.entries(settings).forEach(([settingName, setting]) => {
+        if (!setting) return
+
+        if (setting.hasOwnProperty("type")) {
+          tempDefaultSettings[settingName] = setting.default_val ?? defaultValueFromType[setting.type] ?? null
+        } else if (typeof setting === "object") {
+          tempDefaultSettings[settingName] = tempDefaultSettings[settingName] || {}
+
+          Object.entries(setting).forEach(([name, actualSetting]) => {
+            if (!actualSetting) return
+
+            if (actualSetting.hasOwnProperty("type")) {
+              tempDefaultSettings[settingName][name] = actualSetting.default_val ?? defaultValueFromType[actualSetting.type] ?? null
+            } else if (typeof actualSetting === "object") {
+              tempDefaultSettings[settingName][name] = {}
+
+              Object.entries(actualSetting).forEach(([name2, actualSetting2]) => {
+                tempDefaultSettings[settingName][name][name2] = actualSetting2?.default_val ?? null
+              })
+            }
+          })
+        }
+      })
     }
     newNode.data.internal.settings = tempDefaultSettings
 
     newNode.data.internal.selection = newNode.type == "selectionNode" && Object.keys(setupParams.possibleSettings)[0]
     newNode.data.internal.checkedOptions = []
+
     newNode.data.internal.subflowId = !associatedNode ? groupNodeId.id : associatedNode
     newNode.data.internal.hasWarning = { state: false }
 
@@ -582,10 +880,10 @@ const MedflWorkflow = ({ setWorkflowType, workflowType }) => {
     const emptyScene = { useMedStandard: useMedStandard }
     // create custom zip file
     console.log("zipFilePath", Path.join(path, sceneName + "." + extension))
-    await createZipFileSync(Path.join(path, sceneName + "." + extension), async (path) => {
-      // do custom actions in the folder while it is unzipped
-      await MedDataObject.writeFileSync(emptyScene, path, "metadata", "json")
-    })
+    // await createZipFileSync(Path.join(path, sceneName + "." + extension), async (path) => {
+    //   // do custom actions in the folder while it is unzipped
+    //   await MedDataObject.writeFileSync(emptyScene, path, "metadata", "json")
+    // })
   }
   /**
    * save the workflow as a json file
@@ -602,21 +900,21 @@ const MedflWorkflow = ({ setWorkflowType, workflowType }) => {
         flow.intersections = intersections
         if (configPath != "") {
           console.log("Heeeeeeere")
-          modifyZipFileSync(configPath, async (path) => {
-            // do custom actions in the folder while it is unzippsed
-            await MedDataObject.writeFileSync(flow, path, "metadata", "json")
-            toast.success("Scene has been saved successfully")
-          })
+          // modifyZipFileSync(configPath, async (path) => {
+          //   // do custom actions in the folder while it is unzippsed
+          //   await MedDataObject.writeFileSync(flow, path, "metadata", "json")
+          //   toast.success("Scene has been saved successfully")
+          // })
         } else {
           console.log("here", scean)
           let configPath = globalData["UUID_ROOT"].path + "/EXPERIMENTS/FL/Sceans"
-          createSceneContent(configPath, scean, "fl", null).then(() =>
-            modifyZipFileSync(configPath + "/" + scean + ".fl", async (path) => {
-              // do custom actions in the folder while it is unzipped
-              await MedDataObject.writeFileSync(flow, path, "metadata", "json")
-              toast.success("Scene has been saved successfully")
-            })
-          )
+          // createSceneContent(configPath, scean, "fl", null).then(() =>
+          //   modifyZipFileSync(configPath + "/" + scean + ".fl", async (path) => {
+          //     // do custom actions in the folder while it is unzipped
+          //     await MedDataObject.writeFileSync(flow, path, "metadata", "json")
+          //     toast.success("Scene has been saved successfully")
+          //   })
+          // )
         }
       }
     },
@@ -787,7 +1085,7 @@ const MedflWorkflow = ({ setWorkflowType, workflowType }) => {
   }
 
   const createDBfile = (file) => {
-      setDBConfig(file.path)
+    setDBConfig(file.path)
   }
 
   const setDBConfig = (filePath) => {
@@ -920,7 +1218,7 @@ const MedflWorkflow = ({ setWorkflowType, workflowType }) => {
         setFile={setConfigFile}
         configFile={flConfigFile}
         onConfirm={() => {
-           createDBfile(flConfigFile)
+          createDBfile(flConfigFile)
         }}
       />
       <Modal show={isSaveModal} onHide={() => openSaveModal(false)} centered>

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react"
-import { MultiSelect } from 'primereact/multiselect';
+import { MultiSelect } from "primereact/multiselect"
 
 /**
  * @typedef {React.FunctionComponent} TagsSelectMultiple
@@ -19,55 +19,50 @@ const TagsSelectMultiple = ({ key, onChange, selectedTags, selectedDatasets, dis
    * @description This useEffect is used to set the localTags when the component is mounted
    */
   useEffect(() => {
-    console.log(selectedTags)
-    if(selectedTags !== undefined && Array.isArray(selectedTags)) {
+    if (selectedTags !== undefined && Array.isArray(selectedTags)) {
       setLocalTags(selectedTags)
     }
   }, [selectedTags])
 
-  
   /**
    * @description This useEffect is used to generate the dataset list from the global data context if it's defined
    * @returns {void} calls the generateDatasetListFromDataContext function
    */
   useEffect(() => {
-    if(Array.isArray(selectedDatasets) && selectedDatasets.length > 0) {
+    if (Array.isArray(selectedDatasets) && selectedDatasets.length > 0) {
       let tags = []
       selectedDatasets.forEach((dataset) => {
-        console.log("selectedDataset", dataset)
-          tags = tags.concat(dataset.tags)
+        tags = tags.concat(dataset.tags)
       })
       tags = [...new Set(tags)]
       let tagsToShow = tags.map((tag) => {
         return { name: tag, value: tag }
       })
       setTagsList(tagsToShow)
-      console.log("tagsToShow", tagsToShow)
     } else {
       setTagsList([])
     }
-    
   }, [selectedDatasets])
 
-return (
-  <>
-    {
-      <MultiSelect
-        key={key}
-        disabled={tagsList.length == 0 || disabled}
-        placeholder={placeholder}
-        value={localTags} 
-        onChange={(e) => {
-          console.log("tagsSelectMultiple", e)
-          onChange(e.target.value)
-        }} 
-        options={tagsList} 
-        optionLabel="name" display="chip"
-      />
-    }
-  </>
-)
-    
+  return (
+    <>
+      {
+        <MultiSelect
+          key={key}
+          disabled={tagsList.length == 0 || disabled}
+          placeholder={placeholder}
+          value={localTags}
+          onChange={(e) => {
+            onChange(e.target.value)
+          }}
+          options={tagsList}
+          optionLabel="name"
+          display="chip"
+          filter
+        />
+      }
+    </>
+  )
 }
 
 export default TagsSelectMultiple

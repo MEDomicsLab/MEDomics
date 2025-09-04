@@ -7,10 +7,9 @@ import { Col } from "react-bootstrap"
 /**
  * @description This is the terminal page that displays the log events from the main process and is used for debugging
  * @param {String} pageId The id of the page
- * @param {String} configPath The path to the config file
  * @returns The terminal page component
  */
-const TerminalPage = ({ pageId = "terminal", configPath = undefined }) => {
+const TerminalPage = ({ pageId = "terminal" }) => {
   const [terminalData, setTerminalData] = useState([]) // Stores the data from log events from the main process in the form of [time, data]
 
   // Creates a listener for the log event from the main process
@@ -42,7 +41,7 @@ const TerminalPage = ({ pageId = "terminal", configPath = undefined }) => {
 
   return (
     <>
-      <ModulePage pageId={pageId} configPath={configPath} style={{ backgroundColor: "#1f1f1f", top: "-20px" }}>
+      <ModulePage pageId={pageId} style={{ backgroundColor: "#1f1f1f", top: "-20px" }}>
         <div className="terminal" style={{ backgroundColor: "#1f1f1f", padding: "1rem 1rem", top: "20px", width: "100%" }}>
           {/* Button for clearing the log */}
           <button

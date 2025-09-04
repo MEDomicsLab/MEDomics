@@ -40,8 +40,19 @@ const SelectionNode = ({ id, data, type }) => {
     data.internal.checkedOptions = []
     e.stopPropagation()
     e.preventDefault()
-    console.log("onselectionchange", e.target.value)
     setSelection(e.target.value)
+  }
+
+  /**
+   *
+   * @param {Object} hasWarning an object containing the state of the warning and the tooltip
+   */
+  const handleWarning = (hasWarning) => {
+    data.internal.hasWarning = hasWarning
+    updateNode({
+      id: id,
+      updatedData: data.internal
+    })
   }
 
   // update the node when the input changes
@@ -70,6 +81,7 @@ const SelectionNode = ({ id, data, type }) => {
                   <option
                     key={optionName}
                     value={optionName}
+                    label={data.setupParam.possibleSettings[optionName].label}
                     // selected={optionName === selection}
                   >
                     {optionName}
@@ -108,12 +120,26 @@ const SelectionNode = ({ id, data, type }) => {
               data={data}
               id={id}
             />
+            {(data.internal.name === "Model" && data.internal.checkedOptions.length > 0) && (
+              <p className="text-muted" style={{ fontSize: "0.85em" }}>
+                You can enable fine-tuning for the settings listed below in the Train Model node.
+              </p>
+            )}
             {/* the inputs of the selected options (this reset when the selection changes)*/}
             {data.internal.checkedOptions.map((optionName) => {
-              return <Input key={optionName} name={optionName} settingInfos={data.setupParam.possibleSettings[data.internal.selection].options[optionName]} currentValue={data.internal.settings[optionName]} onInputChange={onInputChange} />
+              return <Input 
+                        key={optionName} 
+                        name={optionName} 
+                        settingInfos={data.setupParam.possibleSettings[data.internal.selection].options[optionName]} 
+                        currentValue={data.internal.settings[optionName]} 
+                        onInputChange={onInputChange}
+                        setHaswarning={handleWarning}
+                      />
             })}
           </>
         }
+        // Link to documentation
+        nodeLink={"https://medomics-udes.gitbook.io/medomicslab-docs/tutorials/development/learning-module"}
       />
     </>
   )

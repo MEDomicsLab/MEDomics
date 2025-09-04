@@ -42,8 +42,7 @@ class Optimize(Node):
         if "models" in self.type:
             self.CodeHandler.add_line(
                 "code",
-                f"optimized_model = pycaret_exp.{self.type}(trained_models, {self.CodeHandler.convert_dict_to_params(settings)})",
-                1)
+                f"optimized_model = pycaret_exp.{self.type}(trained_models, {self.CodeHandler.convert_dict_to_params(settings)})", 1)
             trained_models.append(getattr(experiment['pycaret_exp'], self.type)(input_models, **settings))
         else:
             self.CodeHandler.add_line("code", f"trained_models_optimized = []")
@@ -65,12 +64,11 @@ class Optimize(Node):
         self.CodeHandler.add_line(
             "code", f"trained_models = trained_models_optimized")
         trained_models_copy = trained_models.copy()
-        self._info_for_next_node = {'models': trained_models}
+        self._info_for_next_node = {'models': trained_models, 'id': self.id}
         for model in trained_models_copy:
             model_copy = copy.deepcopy(model)
             trained_models_json[model_copy.__class__.__name__] = model_copy.__dict__
             for key, value in model_copy.__dict__.items():
                 if isinstance(value, np.ndarray):
-                    trained_models_json[model_copy.__class__.__name__][key] = value.tolist(
-                    )
+                    trained_models_json[model_copy.__class__.__name__][key] = value.tolist()
         return trained_models_json

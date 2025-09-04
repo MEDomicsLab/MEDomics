@@ -8,6 +8,7 @@ __pycache__/*
 *.so
 
 # Distribution / packaging
+libmongocrypt/
 .Python
 .vscode/
 develop-eggs/
@@ -27,6 +28,8 @@ share/python-wheels/
 .installed.cfg
 *.egg
 MANIFEST
+
+python/*
 
 # PyInstaller
 #  Usually these files are written by a python script from a template
@@ -75,7 +78,6 @@ node_modules
 .next
 app
 dist
-
 
 # Sphinx documentation
 docs/_build/
@@ -140,7 +142,12 @@ dmypy.json
 # submodules
 /flask_server/submodules/MEDimage/*
 /flask_server/submodules/MEDprofiles/*
+pythonCode/submodules/MEDimage/*
+pythonCode/submodules/MEDprofiles/*
 
+# Go executables 
+go_server/main
+go_server/main.exe
 
 # custom gitignore
 tmp

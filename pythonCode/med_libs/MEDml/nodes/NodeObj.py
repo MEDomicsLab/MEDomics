@@ -11,7 +11,6 @@ import sys
 import os
 from pathlib import Path
 sys.path.append(str(Path(os.path.dirname(os.path.abspath(__file__))).parent.parent))
-from CustomZipFile import CustomZipFile
 DATAFRAME_LIKE = Union[dict, list, tuple, np.ndarray, pd.DataFrame]
 TARGET_LIKE = Union[int, str, list, tuple, np.ndarray, pd.Series]
 
@@ -81,11 +80,10 @@ class Node(ABC):
         self.type = self.config_json['data']['internal']['type']
         self.username = self.config_json['data']['internal']['name']
         self.id = id_
+        self.nameID = self.config_json['data']['internal'].get('nameID', None)
         self._has_run = False
         self.just_run = False
         self._info_for_next_node = {}
-        self.CustZipFile = CustomZipFile(
-            path=self.global_config_json['configPath'])
         for setting, value in self.settings.items():
             if isinstance(value, str):
                 if is_float(value):
@@ -130,6 +128,8 @@ class Node(ABC):
         """
         self.CodeHandler.reset()
         self.CodeHandler.add_line("md", f"### This is {self.username}")
+        if self.nameID is not None and self.type != "train_model" and self.type != "compare_models":
+            self.CodeHandler.add_line("md", f"##### *Node ID: {self.nameID}*")
         self.just_run = True
         self._has_run = True
 

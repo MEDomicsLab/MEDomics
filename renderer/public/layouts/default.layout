@@ -3,7 +3,10 @@
     "tabEnableFloat": true,
     "tabSetMinHeight": 100,
     "tabSetMinWidth": 100,
-    "borderMinSize": 100
+    "borderMinSize": 100,
+    "tabEnablePopoutOverlay": false,
+    "tabEnablePopoutIcon": false,
+    "tabEnablePopout": false
   },
   "layout": {
     "type": "row",
@@ -14,7 +17,8 @@
         "active": true,
         "children": []
       }
-    ]
+    ],
+    "supportsPopout": false
   },
   "borders": [
     {
@@ -34,11 +38,6 @@
           "name": "Terminal",
           "component": "terminal",
           "icon": "images/terminal.svg"
-        },
-        {
-          "type": "tab",
-          "name": "Layout JSON",
-          "component": "json"
         }
       ]
     }

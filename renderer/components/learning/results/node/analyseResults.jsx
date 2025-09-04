@@ -1,21 +1,8 @@
-/* eslint-disable no-undef */
-import React, { useEffect, useState } from "react"
+import React, { useEffect, useState, useContext } from "react"
 import { Image } from "primereact/image"
-import MedDataObject from "../../../workspace/medDataObject"
-import { modifyZipFileSync } from "../../../../utilities/customZipFile"
-
-/**
- *
- * @param {String} src An absolute path to the image
- * @returns
- */
-const getLocalImageSync = (src) => {
-  return new Promise((resolve) => {
-    const nativeImage = require("electron").nativeImage
-    const image = nativeImage.createFromPath(src)
-    resolve(image.toDataURL())
-  })
-}
+import { DataContext } from "../../../workspace/dataContext"
+import { MEDDataObject } from "../../../workspace/NewMedDataObject"
+import { WorkspaceContext } from "../../../workspace/workspaceContext"
 
 /**
  *
@@ -24,56 +11,58 @@ const getLocalImageSync = (src) => {
  */
 const AnalyseResults = ({ selectedResults }) => {
   const [images, setImages] = useState([])
+  const { globalData } = useContext(DataContext)
+  const { workspace } = useContext(WorkspaceContext)
 
   useEffect(() => {
-    if (selectedResults.data) {
-      let imagesInfos = []
-      Object.entries(selectedResults.data).forEach(([modelName, path]) => {
-        imagesInfos.push({ modelName: modelName, path: path })
+    const imagesInfos = Object.entries(selectedResults.data).map(([modelName, collectionId]) => ({ modelName, collectionId }))
+    const alreadyInWorkspace = globalData[globalData[Object.entries(selectedResults.data)[0][1]].parentID].inWorkspace
+
+    const downloadImages = async (imagesInfos) => {
+      const imagePaths = []
+      for (const { modelName, collectionId } of imagesInfos) {
+        const medDataObject = globalData[collectionId]
+        if (!medDataObject?.inWorkspace) {
+          await MEDDataObject.sync(globalData, collectionId, workspace.workingDirectory.path, false)
+        }
+
+        const filePath = MEDDataObject.getFullPath(globalData, collectionId, workspace.workingDirectory.path)
+        imagePaths.push({ modelName, filePath })
+      }
+
+      const imagePromises = imagePaths.map(({ modelName, filePath }) => {
+        return new Promise((resolve) => {
+          const nativeImage = require("electron").nativeImage
+          const image = nativeImage.createFromPath(filePath)
+          resolve({
+            key: modelName,
+            imageUrl: image.toDataURL()
+          })
+        })
       })
-      createImages(imagesInfos)
+
+      const results = await Promise.all(imagePromises)
+      const images = results.map(({ key, imageUrl }) => (
+        <div key={key}>
+          <Image src={imageUrl} alt="Image" height="250" indicatorIcon={<h5>{key}</h5>} preview downloadable />
+        </div>
+      ))
+      setImages(images)
+    }
+
+    if (imagesInfos.length) {
+      downloadImages(imagesInfos)
+    }
+
+    return () => {
+      // Clean up images from workspace when component unmounts
+      imagesInfos.forEach(async ({ collectionId }) => {
+        if (!alreadyInWorkspace) {
+          MEDDataObject.deleteObjectAndChildrenFromWorkspace(globalData, collectionId, workspace.workingDirectory.path, false)
+        }
+      })
     }
   }, [selectedResults])
-
-  /**
-   *
-   * @param {List} imagesInfos The list of images infos
-   * @description - This function is used to create the images
-   *
-   * @returns {JSX.Element} The AnalyseResults component
-   */
-  const createImages = (imagesInfos) => {
-    if (imagesInfos.length != 0) {
-      let zipPath = imagesInfos[0].path.split(MedDataObject.getPathSeparator() + "tmp" + MedDataObject.getPathSeparator())[0]
-      modifyZipFileSync(zipPath + ".medml", () => {
-        return new Promise((resolve) => {
-          let promises = imagesInfos.map(({ modelName, path }) => {
-            return getLocalImageSync(path).then((imageUrl) => {
-              return {
-                key: modelName,
-                imageUrl: imageUrl
-              }
-            })
-          })
-          Promise.all(promises)
-            .then((results) => {
-              let images = results.map(({ key, imageUrl }) => (
-                <div key={key}>
-                  <Image src={imageUrl} alt="Image" height="250" indicatorIcon={<h5>{key}</h5>} preview downloadable />
-                </div>
-              ))
-              setImages(images)
-            })
-            .catch((error) => {
-              console.log(error)
-            })
-          resolve()
-        })
-      }).then(() => {
-        // No operation needed, there for debugging purposes
-      })
-    }
-  }
 
   return (
     <div className="height-100 width-100 flex-grid-gap-1rem">

@@ -1,99 +1,127 @@
-# MEDomicsLab - Develop branch 🛠️
+# MEDomicsLab: Integrative Modeling of Heterogeneous Data in Medicine
 
-[![GitHub build](https://img.shields.io/github/workflow/status/MEDomics-UdeS/MEDomicsLab/Build%20and%20test%20electron%20app%20on%20push%20to%20develop%20branch)]()
-[![GitHub last commit](https://img.shields.io/github/last-commit/MEDomics-UdeS/MEDomicsLab)]()
-[![GitHub contributors](https://img.shields.io/github/contributors/MEDomics-UdeS/MEDomicsLab)]()
-[![GitHub issues](https://img.shields.io/github/issues/MEDomics-UdeS/MEDomicsLab)]()
+<div align="center">
+  <picture>
+    <img
+      width="200"
+      src="./resources/MEDomicsLabWithShadow700.png"
+      alt="MEDomicsLab logo white text"
+    />
+  </picture>
+</div>
+
 [![GitHub forks](https://img.shields.io/github/forks/MEDomics-UdeS/MEDomicsLab)]()
 [![GitHub stars](https://img.shields.io/github/stars/MEDomics-UdeS/MEDomicsLab)]()
 [![GitHub release](https://img.shields.io/github/release/MEDomics-UdeS/MEDomicsLab)]()
-[![GitHub license](https://img.shields.io/github/license/MEDomics-UdeS/MEDomicsLab)]()
+[![GitHub license](https://img.shields.io/github/license/MEDomics-UdeS/MEDomicsLab)](https://opensource.org/license/gpl-3-0)
+[![Gitbook docs](https://img.shields.io/badge/GitBook-Documentation-lg?logo=gitbook&logoColor=white)](https://medomics-udes.gitbook.io/medomicslab-docs)
+[![YouTube Channel](https://img.shields.io/badge/YouTube-Channel-red?logo=youtube&logoColor=white)](https://www.youtube.com/@MEDomicsLab)
+[![Discord server](https://badgen.net/discord/members/ZbaGj8E6mP)](https://discord.com/invite/ZbaGj8E6mP)
 
-Here is the develop branch of the MEDomicsLab project. This branch is used to develop new features and fix bugs. The main branch is used to publish the latest stable version of the project. The develop branch is merged into the main branch when a new stable version is ready to be published.
+## Table of Contents 
+- [What is MEDomicsLab?](#what-is-medomicslab)
+- [MEDomicsLab overview](#medomicslab-overview)
+- [MEDomicsLab Components](#medomicslab-components)
+- [MEDomicsLab in Action](#medomicslab-in-action)
+- [Installation and Usage](#installation-and-usage)
+  - [Explore Documentation](#explore-documentation)
+  - [Engage in MEDomicsLab](#engage-in-medomicslab)
+- [Acknowledgement](#acknowledgement)
 
-### Main documentation 👉 [here](https://medomics-udes.gitbook.io/medomicslab-docs/). 👈
 
-### Development documentation 👇
+## What is MEDomicsLab?
+**MEDomicsLab** is an open-source platform designed to advance medical AI by bridging clinical and computational research. It empowers clinicians to design experiments, enables computer scientists to customize and adapt them, and refines processes with a flexible backend. The platform offers multiple usage levels: intuitive built-in pipelines, customizable settings, automatic code generation, and modular Python libraries—enhancing collaboration and innovation across healthcare professionals and data scientists.
 
-# Getting started - Development
+## MEDomicsLab Overview
+**MEDomicsLab** is focused on integrative modeling of heterogeneous medical data to support personalized treatments. The platform offers an environment for manipulating  heterogeneous medical data and developing predictive models to enable the characterization 
+of biological processes.
 
-This is considering that you are a developper and want to contribute to the project.
+<div align="center">
+  <picture width="600">
+    <img
+      width="600"
+      src="./resources/Overview.png"
+      alt="MEDomicsLab overview"
+    />
+  </picture>
+</div>
 
-- I am a **user** and want to **install** the latest release: [Go here](https://medomics-udes.gitbook.io/medomicslab-docs/quick-start)
-- I am a **developper** and want to **setup the project**: [Go here](https://medomics-udes.gitbook.io/medomicslab-docs/contributing)
-- I am a **developper** and i **already setup** the required softwares: **You are at the right place !**
+**The end-goal** is to give researchers the ability to leverage diverse 
+data types contributing to more personalized and effective treatment models **by enhancing the synergy between computer scientists and clinical researchers**, in particular, through the code generation feature that allows for the automatic generation of Python code from the graphically created pipelines as depicted below.
 
-## 1. Git clone the project
+<div align="center">
+  <picture width="600">
+    <img
+      width="600"
+      src="./resources/CodeGenerationFeature.png"
+      alt="MEDomicsLab code generation"
+    />
+  </picture>
+</div>
 
-```
-git clone git@github.com:MEDomics-UdeS/MEDomicsLab.git      # via SSH (recommended)
-git clone https://github.com/MEDomics-UdeS/MEDomicsLab.git  # via HTTPS
-```
+## MEDomicsLab Components
 
-## 2. Initialize submodules when cloning the project
+<div align="center">
+  <picture width="600">
+    <img
+      width="600"
+      src="./resources/Workflow.png"
+      alt="MEDomicsLab workflow"
+    />
+  </picture>
+</div>
 
-```
-cd <.../MEDomicsLab/>
-git submodule init
-git submodule update --init --recursive --remote
-cd pythonCode/submodules/MEDimage
-git checkout dev_lab
-cd ../MEDprofiles
-git checkout fusion_MEDomicsLab
-```
+**MEDomicsLab** uses a modular workflow, detailing how patient data is processed to develop and test predictive models for clinical use. The workflow consists of the following layers:
 
-## 3. Be sure to have the npm packages installed
+- **Design layer**: In this layer, various types of input data are integrated to support the analytical process. This includes DICOM images and tabular data in CSV format, such as time series and clinical text data from notes or reports. This layer uses the following modules:
 
-```
-cd <.../MEDomicsLab/>
-npm install
-```
+  - [Extraction Module](https://medomics-udes.gitbook.io/medomicslab-docs/tutorials/design/extraction-modules): performs feature extraction to identify critical characteristics—like radiomic features from medical images using the [MEDimage package](https://medimage.app). 
+  - [Input Module](https://medomics-udes.gitbook.io/medomicslab-docs/tutorials/design/input-module): used to process extracted data. It provides extensive functionalities including cleaning empty lines, merging tables, and removing correlated features. It also offers a tagging tool that allows users to organize dataset columns, and offers a graphical implementation of the [MEDprofiles package](https://github.com/MEDomics-UdeS/MEDprofiles) for patient data treatment and visualization.
+  - [Exploratory Module](https://medomics-udes.gitbook.io/medomicslab-docs/tutorials/design/exploratory-module): utilized to assess data characteristics visually or statistically, with tools like [Sweetviz](https://github.com/fbdesignpro/sweetviz), [D-Tale](https://github.com/man-group/dtale), and [ydata-profiling](https://github.com/ydataai/ydata-profiling).
 
-## 4. When you modify .go files, you need to rebuild the executable
+- **Development Layer**: Once features have been extracted and treated, it enters the Development Layer, which includes key modules for model training and testing:
+  - [Learning Module](https://medomics-udes.gitbook.io/medomicslab-docs/tutorials/development/learning-module): allows users to experiment with different machine learning (ML) models to determine the best-performing algorithms for a given clinical endpoint. After model experimentation, the ML module can help finalize a model ready for evaluation and saves it under the MEDomicsLab format: "*.medmodel*".
+  - [Evaluation Module](https://medomics-udes.gitbook.io/medomicslab-docs/tutorials/development/evaluation-module): enables model validation by testing it on new data and explaining its performance and outcomes using the [explainerdashboard package](https://github.com/oegedijk/explainerdashboard). For models that require distributed data sources for training, a graphical implementation of the [MEDfl package](https://github.com/MEDomics-UdeS/MEDfl) for simulated Federated Learning (FL) is included, allowing users to simulate federated learning experiments.
 
-- You can do it manually by running `go build main.go` in the `go_server` folder
-- You can also use a script that you can run from the root folder of the project:
-  - Windows : `.\utilScripts\pack_GO.bat`
-  - Linux : `bash utilScripts/pack_GO_linux.sh`
-  - MacOS : `bash utilScripts/pack_GO_mac.sh`
+- **Deployment Layer** : After finalizing and evaluating a model, it’s ready to be used in the [Application Module](https://medomics-udes.gitbook.io/medomicslab-docs/tutorials/deployment/application-module). This module enables users to apply the trained model to new datasets or patient data, making it accessible for clinical use. Additionally, the standardized "*.medmodel*" format plays a crucial role in facilitating collaboration, allowing models to be shared seamlessly across teams and ensuring compatibility and ease of integration in diverse environments.
 
-## 5. Python environment
+## MEDomicsLab in Action
+Explore MEDomicsLab's powerful features through the part two of the machine learning module tutorial. It highlights the intuitive interface and versatile tools available for data analysis and how it can be utilized.
 
-The python environment is created automatically with the scripts in the `pythonEnv` folder.
-You have to run it manually by executing the following commands:
+<div align="center">
+  <p><a href="https://youtu.be/9vcAkIaAcxE?si=p9QIpL2XjQTSIfJ3">
+    <img
+      width="600"
+      src="./resources/LearningModuleTuto.png"
+      ref
+      alt="MEDomicsLab learning tutorial part 2"
+    />
+  </a></p>
+</div>
 
-- Windows : `.\pythonEnv\create_conda_env_win.bat`
-- Linux : `bash pythonEnv/create_conda_env_linux.sh`
+## Installation and Usage
+[Get started here](https://medomics-udes.gitbook.io/medomicslab-docs/quick-start).
 
-The script will create a conda environment named `med_conda_env`, install the required packages in it and create an environment variable named `MED_ENV` that contains the path to the environment.
+![Operating systems supported by MEDomicsLab](./resources/OSSystemsSupport.png)
 
-When developping python code, you may need to install new packages. To do so, you can activate the environment and install the package with pip:
+### Explore Documentation
+Detailed documentation for MEDomicsLab can be found 
+[here](https://medomics-udes.gitbook.io/medomicslab-docs/).
 
-```
-conda activate med_conda_env
-pip install <package_name>
-```
+### Engage in MEDomicsLab
+Explore our [contribution page](https://medomics-udes.gitbook.io/medomicslab-docs/contributing) for resources on contributing to MEDomicsLab and setting up your development environment.
 
-## 6. Run the Electron app in development mode
+<img src="./resources/ContributingTools.png"/>
 
-`npm run dev`
+## Acknowledgement
 
-### Modify startup settings
+This project relies on the following open-source packages, and we are grateful to their developers:
 
-1. Go to file `medomics.dev.js`
-2. Here is a description of the Object:
-
-```javascript
-const config = {
-  // If true, the server will be run automatically when the app is launched
-  runServerAutomatically: true,
-  // If true, use the react dev tools
-  useRactDevTools: false,
-  // the default port to use for the server, be sure that no programs use it by default
-  defaultPort: 5000,
-  // Either "FIX" or "AVAILABLE" (case sensitive)
-  // FIX 		-­> if defaultPort is used, force terminate and use defaultPort
-  // AVAILABLE 	-> if defaultPort is used, iterate to find next available port
-  portFindingMethod: PORT_FINDING_METHOD.FIX
-}
-```
+<div align="center">
+  <picture width="600">
+    <img
+      src="./resources/PackagesUsed-NoBG.png"
+      alt="MEDomicsLab workflow"
+    />
+  </picture>
+</div>

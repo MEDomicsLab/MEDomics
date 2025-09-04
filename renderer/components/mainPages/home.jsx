@@ -4,18 +4,33 @@ import myimage from "../../../resources/medomics_transparent_bg.png"
 import { Button, Stack } from "react-bootstrap"
 import { WorkspaceContext } from "../workspace/workspaceContext"
 import { ipcRenderer } from "electron"
+import FirstSetupModal from "../generalPurpose/installation/firstSetupModal"
 
 /**
  *
  * @returns the home page component
  */
 const HomePage = () => {
-  const { workspace, recentWorkspaces } = useContext(WorkspaceContext)
+  const { workspace, setWorkspace, recentWorkspaces } = useContext(WorkspaceContext)
   const [hasBeenSet, setHasBeenSet] = useState(workspace.hasBeenSet)
+
+  const [requirementsMet, setRequirementsMet] = useState(true)
 
   async function handleWorkspaceChange() {
     ipcRenderer.send("messageFromNext", "requestDialogFolder")
   }
+
+  // Check if the requirements are met
+  useEffect(() => {
+    ipcRenderer.invoke("checkRequirements").then((data) => {
+      console.log("Requirements: ", data)
+      if (data.pythonInstalled && data.mongoDBInstalled) {
+        setRequirementsMet(true)
+      } else {
+        setRequirementsMet(false)
+      }
+    })
+  }, [])
 
   // We set the workspace hasBeenSet state
   useEffect(() => {
@@ -55,7 +70,12 @@ const HomePage = () => {
                     <a
                       key={index}
                       onClick={() => {
-                        ipcRenderer.send("setWorkingDirectory", workspace.path)
+                        ipcRenderer.invoke("setWorkingDirectory", workspace.path).then((data) => {
+                          if (workspace !== data) {
+                            let workspaceToSet = { ...data }
+                            setWorkspace(workspaceToSet)
+                          }
+                        })
                       }}
                       style={{ margin: "0rem", color: "var(--blue-600)" }}
                     >
@@ -70,6 +90,7 @@ const HomePage = () => {
           )}
         </Stack>
       </div>
+      {!requirementsMet && process.platform !=="darwin" && <FirstSetupModal visible={!requirementsMet} closable={false} setRequirementsMet={setRequirementsMet} />}
     </>
   )
 }

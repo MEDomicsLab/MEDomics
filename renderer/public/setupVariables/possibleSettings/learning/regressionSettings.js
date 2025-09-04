@@ -33,9 +33,16 @@ const regressionSettings = {
                 "default_val": "lightgbm"
             },
             "numeric_imputation": {
-                "type": "int-float-str",
+                "type": "list",
                 "tooltip": "<p>Imputing strategy for numerical columns. Ignored when imputation_type= iterative. Choose from:</p>\n<blockquote>\n<div><ul >\n<li><p>\u201cdrop\u201d: Drop rows containing missing values.</p></li>\n<li><p>\u201cmean\u201d: Impute with mean of column.</p></li>\n<li><p>\u201cmedian\u201d: Impute with median of column.</p></li>\n<li><p>\u201cmode\u201d: Impute with most frequent value.</p></li>\n<li><p>\u201cknn\u201d: Impute using a K-Nearest Neighbors approach.</p></li>\n<li><p>int or float: Impute with provided numerical value.</p></li>\n</ul>\n</div></blockquote>\n",
-                "default_val": "mean"
+                "default_val": "mean",
+                "choices": {
+                    "drop": "Drop rows containing missing values",
+                    "mean": "Impute with mean of column",
+                    "median": "Impute with median of column",
+                    "mode": "Impute with most frequent value",
+                    "knn": "Impute using a K-Nearest Neighbors approach"
+                }
             },
             "numeric_iterative_imputer": {
                 "type": "string",
@@ -75,7 +82,9 @@ const regressionSettings = {
             "outliers_threshold": {
                 "type": "float",
                 "tooltip": "<p>The percentage of outliers to be removed from the dataset. Ignored\nwhen remove_outliers=False.</p>\n",
-                "default_val": "0.05"
+                "default_val": "0.05",
+                "min": 0.0,
+                "max": 1.0
             },
             "remove_multicollinearity": {
                 "type": "bool",
@@ -85,7 +94,9 @@ const regressionSettings = {
             "multicollinearity_threshold": {
                 "type": "float",
                 "tooltip": "<p>Minimum absolute Pearson correlation to identify correlated\nfeatures. The default value removes equal columns. Ignored when\nremove_multicollinearity is not True.</p>\n",
-                "default_val": "0.9"
+                "default_val": "0.9",
+                "min": 0.0,
+                "max": 1.0
             },
             "polynomial_features": {
                 "type": "bool",
@@ -95,7 +106,9 @@ const regressionSettings = {
             "polynomial_degree": {
                 "type": "int",
                 "tooltip": "<p>Degree of polynomial features. For example, if an input sample is two dimensional\nand of the form [a, b], the polynomial features with degree = 2 are:\n[1, a, b, a^2, ab, b^2]. Ignored when polynomial_features is not True.</p>\n",
-                "default_val": "2"
+                "default_val": "2",
+                "min": 1,
+                "max": 5
             },
             "feature_selection": {
                 "type": "bool",
@@ -115,7 +128,9 @@ const regressionSettings = {
             "n_features_to_select": {
                 "type": "float",
                 "tooltip": "<p>The maximum number of features to select with feature_selection. If &lt;1,\nit\u2019s the fraction of starting features. Note that this parameter doesn\u2019t\ntake features in ignore_features or keep_features into account\nwhen counting.</p>\n",
-                "default_val": "0.2"
+                "default_val": "0.2",
+                "min": 0.0,
+                "max": 1.0
             }
         },
         "code": ""
@@ -135,7 +150,9 @@ const regressionSettings = {
             "train_size": {
                 "type": "float",
                 "tooltip": "<p>Proportion of the dataset to be used for training and validation. Should be\nbetween 0.0 and 1.0.</p>\n",
-                "default_val": "0.7"
+                "default_val": "0.7",
+                "min": 0.1,
+                "max": 0.99
             },
             "test_data": {
                 "type": "dataframe",
@@ -275,7 +292,9 @@ const regressionSettings = {
             "fold": {
                 "type": "int",
                 "tooltip": "<p>Number of folds to be used in cross validation. Must be at least 2. This is\na global setting that can be over-written at function level by using fold\nparameter. Ignored when fold_strategy is a custom object.</p>\n",
-                "default_val": "10"
+                "default_val": "10",
+                "min": 2,
+                "max": 20
             },
             "fold_shuffle": {
                 "type": "bool",
@@ -310,7 +329,7 @@ const regressionSettings = {
             "session_id": {
                 "type": "int",
                 "tooltip": "<p>Controls the randomness of experiment. It is equivalent to \u2018random_state\u2019 in\nscikit-learn. When None, a pseudo random number is generated. This can be used\nfor later reproducibility of the entire experiment.</p>\n",
-                "default_val": "None"
+                "default_val": "42"
             },
             "experiment_name": {
                 "type": "string",
@@ -375,10 +394,6 @@ const regressionSettings = {
         },
         "code": "",
         "default": {
-            "data": {
-                "type": "dataframe",
-                "tooltip": "<p>Data set with shape (n_samples, n_features), where n_samples is the\nnumber of samples and n_features is the number of features. If data\nis not a pandas dataframe, it\u2019s converted to one using default column\nnames.</p>\n"
-            },
             "files": {
                 "type": "data-input",
                 "tooltip": "<p>Specify path to csv file or to medomics folder</p>"
@@ -437,12 +452,16 @@ const regressionSettings = {
             "fold": {
                 "type": "int",
                 "tooltip": "<p>Controls cross-validation. If None, the CV generator in the fold_strategy\nparameter of the setup function is used. When an integer is passed,\nit is interpreted as the \u2018n_splits\u2019 parameter of the CV generator in the\nsetup function.</p>\n",
-                "default_val": "None"
+                "default_val": "None",
+                "min": 2,
+                "max": 20
             },
             "round": {
-                "type": "int",
-                "tooltip": "<p>Number of decimal places the metrics in the score grid will be rounded to.</p>\n",
-                "default_val": "4"
+                    "type": "int",
+                    "tooltip": "<p>Number of decimal places the metrics in the score grid will be rounded to.</p>\n",
+                    "default_val": "4",
+                    "min": 0,
+                    "max": 6
             },
             "cross_validation": {
                 "type": "bool",
@@ -457,7 +476,9 @@ const regressionSettings = {
             "n_select": {
                 "type": "int",
                 "tooltip": "<p>Number of top_n models to return. For example, to select top 3 models use\nn_select = 3.</p>\n",
-                "default_val": "1"
+                "default_val": "1",
+                "min": 1,
+                "max": 20
             },
             "budget_time": {
                 "type": "float",
@@ -502,12 +523,16 @@ const regressionSettings = {
             "fold": {
                 "type": "int",
                 "tooltip": "<p>Controls cross-validation. If None, the CV generator in the fold_strategy\nparameter of the setup function is used. When an integer is passed,\nit is interpreted as the \u2018n_splits\u2019 parameter of the CV generator in the\nsetup function.</p>\n",
-                "default_val": "None"
+                "default_val": "None",
+                "min": 2,
+                "max": 20
             },
             "round": {
                 "type": "int",
                 "tooltip": "<p>Number of decimal places the metrics in the score grid will be rounded to.</p>\n",
-                "default_val": "4"
+                "default_val": "4",
+                "min": 0,
+                "max": 6
             },
             "cross_validation": {
                 "type": "bool",
@@ -564,7 +589,9 @@ const regressionSettings = {
                 "fold": {
                     "type": "int",
                     "tooltip": "<p>Controls cross-validation. If None, the CV generator in the fold_strategy\nparameter of the setup function is used. When an integer is passed,\nit is interpreted as the \u2018n_splits\u2019 parameter of the CV generator in the\nsetup function.</p>\n",
-                    "default_val": "None"
+                    "default_val": "None",
+                    "min": 2,
+                    "max": 20
                 },
                 "fit_kwargs": {
                     "type": "dict",
@@ -583,7 +610,7 @@ const regressionSettings = {
                 },
                 "verbose": {
                     "type": "bool",
-                    "tooltip": "<p>When set to False, progress bar is not displayed.</p>\n",
+                    "tooltip": "<p>When set to False, backend's progress bar is not displayed.</p>\n",
                     "default_val": "True"
                 },
                 "display_format": {
@@ -731,17 +758,23 @@ const regressionSettings = {
             "fold": {
                 "type": "int",
                 "tooltip": "<p>Controls cross-validation. If None, the CV generator in the fold_strategy\nparameter of the setup function is used. When an integer is passed,\nit is interpreted as the \u2018n_splits\u2019 parameter of the CV generator in the\nsetup function.</p>\n",
-                "default_val": "None"
+                "default_val": "None",
+                "min": 2,
+                "max": 20
             },
             "round": {
                 "type": "int",
                 "tooltip": "<p>Number of decimal places the metrics in the score grid will be rounded to.</p>\n",
-                "default_val": "4"
+                "default_val": "4",
+                "min": 0,
+                "max": 6
             },
             "n_iter": {
                 "type": "int",
                 "tooltip": "<p>Number of iterations in the grid search. Increasing \u2018n_iter\u2019 may improve\nmodel performance but also increases the training time.</p>\n",
-                "default_val": "10"
+                "default_val": "10",
+                "min": 1,
+                "max": 200
             },
             "custom_grid": {
                 "type": "dict",
@@ -776,7 +809,9 @@ const regressionSettings = {
             "early_stopping_max_iters": {
                 "type": "int",
                 "tooltip": "<p>Maximum number of epochs to run for each sampled configuration.\nIgnored if early_stopping is False or None.</p>\n",
-                "default_val": "10"
+                "default_val": "10",
+                "min": 1,
+                "max": 200
             },
             "choose_better": {
                 "type": "bool",
@@ -828,17 +863,23 @@ const regressionSettings = {
             "fold": {
                 "type": "int",
                 "tooltip": "<p>Controls cross-validation. If None, the CV generator in the fold_strategy\nparameter of the setup function is used. When an integer is passed,\nit is interpreted as the \u2018n_splits\u2019 parameter of the CV generator in the\nsetup function.</p>\n",
-                "default_val": "None"
+                "default_val": "None",
+                "min": 2,
+                "max": 20
             },
             "n_estimators": {
                 "type": "int",
                 "tooltip": "<p>The number of base estimators in the ensemble. In case of perfect fit, the\nlearning procedure is stopped early.</p>\n",
-                "default_val": "10"
+                "default_val": "10",
+                "min": 1,
+                "max": 200
             },
             "round": {
                 "type": "int",
                 "tooltip": "<p>Number of decimal places the metrics in the score grid will be rounded to.</p>\n",
-                "default_val": "4"
+                "default_val": "4",
+                "min": 0,
+                "max": 6
             },
             "choose_better": {
                 "type": "bool",
@@ -870,13 +911,17 @@ const regressionSettings = {
             "fold": {
                 "type": "int",
                 "tooltip": "<p>Controls cross-validation. If None, the CV generator in the fold_strategy\nparameter of the setup function is used. When an integer is passed,\nit is interpreted as the \u2018n_splits\u2019 parameter of the CV generator in the\nsetup function.</p>\n",
-                "default_val": "None"
+                "default_val": "None",
+                "min": 2,
+                "max": 20
             },
             "round": {
                 "type": "int",
                 "tooltip": "<p>Number of decimal places the metrics in the score grid will be rounded to.</p>\n",
-                "default_val": "4"
-            },
+                "default_val": "4",
+                "min": 0,
+                "max": 6
+             },
             "choose_better": {
                 "type": "bool",
                 "tooltip": "<p>When set to True, the returned object is always better performing. The\nmetric used for comparison is defined by the optimize parameter.</p>\n",
@@ -959,12 +1004,16 @@ const regressionSettings = {
             "fold": {
                 "type": "int",
                 "tooltip": "<p>Controls cross-validation. If None, the CV generator in the fold_strategy\nparameter of the setup function is used. When an integer is passed,\nit is interpreted as the \u2018n_splits\u2019 parameter of the CV generator in the\nsetup function.</p>\n",
-                "default_val": "None"
+                "default_val": "None",
+                "min": 2,
+                "max": 20
             },
             "round": {
                 "type": "int",
                 "tooltip": "<p>Number of decimal places the metrics in the score grid will be rounded to.</p>\n",
-                "default_val": "4"
+                "default_val": "4",
+                "min": 0,
+                "max": 6
             },
             "restack": {
                 "type": "bool",
@@ -1005,6 +1054,10 @@ const regressionSettings = {
         "ml_types": "classification regression",
         "code": "stack_models()",
         "default": {}
+    },
+    group_models: {
+        options: {},
+        code: ""
     }
 }; 
  export default regressionSettings;
