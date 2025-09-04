@@ -13,7 +13,7 @@ const nodesParams = {
   // },
   model: {
     type: "flModelNode",
-    classes: "object model",
+    classes: "object model startNode",
     nbInput: 0,
     nbOutput: 1,
     input: ["dataset"],

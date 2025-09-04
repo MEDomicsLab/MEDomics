@@ -59,6 +59,7 @@ import FlrwServerNode from "./nodesTypes/flrwServerNode.jsx"
 import { FaFileCode, FaGlobe } from "react-icons/fa6"
 import NewtworkCheckModal from "./rw/NetworkCheckModal.jsx"
 import ClientDatasetModal from "./rw/ClientDatasetModal.jsx"
+import NewServerLogsModal from "./rw/SeverLogsModal_copy.jsx"
 
 const staticNodesParams = nodesParams // represents static nodes parameters
 
@@ -835,7 +836,7 @@ const MedflrwWorkflow = ({ setWorkflowType, workflowType, mode = "fl" }) => {
   return (
     <>
       {/* RUN the fl pipeline modal  */}
-      <ServerLogosModal
+      {/* <ServerLogosModal
         nodes={nodes}
         show={serverRunning}
         onHide={() => {
@@ -843,7 +844,19 @@ const MedflrwWorkflow = ({ setWorkflowType, workflowType, mode = "fl" }) => {
         }}
         onSaveScean={onSave}
         setRunServer={setRunServer}
-      ></ServerLogosModal>
+        configs={getConfigs(treeData, 0)}
+      ></ServerLogosModal> */}
+
+      <NewServerLogsModal
+        nodes={nodes}
+        show={serverRunning}
+        onHide={() => {
+          setServerRunning(false)
+        }}
+        onSaveScean={onSave}
+        setRunServer={setRunServer}
+        configs={getConfigs(treeData, 0)}
+      ></NewServerLogsModal>
 
       <ManageScriptsModal onHide={() => setShowScriptConfigs(false)} show={showScriptConfigs} />
       <NewtworkCheckModal onHide={() => setShowNetworkCheckModal(false)} show={showNetworkCheckModal} setNetworkChecked={setNetworkChecked} />
@@ -916,7 +929,11 @@ const MedflrwWorkflow = ({ setWorkflowType, workflowType, mode = "fl" }) => {
           <>
             {workflowType == mode && (
               <>
-                {isServerRunning && <Button variant="success" onClick={onRun}>Show results</Button>}
+                {isServerRunning && (
+                  <Button variant="success" onClick={onRun}>
+                    Show results
+                  </Button>
+                )}
                 <BtnDiv
                   buttonsList={
                     isServerRunning
@@ -931,7 +948,8 @@ const MedflrwWorkflow = ({ setWorkflowType, workflowType, mode = "fl" }) => {
                           { type: "load", onClick: onLoad }
                         ]
                       : [
-                          { type: "run", onClick: onRun, disabled: !networkChecked || !canRun },
+                          // { type: "run", onClick: onRun, disabled: !networkChecked || !canRun },
+                          { type: "run", onClick: onRun, disabled: false },
                           { type: "clear", onClick: onClear },
                           {
                             type: "save",

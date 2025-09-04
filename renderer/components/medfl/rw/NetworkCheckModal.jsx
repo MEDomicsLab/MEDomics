@@ -272,7 +272,7 @@ export default function NetworkCheckModal({ show, onHide, setNetworkChecked }) {
         </Modal.Header>
 
         <Modal.Body>
-          <button onClick={getLogs}> click me</button>
+      
           {/* Info Box */}
           <div
             style={{

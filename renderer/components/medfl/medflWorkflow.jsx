@@ -647,6 +647,7 @@ const MedflWorkflow = ({ setWorkflowType, workflowType }) => {
   }, [])
 
   const getConfigs = (tree, i, result = []) => {
+    console.log("tree", tree)
     let nodes = {}
     Object.keys(tree)?.map((nod) => {
       if (nodes[tree[nod].label]) {

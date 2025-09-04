@@ -3,7 +3,7 @@ import { Button, ListGroup, Alert, Form } from "react-bootstrap"
 import { FaLaptop } from "react-icons/fa"
 import { FiRefreshCw } from "react-icons/fi"
 
-export default function ConnectedWSAgents({ wsAgents = [], selectedAgents, setSelectedAgents, setMinAvailableClients, setCanRun, getWSAgents, renderOsIcon = () => null  }) {
+export default function ConnectedWSAgents({ wsAgents = [], selectedAgents, setSelectedAgents, setMinAvailableClients, setCanRun, getWSAgents, renderOsIcon = () => null }) {
   // ✅ Always normalize wsAgents to a safe array
   const agents = Array.isArray(wsAgents) ? wsAgents : []
 
@@ -14,6 +14,8 @@ export default function ConnectedWSAgents({ wsAgents = [], selectedAgents, setSe
     const next = { ...selectedAgents, [agent]: !selectedAgents[agent] }
     setSelectedAgents(next)
     setMinAvailableClients(agents.filter((a) => next[a]).length)
+
+    console.log("toggleAgent", selectedAgents, next)
   }
 
   const toggleSelectAll = () => {
