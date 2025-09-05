@@ -167,7 +167,7 @@ export async function startSSHTunnel({ host, username, privateKey, password, rem
  * @param {number|string} port - The port to check.
  * @returns {Promise<boolean>}
  */
-async function checkRemotePortOpen(conn, port) {
+export async function checkRemotePortOpen(conn, port) {
   mainWindow.webContents.send("setSidebarLoading", { processing: true, message: "Checking if MongoDB is running on server..." })
   // Use detectRemoteOS to determine the remote OS and select the right command
   const remoteOS = await detectRemoteOS()

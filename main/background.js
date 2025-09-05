@@ -36,6 +36,7 @@ import {
   getActiveTunnel,
   detectRemoteOS,
   getRemoteWorkspacePath,
+  checkRemotePortOpen
 } from './utils/remoteFunctions.js'
 import express from "express"
 import bodyParser from "body-parser"
@@ -859,17 +860,22 @@ ipcMain.on("restartApp", (event, data, args) => {
 })
 
 ipcMain.handle("checkMongoIsRunning", async (event) => {
-  // Check if something is running on the port MEDconfig.mongoPort
-  let port = MEDconfig.mongoPort
+  const activeTunnel = getActiveTunnel()
+  const tunnel = getTunnelState()
   let isRunning = false
-  if (process.platform === "win32") {
-    isRunning = exec(`netstat -ano | findstr :${port}`).toString().trim() !== ""
-  } else if (process.platform === "darwin") {
-    isRunning = exec(`lsof -i :${port}`).toString().trim() !== ""
+  if (activeTunnel && tunnel) {
+    isRunning = await checkRemotePortOpen(tunnel.remoteDBPort, activeTunnel)
   } else {
-    isRunning = exec(`netstat -tuln | grep ${port}`).toString().trim() !== ""
+    // Check if something is running on the port MEDconfig.mongoPort
+    let port = MEDconfig.mongoPort
+    if (process.platform === "win32") {
+      isRunning = exec(`netstat -ano | findstr :${port}`).toString().trim() !== ""
+    } else if (process.platform === "darwin") {
+      isRunning = exec(`lsof -i :${port}`).toString().trim() !== ""
+    } else {
+      isRunning = exec(`netstat -tuln | grep ${port}`).toString().trim() !== ""
+    }  
   }
-
   return isRunning
 })
 
