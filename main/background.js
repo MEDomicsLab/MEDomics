@@ -480,6 +480,20 @@ if (isProd) {
     }
   })
 
+  expressApp.get("/get-bundled-python-environment", (req, res) => {
+    try {
+      console.log("Received request to get bundled python environment")
+      const pythEnv = getBundledPythonEnvironment()
+      if (!pythEnv) {
+        res.status(500).json({ success: false, error: "Bundled python environment not found" })
+      }
+      res.status(200).json({ success: true, pythonEnv: pythEnv })
+    } catch (err) {
+      console.error("Error getting bundled python environment: ", err)
+      res.status(500).json({ success: false, error: err.message })
+    }
+  })
+
   const setWorkspaceDirectory = async (data) => {
     app.setPath("sessionData", data)
     console.log(`setWorkspaceDirectory : ${data}`)
@@ -637,6 +651,7 @@ if (isProd) {
    */
   ipcMain.handle("get-settings", async () => {
     const userDataPath = app.getPath("userData")
+    console.log("userDataPath: ", userDataPath)
     const settingsFilePath = path.join(userDataPath, "settings.json")
     if (fs.existsSync(settingsFilePath)) {
       const settings = JSON.parse(fs.readFileSync(settingsFilePath, "utf8"))
@@ -821,7 +836,25 @@ ipcMain.handle("installMongoDB", async (event) => {
 })
 
 ipcMain.handle("getBundledPythonEnvironment", async (event) => {
-  return getBundledPythonEnvironment()
+  const activeTunnel = getActiveTunnel()
+  const tunnel = getTunnelState()
+  if (activeTunnel && tunnel) {
+    let pythonEnv = null
+    await axios.get(`http://${tunnel.host}:3000/get-bundled-python-environment`)
+          .then((response) => {
+            if (response.data.success && response.data.pythonEnv) {
+              pythonEnv = response.data.pythonEnv
+            } else {
+              console.error("Failed to get remote bundled Python environment: ", response.data.error)
+            }
+          })
+          .catch((error) => {
+            console.error("Error getting remote bundled Python environment: ", error)
+          })
+    return pythonEnv
+  } else {
+    return getBundledPythonEnvironment()
+  }
 })
 
 ipcMain.handle("installBundledPythonExecutable", async (event) => {
