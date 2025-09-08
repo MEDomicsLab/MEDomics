@@ -494,6 +494,20 @@ if (isProd) {
     }
   })
 
+  expressApp.get("/get-installed-python-packages", (req, res) => {
+    try {
+      console.log("Received request to get installed python packages")
+      const pythonPackages = getBundledPythonEnvironment()
+      if (!pythonPackages) {
+        res.status(500).json({ success: false, error: "No installed python packages found" })
+      }
+      res.status(200).json({ success: true, packages: pythonPackages })
+    } catch (err) {
+      console.error("Error getting installed python packages: ", err)
+      res.status(500).json({ success: false, error: err.message })
+    }
+  })
+
   const setWorkspaceDirectory = async (data) => {
     app.setPath("sessionData", data)
     console.log(`setWorkspaceDirectory : ${data}`)
@@ -821,6 +835,23 @@ ipcMain.handle("request", async (_, axios_request) => {
 
 // Python environment handling
 ipcMain.handle("getInstalledPythonPackages", async (event, pythonPath) => {
+  const activeTunnel = getActiveTunnel()
+  const tunnel = getTunnelState()
+  if (activeTunnel && tunnel) {
+    let pythonPackages = null
+    await axios.get(`http://${tunnel.host}:3000/get-installed-python-packages`, { params: { pythonPath: pythonPath } })
+          .then((response) => {
+            if (response.data.success && response.data.packages) {
+              pythonPackages = response.data.packages
+            } else {
+              console.error("Failed to get remote Python packages: ", response.data.error)
+            }
+          })
+          .catch((error) => {
+            console.error("Error getting remote Python packages: ", error)
+          })
+    return pythonPackages
+  }
   return getInstalledPythonPackages(pythonPath)
 })
 
