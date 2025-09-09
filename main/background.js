@@ -508,6 +508,53 @@ if (isProd) {
     }
   })
 
+  expressApp.post("/start-mongo", async (req, res) => {
+    try {
+      if (!req.body) {
+        console.error("No object provided in request body")
+        return res.status(400).json({ success: false, error: "No object provided" })
+      } else if (!req.body.workspacePath) {
+        console.error("Invalid request body: startMongo requires a workspacePath")
+        return res.status(400).json({ success: false, error: "Invalid request body (no path provided)" })
+      }
+
+      let workspacePath = req.body.workspacePath
+      if (process.platform === "win32") {
+        if (workspacePath.startsWith("/")) {
+          workspacePath = workspacePath.slice(1)
+        } 
+      }
+      console.log("Received request to start mongoDB with path : ", workspacePath)
+      startMongoDB(workspacePath, mongoProcess)
+      res.status(200).json({ success: true, message: "Started MongoDB on remote server" })
+    } catch (err) {
+      console.error("Error starting MongoDB (request from remote client): ", err)
+      res.status(500).json({ success: false, error: err.message })
+    }
+  })
+
+  expressApp.get("/check-jupyter-status", async (req, res) => {
+    try {
+      console.log("Received request to check Jupyter status")
+      const running = await requestJupyterStatus()
+      res.status(200).json({ success: true, running: running })
+    } catch (err) {
+      console.error("Error checking Jupyter server status: ", err)
+      res.status(500).json({ success: false, error: err.message })
+    }
+  })
+
+  function requestJupyterStatus() {
+  return new Promise((resolve, reject) => {
+    const responseChannel = "checkJupyterRunning-response"
+    ipcMain.once(responseChannel, (event, running) => {
+      resolve(running)
+    })
+    mainWindow.webContents.send("checkJupyterRunning-request")
+    setTimeout(() => reject(new Error("Timeout waiting for Jupyter status")), 5000)
+  })
+}
+
   const setWorkspaceDirectory = async (data) => {
     app.setPath("sessionData", data)
     console.log(`setWorkspaceDirectory : ${data}`)

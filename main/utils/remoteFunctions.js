@@ -45,7 +45,7 @@ let tunnelInfo = {
   remoteDBPort: null,
   remotePort: null,
   username: null,
-};
+}
 
 export function setTunnelState(info) {
   // Exclude password
@@ -64,7 +64,7 @@ export function clearTunnelState() {
     remoteDBPort: null,
     remotePort: null,
     username: null,
-  };
+  }
 }
 
 export function getTunnelState() {
@@ -353,31 +353,31 @@ export async function checkRemoteFileExists(filePath) {
 
   const getSftp = () => new Promise((resolve, reject) => {
     activeTunnel.sftp((err, sftp) => {
-      if (err) return reject(err);
-      resolve(sftp);
-    });
-  });
+      if (err) return reject(err)
+      resolve(sftp)
+    })
+  })
 
   const statFile = (sftp, filePath) => new Promise((resolve, reject) => {
     sftp.stat(filePath, (err, stats) => {
-      if (err) return resolve(false); // File does not exist
-      const exists = stats && ((stats.isFile && stats.isFile()) || (stats.isDirectory && stats.isDirectory()));
-      resolve(exists);
-    });
-  });
+      if (err) return resolve(false) // File does not exist
+      const exists = stats && ((stats.isFile && stats.isFile()) || (stats.isDirectory && stats.isDirectory()))
+      resolve(exists)
+    })
+  })
 
   try {
-    const sftp = await getSftp();
-    const exists = await statFile(sftp, filePath);
-    sftp.end && sftp.end();
+    const sftp = await getSftp()
+    const exists = await statFile(sftp, filePath)
+    sftp.end && sftp.end()
     if (exists) {
-      return "exists";
+      return "exists"
     } else {
-      return "does not exist";
+      return "does not exist"
     }
   } catch (error) {
-    console.error("SFTP error:", error);
-    return "sftp error";
+    console.error("SFTP error:", error)
+    return "sftp error"
   }
 }
 
@@ -488,8 +488,8 @@ ipcMain.handle('deleteRemoteFile', async (_event, { path, recursive = true }) =>
         sftp.readdir(targetPath, (err, list) => {
           if (err) return rej(err)
           res(list)
-        });
-      });
+        })
+      })
       // Recursively delete each entry
       for (const entry of entries) {
         if (entry.filename === '.' || entry.filename === '..') continue
@@ -530,28 +530,28 @@ ipcMain.handle('deleteRemoteFile', async (_event, { path, recursive = true }) =>
       }
       try {
         if (recursive) {
-          await sftpDeleteRecursive(sftp, path);
+          await sftpDeleteRecursive(sftp, path)
         } else {
           // Non-recursive: try to delete as file, then as empty dir
           try {
             await new Promise((res, rej) => {
-              sftp.unlink(path, (err) => err ? rej(err) : res());
-            });
+              sftp.unlink(path, (err) => err ? rej(err) : res())
+            })
           } catch (e) {
             // If not a file, try as empty directory
             await new Promise((res, rej) => {
-              sftp.rmdir(path, (err) => err ? rej(err) : res());
-            });
+              sftp.rmdir(path, (err) => err ? rej(err) : res())
+            })
           }
         }
-        closeSftp();
-        resolve({ success: true });
+        closeSftp()
+        resolve({ success: true })
       } catch (e) {
         closeSftp()
-        resolve({ success: false, error: e.message });
+        resolve({ success: false, error: e.message })
       }
-    });
-  });
+    })
+  })
 })
 
 /**
@@ -823,19 +823,19 @@ ipcMain.handle('navigateRemoteDirectory', async (_event, { action, path: current
 
 ipcMain.handle('startSSHTunnel', async (_event, params) => {
   return startSSHTunnel(params)
-});
+})
 
 ipcMain.handle('startMongoTunnel', async () => {
   return startMongoTunnel()
-});
+})
 
 ipcMain.handle('confirmMongoTunnel', async () => {
   return confirmMongoTunnel()
-});
+})
 
 ipcMain.handle('stopSSHTunnel', async () => {
   return stopSSHTunnel()
-});
+})
 
 ipcMain.handle('getRemoteLStat', async (_event, path) => {
   return getRemoteLStat(path)

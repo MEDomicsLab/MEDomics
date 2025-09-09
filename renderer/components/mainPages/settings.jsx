@@ -17,6 +17,9 @@ import { Column } from "primereact/column"
 import { WorkspaceContext } from "../workspace/workspaceContext"
 import FirstSetupModal from "../generalPurpose/installation/firstSetupModal"
 import { requestBackend } from "../../utilities/requests"
+import { useTunnel } from "../tunnel/TunnelContext"
+import axios from "axios"
+import { toast } from "react-toastify"
 const util = require("util")
 const exec = util.promisify(require("child_process").exec)
 
@@ -35,6 +38,8 @@ const SettingsPage = ({pageId = "settings", checkJupyterIsRunning, startJupyterS
   const [seed, setSeed] = useState(54288) // Seed for random number generation
   const [pythonEmbedded, setPythonEmbedded] = useState({}) // Boolean to know if python is embedded
   const [showPythonPackages, setShowPythonPackages] = useState(false) // Boolean to know if python packages are shown
+
+  const tunnel = useTunnel()
 
   /**
    * Check if the mongo server is running and set the state
@@ -128,7 +133,7 @@ const SettingsPage = ({pageId = "settings", checkJupyterIsRunning, startJupyterS
           })
         }
       })
-    }, 5000)
+    }, workspace.isRemote ? 10000 : 5000) // Greater interval if remote workspace since requests take longer
     return () => clearInterval(interval)
   })
 
@@ -146,33 +151,66 @@ const SettingsPage = ({pageId = "settings", checkJupyterIsRunning, startJupyterS
 
   const getJupyterStatus = async () => {
     console.log("Checking jupyter status")
-    const running = await checkJupyterIsRunning()
+    let running = false
+    if (workspace.isRemote) {
+      axios.get(`http://${tunnel.host}:3000/check-jupyter-status`)
+            .then((response) => {
+              if (response.data.success && response.data.running) {
+                console.log("Jupyter is running on remote server")
+                running = response.data.running
+              } else {
+                console.error("Jupyter check on server failed: ", response.data.error)
+              }
+            })
+            .catch((error) => {
+              console.error("Error checking Jupyter status on remote server: ", error)
+            })
+    } else {
+      running = await checkJupyterIsRunning()
+    }
     setjupyterServerIsRunning(running)
   }
 
   const startMongo = () => {
     let workspacePath = workspace.workingDirectory.path
-    const mongoConfigPath = path.join(workspacePath, ".medomics", "mongod.conf")
-    let mongod = getMongoDBPath()
-    let mongoResult = spawn(mongod, ["--config", mongoConfigPath])
-
-    mongoResult.stdout.on("data", (data) => {
-      console.log(`MongoDB stdout: ${data}`)
-    })
-
-    mongoResult.stderr.on("data", (data) => {
-      console.error(`MongoDB stderr: ${data}`)
-    })
-
-    mongoResult.on("close", (code) => {
-      console.log(`MongoDB process exited with code ${code}`)
-    })
-
-    mongoResult.on("error", (err) => {
-      console.error("Failed to start MongoDB: ", err)
-      // reject(err)
-    })
-    console.log("Mongo result from start ", mongoResult)
+    if (workspace.isRemote) {
+      axios.post(`http://${tunnel.host}:3000/start-mongo`, { workspacePath: workspacePath } )
+            .then((response) => {
+              if (response.data.success) {
+                toast.success("MongoDB started successfully on remote server")
+                console.log("MongoDB started successfully on remote server")
+              } else {
+                toast.error("Failed to start MongoDB on remote server: ", response.data.error)
+                console.error("Failed to start MongoDB on remote server: ", response.data.error)
+              }
+            })
+            .catch((error) => {
+              console.error("Error starting MongoDB on remote server: ", error)
+              toast.error("Error starting MongoDB on remote server: ", error)
+            })
+    } else {
+      const mongoConfigPath = path.join(workspacePath, ".medomics", "mongod.conf")
+      let mongod = getMongoDBPath()
+      let mongoResult = spawn(mongod, ["--config", mongoConfigPath])
+  
+      mongoResult.stdout.on("data", (data) => {
+        console.log(`MongoDB stdout: ${data}`)
+      })
+  
+      mongoResult.stderr.on("data", (data) => {
+        console.error(`MongoDB stderr: ${data}`)
+      })
+  
+      mongoResult.on("close", (code) => {
+        console.log(`MongoDB process exited with code ${code}`)
+      })
+  
+      mongoResult.on("error", (err) => {
+        console.error("Failed to start MongoDB: ", err)
+        // reject(err)
+      })
+      console.log("Mongo result from start ", mongoResult)
+    }
   }
 
   const installMongoDB = () => {
