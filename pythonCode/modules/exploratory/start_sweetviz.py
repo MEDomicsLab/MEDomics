@@ -8,6 +8,11 @@ import pandas as pd
 import pymongo
 import sweetviz as sv
 
+if not hasattr(pd.Series, "iteritems"):
+    pd.Series.iteritems = pd.Series.items
+if not hasattr(pd.DataFrame, "iteritems"):
+    pd.DataFrame.iteritems = pd.DataFrame.items
+
 sys.path.append(str(Path(os.path.dirname(os.path.abspath(__file__))).parent.parent))
 from med_libs.GoExecutionScript import GoExecutionScript, parse_arguments
 from med_libs.server_utils import go_print

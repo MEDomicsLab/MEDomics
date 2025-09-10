@@ -4,6 +4,15 @@ import sys
 import uuid
 from pathlib import Path
 
+import pandas as pd
+
+# --- Guard for pandas >= 2.0 (iteritems removed) ---
+if not hasattr(pd.Series, "iteritems"):
+    pd.Series.iteritems = pd.Series.items
+if not hasattr(pd.DataFrame, "iteritems"):
+    pd.DataFrame.iteritems = pd.DataFrame.items
+
+
 from pycaret.classification.oop import ClassificationExperiment
 from pycaret.regression.oop import RegressionExperiment
 
