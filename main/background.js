@@ -975,7 +975,7 @@ ipcMain.handle("checkMongoIsRunning", async (event) => {
   const tunnel = getTunnelState()
   let isRunning = false
   if (activeTunnel && tunnel) {
-    isRunning = await checkRemotePortOpen(tunnel.remoteDBPort, activeTunnel)
+    isRunning = await checkRemotePortOpen(activeTunnel, tunnel.remoteDBPort)
   } else {
     // Check if something is running on the port MEDconfig.mongoPort
     let port = MEDconfig.mongoPort

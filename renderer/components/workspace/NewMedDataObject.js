@@ -525,7 +525,7 @@ export class MEDDataObject {
       console.log(`Creating directory at ${directoryPath} for remote sync`)
       const fileExists = await ipcRenderer.invoke('checkRemoteFileExists', directoryPath)
       if (fileExists === "does not exist") {
-        await ipcRenderer.invoke('createRemoteDirectory', { path: directoryPath, recursive: true })
+        await ipcRenderer.invoke('createRemoteFolder', { path: directoryPath, recursive: true })
       }
     } else {
       const directoryPath = path.dirname(filePath)
