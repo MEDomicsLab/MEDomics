@@ -33,21 +33,7 @@ const JupyterNotebookViewer = ({ filePath, startJupyterServer }) => {
   }
 
   const checkJupyterServerRunning = async () => {
-    try {
-      const pythonPath = await getPythonPath()
-      if (!pythonPath) {
-        console.error("Python path is not set. Cannot check Jupyter server status.")
-        return false
-      }
-      const result = await exec(`${pythonPath} -m jupyter notebook list`)
-      if (result.stderr) {
-        return false
-      }
-      return result.stdout.includes(defaultJupyterPort.toString())
-    } catch (error) {
-      console.error("Error checking Jupyter server status:", error)
-      return false
-    }
+    return await ipcRenderer.invoke("checkJupyterIsRunning")
   }
 
   useEffect(() => {
