@@ -27,7 +27,6 @@ export async function startJupyterServer(workspacePath) {
   if (!pythonPath) {
     return { running: false, error: "Python path is not set. Jupyter server cannot be started." }
   }
-  
   const configSet = await setJupyterConfig()
   if (!configSet.success) {
     return { running: false, error: configSet.error }

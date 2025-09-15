@@ -4,14 +4,16 @@ import Iframe from "react-iframe"
 import { defaultJupyterPort } from "../layout/flexlayout/mainContainerClass"
 import { LayoutModelContext } from "../layout/layoutContext"
 import { ipcRenderer } from "electron"
+import { useTunnel } from "../tunnel/TunnelContext"
 
 /**
  * Jupyter Notebook viewer
  * @param {string} filePath - the path of the file to edit
+ * @param {string} startJupyterServer - function to start the Jupyter server
+ * @param {boolean} isRemote - whether the file is remote or local
  * @returns {JSX.Element} - A Jupyter Notebook viewer
  */
-const JupyterNotebookViewer = ({ filePath, startJupyterServer }) => {
-  const exec = require("child_process").exec
+const JupyterNotebookViewer = ({ filePath, startJupyterServer, isRemote }) => {
   const {jupyterStatus, setJupyterStatus} = useContext(LayoutModelContext)
   const [loading, setLoading] = useState(true)
   const fileName = path.basename(filePath) // Get the file name from the path
@@ -20,17 +22,7 @@ const JupyterNotebookViewer = ({ filePath, startJupyterServer }) => {
   const match = filePath.replace(/\\/g, "/").match(/DATA\/(.+)$/)
   const relativePath = match ? match[1] : filePath
 
-  const getPythonPath = async () => {
-    let pythonPath = ""
-    await ipcRenderer.invoke("getBundledPythonEnvironment").then((res) => {
-      pythonPath = res
-    })
-    // Check if pythonPath is set
-    if (pythonPath === "") {
-      return null
-    }
-    return pythonPath
-  }
+  const tunnel = useTunnel()
 
   const checkJupyterServerRunning = async () => {
     return await ipcRenderer.invoke("checkJupyterIsRunning")
@@ -60,6 +52,9 @@ const JupyterNotebookViewer = ({ filePath, startJupyterServer }) => {
   , [])
 
   const getJupyterURL = () => {
+    if (isRemote) {
+      return "http://" + tunnel.tunnelHost + ":" + tunnel.tunnelPort + "/notebooks/" + relativePath
+    }
     return "http://localhost:" + defaultJupyterPort + "/notebooks/" + relativePath
   }
 
