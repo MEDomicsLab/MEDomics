@@ -131,11 +131,36 @@ class Dataset(Node):
             self.df = self.combine_df_timepoint_tags(df_list, self.settings['tags'], self.settings['variables'])
 
         if self.df is not None:
-            all_columns = list(self.df.columns)
-            self._info_for_next_node['dataset_columns'] = all_columns
-        self._info_for_next_node['target'] = self.settings['target']
+            self._info_for_next_node['dataset_columns'] = list(self.df.columns)
+
+        if 'target' in self.settings:
+            self._info_for_next_node['target'] = self.settings['target']
+
         self._info_for_next_node['splitted'] = False
+
+        # NEW: forward setup-related keys
+        self._info_for_next_node['dataset_setup_settings'] = self._collect_setup_subset()
+
         return {}
+
+    
+    def _collect_setup_subset(self) -> dict:
+        """
+        Build a clean subset of settings that are relevant to pycaret.setup().
+        Do NOT include file paths, tags, or UI-only options.
+        """
+        SETUP_KEYS = {
+            "target", "preprocess",
+            "max_encoding_ohe", "encoding_method",
+            "index", "ordinal_features", "numeric_features", "categorical_features", "text_features",
+            "keep_features", "create_date_columns", "text_features_method",
+            "low_variance_threshold", "group_features", "drop_groups", "bin_numeric_features",
+            "outliers_method", "fix_imbalance", "fix_imbalance_method",
+            "train_size", "test_data", "data_split_shuffle", "data_split_stratify", "fold_strategy", "fold",
+            "rare_to_value", "rare_value",
+        }
+        return {k: self.settings[k] for k in SETUP_KEYS if k in self.settings}
+
 
     def combine_df_timepoint_tags(self, df_list, tags_list, vars_list) -> pd.DataFrame:
         """
