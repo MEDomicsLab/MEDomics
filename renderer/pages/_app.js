@@ -211,11 +211,6 @@ function App({ Component, pageProps }) {
       downloadCollectionToFile(data.collectionId, data.filePath, data.type)
     })
 
-    ipcRenderer.on("checkJupyterRunning-request", async () => {
-      const running = await checkJupyterStatus()
-      ipcRenderer.send("checkJupyterRunning-response", running)
-    });
-
     /**
      * This is to log messages from the main process in the console
      */

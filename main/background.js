@@ -38,6 +38,7 @@ import {
   getRemoteWorkspacePath,
   checkRemotePortOpen
 } from './utils/remoteFunctions.js'
+import { checkJupyterIsRunning, startJupyterServer, stopJupyterServer } from "./utils/jupyterServer.js"
 import express from "express"
 import bodyParser from "body-parser"
 
@@ -413,7 +414,7 @@ if (isProd) {
     }
     return normalized
   }
-  
+
   // Remote express requests
   expressApp.post("/set-working-directory", async (req, res, next) =>{
     let workspacePath = normalizePathForPlatform(req.body.workspacePath)
@@ -537,24 +538,45 @@ if (isProd) {
   expressApp.get("/check-jupyter-status", async (req, res) => {
     try {
       console.log("Received request to check Jupyter status")
-      const running = await requestJupyterStatus()
-      res.status(200).json({ success: true, running: running })
+      const result = await checkJupyterIsRunning()
+      res.status(200).json({ running: result.running, error: result.error || null })
     } catch (err) {
       console.error("Error checking Jupyter server status: ", err)
-      res.status(500).json({ success: false, error: err.message })
+      res.status(500).json({ running: false, error: err.message })
     }
   })
 
-  function requestJupyterStatus() {
-  return new Promise((resolve, reject) => {
-    const responseChannel = "checkJupyterRunning-response"
-    ipcMain.once(responseChannel, (event, running) => {
-      resolve(running)
-    })
-    mainWindow.webContents.send("checkJupyterRunning-request")
-    setTimeout(() => reject(new Error("Timeout waiting for Jupyter status")), 5000)
+  expressApp.post("/start-jupyter-server", async (req, res) => {
+    try {
+      if (!req.body) {
+        console.error("No object provided in request body")
+        return res.status(400).json({ running: false, error: "No object provided" })
+      } else if (!req.body.workspacePath) {
+        console.error("Invalid request body: startJupyterServer requires a workspacePath")
+        return res.status(400).json({ running: false, error: "Invalid request body (no path provided)" })
+      }
+
+      let workspacePath = normalizePathForPlatform(req.body.workspacePath)
+      console.log("Received request to start Jupyter Server with path : ", workspacePath)
+      const result = startJupyterServer(workspacePath)
+      res.status(200).json({ running: result.running, error: result.error || null })
+    } catch (err) {
+      console.error("Error starting Jupyter (request from remote client): ", err)
+      res.status(500).json({ running: false, error: err.message })
+    }
   })
-}
+
+  expressApp.post("/stop-jupyter-server", async (req, res) => {
+    try {
+      console.log("Received request to stop Jupyter Server")
+      const result = stopJupyterServer()
+      res.status(200).json(result)
+    } catch (err) {
+      console.error("Error stopping Jupyter (request from remote client): ", err)
+      res.status(500).json({ running: false, error: err.message })
+    }
+  })
+
 
   const setWorkspaceDirectory = async (data) => {
     app.setPath("sessionData", data)

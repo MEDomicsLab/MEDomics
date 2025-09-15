@@ -157,7 +157,7 @@ export class MEDDataObject {
         pathParts.unshift(object.name)
       }
     }
-    return path.join(workspacePath, ...pathParts)
+    return path.posix.join(workspacePath, ...pathParts)
   }
 
   /**
@@ -483,6 +483,7 @@ export class MEDDataObject {
         fs.renameSync(oldPath, newPath)
       }
       console.log(`Renamed ${oldPath} to ${newPath}`)
+      toast.success(`Renamed ${oldPath} to ${newPath}`)
     }
 
     // Notify the system to update the workspace

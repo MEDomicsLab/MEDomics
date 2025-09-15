@@ -6,7 +6,7 @@ const { spawn } = require('child_process')
 
 let jupyterStatus = { running: false, error: null }
 let jupyterStarting = false
-export const defaultJupyterPort = 8900
+let jupyterPort = 8900
 
 async function getPythonPath() {
   let pythonPath = getBundledPythonEnvironment()
@@ -19,7 +19,7 @@ async function getPythonPath() {
 }
 
 
-export async function startJupyterServer(workspacePath) {
+export async function startJupyterServer(workspacePath, port = 8900) {
   if (!workspacePath) {
     return { running: false, error: "No workspace path found. Jupyter server cannot be started." }
   }
@@ -37,9 +37,10 @@ export async function startJupyterServer(workspacePath) {
       `--NotebookApp.token=''`,
       `--NotebookApp.password=''`,
       '--no-browser',
-      `--port=${defaultJupyterPort}`,
+      `--port=${port}`,
       `${workspacePath}/DATA`
     ])
+    jupyterPort = port
     jupyterStarting = false
     return { running: true, error: null }
   }
@@ -131,7 +132,7 @@ async function setJupyterConfig() {
   }
 }
 
-async function stopJupyterServer() {
+export async function stopJupyterServer() {
   const pythonPath = await getPythonPath()
   
   if (!pythonPath) {
@@ -141,11 +142,11 @@ async function stopJupyterServer() {
 
   try {
     // Get the PID first
-    const pid = await getJupyterPid(defaultJupyterPort)
+    const pid = await getJupyterPid(jupyterPort)
     
     if (!pid) {
       console.log("No running Jupyter server found")
-      return { running: false, error: null }
+      return { running: false, error: "No running Jupyter server found" }
     }
 
     // Platform-specific kill command
@@ -160,18 +161,18 @@ async function stopJupyterServer() {
     console.error("Error stopping Jupyter server:", error)
     // Fallback to original method if PID method fails
     try {
-      await exec(`${pythonPath} -m jupyter notebook stop ${defaultJupyterPort}`)
+      await exec(`${pythonPath} -m jupyter notebook stop ${jupyterPort}`)
       return { running: false, error: null }
     } catch (fallbackError) {
       console.error("Fallback stop method also failed:", fallbackError)
-      return { running: false, error: "Failed to stop server" }
+      return { running: true, error: "Failed to stop server" }
     }
   } finally {
     jupyterStarting = false
   }
 }
 
-checkJupyterIsRunning = async () => {
+export async function checkJupyterIsRunning() {
   try {
     const pythonPath = await getPythonPath()
     if (!pythonPath) {
@@ -181,15 +182,15 @@ checkJupyterIsRunning = async () => {
     if (result.stderr) {
       return { running: false, error: "Jupyter server is not running. You can start it from the settings page." }
     }
-    const isRunning = result.stdout.includes(defaultJupyterPort.toString())
+    const isRunning = result.stdout.includes(jupyterPort.toString())
     return { running: isRunning, error: isRunning ? null : "Jupyter server is not running. You can start it from the settings page." }
   } catch (error) {
     return { running: false, error: "Error while checking Jupyter server status." }
   }
 }
 
-ipcMain.handle("startJupyterServer", async (event, workspacePath) => {
-  return startJupyterServer(workspacePath)
+ipcMain.handle("startJupyterServer", async (event, workspacePath, port) => {
+  return startJupyterServer(workspacePath, port)
 })
 
 ipcMain.handle("stopJupyterServer", async () => {

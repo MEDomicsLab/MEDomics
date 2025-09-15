@@ -65,6 +65,8 @@ import { WorkspaceContext } from "../../workspace/workspaceContext"
 import { confirmDialog } from "primereact/confirmdialog"
 import JupyterNotebookViewer from "../../flow/JupyterNoteBookViewer"
 import { ipcRenderer } from "electron"
+import axios from "axios"
+import { useTunnel } from "../../tunnel/TunnelContext"
 
 const util = require("util")
 const exec = util.promisify(require("child_process").exec)
@@ -106,6 +108,7 @@ const MainContainer = (props) => {
   const { layoutRequestQueue, setLayoutRequestQueue, isEditorOpen, setIsEditorOpen, jupyterStatus, setJupyterStatus } = React.useContext(LayoutModelContext) as unknown as LayoutContextType
   const { globalData, setGlobalData } = React.useContext(DataContext) as unknown as DataContextType
   const { workspace } = React.useContext(WorkspaceContext) as unknown as { workspace: any }
+  const tunnel = useTunnel()
   return (
     <MainInnerContainer
       layoutRequestQueue={layoutRequestQueue}
@@ -117,6 +120,7 @@ const MainContainer = (props) => {
       globalData={globalData}
       setGlobalData={setGlobalData}
       workspace={workspace}
+      tunnel={tunnel}
     />
   )
 }
@@ -134,6 +138,7 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
   saved: { [key: string]: boolean } = {}
   static contextType = LayoutModelContext
   jupyterStarting: boolean = false
+
 
   constructor(props: any) {
     super(props)
@@ -190,25 +195,75 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
       setLayoutRequestQueue([])
     }
   }
+  
+  checkJupyterIsRunning = async () => {
+    const { setJupyterStatus } = this.props as LayoutContextType
+    if (this.props.workspace?.isRemote) {
+      axios.get(`http://${this.props.tunnel.host}:3000/check-jupyter-running`)
+        .then((response) => {
+          setJupyterStatus(response.data)
+        })
+        .catch((error) => {
+          console.error("Error checking Jupyter on remote server: ", error)
+          toast.error("Error checking Jupyter on remote server: ", error)
+          setJupyterStatus({ running: false, error: "Error checking Jupyter on remote server: " + error })
+        })
+    } else {
+      setJupyterStatus(await ipcRenderer.invoke("checkJupyterIsRunning"))
+    }
+  }
 
   startJupyterServer = async () => {
+    console.log("Starting Jupyter server, remote:", this.props.workspace?.isRemote)
     if (!this.props.workspace?.workingDirectory?.path) {
       return
     }
     const { setJupyterStatus } = this.props as LayoutContextType
-    setJupyterStatus(await ipcRenderer.invoke("startJupyterServer", this.props.workspace?.workingDirectory))
+    if (this.props.workspace?.isRemote) {
+      axios.post(`http://${this.props.tunnel.host}:3000/start-jupyter-server`, { workspacePath: this.props.workspace?.workingDirectory?.path } )
+        .then((response) => {
+          setJupyterStatus(response.data)
+          if (response.data.running) {
+            console.log("Jupyter server started on remote server")
+            toast.success("Jupyter server started on remote server")
+          } else {
+            console.error("Error starting Jupyter on remote server: ", response.data.error)
+            toast.error("Error starting Jupyter on remote server: " + response.data.error)
+          }
+        })
+        .catch((error) => {
+          console.error("Error starting Jupyter on remote server: ", error)
+          toast.error("Error starting Jupyter on remote server: ", error)
+          setJupyterStatus({ running: false, error: "Error starting Jupyter on remote server: " + error })
+        })
+    } else {
+      setJupyterStatus(await ipcRenderer.invoke("startJupyterServer", this.props.workspace?.workingDirectory))
+    }
   }
   
   stopJupyterServer = async () => {
     const { setJupyterStatus } = this.props as LayoutContextType
-    setJupyterStatus(await ipcRenderer.invoke("stopJupyterServer"))
+    if (this.props.workspace?.isRemote) {
+      axios.post(`http://${this.props.tunnel.host}:3000/stop-jupyter-server`)
+        .then((response) => {
+          setJupyterStatus(response.data)
+          if (!response.data.error) {
+            console.log("Jupyter server stopped on remote server")
+            toast.success("Jupyter server stopped on remote server")
+          } else {
+            console.error("Error starting stopped on remote server: ", response.data.error)
+            toast.error("Error starting stopped on remote server: " + response.data.error)
+          }
+        })
+        .catch((error) => {
+          console.error("Error starting stopped on remote server: ", error)
+          toast.error("Error starting stopped on remote server: ", error)
+          setJupyterStatus({ running: this.props.jupyterStatus.running, error: "Error checking Jupyter on remote server: " + error })
+        })
+    } else {
+      setJupyterStatus(await ipcRenderer.invoke("stopJupyterServer"))
+    }
   }
-  
-  checkJupyterIsRunning = async () => {
-    const { setJupyterStatus } = this.props as LayoutContextType
-    setJupyterStatus(await ipcRenderer.invoke("checkJupyterIsRunning"))
-  }
-
 
 
   /**
