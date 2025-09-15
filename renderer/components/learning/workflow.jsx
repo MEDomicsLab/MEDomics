@@ -64,6 +64,7 @@ const Workflow = forwardRef(({ setWorkflowType, workflowType, isExperiment }, re
   const [reactFlowInstance, setReactFlowInstance] = useState(null) // reactFlowInstance is used to get the reactFlowInstance object important for the reactFlow library
   const [MLType, setMLType] = useState("classification") // MLType is used to know which machine learning type is selected
   const [treeData, setTreeData] = useState({}) // treeData is used to set the data of the tree menu
+  const [currentResults, setCurrentResults] = useState(null) // currentResults is used to store the final result of the workflow
   const [intersections, setIntersections] = useState([]) // intersections is used to store the intersecting nodes related to optimize nodes start and end
   const [boxIntersections, setBoxIntersections] = useState({}) // boxIntersections is used to store the intersecting nodes related to box nodes
   const [isProgressUpdating, setIsProgressUpdating] = useState(false) // progress is used to store the progress of the workflow execution
@@ -80,7 +81,7 @@ const Workflow = forwardRef(({ setWorkflowType, workflowType, isExperiment }, re
 
   const { groupNodeId, changeSubFlow, hasNewConnection } = useContext(FlowFunctionsContext)
   const { pageId } = useContext(PageInfosContext) // used to get the page infos such as id and config path
-  const { updateFlowResults, isResults } = useContext(FlowResultsContext)
+  const { updateFlowResults, saveFlowResults, isResults, flowResults } = useContext(FlowResultsContext)
   const { canRun, sceneName, setSceneName } = useContext(FlowInfosContext)
   const { port } = useContext(WorkspaceContext)
   const { setError } = useContext(ErrorRequestContext)
@@ -129,6 +130,7 @@ const Workflow = forwardRef(({ setWorkflowType, workflowType, isExperiment }, re
       }
       // Get Results if exists
       if (globalData[pageId]?.parentID) {
+
         const parentID = globalData[pageId].parentID
         setSceneName(globalData[parentID].name)
         const existingResultsName = globalData[pageId].name + "res"
@@ -138,7 +140,7 @@ const Workflow = forwardRef(({ setWorkflowType, workflowType, isExperiment }, re
           if (jsonResultsID) {
             const jsonResults = await getCollectionData(jsonResultsID)
             delete jsonResults[0]["_id"]
-            updateFlowResults(jsonResults[0], parentID)
+            updateFlowResults(jsonResults[0])
           }
         }
       }
@@ -363,7 +365,7 @@ const Workflow = forwardRef(({ setWorkflowType, workflowType, isExperiment }, re
     } else {
       // Remove warnings if no duplicates are found
       nodes.forEach((node) => {
-        if (node.data.internal.hasWarning && node.data.internal.hasWarning.state && node.data.internal.hasWarning.tooltip.props.children.startsWith("This node shares the same ID")) {
+        if (node.data.internal.hasWarning && node.data.internal.hasWarning.state && node.data.internal.hasWarning.tooltip && node.data.internal.hasWarning.tooltip.props && node.data.internal.hasWarning.tooltip.props.children.startsWith("This node shares the same ID")) {
           node.data.internal.hasWarning = { state: false }
           setNodes((nds) =>
             nds.map((n) => {
@@ -1215,12 +1217,14 @@ const Workflow = forwardRef(({ setWorkflowType, workflowType, isExperiment }, re
         (jsonResponse) => {
           console.log("received results:", jsonResponse)
           if (!jsonResponse.error) {
-            updateFlowResults(jsonResponse, globalData[pageId].parentID, saveAndFinalize, modelToFinalize)
+            setCurrentResults(jsonResponse)
+            updateFlowResults(jsonResponse, saveAndFinalize, modelToFinalize)
             setProgress({
               now: 100,
               currentLabel: "Done!"
             })
             setIsProgressUpdating(false)
+            toast.success("Scene executed successfully!")
           } else {
             setProgress({
               now: 0,
@@ -1472,13 +1476,15 @@ const Workflow = forwardRef(({ setWorkflowType, workflowType, isExperiment }, re
         node.data.setupParam = null
       })
       let success = await overwriteMEDDataObjectContent(metadataFileID, [flow])
+      let success2 = await saveFlowResults(globalData[pageId].parentID, currentResults)
+      success = success && success2
       if (success) {
         toast.success("Scene has been saved successfully")
       } else {
         toast.error("Error while saving scene")
       }
     }
-  }, [reactFlowInstance, MLType, intersections])
+  }, [reactFlowInstance, MLType, intersections, currentResults])
 
   /**
    * Clear the canvas if the user confirms

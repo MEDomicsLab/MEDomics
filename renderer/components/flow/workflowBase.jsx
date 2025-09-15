@@ -1,7 +1,7 @@
 /* eslint-disable react/prop-types */
 import { useRef, useCallback, useEffect, useContext, useState } from "react"
 import { toast } from "react-toastify"
-import ReactFlow, { Controls, ControlButton, Background, MiniMap, addEdge, useReactFlow } from "reactflow"
+import ReactFlow, { Controls, ControlButton, Background, MiniMap, addEdge, useReactFlow, reconnectEdge } from "reactflow"
 import { FlowFunctionsContext } from "./context/flowFunctionsContext"
 import { PageInfosContext } from "../mainPages/moduleBasics/pageInfosContext"
 import { FlowInfosContext } from "./context/flowInfosContext"
@@ -538,8 +538,7 @@ const WorkflowBase = ({ isGoodConnection, groupNodeHandlingDefault, onDeleteNode
     })
     newConnectionCreated() // this is used to update the workflow when a connection is created
     if (!alreadyExists) {
-      console.log("connection changed")
-      setEdges((els) => updateEdge(oldEdge, newConnection, els))
+      setEdges((eds) => reconnectEdge(oldEdge, newConnection, eds))
     } else {
       toast.error("Connection refused: it already exists", {
         position: "bottom-right",
