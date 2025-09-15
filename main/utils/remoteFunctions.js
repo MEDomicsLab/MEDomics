@@ -594,12 +594,12 @@ export async function detectRemoteOS() {
  */
 export function remoteDirname(filePath) {
   if (!filePath) return ''
-  // Normalize to handle both separators
-  const separator = filePath.includes('\\') ? '\\' : '/'
-  const idx = filePath.lastIndexOf(separator)
+  // Always use forward slash for remote paths
+  const normalized = filePath.replace(/\\/g, '/')
+  const idx = normalized.lastIndexOf('/')
   if (idx === -1) return ''
-  if (idx === 0) return separator
-  return filePath.slice(0, idx)
+  if (idx === 0) return '/'
+  return normalized.slice(0, idx)
 }
 
 /**
@@ -608,9 +608,11 @@ export function remoteDirname(filePath) {
  * @param {string} fullPath - The path of the lowest-level directory to create, including all parent directories.
  */
 async function sftpMkdirRecursive(sftp, fullPath) {
-  const sep = fullPath.includes('\\') ? '\\' : '/'
-  const parts = fullPath.split(sep).filter(Boolean)
-  let current = fullPath.startsWith(sep) ? sep : ''
+  // Always use forward slash for remote paths
+  const normalized = fullPath.replace(/\\/g, '/')
+  const sep = '/'
+  const parts = normalized.split(sep).filter(Boolean)
+  let current = normalized.startsWith(sep) ? sep : ''
   for (const part of parts) {
     current = current === sep ? current + part : current + sep + part
     try {
@@ -657,7 +659,8 @@ ipcMain.handle('createRemoteFolder', async (_event, { path: parentPath, folderNa
     if (!p || p === '') return '.'
     if (p === '~') return '.'
     if (p.startsWith('~/')) return p.replace(/^~\//, '')
-    return p
+    // Always use forward slash for remote paths
+    return p.replace(/\\/g, '/')
   }
   return new Promise((resolve) => {
     getSftp(async (err, sftp) => {
@@ -750,7 +753,8 @@ ipcMain.handle('navigateRemoteDirectory', async (_event, { action, path: current
     if (!p || p === '') return '.' // SFTP: '.' means home dir
     if (p === '~') return '.'
     if (p.startsWith('~/')) return p.replace(/^~\//, '')
-    return p
+    // Always use forward slash for remote paths
+    return p.replace(/\\/g, '/')
   }
 
   return new Promise((resolve) => {
@@ -868,7 +872,8 @@ ipcMain.handle('listRemoteDirectory', async (_event, { path: remotePath }) => {
           if (!p || p === '') return '.' // SFTP: '.' means home dir
           if (p === '~') return '.'
           if (p.startsWith('~/')) return p.replace(/^~\//, '')
-          return p
+          // Always use forward slash for remote paths
+          return p.replace(/\\/g, '/')
         }
         const targetPath = normalizePath(remotePath)
         // First, resolve canonical/absolute path

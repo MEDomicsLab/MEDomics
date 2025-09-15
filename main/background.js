@@ -398,14 +398,25 @@ if (isProd) {
     return setWorkspaceDirectory(data)
   })
 
+  // Helper to normalize paths for cross-platform compatibility
+  function normalizePathForPlatform(p) {
+    if (!p) return p
+    // Always convert Windows backslashes to forward slashes first
+    let normalized = p.replace(/\\/g, '/')
+    if (process.platform === 'win32') {
+      // On Windows, convert all forward slashes to backslashes
+      normalized = normalized.replace(/\//g, '\\')
+      // Remove leading slash if present (e.g. '/C:/path')
+      if (normalized.match(/^\\[A-Za-z]:/)) {
+        normalized = normalized.slice(1)
+      }
+    }
+    return normalized
+  }
+  
   // Remote express requests
   expressApp.post("/set-working-directory", async (req, res, next) =>{
-    let workspacePath = req.body.workspacePath
-    if (process.platform === "win32") {
-      if (workspacePath.startsWith("/")) {
-        workspacePath = workspacePath.slice(1)
-      } 
-    }
+    let workspacePath = normalizePathForPlatform(req.body.workspacePath)
     console.log("Received request to set workspace directory from remote: ", workspacePath)
     try {
       const result = await setWorkspaceDirectory(workspacePath);
@@ -425,12 +436,7 @@ if (isProd) {
 
   expressApp.get("/get-working-dir-tree", (req, res) => {
     try {
-      let requestPath = req.query.requestedPath
-      if (process.platform === "win32") {
-        if (requestPath.startsWith("/")) {
-          requestPath = requestPath.slice(1)
-        } 
-      }
+      let requestPath = normalizePathForPlatform(req.query.requestedPath)
       console.log("Received request to get working directory tree for path: ", requestPath)
       const workingDirectory = dirTree(requestPath)
       if (!workingDirectory) {
@@ -518,12 +524,7 @@ if (isProd) {
         return res.status(400).json({ success: false, error: "Invalid request body (no path provided)" })
       }
 
-      let workspacePath = req.body.workspacePath
-      if (process.platform === "win32") {
-        if (workspacePath.startsWith("/")) {
-          workspacePath = workspacePath.slice(1)
-        } 
-      }
+      let workspacePath = normalizePathForPlatform(req.body.workspacePath)
       console.log("Received request to start mongoDB with path : ", workspacePath)
       startMongoDB(workspacePath, mongoProcess)
       res.status(200).json({ success: true, message: "Started MongoDB on remote server" })
