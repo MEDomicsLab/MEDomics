@@ -251,13 +251,13 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
             console.log("Jupyter server stopped on remote server")
             toast.success("Jupyter server stopped on remote server")
           } else {
-            console.error("Error starting stopped on remote server: ", response.data.error)
-            toast.error("Error starting stopped on remote server: " + response.data.error)
+            console.error("Error stopping Jupyter on remote server: ", response.data.error)
+            toast.error("Error stopping Jupyter on remote server: " + response.data.error)
           }
         })
         .catch((error) => {
-          console.error("Error starting stopped on remote server: ", error)
-          toast.error("Error starting stopped on remote server: ", error)
+          console.error("Error stopping Jupyter on remote server: ", error)
+          toast.error("Error stopping Jupyter on remote server: ", error)
           setJupyterStatus({ running: this.props.jupyterStatus.running, error: "Error checking Jupyter on remote server: " + error })
         })
     } else {
