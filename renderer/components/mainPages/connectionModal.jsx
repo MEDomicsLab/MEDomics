@@ -33,6 +33,8 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
   const [remoteBackendPort, setRemoteBackendPort] = useState("54288")
   const [localDBPort, setLocalDBPort] = useState("54020")
   const [remoteDBPort, setRemoteDBPort] = useState("54017")
+  const [localJupyterPort, setLocalJupyterPort] = useState("8890")
+  const [remoteJupyterPort, setRemoteJupyterPort] = useState("8900")
   const [privateKey, setPrivateKey] = useState("")
   const [publicKey, setPublicKey] = useState("")
   const [keyComment, setKeyComment] = useState("medomicslab-app")
@@ -143,6 +145,8 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
         setRemoteBackendPort(tunnel.remoteBackendPort || "54288")
         setLocalDBPort(tunnel.localDBPort || "54020")
         setRemoteDBPort(tunnel.remoteDBPort || "54017")
+        setLocalJupyterPort(tunnel.localJupyterPort || "8890")
+        setRemoteJupyterPort(tunnel.remoteJupyterPort || "8900")
         setTunnelStatus("SSH tunnel is already established.")
         tunnelContext.setTunnelInfo(tunnel) // Sync React context
       } else {
@@ -157,7 +161,7 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
     setConnectionProcessing(true)
     setTunnelStatus(isReconnect ? "Reconnecting..." : "Connecting...")
     toast.info(isReconnect ? "Reconnecting SSH tunnel..." : "Establishing SSH tunnel...")
-    const connInfo = info || { host, username, privateKey, password, remotePort, localBackendPort, remoteBackendPort, localDBPort, remoteDBPort }
+    const connInfo = info || { host, username, privateKey, password, remotePort, localBackendPort, remoteBackendPort, localDBPort, remoteDBPort, localJupyterPort, remoteJupyterPort }
     setConnectionInfo(connInfo)
     // --- Host validation ---
     const hostPattern = /^(?!-)[A-Za-z0-9-]{1,63}(?<!-)\.?([A-Za-z0-9-]{1,63}\.?)*[A-Za-z]{2,6}$|^(\d{1,3}\.){3}\d{1,3}$/
@@ -212,6 +216,16 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
       if (!connInfo.remoteDBPort || isNaN(Number(connInfo.remoteDBPort))) {
         setTunnelStatus("Error: Remote MongoDB port is invalid.")
         toast.error("Remote MongoDB port is invalid.")
+        return
+      }
+      if (!connInfo.localJupyterPort || isNaN(Number(connInfo.localJupyterPort))) {
+        setTunnelStatus("Error: Local Jupyter port is invalid.")
+        toast.error("Local Jupyter port is invalid.")
+        return
+      }
+      if (!connInfo.remoteJupyterPort || isNaN(Number(connInfo.remoteJupyterPort))) {
+        setTunnelStatus("Error: Remote Jupyter port is invalid.")
+        toast.error("Remote Jupyter port is invalid.")
         return
       }
       const result = await ipcRenderer.invoke('startSSHTunnel', connInfo)

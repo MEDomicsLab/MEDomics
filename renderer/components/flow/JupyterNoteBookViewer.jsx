@@ -35,8 +35,15 @@ const JupyterNotebookViewer = ({ filePath, startJupyterServer, isRemote }) => {
         // Start the Jupyter server
         setLoading(true)
         try{
-          await startJupyterServer()
-          setJupyterStatus({ running: true, error: null })
+          setJupyterStatus(await startJupyterServer())
+          if (isRemote) {
+            let tunnelSuccess = await ipcRenderer.invoke('startJupyterTunnel')
+            if (!tunnelSuccess) {
+              setJupyterStatus({ running: false, error: "Failed to start SSH tunnel for Jupyter. Please check the tunnel settings." })
+              setLoading(false)
+              return
+            }
+          }
           setLoading(false)
         } catch (error) {
           setLoading(false)
@@ -53,7 +60,7 @@ const JupyterNotebookViewer = ({ filePath, startJupyterServer, isRemote }) => {
 
   const getJupyterURL = () => {
     if (isRemote) {
-      return "http://" + tunnel.tunnelHost + ":" + tunnel.tunnelPort + "/notebooks/" + relativePath
+      return "http://localhost:" + tunnel.localJupyterPort + "/notebooks/" + relativePath
     }
     return "http://localhost:" + defaultJupyterPort + "/notebooks/" + relativePath
   }

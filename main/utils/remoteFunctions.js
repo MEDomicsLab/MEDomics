@@ -13,6 +13,9 @@ let activeTunnelServer = null
 let mongoDBLocalPort = null
 let mongoDBRemotePort = null
 
+let jupyterLocalPort = null
+let jupyterRemotePort = null
+
 let remoteWorkspacePath = null
 
 export function setActiveTunnel(tunnel) {
@@ -43,6 +46,8 @@ let tunnelInfo = {
   remoteBackendPort: null,
   localDBPort: null,
   remoteDBPort: null,
+  localJupyterPort: null,
+  remoteJupyterPort: null,
   remotePort: null,
   username: null,
 }
@@ -62,6 +67,8 @@ export function clearTunnelState() {
     remoteBackendPort: null,
     localDBPort: null,
     remoteDBPort: null,
+    localJupyterPort: null,
+    remoteJupyterPort: null,
     remotePort: null,
     username: null,
   }
@@ -99,12 +106,16 @@ ipcMain.handle('clearTunnelState', () => {
  * @param {number|string} params.remoteBackendPort - Port on the remote host for the backend server.
  * @param {number|string} params.localDBPort - Local port for the MongoDB server.
  * @param {number|string} params.remoteDBPort - Port on the remote host for the MongoDB server.
+ * @param {number|string} params.localJupyterPort - Local port for the Jupyter server.
+ * @param {number|string} params.remoteJupyterPort - Port on the remote host for the Jupyter server.
  * @returns {Promise<{success: boolean}>}
  */
-export async function startSSHTunnel({ host, username, privateKey, password, remotePort, localBackendPort, remoteBackendPort, localDBPort, remoteDBPort }) {
+export async function startSSHTunnel({ host, username, privateKey, password, remotePort, localBackendPort, remoteBackendPort, localDBPort, remoteDBPort, localJupyterPort, remoteJupyterPort }) {
   return new Promise((resolve, reject) => {
     mongoDBLocalPort = localDBPort
     mongoDBRemotePort = remoteDBPort
+    jupyterLocalPort = localJupyterPort
+    jupyterRemotePort = remoteJupyterPort
 
     if (activeTunnelServer) {
       try {
@@ -112,6 +123,9 @@ export async function startSSHTunnel({ host, username, privateKey, password, rem
       } catch {}
       try {
         activeTunnelServer.mongoServer && activeTunnelServer.mongoServer.close()
+      } catch {}
+      try {
+        activeTunnelServer.jupyterServer && activeTunnelServer.jupyterServer.close()
       } catch {}
       setActiveTunnelServer(null)
     }
@@ -336,6 +350,75 @@ export async function stopSSHTunnel() {
   if (success) return { success: true }
   return { success: false, error: error || "No active tunnel" }
 }
+
+/**
+ * @description Starts the Jupyter port forwarding tunnel using an existing SSH connection.
+ * Checks if the remote port is open before creating the tunnel, with retries.
+ * @returns {Promise<{success: boolean}>}
+ */
+export async function startJupyterTunnel() {
+  return new Promise(async (resolve, reject) => {
+    const conn = getActiveTunnel()
+    if (!conn) {
+      reject(new Error("No active SSH connection for Jupyter tunnel."))
+    }
+
+    // If jupyterServer already exists, return
+    if (activeTunnelServer && activeTunnelServer.jupyterServer) {
+      resolve({ success: true })
+    }
+
+    // Retry logic: up to 5 times, 3s delay
+    let portOpen = false
+    let attempts = 0
+    const maxAttempts = 5
+    const delayMs = 3000
+    while (attempts < maxAttempts && !portOpen) {
+      try {
+        console.log(`Checking if remote Jupyter port ${jupyterRemotePort} is open...`)
+        portOpen = await checkRemotePortOpen(conn, jupyterRemotePort)
+      } catch (e) {
+        // If SSH command fails, treat as not open
+        portOpen = false
+      }
+      if (!portOpen) {
+        attempts++
+        if (attempts < maxAttempts) {
+          await new Promise((res) => setTimeout(res, delayMs))
+        }
+      }
+    }
+    if (!portOpen) {
+      reject(new Error(`Jupyter server is not listening on remote port ${jupyterRemotePort} after ${maxAttempts} attempts.`))
+    }
+
+    const jupyterServer = net.createServer((socket) => {
+      conn.forwardOut(socket.localAddress || "127.0.0.1", socket.localPort || 0, "127.0.0.1", parseInt(jupyterRemotePort), (err, stream) => {
+        if (err) {
+          console.error(err)
+          socket.destroy()
+          return
+        }
+        socket.pipe(stream).pipe(socket)
+      })
+    })
+    jupyterServer.listen(jupyterLocalPort, "127.0.0.1")
+
+    jupyterServer.on("error", (e) => {
+      conn.end()
+      console.error("Connection to backend Mongo error:", e)
+      reject(new Error("Mongo local server error: " + e.message))
+    })
+
+    // Update activeTunnelServer to include jupyterServer
+    setActiveTunnelServer({
+      ...(activeTunnelServer || {}),
+      jupyterServer: jupyterServer
+    })
+    resolve({ success: true })
+  })
+}
+
 
 /**
  * @description This function uses SFTP to check if a file exists at the given remote path.
@@ -851,6 +934,10 @@ ipcMain.handle('checkRemoteFileExists', async (_event, path) => {
 
 ipcMain.handle('setRemoteWorkspacePath', async (_event, path) => {
   return setRemoteWorkspacePath(path)
+})
+
+ipcMain.handle('startJupyterTunnel', async () => {
+  return startJupyterTunnel()
 })
 
 /**

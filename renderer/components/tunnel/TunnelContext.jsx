@@ -1,4 +1,4 @@
-import React, { createContext, useState, useContext } from "react";
+import { createContext, useState, useContext } from "react";
 
 // TunnelContext will store info about the active SSH tunnel
 export const TunnelContext = createContext({
@@ -9,6 +9,8 @@ export const TunnelContext = createContext({
   remoteBackendPort: null,
   localDBPort: null,
   remoteDBPort: null,
+  localJupyterPort: null,
+  remoteJupyterPort: null,
   remotePort: null,
   username: null,
   setTunnelInfo: () => {},
@@ -24,6 +26,8 @@ export const TunnelProvider = ({ children }) => {
     remoteBackendPort: null,
     localDBPort: null,
     remoteDBPort: null,
+    localJupyterPort: null,
+    remoteJupyterPort: null,
     remotePort: null,
     username: null,
   })
@@ -43,6 +47,8 @@ export const TunnelProvider = ({ children }) => {
       remoteBackendPort: null,
       localDBPort: null,
       remoteDBPort: null,
+      localJupyterPort: null,
+      remoteJupyterPort: null,
       remotePort: null,
       username: null,
     })

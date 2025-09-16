@@ -558,7 +558,7 @@ if (isProd) {
 
       let workspacePath = normalizePathForPlatform(req.body.workspacePath)
       console.log("Received request to start Jupyter Server with path : ", workspacePath)
-      const result = startJupyterServer(workspacePath)
+      const result = await startJupyterServer(workspacePath)
       res.status(200).json({ running: result.running, error: result.error || null })
     } catch (err) {
       console.error("Error starting Jupyter (request from remote client): ", err)

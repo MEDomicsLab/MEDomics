@@ -8,6 +8,8 @@ let tunnelInfo = {
   remoteBackendPort: null,
   localDBPort: null,
   remoteDBPort: null,
+  localJupyterPort: null,
+  remoteJupyterPort: null,
   remotePort: null,
   username: null,
 };
@@ -27,6 +29,8 @@ export function clearTunnelState() {
     remoteBackendPort: null,
     localDBPort: null,
     remoteDBPort: null,
+    localJupyterPort: null,
+    remoteJupyterPort: null,
     remotePort: null,
     username: null,
   };
