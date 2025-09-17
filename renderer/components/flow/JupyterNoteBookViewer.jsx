@@ -1,8 +1,7 @@
-import React, { useContext, useEffect, useState } from "react"
+import { useEffect, useState } from "react"
 import path from "node:path"
 import Iframe from "react-iframe"
 import { defaultJupyterPort } from "../layout/flexlayout/mainContainerClass"
-import { LayoutModelContext } from "../layout/layoutContext"
 import { ipcRenderer } from "electron"
 import { useTunnel } from "../tunnel/TunnelContext"
 
@@ -11,10 +10,11 @@ import { useTunnel } from "../tunnel/TunnelContext"
  * @param {string} filePath - the path of the file to edit
  * @param {string} startJupyterServer - function to start the Jupyter server
  * @param {boolean} isRemote - whether the file is remote or local
+ * @param {object} jupyterStatus - status of the Jupyter server (running, error)
+ * @param {function} setJupyterStatus - function to set the Jupyter server status
  * @returns {JSX.Element} - A Jupyter Notebook viewer
  */
-const JupyterNotebookViewer = ({ filePath, startJupyterServer, isRemote }) => {
-  const {jupyterStatus, setJupyterStatus} = useContext(LayoutModelContext)
+const JupyterNotebookViewer = ({ filePath, startJupyterServer, isRemote = false, jupyterStatus, setJupyterStatus }) => {
   const [loading, setLoading] = useState(true)
   const fileName = path.basename(filePath) // Get the file name from the path
   // Get the relative path after "DATA" in the filePath
@@ -29,15 +29,23 @@ const JupyterNotebookViewer = ({ filePath, startJupyterServer, isRemote }) => {
   }
 
   useEffect(() => {
+    console.log("JupyterNoteBookViewer mounted, checking Jupyter server status...")
+
     const runJupyter = async () => {
+      console.log("Checking if Jupyter server is running...")
       const isRunning = await checkJupyterServerRunning()
-      if (!isRunning) {
+      console.log("Jupyter server running status: ", isRunning)
+      if (!isRunning.running) {
         // Start the Jupyter server
         setLoading(true)
+        console.log("Started loading Jupyter server...")
         try{
-          setJupyterStatus(await startJupyterServer())
+          console.log("Starting Jupyter server...")
+          await startJupyterServer()
+          console.log("Finished starting Jupyter server.", jupyterStatus)
           if (isRemote) {
             let tunnelSuccess = await ipcRenderer.invoke('startJupyterTunnel')
+            console.log("SSH Tunnel start result:", tunnelSuccess, jupyterStatus)
             if (!tunnelSuccess) {
               setJupyterStatus({ running: false, error: "Failed to start SSH tunnel for Jupyter. Please check the tunnel settings." })
               setLoading(false)

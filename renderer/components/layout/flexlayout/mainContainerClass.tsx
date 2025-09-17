@@ -238,6 +238,7 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
         })
     } else {
       setJupyterStatus(await ipcRenderer.invoke("startJupyterServer", this.props.workspace?.workingDirectory))
+      console.log("Jupyter server started locally, status: ", this.props.jupyterStatus)
     }
   }
   
@@ -1059,7 +1060,13 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
     } else if (component === "jupyterNotebook") {
       if (node.getExtraData().data == null) {
         const config = node.getConfig()
-        return <JupyterNotebookViewer filePath={config.path} startJupyterServer={this.startJupyterServer}/>
+        return <JupyterNotebookViewer 
+          filePath={config.path} 
+          startJupyterServer={this.startJupyterServer}
+          isRemote={this.props.workspace?.isRemote}
+          jupyterStatus={this.props.jupyterStatus}
+          setJupyterStatus={this.props.setJupyterStatus}  
+        />
       }
     } else if (component === "Settings") {
       return <SettingsPage checkJupyterIsRunning={this.checkJupyterIsRunning} startJupyterServer={this.startJupyterServer} stopJupyterServer={this.stopJupyterServer} />
