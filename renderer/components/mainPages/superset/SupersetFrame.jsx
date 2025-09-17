@@ -48,32 +48,31 @@ const SupersetDashboard = () => {
       .filter(dirent => (dirent.isDirectory() && dirent.name.startsWith("python")))
       .map(dirent => dirent.name)
 
-  async function getSupersetPath(){
+  async function getSupersetPath() {
     let pythonPath = await ipcRenderer.invoke("getBundledPythonEnvironment")
     let system = os.platform()
     let scriptsPath = null
     if (system === "win32") {
-      scriptsPath = pythonPath.split(".medomics")[0] + ".medomics\\python\\Scripts"
+      scriptsPath = pythonPath.split(".medomics")[0] + ".medomics\\python\\superset_env\\Scripts"
     } else {
-      scriptsPath = pythonPath.split(".medomics")[0] + ".medomics/python/bin"
+      scriptsPath = pythonPath.split("bin")[0] + "bin/superset_env/bin"
     }
     let SupersetLibPath = null
     if (system === "win32") {
-      SupersetLibPath = pythonPath.split(".medomics")[0] + ".medomics\\python\\Lib\\site-packages\\superset"
+      SupersetLibPath = pythonPath.split(".medomics")[0] + ".medomics\\python\\superset_env\\Lib\\site-packages\\superset"
     } else {
       // Find python directory
-      const pythonDirs = await getDirectories(pythonPath.split(".medomics")[0] + ".medomics/python/lib")
-      if(pythonDirs.length === 0){
+      const pythonDirs = await getDirectories(pythonPath.split("bin")[0] + "bin/superset_env/lib")
+      if (pythonDirs.length === 0) {
         console.error("Could not find python directory", pythonDirs)
         toast.error("Could not find python directory", {autoClose: 5000})
         setLoading(false)
         setLaunched(false)
         return
       }
-      SupersetLibPath = pythonPath.split(".medomics")[0] + ".medomics/python/lib/" + pythonDirs[0] + "/site-packages/superset"
+      SupersetLibPath = pythonPath.split("bin")[0] + "bin/superset_env/lib/" + pythonDirs[0] + "/site-packages/superset"
     }
-
-    return {scriptsPath, SupersetLibPath}
+    return {pythonPath, scriptsPath, SupersetLibPath}
   }
 
   async function getSupersetProcesses() {
@@ -90,7 +89,7 @@ const SupersetDashboard = () => {
             reject(error)
           }
           console.log("stdout", stdout)
-          console.log("stderr", stderr)
+          console.error("stderr", stderr)
 
           // Parse stdout
           if (stdout === "") {
@@ -110,11 +109,12 @@ const SupersetDashboard = () => {
 
   async function launchSuperset() {
     let freePort = 8080 // in the future maybe we'll use getPort() from get-port package
-    let {scriptsPath, SupersetLibPath} = await getSupersetPath()
+    let {pythonPath, scriptsPath, SupersetLibPath} = await getSupersetPath()
 
     // Send the request to the backend
     let jsonToSend = {
       "port": freePort,
+      "pythonPath": pythonPath,
       "scriptsPath": scriptsPath,
       "SupersetLibPath": SupersetLibPath,
     }
@@ -203,7 +203,7 @@ const SupersetDashboard = () => {
       },
       (error) => {
         setLoadingUser(false)
-        console.log(error)
+        console.error(error)
         toast.error("Error creating user " + error, {autoClose: 5000})
       }
     )
@@ -289,7 +289,7 @@ const SupersetDashboard = () => {
             return
           }
           console.log("stdout", stdout)
-          console.log("stderr", stderr)
+          console.error("stderr", stderr)
           setLaunched(false)
           setSupersetPort(null)
           toast.success("Process killed successfully")
@@ -302,7 +302,7 @@ const SupersetDashboard = () => {
             return
           }
           console.log("stdout", stdout)
-          console.log("stderr", stderr)
+          console.error("stderr", stderr)
           setLaunched(false)
           setSupersetPort(null)
           toast.success("Process killed successfully")
@@ -388,7 +388,11 @@ const SupersetDashboard = () => {
   // Launch superset on mount
   useEffect(() => {
     if (!launched){
-      launchSuperset()
+      try {
+        launchSuperset()
+      } catch (error) {
+        console.error("Error launching Superset:", error)
+      }
     }
   }, [])
 
