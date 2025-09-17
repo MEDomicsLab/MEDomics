@@ -1216,6 +1216,15 @@ const Workflow = forwardRef(({ setWorkflowType, workflowType, isExperiment }, re
         { DBName: "data", id: flowID, saveAndFinalize: saveAndFinalize, modelToFinalize: modelToFinalize, modelName: modelName },
         (jsonResponse) => {
           console.log("received results:", jsonResponse)
+          if (!jsonResponse) {
+            setProgress({
+              now: 0,
+              currentLabel: ""
+            })
+            setIsProgressUpdating(false)
+            toast.error("No response from the server")
+            return
+          }
           if (!jsonResponse.error) {
             setCurrentResults(jsonResponse)
             updateFlowResults(jsonResponse, saveAndFinalize, modelToFinalize)
@@ -1475,13 +1484,15 @@ const Workflow = forwardRef(({ setWorkflowType, workflowType, isExperiment }, re
       flow.nodes.forEach((node) => {
         node.data.setupParam = null
       })
-      let success = await overwriteMEDDataObjectContent(metadataFileID, [flow])
+      let success1 = await overwriteMEDDataObjectContent(metadataFileID, [flow])
       let success2 = await saveFlowResults(globalData[pageId].parentID, currentResults)
-      success = success && success2
-      if (success) {
+      if (success1) {
         toast.success("Scene has been saved successfully")
       } else {
         toast.error("Error while saving scene")
+      }
+      if (!success2) {
+        toast.error("Could not save results")
       }
     }
   }, [reactFlowInstance, MLType, intersections, currentResults])

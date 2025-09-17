@@ -65,6 +65,7 @@ function FlowResultsProvider({ children }) {
 
   // This function is used to save the flowResults to the mongo database
   const saveFlowResults = async (sceneFolderId, newResults) => {
+    if (!newResults) return false
     if (workspace.hasBeenSet && sceneName) {
       if (Object.keys(newResults).length === 0) {
         toast.error("There are no results to save")
