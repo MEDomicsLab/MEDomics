@@ -191,7 +191,7 @@ const DropColumnsAndTagsToolsDB = ({ currentCollection }) => {
           MEDDataObject.updateWorkspaceDataObject();
         }
 
-        toast.success("Columns/Tags updated successfully.");
+        toast.success("Dataset updated successfully.");
         setSelectedColumns([]);
         setSelectedTags([]);
         // If overwritten, refresh columns/tags to reflect changes
