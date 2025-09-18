@@ -7,6 +7,7 @@ sys.path.append(str(Path(os.path.dirname(os.path.abspath(__file__))).parent.pare
 
 from med_libs.GoExecutionScript import GoExecutionScript, parse_arguments
 from med_libs.server_utils import go_print
+from modules.superset.SupersetEnvManager import SupersetEnvManager
 
 json_params_dict, id_ = parse_arguments()
 go_print("running script.py:" + id_)
@@ -32,7 +33,7 @@ class GoExecScriptPredict(GoExecutionScript):
         print("json_config", json_config)
 
         # Map settings
-        path_superset = json_config["supersetPath"]
+        python_path = json_config["pythonPath"]
         username = json_config["username"]
         firstname = json_config["firstname"]
         lastname = json_config["lastname"]
@@ -40,7 +41,7 @@ class GoExecScriptPredict(GoExecutionScript):
         password = json_config["password"]
 
         # Set up Superset
-        output = self.create_user(path_superset=path_superset, username=username, firstname=firstname, lastname=lastname, email=email, password=password)
+        output = self.create_user(python_path, username, firstname, lastname, email, password)
 
         return output
 
@@ -58,12 +59,12 @@ class GoExecScriptPredict(GoExecutionScript):
 
         return {}
 
-    def create_user(self, path_superset: str, username: str, firstname: str, lastname: str, email: str, password: str):
+    def create_user(self, python_path: str, username: str, firstname: str, lastname: str, email: str, password: str):
         """
         Creates a new Superset user.
 
         Args:
-            path_superset: The path to the Superset installation.
+            python_path: The path to the Python installation.
             username: The username of the new user.
             firstname: The first name of the new user.
             lastname: The last name of the new user.
@@ -75,7 +76,8 @@ class GoExecScriptPredict(GoExecutionScript):
         """
         # Prepare environment variables
         env = os.environ.copy()
-        path_superset = os.path.join(path_superset, "superset")
+        manager = SupersetEnvManager(python_path)
+        path_superset = manager.get_superset_path()
         env["FLASK_APP"] = "superset"
 
         # Create an admin user

@@ -10,7 +10,7 @@ import { InputText } from 'primereact/inputtext'
 import { OverlayPanel } from 'primereact/overlaypanel'
 import { Password } from 'primereact/password'
 import { Tooltip } from 'primereact/tooltip'
-import React, { useContext, useEffect, useRef, useState } from 'react'
+import { useContext, useEffect, useRef, useState } from 'react'
 import Iframe from "react-iframe"
 import { toast } from "react-toastify"
 import { requestBackend } from "../../../utilities/requests"
@@ -36,7 +36,7 @@ const SupersetDashboard = () => {
   const [progress, setProgress] = useState(0)
   const [loadingUser, setLoadingUser] = useState(false)
   const [refresh, setRefresh] = useState(0)
-  const sleep = ms => new Promise(r => setTimeout(r, ms));
+  const sleep = ms => new Promise(r => setTimeout(r, ms))
   const { port } = useContext(WorkspaceContext)
   const { setError } = useContext(ErrorRequestContext)
   const { dispatchLayout } = useContext(LayoutModelContext)
@@ -47,33 +47,6 @@ const SupersetDashboard = () => {
     (await readdir(source, { withFileTypes: true }))
       .filter(dirent => (dirent.isDirectory() && dirent.name.startsWith("python")))
       .map(dirent => dirent.name)
-
-  async function getSupersetPath() {
-    let pythonPath = await ipcRenderer.invoke("getBundledPythonEnvironment")
-    let system = os.platform()
-    let scriptsPath = null
-    if (system === "win32") {
-      scriptsPath = pythonPath.split(".medomics")[0] + ".medomics\\python\\superset_env\\Scripts"
-    } else {
-      scriptsPath = pythonPath.split("bin")[0] + "bin/superset_env/bin"
-    }
-    let SupersetLibPath = null
-    if (system === "win32") {
-      SupersetLibPath = pythonPath.split(".medomics")[0] + ".medomics\\python\\superset_env\\Lib\\site-packages\\superset"
-    } else {
-      // Find python directory
-      const pythonDirs = await getDirectories(pythonPath.split("bin")[0] + "bin/superset_env/lib")
-      if (pythonDirs.length === 0) {
-        console.error("Could not find python directory", pythonDirs)
-        toast.error("Could not find python directory", {autoClose: 5000})
-        setLoading(false)
-        setLaunched(false)
-        return
-      }
-      SupersetLibPath = pythonPath.split("bin")[0] + "bin/superset_env/lib/" + pythonDirs[0] + "/site-packages/superset"
-    }
-    return {pythonPath, scriptsPath, SupersetLibPath}
-  }
 
   async function getSupersetProcesses() {
     // For windows only
@@ -109,14 +82,12 @@ const SupersetDashboard = () => {
 
   async function launchSuperset() {
     let freePort = 8080 // in the future maybe we'll use getPort() from get-port package
-    let {pythonPath, scriptsPath, SupersetLibPath} = await getSupersetPath()
+    let pythonPath = await ipcRenderer.invoke("getBundledPythonEnvironment")
 
     // Send the request to the backend
     let jsonToSend = {
       "port": freePort,
       "pythonPath": pythonPath,
-      "scriptsPath": scriptsPath,
-      "SupersetLibPath": SupersetLibPath,
     }
     setLoading(true)
     requestBackend(
@@ -162,12 +133,12 @@ const SupersetDashboard = () => {
   }
 
   async function createUser() {
-    // get superset path
-    let {scriptsPath, SupersetLibPath} = await getSupersetPath()
+    // get Python path
+    let pythonPath = await ipcRenderer.invoke("getBundledPythonEnvironment")
 
     // Send the request to the backend
     let jsonToSend = {
-      "supersetPath": scriptsPath,
+      "pythonPath": pythonPath,
       "username": newUserUsername,
       "password": newUserPassword,
       "firstname": newFirstName,
@@ -326,23 +297,43 @@ const SupersetDashboard = () => {
     return
   }
 
-  async function editConfig() {
-    // Get config path
-    let configPath = null
-    let system = os.platform()
-    let pythonPath = await ipcRenderer.invoke("getBundledPythonEnvironment")
-    if (system === "win32") {
-      configPath = pythonPath.split(".medomics")[0] + ".medomics\\python\\Lib\\site-packages\\superset\\config.py"
+  const getEnvPath = (pythonPath) => {
+    if (!pythonPath) return ''
+    
+    const isWindows = os.platform() === "win32"
+    if (isWindows) {
+      const pathParts = pythonPath.split(/[\\/]/)
+      pathParts.pop()
+      return `${pathParts.join('\\')}\\superset_env\\Scripts\\python.exe`
     } else {
+      return pythonPath.replace(/bin(\/|$)/, 'bin/superset_env/bin/')
+    }
+  }
+
+  const getSupersetConfigPath = async (pythonPath) => {
+    const envPath = getEnvPath(pythonPath)
+    if (!envPath) return ''
+    
+    const isWindows = os.platform() === "win32"
+    if (isWindows) {
+      return `${envPath}\\Lib\\site-packages\\superset`
+    } else {
+      const basePath = envPath.split('/superset_env/bin')[0]
       // Find python directory
-      const pythonDirs = await getDirectories(pythonPath.split(".medomics")[0] + ".medomics/python/lib")
+      const pythonDirs = await getDirectories(`${basePath}/superset_env/lib`)
       if(pythonDirs.length === 0){
         console.error("Could not find python directory", pythonDirs)
         toast.error("Could not find python directory", {autoClose: 5000})
         return
       }
-      configPath = pythonPath.split(".medomics")[0] + ".medomics/python/lib/" + pythonDirs[0] + "/site-packages/superset/config.py"
+      return `${basePath}/superset_env/lib/${pythonDirs[0]}/site-packages/superset/config.py`
     }
+  }
+
+  async function editConfig() {
+    // Get config path
+    let pythonPath = await ipcRenderer.invoke("getBundledPythonEnvironment")
+    let configPath = await getSupersetConfigPath(pythonPath)
 
     // If object already in the DB, show a confirmation dialog to overwrite it
     const accept = () => {

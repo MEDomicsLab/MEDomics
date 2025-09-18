@@ -33,11 +33,9 @@ class GoExecScriptPredict(GoExecutionScript):
         # Map settings
         port = json_config["port"]
         python_path = json_config["pythonPath"]
-        scripts_path = json_config["scriptsPath"]
-        superset_lib_path = json_config["SupersetLibPath"]
 
         # Set up Superset
-        result = self.setup_superset(port, python_path, scripts_path, superset_lib_path)
+        result = self.setup_superset(port, python_path)
 
         return result
 
@@ -55,7 +53,7 @@ class GoExecScriptPredict(GoExecutionScript):
             return {"error": f"Error while running command: {command}. Full error log:" + e.stderr}
             
 
-    def setup_superset(self, port, python_path, scripts_path, superset_lib_path):
+    def setup_superset(self, port, python_path):
         """
         Set up Superset with the provided settings.
         
@@ -74,20 +72,26 @@ class GoExecScriptPredict(GoExecutionScript):
         self.set_progress(now=progress, label="Checking the Superset virtual environment...")
         manager = SupersetEnvManager(python_path)
         if not manager.check_env_exists(python_path):
-            return {"error": "Error while creating the Superset virtual environment."}
             print("Creating Superset virtual environment...")
             self.set_progress(now=self._progress["now"]+step, label="Creating Superset virtual environment...")
-            if not manager.create_env("superset_env"):
+            if not manager.create_env():
                 return {"error": "Error while creating the Superset virtual environment."}
             print("Installing required packages...")
+            self.set_progress(label="Installing required packages...")
+            if not manager.install_packages(self.set_progress, self._progress["now"], step):
+                return {"error": "Error while installing the required packages."}
+        elif not manager.check_requirements():
             self.set_progress(now=self._progress["now"]+step, label="Installing required packages...")
-            manager.install_packages()
+            manager.install_requirements()
+            self.set_progress(now=self._progress["now"]+step, label="Installing required packages...")
         else:
             step = 10
         
         # Set paths for Python and Superset
-        python_env_path = os.path.expanduser(scripts_path)
-        superset_path = os.path.join(python_env_path, "superset")
+        superset_path = manager.get_superset_path()
+        superset_lib_path = manager.get_superset_lib_path()
+        if not superset_path or not superset_lib_path:
+            return {"error": "Error while finding the Superset installation."}
 
         # Generate a private key
         print("Generating a private key...")
