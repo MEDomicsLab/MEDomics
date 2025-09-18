@@ -27,12 +27,11 @@ const exec = util.promisify(require("child_process").exec)
  * Settings page
  * @returns {JSX.Element} Settings page
  */
-const SettingsPage = ({pageId = "settings", checkJupyterIsRunning, startJupyterServer, stopJupyterServer}) => {
+const SettingsPage = ({pageId = "settings", checkJupyterIsRunning, startJupyterServer, stopJupyterServer, jupyterStatus, setJupyterStatus}) => {
   const { workspace, port } = useContext(WorkspaceContext)
   const [settings, setSettings] = useState(null) // Settings object
   const [serverIsRunning, setServerIsRunning] = useState(false) // Boolean to know if the server is running  
   const [mongoServerIsRunning, setMongoServerIsRunning] = useState(false) // Boolean to know if the server is running
-  const [jupyterServerIsRunning, setjupyterServerIsRunning] = useState(false) // Boolean to know if Jupyter Noteobok is running
   const [activeIndex, setActiveIndex] = useState(0) // Index of the active tab
   const [condaPath, setCondaPath] = useState("") // Path to the conda environment
   const [seed, setSeed] = useState(54288) // Seed for random number generation
@@ -157,18 +156,19 @@ const SettingsPage = ({pageId = "settings", checkJupyterIsRunning, startJupyterS
             .then((response) => {
               if (response.data.success && response.data.running) {
                 console.log("Jupyter is running on remote server")
-                running = response.data.running
+                setJupyterStatus(response.data)
               } else {
                 console.error("Jupyter check on server failed: ", response.data.error)
+                setJupyterStatus(response.data)
               }
             })
             .catch((error) => {
               console.error("Error checking Jupyter status on remote server: ", error)
+              setJupyterStatus({ running: false, error: error.message })
             })
     } else {
-      running = await checkJupyterIsRunning()
+      await checkJupyterIsRunning()
     }
-    setjupyterServerIsRunning(running)
   }
 
   const startMongo = () => {
@@ -321,21 +321,21 @@ const SettingsPage = ({pageId = "settings", checkJupyterIsRunning, startJupyterS
                 </Col>
                 <Col xs={12} md={12} style={{ display: "flex", flexDirection: "row", justifyContent: "flex-start", alignItems: "center", flexWrap: "wrap", marginTop: ".75rem" }}>
                   <h5 style={{ marginBottom: "0rem" }}>Jupyter Notebook server status : </h5>
-                  <h5 style={{ marginBottom: "0rem", marginLeft: "1rem", color: jupyterServerIsRunning ? "green" : "#d55757" }}>{jupyterServerIsRunning ? "Running" : "Stopped"}</h5>
-                  {jupyterServerIsRunning ? <Check2Circle size="30" style={{ marginInline: "1rem", color: "green" }} /> : <XCircleFill size="25" style={{ marginInline: "1rem", color: "#d55757" }} />}
+                  <h5 style={{ marginBottom: "0rem", marginLeft: "1rem", color: jupyterStatus.running ? "green" : "#d55757" }}>{jupyterStatus.running ? "Running" : "Stopped"}</h5>
+                  {jupyterStatus.running ? <Check2Circle size="30" style={{ marginInline: "1rem", color: "green" }} /> : <XCircleFill size="25" style={{ marginInline: "1rem", color: "#d55757" }} />}
                   <Button
                     label="Start server"
                     className=" p-button-success"
                     onClick={() => {startJupyterServer()}}
-                    style={{ backgroundColor: jupyterServerIsRunning ? "grey" : "#54a559", borderColor: jupyterServerIsRunning ? "grey" : "#54a559", marginRight: "1rem" }}
-                    disabled={jupyterServerIsRunning}
+                    style={{ backgroundColor: jupyterStatus.running ? "grey" : "#54a559", borderColor: jupyterStatus.running ? "grey" : "#54a559", marginRight: "1rem" }}
+                    disabled={jupyterStatus.running}
                   />
                   <Button
                     label="Stop server"
                     className="p-button-danger"
                     onClick={() => {stopJupyterServer()}}
-                    style={{ backgroundColor: jupyterServerIsRunning ? "#d55757" : "grey", borderColor: jupyterServerIsRunning ? "#d55757" : "grey" }}
-                    disabled={!jupyterServerIsRunning}
+                    style={{ backgroundColor: jupyterStatus.running ? "#d55757" : "grey", borderColor: jupyterStatus.running ? "#d55757" : "grey" }}
+                    disabled={!jupyterStatus.running}
                   />
                 </Col>
                 <Col xs={12} md={12} style={{ display: "flex", flexDirection: "row", justifyContent: "flex-start", alignItems: "center", flexWrap: "wrap", marginTop: ".75rem" }}>

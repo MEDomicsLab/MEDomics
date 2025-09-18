@@ -28,21 +28,23 @@ const JupyterNotebookViewer = ({ filePath, startJupyterServer, isRemote = false,
     return await ipcRenderer.invoke("checkJupyterIsRunning")
   }
 
+  ipcRenderer.on("jupyterReady", () => {
+    if (filePath) {
+      refreshIframe()
+    }
+  })
+
   useEffect(() => {
     console.log("JupyterNoteBookViewer mounted, checking Jupyter server status...")
 
     const runJupyter = async () => {
-      console.log("Checking if Jupyter server is running...")
       const isRunning = await checkJupyterServerRunning()
-      console.log("Jupyter server running status: ", isRunning)
+      console.log("Jupyter server running status:", isRunning)
       if (!isRunning.running) {
         // Start the Jupyter server
         setLoading(true)
-        console.log("Started loading Jupyter server...")
         try{
-          console.log("Starting Jupyter server...")
           await startJupyterServer()
-          console.log("Finished starting Jupyter server.", jupyterStatus)
           if (isRemote) {
             let tunnelSuccess = await ipcRenderer.invoke('startJupyterTunnel')
             console.log("SSH Tunnel start result:", tunnelSuccess, jupyterStatus)
@@ -59,8 +61,8 @@ const JupyterNotebookViewer = ({ filePath, startJupyterServer, isRemote = false,
           console.error("Error starting Jupyter server:", error)
           return
         }
-        setLoading(false)
-      }
+      } 
+      setLoading(false)
     }
     runJupyter()
   }

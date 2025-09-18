@@ -1069,7 +1069,13 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
         />
       }
     } else if (component === "Settings") {
-      return <SettingsPage checkJupyterIsRunning={this.checkJupyterIsRunning} startJupyterServer={this.startJupyterServer} stopJupyterServer={this.stopJupyterServer} />
+      return <SettingsPage 
+        checkJupyterIsRunning={this.checkJupyterIsRunning}
+        startJupyterServer={this.startJupyterServer}
+        stopJupyterServer={this.stopJupyterServer} 
+        jupyterStatus={this.props.jupyterStatus}
+        setJupyterStatus={this.props.setJupyterStatus}
+      />
     } else if (component !== "") {
       if (node.getExtraData().data == null) {
         const config = node.getConfig()

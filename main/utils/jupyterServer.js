@@ -1,13 +1,13 @@
 import fs from "fs"
 import { getBundledPythonEnvironment } from "./pythonEnv"
 import { ipcMain } from "electron"
+import { mainWindow } from "../background"
 
 const util = require("util")
 const exec = util.promisify(require("child_process").exec)
 const { spawn } = require('child_process')
 
 let jupyterStatus = { running: false, error: null }
-let jupyterStarting = false
 let jupyterPort = 8900
 
 async function getPythonPath() {
@@ -25,17 +25,12 @@ export async function startJupyterServer(workspacePath, port = 8900) {
   if (!workspacePath.path) {
     return { running: false, error: "No workspace path found. Jupyter server cannot be started." }
   }
-  console.log("Workspace path for Jupyter server:", workspacePath.path)
-  console.log("Request to start Jupyter server received.")
   const pythonPath = await getPythonPath()
-  console.log("Got python path for server start:", pythonPath)
 
   if (!pythonPath) {
     return { running: false, error: "Python path is not set. Jupyter server cannot be started." }
   }
-  console.log("Setting jupyter config for path: ", pythonPath)
   const configSet = await setJupyterConfig(pythonPath)
-  console.log("Jupyter config set:", configSet)
   if (!configSet.success) {
     return { running: false, error: configSet.error }
   }
@@ -49,16 +44,17 @@ export async function startJupyterServer(workspacePath, port = 8900) {
       `--port=${port}`,
       `${workspacePath.path}/DATA`
     ])
-    jupyter.stdout.on('data', (data) => {
-      console.log(`[Jupyter STDOUT]: ${data}`);
+    jupyter.stderr.on('data', (data) => {
+      console.log(`[Jupyter STDOUT]: ${data}`)
+      if (data.toString().includes(port.toString())) {
+        console.log("Jupyter server is ready and running.")
+        mainWindow.webContents.send("jupyterReady")
+      }
     })
     jupyter.on('close', (code) => {
-      console.log(`[Jupyter] exited with code ${code}`);
+      console.log(`[Jupyter] exited with code ${code}`)
     })
     jupyterPort = port
-    jupyterStarting = false
-    console.log("Jupyter server spawn initiated on port", port)
-    console.log("Returning from startJupyterServer with running: true")
     return { running: true, error: null }
   }
 }
@@ -183,22 +179,26 @@ export async function stopJupyterServer() {
       console.error("Fallback stop method also failed:", fallbackError)
       return { running: true, error: "Failed to stop server" }
     }
-  } finally {
-    jupyterStarting = false
   }
 }
 
 export async function checkJupyterIsRunning() {
+  console.log("Checking if Jupyter server is running on port", jupyterPort)
   try {
     const pythonPath = await getPythonPath()
+    console.log("Python path for checking Jupyter status:", pythonPath)
     if (!pythonPath) {
+      console.log("Python path is not set. Cannot check Jupyter server status.")
       return { running: false, error: "Python path is not set. Cannot check Jupyter server status." }
     }
     const result = await exec(`${pythonPath} -m jupyter notebook list`)
+    console.log("Jupyter notebook list result:", result)
     if (result.stderr) {
+      console.log("Error checking Jupyter server status:", result.stderr)
       return { running: false, error: "Jupyter server is not running. You can start it from the settings page." }
     }
     const isRunning = result.stdout.includes(jupyterPort.toString())
+    console.log("Is Jupyter server running:", isRunning)
     return { running: isRunning, error: isRunning ? null : "Jupyter server is not running. You can start it from the settings page." }
   } catch (error) {
     return { running: false, error: error }
