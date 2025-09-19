@@ -237,7 +237,7 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
           setJupyterStatus({ running: false, error: "Error starting Jupyter on remote server: " + error })
         })
     } else {
-      setJupyterStatus(await ipcRenderer.invoke("startJupyterServer", this.props.workspace?.workingDirectory))
+      setJupyterStatus(await ipcRenderer.invoke("startJupyterServer", this.props.workspace?.workingDirectory?.path))
       console.log("Jupyter server started locally, status: ", this.props.jupyterStatus)
     }
   }

@@ -22,7 +22,7 @@ async function getPythonPath() {
 
 
 export async function startJupyterServer(workspacePath, port = 8900) {
-  if (!workspacePath.path) {
+  if (!workspacePath) {
     return { running: false, error: "No workspace path found. Jupyter server cannot be started." }
   }
   const pythonPath = await getPythonPath()
@@ -42,7 +42,7 @@ export async function startJupyterServer(workspacePath, port = 8900) {
       `--NotebookApp.password=''`,
       '--no-browser',
       `--port=${port}`,
-      `${workspacePath.path}/DATA`
+      `${workspacePath}/DATA`
     ])
     jupyter.stderr.on('data', (data) => {
       console.log(`[Jupyter STDOUT]: ${data}`)
