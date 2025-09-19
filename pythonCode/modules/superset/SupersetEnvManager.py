@@ -19,7 +19,7 @@ class SupersetEnvManager:
         else:
             self.env_path = python_path.replace("bin", "bin/superset_env/bin")
     
-    def check_env_exists(self, python_path):
+    def check_env_exists(self):
         """Check if the virtual environment exists"""
         if sys.platform == "win32":
             return self.env_path.exists()
@@ -180,7 +180,7 @@ class SupersetEnvManager:
     def get_superset_path(self):
         """Get the path to the Superset executable"""
         if sys.platform == "win32":
-            return str(self.env_path / "Scripts" / "superset.exe")
+            return str(self.env_path).split("superset_env")[0] +  "superset_env/Scripts/superset.exe"
         else:
             final_path = str(self.env_path).split("superset_env/")[0] +  "superset_env/bin/superset"
             return final_path
@@ -188,7 +188,7 @@ class SupersetEnvManager:
     def get_superset_lib_path(self):
         """Get the path to the Superset library"""
         if sys.platform == "win32":
-            return str(self.env_path / "Lib" / "site-packages" / "superset")
+            return str(self.env_path).split("superset_env")[0] +  "superset_env/Lib/site-packages/superset"
         else:
             final_path = Path(str(self.env_path).split("superset_env/bin")[0] +  "superset_env/lib/" + f"python{sys.version_info.major}.{sys.version_info.minor}") / "site-packages" / "superset"
             return final_path

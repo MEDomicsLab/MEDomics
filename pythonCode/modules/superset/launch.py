@@ -71,7 +71,7 @@ class GoExecScriptPredict(GoExecutionScript):
         # Check if the virtual environment exists
         self.set_progress(now=progress, label="Checking the Superset virtual environment...")
         manager = SupersetEnvManager(python_path)
-        if not manager.check_env_exists(python_path):
+        if not manager.check_env_exists():
             print("Creating Superset virtual environment...")
             self.set_progress(now=self._progress["now"]+step, label="Creating Superset virtual environment...")
             if not manager.create_env():
