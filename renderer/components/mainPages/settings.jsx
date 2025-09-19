@@ -154,7 +154,8 @@ const SettingsPage = ({pageId = "settings", checkJupyterIsRunning, startJupyterS
     if (workspace.isRemote) {
       axios.get(`http://${tunnel.host}:3000/check-jupyter-status`)
             .then((response) => {
-              if (response.data.success && response.data.running) {
+              console.log("Jupyter status on remote server: ", response)
+              if (response.status == 200 && response.data.running) {
                 console.log("Jupyter is running on remote server")
                 setJupyterStatus(response.data)
               } else {
