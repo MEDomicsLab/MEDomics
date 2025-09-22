@@ -1,7 +1,9 @@
+import fs from 'fs'
 import { Button } from "primereact/button"
 import { Dropdown } from "primereact/dropdown"
-import React, { useCallback, useContext, useEffect, useState } from "react"
+import { useCallback, useContext, useEffect, useState } from "react"
 import AceEditor from "react-ace"
+import { Col, Row } from "react-bootstrap"
 import { toast } from "react-toastify"
 import { requestBackend } from "../../utilities/requests"
 import { ServerConnectionContext } from "../serverConnection/connectionContext"
@@ -10,8 +12,8 @@ import { DataContext } from "../workspace/dataContext"
 import "ace-builds/src-noconflict/ext-language_tools"
 import "ace-builds/src-noconflict/mode-javascript"
 import "ace-builds/src-noconflict/mode-json"
-import "ace-builds/src-noconflict/mode-python"
 import "ace-builds/src-noconflict/mode-markdown"
+import "ace-builds/src-noconflict/mode-python"
 import "ace-builds/src-noconflict/mode-text"
 import "ace-builds/src-noconflict/theme-ambiance"
 import "ace-builds/src-noconflict/theme-chaos"
@@ -62,7 +64,6 @@ import "ace-builds/src-noconflict/theme-twilight"
 import "ace-builds/src-noconflict/theme-vibrant_ink"
 import "ace-builds/src-noconflict/theme-xcode"
 
-import fs from 'fs';
 
 /**
  *  A code editor component
@@ -117,6 +118,7 @@ const CodeEditor = ({id, path, updateSavedCode}) => {
   const [saved, setSaved] = useState(true)
   const [content, setContent] = useState("Loading...")
   const [mode, setMode] = useState("text")
+  const [error, setError] = useState("")
   const [loading, setLoading] = useState(true)
   const [loadingSave, setLoadingSave] = useState(false)
   const { globalData } = useContext(DataContext)
@@ -182,7 +184,8 @@ const CodeEditor = ({id, path, updateSavedCode}) => {
         setLoading(false)
         console.log("Response from backend:", response)
         if (response.error){
-          throw new Error("Error in backend while loading file.")
+          setError(response.error)
+          toast.error("Error opening file: " + response.error)
         }
         else {
           setContent(response.content)
@@ -192,7 +195,7 @@ const CodeEditor = ({id, path, updateSavedCode}) => {
       },
       (error) => {
         console.error("Error from backend:", error)
-        setContent(error)
+        setError(String(error))
       }
     )
   }
@@ -223,6 +226,14 @@ const CodeEditor = ({id, path, updateSavedCode}) => {
 
   return (
     <>
+    {error ? (
+      <Row className="error-dialog-header">
+        <Col md="auto">
+          <h5>{error}</h5>
+        </Col>
+      </Row>
+    ) : (
+      <>
     {(loading || !content) ? (
       <div>Loading...</div> ) : (
         <>
@@ -269,6 +280,8 @@ const CodeEditor = ({id, path, updateSavedCode}) => {
           />
         </>
       )}
+      </>
+    )}
     </>
   )
 }
