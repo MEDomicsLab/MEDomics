@@ -316,7 +316,7 @@ const SupersetDashboard = () => {
     
     const isWindows = os.platform() === "win32"
     if (isWindows) {
-      return `${envPath}\\Lib\\site-packages\\superset`
+      return envPath.split("superset_env")[0] +  "superset_env\\Lib\\site-packages\\superset\\config.py"
     } else {
       const basePath = envPath.split('/superset_env/bin')[0]
       // Find python directory
