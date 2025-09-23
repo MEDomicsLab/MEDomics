@@ -893,6 +893,102 @@ const classificationModelSettings = {
         "code": "gbc",
         "label": "Gradient Boosting Classifier"
     },
+    "xgboost": {
+  "options": {
+    "n_estimators": {
+      "type": "int",
+      "default_val": 100,
+      "tooltip": "int, default=100. Number of boosting rounds (trees)."
+    },
+    "learning_rate": {
+      "type": "float",
+      "default_val": "0.1",
+      "tooltip": "float, default=0.1. Step size shrinkage used in update to prevents overfitting."
+    },
+    "max_depth": {
+      "type": "int",
+      "default_val": 6,
+      "tooltip": "int, default=6. Maximum tree depth for base learners."
+    },
+    "min_child_weight": {
+      "type": "float",
+      "default_val": "1.0",
+      "tooltip": "float, default=1. Minimum sum of instance weight (hessian) needed in a child."
+    },
+    "gamma": {
+      "type": "float",
+      "default_val": "0.0",
+      "tooltip": "float, default=0. Minimum loss reduction required to make a further partition on a leaf node."
+    },
+    "subsample": {
+      "type": "float",
+      "default_val": "1.0",
+      "tooltip": "float, default=1.0. Subsample ratio of the training instances."
+    },
+    "colsample_bytree": {
+      "type": "float",
+      "default_val": "1.0",
+      "tooltip": "float, default=1.0. Subsample ratio of columns when constructing each tree."
+    },
+    "colsample_bylevel": {
+      "type": "float",
+      "default_val": "1.0",
+      "tooltip": "float, default=1.0. Subsample ratio of columns for each tree level."
+    },
+    "colsample_bynode": {
+      "type": "float",
+      "default_val": "1.0",
+      "tooltip": "float, default=1.0. Subsample ratio of columns for each split."
+    },
+    "reg_alpha": {
+      "type": "float",
+      "default_val": "0.0",
+      "tooltip": "float, default=0. L1 regularization term on weights."
+    },
+    "reg_lambda": {
+      "type": "float",
+      "default_val": "1.0",
+      "tooltip": "float, default=1. L2 regularization term on weights."
+    },
+    "scale_pos_weight": {
+      "type": "float",
+      "default_val": "1.0",
+      "tooltip": "float, default=1. Control balance of positive/negative weights, useful for unbalanced classes."
+    },
+    "booster": {
+      "type": "string",
+      "default_val": "gbtree",
+      "tooltip": "string, default='gbtree'. Booster to use: 'gbtree', 'gblinear', or 'dart'."
+    },
+    "tree_method": {
+      "type": "string",
+      "default_val": "auto",
+      "tooltip": "string, default='auto'. Tree construction algorithm: 'auto', 'exact', 'approx', 'hist', 'gpu_hist' (si GPU dispo)."
+    },
+    "grow_policy": {
+      "type": "string",
+      "default_val": "depthwise",
+      "tooltip": "string, default='depthwise'. Strategy to grow trees: 'depthwise' or 'lossguide'."
+    },
+    "random_state": {
+      "type": "int",
+      "default_val": 1334,
+      "tooltip": "int, default=1334. Random seed."
+    },
+    "n_jobs": {
+      "type": "int",
+      "default_val": -1,
+      "tooltip": "int, default=-1. Number of parallel threads."
+    },
+    "verbosity": {
+      "type": "int",
+      "default_val": 0,
+      "tooltip": "int, default=0. Verbosity of printing messages (0=silent, 1=warning, 2=info, 3=debug)."
+    }
+  },
+  "code": "xgboost",
+  "label": "XGBoost"
+},
     "lda": {
         "options": {
             "solver": {
