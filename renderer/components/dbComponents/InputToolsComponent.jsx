@@ -108,7 +108,7 @@ const InputToolsComponent = ({ exportOptions }) => {
           <Panel header="Encode Column Tools" toggleable collapsed={true}>
             <TransformColumnToolsDB currentCollection={!collectionId ? null : collectionId} />
           </Panel>
-          <Panel header="Drop Columns & Tags Tools" toggleable collapsed={true}>
+          <Panel header="Drop Columns Tools" toggleable collapsed={true}>
             <DropColumnsAndTagsToolsDB currentCollection={!collectionId ? null : collectionId} />
           </Panel>
           <Panel header="Normalization Tools" toggleable collapsed={true}>
