@@ -336,6 +336,7 @@ wrapt==1.14.1
 WTForms==3.0.1
 wurlitzer==3.0.3
 xarray==2022.12.0
+xgboost==3.0.5
 xlrd==2.0.1
 xxhash==3.4.1
 ydata-profiling==4.6.1
