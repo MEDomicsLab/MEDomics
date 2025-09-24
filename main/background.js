@@ -1,3 +1,9 @@
+// Force Electron headless mode if --no-gui is present
+if (process.argv.some(arg => arg.includes('--no-gui'))) {
+  process.env.ELECTRON_ENABLE_HEADLESS = '1'
+  // On some Linux systems, also clear DISPLAY
+  process.env.DISPLAY = ''
+}
 import { app, ipcMain, Menu, dialog, BrowserWindow, protocol, shell, nativeTheme } from "electron"
 import axios from "axios"
 import os from "os"
@@ -6,7 +12,16 @@ import { createWindow, TerminalManager } from "./helpers"
 import { installExtension, REACT_DEVELOPER_TOOLS } from "electron-extension-installer"
 import MEDconfig from "../medomics.dev"
 import { runServer, findAvailablePort } from "./utils/server"
-import { setWorkingDirectory, getRecentWorkspacesOptions, loadWorkspaces, createMedomicsDirectory, updateWorkspace, createWorkingDirectory } from "./utils/workspace"
+import {
+  setWorkingDirectory,
+  getRecentWorkspacesOptions,
+  loadWorkspaces,
+  createMedomicsDirectory,
+  createRemoteMedomicsDirectory,
+  updateWorkspace,
+  createWorkingDirectory,
+  createRemoteWorkingDirectory
+} from "./utils/workspace"
 import {
   getBundledPythonEnvironment,
   getInstalledPythonPackages,
@@ -16,6 +31,32 @@ import {
   installRequiredPythonPackages
 } from "./utils/pythonEnv"
 import { installMongoDB, checkRequirements } from "./utils/installation"
+import {
+  getTunnelState,
+  getActiveTunnel,
+  detectRemoteOS,
+  getRemoteWorkspacePath,
+  checkRemotePortOpen
+} from './utils/remoteFunctions.js'
+import { checkJupyterIsRunning, startJupyterServer, stopJupyterServer } from "./utils/jupyterServer.js"
+import express from "express"
+import bodyParser from "body-parser"
+
+const cors = require("cors");
+const expressApp = express();
+expressApp.use(bodyParser.json());
+expressApp.use(cors());
+
+expressApp.use(function(req, res, next) {
+  res.header("Access-Control-Allow-Origin", "*");
+  res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept");
+  next();
+});
+const EXPRESS_PORT = 3000;
+expressApp.listen(EXPRESS_PORT, () => {
+  console.log(`Express server listening on port ${EXPRESS_PORT}`);
+});
+
 
 const fs = require("fs")
 const terminalManager = new TerminalManager()
@@ -30,6 +71,8 @@ var hasBeenSet = false
 const isProd = process.env.NODE_ENV === "production"
 let splashScreen // The splash screen is the window that is displayed while the application is loading
 export var mainWindow // The main window is the window of the application
+// Robust headless mode detection
+const isHeadless = process.argv.some(arg => arg.includes('--no-gui'))
 
 //**** AUTO UPDATER ****//
 const { autoUpdater } = require("electron-updater")
@@ -180,7 +223,9 @@ if (isProd) {
   app.setPath("userData", `${app.getPath("userData")} (development)`)
 }
 
-;(async () => {
+
+// Main async startup
+(async () => {
   await app.whenReady()
 
   protocol.registerFileProtocol("local", (request, callback) => {
@@ -197,34 +242,43 @@ if (isProd) {
     event.reply("get-file-path-reply", path.resolve(configPath))
   })
 
-  splashScreen = new BrowserWindow({
-    icon: path.join(__dirname, "../resources/MEDomicsLabWithShadowNoText100.png"),
-    width: 700,
-    height: 700,
-    transparent: true,
-    frame: false,
-    alwaysOnTop: true,
-    center: true,
-    show: true
-  })
+  if (!isHeadless) {
+    splashScreen = new BrowserWindow({
+      icon: path.join(__dirname, "../resources/MEDomicsLabWithShadowNoText100.png"),
+      width: 700,
+      height: 700,
+      transparent: true,
+      frame: false,
+      alwaysOnTop: true,
+      center: true,
+      show: true
+    })
 
-  mainWindow = createWindow("main", {
-    width: 1500,
-    height: 1000,
-    show: false
-  })
+    mainWindow = createWindow("main", {
+      width: 1500,
+      height: 1000,
+      show: false
+    })
 
-  if (isProd) {
-    splashScreen.loadFile(path.join(__dirname, "splash.html"))
+    if (isProd) {
+      splashScreen.loadFile(path.join(__dirname, "splash.html"))
+    } else {
+      splashScreen.loadFile(path.join(__dirname, "../main/splash.html"))
+    }
+    splashScreen.once("ready-to-show", () => {
+      splashScreen.show()
+      splashScreen.focus()
+      splashScreen.setAlwaysOnTop(true)
+    })
   } else {
-    splashScreen.loadFile(path.join(__dirname, "../main/splash.html"))
+    // Headless/server-only mode
+    mainWindow = undefined;
+    splashScreen = undefined;
+    console.log("Running in headless/server-only mode: no GUI will be created.");
   }
-  splashScreen.once("ready-to-show", () => {
-    splashScreen.show()
-    splashScreen.focus()
-    splashScreen.setAlwaysOnTop(true)
-  })
-  const openRecentWorkspacesSubmenuOptions = getRecentWorkspacesOptions(null, mainWindow, hasBeenSet, serverPort)
+
+  // Use mainWindow only if not headless
+  const openRecentWorkspacesSubmenuOptions = getRecentWorkspacesOptions(null, !isHeadless ? mainWindow : null, hasBeenSet, serverPort)
   console.log("openRecentWorkspacesSubmenuOptions", JSON.stringify(openRecentWorkspacesSubmenuOptions, null, 2))
   const menuTemplate = [
     {
@@ -342,9 +396,193 @@ if (isProd) {
   })
 
   ipcMain.handle("setWorkingDirectory", async (event, data) => {
+    return setWorkspaceDirectory(data)
+  })
+
+  // Helper to normalize paths for cross-platform compatibility
+  function normalizePathForPlatform(p) {
+    if (!p) return p
+    // Always convert Windows backslashes to forward slashes first
+    let normalized = p.replace(/\\/g, '/')
+    if (process.platform === 'win32') {
+      // On Windows, convert all forward slashes to backslashes
+      normalized = normalized.replace(/\//g, '\\')
+      // Remove leading slash if present (e.g. '/C:/path')
+      if (normalized.match(/^\\[A-Za-z]:/)) {
+        normalized = normalized.slice(1)
+      }
+    }
+    return normalized
+  }
+
+  // Remote express requests
+  expressApp.post("/set-working-directory", async (req, res, next) =>{
+    let workspacePath = normalizePathForPlatform(req.body.workspacePath)
+    console.log("Received request to set workspace directory from remote: ", workspacePath)
+    try {
+      const result = await setWorkspaceDirectory(workspacePath);
+      if (result && result.hasBeenSet) {
+        console.log('Workspace (from remote) set to: ' + workspacePath)
+        result.isRemote = true;
+        res.json({ success: true, workspace: result });
+      } else {
+        console.log('Workspace specified by remote could not be set : ', err)
+        res.status(500).json({ success: false, error: err.message });
+      }
+    } catch (err) {
+      console.log('Error setting workspace directory from remote : ', err)
+      res.status(500).json({ success: false, error: err.message });
+    }
+  })
+
+  expressApp.get("/get-working-dir-tree", (req, res) => {
+    try {
+      let requestPath = normalizePathForPlatform(req.query.requestedPath)
+      console.log("Received request to get working directory tree for path: ", requestPath)
+      const workingDirectory = dirTree(requestPath)
+      if (!workingDirectory) {
+        console.log("No working directory found for the requested path:" + requestPath)
+        res.status(500).json({ success: false, error: "Working directory not found" })
+      }
+      res.json({ success: true, workingDirectory: workingDirectory })
+    } catch (err) {
+      console.error("Error getting working directory: ", err)
+      res.status(500).json({ success: false, error: err.message })
+    }
+  })
+
+  expressApp.post("/insert-object-into-collection", async (req, res) => {
+    try {
+      if (!req.body) {
+        console.error("No object provided in request body")
+        return res.status(400).json({ success: false, error: "No object provided" })
+      } else if (!req.body.objectPath || !req.body.medDataObject) {
+        console.error("Invalid request body: objectPath and medDataObject are required")
+        return res.status(400).json({ success: false, error: "Invalid request body" })
+      }
+      console.log("Received request to insert object into collection: ", req.body)
+      await mainWindow.webContents.send("insertObjectIntoCollection", req.body)
+      res.status(200).json({ success: true, message: "Object insertion request received" })
+    } catch (err) {
+      console.error("Error inserting object into remote collection: ", err)
+      res.status(500).json({ success: false, error: err.message })
+    }
+  })
+
+  expressApp.post("/download-collection-to-file", async (req, res) => {
+    try {
+      if (!req.body) {
+        console.error("No object provided in request body")
+        return res.status(400).json({ success: false, error: "No object provided" })
+      } else if (!req.body.collectionId || !req.body.filePath || !req.body.type) {
+        console.error("Invalid request body: downloadCollectionToFile requires collectionId, filePath, and type")
+        return res.status(400).json({ success: false, error: "Invalid request body" })
+      }
+      console.log("Received request to download collection to file: ", req.body)
+      await mainWindow.webContents.send("downloadCollectionToFile", req.body)
+      res.status(200).json({ success: true, message: "Collection download request received" })
+    } catch (err) {
+      console.error("Error downloading object to file: ", err)
+      res.status(500).json({ success: false, error: err.message })
+    }
+  })
+
+  expressApp.get("/get-bundled-python-environment", (req, res) => {
+    try {
+      console.log("Received request to get bundled python environment")
+      const pythEnv = getBundledPythonEnvironment()
+      if (!pythEnv) {
+        res.status(500).json({ success: false, error: "Bundled python environment not found" })
+      }
+      res.status(200).json({ success: true, pythonEnv: pythEnv })
+    } catch (err) {
+      console.error("Error getting bundled python environment: ", err)
+      res.status(500).json({ success: false, error: err.message })
+    }
+  })
+
+  expressApp.get("/get-installed-python-packages", (req, res) => {
+    try {
+      console.log("Received request to get installed python packages")
+      const pythonPackages = getBundledPythonEnvironment()
+      if (!pythonPackages) {
+        res.status(500).json({ success: false, error: "No installed python packages found" })
+      }
+      res.status(200).json({ success: true, packages: pythonPackages })
+    } catch (err) {
+      console.error("Error getting installed python packages: ", err)
+      res.status(500).json({ success: false, error: err.message })
+    }
+  })
+
+  expressApp.post("/start-mongo", async (req, res) => {
+    try {
+      if (!req.body) {
+        console.error("No object provided in request body")
+        return res.status(400).json({ success: false, error: "No object provided" })
+      } else if (!req.body.workspacePath) {
+        console.error("Invalid request body: startMongo requires a workspacePath")
+        return res.status(400).json({ success: false, error: "Invalid request body (no path provided)" })
+      }
+
+      let workspacePath = normalizePathForPlatform(req.body.workspacePath)
+      console.log("Received request to start mongoDB with path : ", workspacePath)
+      startMongoDB(workspacePath, mongoProcess)
+      res.status(200).json({ success: true, message: "Started MongoDB on remote server" })
+    } catch (err) {
+      console.error("Error starting MongoDB (request from remote client): ", err)
+      res.status(500).json({ success: false, error: err.message })
+    }
+  })
+
+  expressApp.get("/check-jupyter-status", async (req, res) => {
+    try {
+      console.log("Received request to check Jupyter status")
+      const result = await checkJupyterIsRunning()
+      res.status(200).json({ running: result.running, error: result.error || null })
+    } catch (err) {
+      console.error("Error checking Jupyter server status: ", err)
+      res.status(500).json({ running: false, error: err.message })
+    }
+  })
+
+  expressApp.post("/start-jupyter-server", async (req, res) => {
+    try {
+      if (!req.body) {
+        console.error("No object provided in request body")
+        return res.status(400).json({ running: false, error: "No object provided" })
+      } else if (!req.body.workspacePath) {
+        console.error("Invalid request body: startJupyterServer requires a workspacePath")
+        return res.status(400).json({ running: false, error: "Invalid request body (no path provided)" })
+      }
+
+      let workspacePath = normalizePathForPlatform(req.body.workspacePath)
+      console.log("Received request to start Jupyter Server with path : ", workspacePath)
+      const result = await startJupyterServer(workspacePath)
+      console.log("Jupyter server started: ", result)
+      res.status(200).json({ running: result.running, error: result.error || null })
+    } catch (err) {
+      console.error("Error starting Jupyter (request from remote client): ", err)
+      res.status(500).json({ running: false, error: err.message })
+    }
+  })
+
+  expressApp.post("/stop-jupyter-server", async (req, res) => {
+    try {
+      console.log("Received request to stop Jupyter Server")
+      const result = stopJupyterServer()
+      res.status(200).json(result)
+    } catch (err) {
+      console.error("Error stopping Jupyter (request from remote client): ", err)
+      res.status(500).json({ running: false, error: err.message })
+    }
+  })
+
+
+  const setWorkspaceDirectory = async (data) => {
     app.setPath("sessionData", data)
+    console.log(`setWorkspaceDirectory : ${data}`)
     createWorkingDirectory() // Create DATA & EXPERIMENTS directories
-    console.log(`setWorkingDirectory : ${data}`)
     createMedomicsDirectory(data)
     hasBeenSet = true
     try {
@@ -376,7 +614,70 @@ if (isProd) {
     } catch (error) {
       console.error("Failed to change workspace: ", error)
     }
+  }
+
+  ipcMain.handle("setRemoteWorkingDirectory", async (event, data) => {
+    app.setPath("remoteSessionData", data)
+    createRemoteWorkingDirectory() // Create DATA & EXPERIMENTS directories
+    console.log(`setWorkspaceDirectory (remote) : ${data}`)
+    createRemoteMedomicsDirectory(data)
+    hasBeenSet = true
+    try {
+      // Stop MongoDB if it's running
+      await stopMongoDB(mongoProcess)
+      // Kill mongod on remote via SSH exec
+      if (activeTunnel && typeof activeTunnel.exec === 'function') {
+        // 1. Detect remote OS
+        const remoteOS = await detectRemoteOS()
+        // 2. Run the appropriate kill command
+        let killCmd
+        if (remoteOS === 'unix' | remoteOS === 'linux' || remoteOS === 'darwin') {
+          killCmd = 'pkill -f mongod || killall mongod || true'
+        } else {
+          // Windows: try taskkill
+          killCmd = 'taskkill /IM mongod.exe /F'
+        }
+        await new Promise((resolve) => {
+          activeTunnel.exec(killCmd, (err, stream) => {
+            if (err) return resolve()
+            stream.on('close', () => resolve())
+            stream.on('data', () => {})
+            stream.stderr.on('data', () => {})
+          })
+        })
+      } else {
+        // Fallback: local logic if no tunnel
+        if (process.platform === "win32") {
+          // Kill the process on the port
+          // killProcessOnPort(serverPort)
+        } else if (process.platform === "darwin") {
+          await new Promise((resolve) => {
+            exec("pkill -f mongod", (error, stdout, stderr) => {
+              resolve()
+            })
+          })
+        } else {
+          try {
+            execSync("killall mongod")
+          } catch (error) {
+            console.warn("Failed to kill mongod: ", error)
+          }
+        }
+      }
+      // Start MongoDB with the new configuration
+      startMongoDB(data, mongoProcess)
+      return {
+        workingDirectory: dirTree(app.getPath("remoteSessionData")),
+        hasBeenSet: hasBeenSet,
+        newPort: serverPort,
+        isRemote: false,
+        success: true
+      }
+    } catch (error) {
+      console.error("Failed to change workspace: ", error)
+    }
   })
+
 
   /**
    * @description Returns the path of the specified directory of the app
@@ -435,6 +736,7 @@ if (isProd) {
    */
   ipcMain.handle("get-settings", async () => {
     const userDataPath = app.getPath("userData")
+    console.log("userDataPath: ", userDataPath)
     const settingsFilePath = path.join(userDataPath, "settings.json")
     if (fs.existsSync(settingsFilePath)) {
       const settings = JSON.parse(fs.readFileSync(settingsFilePath, "utf8"))
@@ -491,7 +793,7 @@ if (isProd) {
       serverProcess.kill()
     }
     console.log("Received Python path: ", pythonPath)
-    if (MEDconfig.runServerAutomatically) {
+    if (MEDconfig.runServerAutomatically) {   
       runServer(isProd, serverPort, serverProcess, serverState, pythonPath)
         .then((process) => {
           serverProcess = process
@@ -541,11 +843,34 @@ if (isProd) {
       let recentWorkspaces = loadWorkspaces()
       event.reply("recentWorkspaces", recentWorkspaces)
     } else if (data === "updateWorkingDirectory") {
-      event.reply("updateDirectory", {
-        workingDirectory: dirTree(app.getPath("sessionData")),
-        hasBeenSet: hasBeenSet,
-        newPort: serverPort
-      }) // Sends the folder structure to Next.js
+      const activeTunnel = getActiveTunnel()
+      const tunnel = getTunnelState()
+      if (activeTunnel && tunnel) {
+        // If an SSH tunnel is active, we set the remote workspace path
+        const remoteWorkspacePath = getRemoteWorkspacePath()
+        axios.get(`http://${tunnel.host}:3000/get-working-dir-tree`, { params: { requestedPath: remoteWorkspacePath } })
+          .then((response) => {
+            if (response.data.success && response.data.workingDirectory) {
+              event.reply("updateDirectory", {
+                workingDirectory: response.data.workingDirectory,
+                hasBeenSet: true,
+                newPort: tunnel.localBackendPort,
+                isRemote: true
+              }) // Sends the folder structure to Next.js
+            } else {
+              console.error("Failed to get remote working directory tree: ", response.data.error)
+            }
+          })
+          .catch((error) => {
+            console.error("Error getting remote working directory tree: ", error)
+          })
+      } else {
+        event.reply("updateDirectory", {
+          workingDirectory: dirTree(app.getPath("sessionData")),
+          hasBeenSet: hasBeenSet,
+          newPort: serverPort
+        }) // Sends the folder structure to Next.js
+      }
     } else if (data === "getServerPort") {
       event.reply("getServerPort", {
         newPort: serverPort
@@ -560,17 +885,18 @@ if (isProd) {
     mainWindow.webContents.send("toggleDarkMode")
   })
 
-  if (isProd) {
-    await mainWindow.loadURL("app://./index.html")
-  } else {
-    const port = process.argv[2]
-    await mainWindow.loadURL(`http://localhost:${port}/`)
-    mainWindow.webContents.openDevTools()
+  if (!isHeadless) {
+    if (isProd) {
+      await mainWindow.loadURL("app://./index.html")
+    } else {
+      const port = process.argv[2]
+      await mainWindow.loadURL(`http://localhost:${port}/`)
+      mainWindow.webContents.openDevTools()
+    }
+    splashScreen.destroy()
+    mainWindow.maximize()
+    mainWindow.show()
   }
-
-  splashScreen.destroy()
-  mainWindow.maximize()
-  mainWindow.show()
 })()
 
 ipcMain.handle("request", async (_, axios_request) => {
@@ -580,6 +906,23 @@ ipcMain.handle("request", async (_, axios_request) => {
 
 // Python environment handling
 ipcMain.handle("getInstalledPythonPackages", async (event, pythonPath) => {
+  const activeTunnel = getActiveTunnel()
+  const tunnel = getTunnelState()
+  if (activeTunnel && tunnel) {
+    let pythonPackages = null
+    await axios.get(`http://${tunnel.host}:3000/get-installed-python-packages`, { params: { pythonPath: pythonPath } })
+          .then((response) => {
+            if (response.data.success && response.data.packages) {
+              pythonPackages = response.data.packages
+            } else {
+              console.error("Failed to get remote Python packages: ", response.data.error)
+            }
+          })
+          .catch((error) => {
+            console.error("Error getting remote Python packages: ", error)
+          })
+    return pythonPackages
+  }
   return getInstalledPythonPackages(pythonPath)
 })
 
@@ -595,7 +938,25 @@ ipcMain.handle("installMongoDB", async (event) => {
 })
 
 ipcMain.handle("getBundledPythonEnvironment", async (event) => {
-  return getBundledPythonEnvironment()
+  const activeTunnel = getActiveTunnel()
+  const tunnel = getTunnelState()
+  if (activeTunnel && tunnel) {
+    let pythonEnv = null
+    await axios.get(`http://${tunnel.host}:3000/get-bundled-python-environment`)
+          .then((response) => {
+            if (response.data.success && response.data.pythonEnv) {
+              pythonEnv = response.data.pythonEnv
+            } else {
+              console.error("Failed to get remote bundled Python environment: ", response.data.error)
+            }
+          })
+          .catch((error) => {
+            console.error("Error getting remote bundled Python environment: ", error)
+          })
+    return pythonEnv
+  } else {
+    return getBundledPythonEnvironment()
+  }
 })
 
 ipcMain.handle("installBundledPythonExecutable", async (event) => {
@@ -634,17 +995,22 @@ ipcMain.on("restartApp", (event, data, args) => {
 })
 
 ipcMain.handle("checkMongoIsRunning", async (event) => {
-  // Check if something is running on the port MEDconfig.mongoPort
-  let port = MEDconfig.mongoPort
+  const activeTunnel = getActiveTunnel()
+  const tunnel = getTunnelState()
   let isRunning = false
-  if (process.platform === "win32") {
-    isRunning = exec(`netstat -ano | findstr :${port}`).toString().trim() !== ""
-  } else if (process.platform === "darwin") {
-    isRunning = exec(`lsof -i :${port}`).toString().trim() !== ""
+  if (activeTunnel && tunnel) {
+    isRunning = await checkRemotePortOpen(activeTunnel, tunnel.remoteDBPort)
   } else {
-    isRunning = exec(`netstat -tuln | grep ${port}`).toString().trim() !== ""
+    // Check if something is running on the port MEDconfig.mongoPort
+    let port = MEDconfig.mongoPort
+    if (process.platform === "win32") {
+      isRunning = exec(`netstat -ano | findstr :${port}`).toString().trim() !== ""
+    } else if (process.platform === "darwin") {
+      isRunning = exec(`lsof -i :${port}`).toString().trim() !== ""
+    } else {
+      isRunning = exec(`netstat -tuln | grep ${port}`).toString().trim() !== ""
+    }  
   }
-
   return isRunning
 })
 
@@ -774,19 +1140,22 @@ ipcMain.handle("terminal-get-cwd", async (event, terminalId) => {
  * @returns {BrowserWindow} The new window
  */
 function openWindowFromURL(url) {
-  let window = new BrowserWindow({
-    icon: path.join(__dirname, "../resources/MEDomicsLabWithShadowNoText100.png"),
-    width: 700,
-    height: 700,
-    transparent: true,
-    center: true
-  })
+  const isHeadless = process.argv.some(arg => arg.includes('--no-gui'))
+  if (!isHeadless) {
+    let window = new BrowserWindow({
+      icon: path.join(__dirname, "../resources/MEDomicsLabWithShadowNoText100.png"),
+      width: 700,
+      height: 700,
+      transparent: true,
+      center: true
+    })
 
-  window.loadURL(url)
-  window.once("ready-to-show", () => {
-    window.show()
-    window.focus()
-  })
+    window.loadURL(url)
+    window.once("ready-to-show", () => {
+      window.show()
+      window.focus()
+    })
+  }
 }
 
 // Function to start MongoDB
@@ -926,3 +1295,4 @@ export function getMongoDBPath() {
     return "mongod"
   }
 }
+

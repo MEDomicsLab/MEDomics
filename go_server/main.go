@@ -5,6 +5,7 @@ import (
 	"fmt"
 	MEDprofiles "go_module/blueprints/MEDprofiles_"
 	Application "go_module/blueprints/application"
+	Connection "go_module/blueprints/connection"
 	Evaluation "go_module/blueprints/evaluation"
 	Exploratory "go_module/blueprints/exploratory"
 	ExtractionImage "go_module/blueprints/extraction_image"
@@ -26,6 +27,7 @@ func main() {
 
 	// Here is where you add the handle functions to the server
 	Learning.AddHandleFunc()
+	Connection.AddHandleFunc()
 	Evaluation.AddHandleFunc()
 	Exploratory.AddHandleFunc()
 	ExtractionImage.AddHandleFunc()

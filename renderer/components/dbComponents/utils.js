@@ -1,5 +1,11 @@
+import { getTunnelState } from "../../utilities/tunnelState"
+
 const MongoClient = require("mongodb").MongoClient
-const mongoUrl = "mongodb://127.0.0.1:54017"
+function getMongoUrl() {
+  // Use tunnel state if available
+  const tunnel = getTunnelState()
+  return "mongodb://127.0.0.1:" + (tunnel && tunnel.tunnelActive && tunnel.localDBPort ? tunnel.localDBPort : "54017")
+} 
 
 /**
  * @description Check if a database exists
@@ -7,7 +13,7 @@ const mongoUrl = "mongodb://127.0.0.1:54017"
  * @param {String} dbname
  */
 export const collectionExists = async (collectionName, dbname = "data") => {
-  const client = new MongoClient(mongoUrl)
+  const client = new MongoClient(getMongoUrl())
   try {
     await client.connect()
     const db = client.db(dbname)
@@ -30,7 +36,7 @@ export const collectionExists = async (collectionName, dbname = "data") => {
  * @returns {Array} fetchedData
  */
 export const getCollectionData = async (collectionName, first = null, rows = null, dbname = "data") => {
-  const client = new MongoClient(mongoUrl)
+  const client = new MongoClient(getMongoUrl())
   let fetchedData = []
   try {
     await client.connect()
@@ -81,7 +87,7 @@ export const getCollectionData = async (collectionName, first = null, rows = nul
  * @returns {Array} fetchedDataFiltered
  */
 export const getCollectionDataFilterd = async (collectionName, filter, first = null, rows = null, sortCriteria = null, dbname = "data") => {
-  const client = new MongoClient(mongoUrl)
+  const client = new MongoClient(getMongoUrl())
   let fetchedData = []
   try {
     await client.connect()
@@ -126,7 +132,7 @@ export const getCollectionDataFilterd = async (collectionName, filter, first = n
  * @description Get documents count with filter use
  */
 export const getCollectionDataCount = async (collectionName, filter, dbname = "data") => {
-  const client = new MongoClient(mongoUrl)
+  const client = new MongoClient(getMongoUrl())
   try {
     await client.connect()
     const db = client.db(dbname)
@@ -148,7 +154,7 @@ export const getCollectionDataCount = async (collectionName, filter, dbname = "d
  * @returns columnTypes
  */
 export const getCollectionColumnTypes = async (collectionName, dbname = "data") => {
-  const client = new MongoClient(mongoUrl, { useNewUrlParser: true, useUnifiedTopology: true })
+  const client = new MongoClient(getMongoUrl(), { useNewUrlParser: true, useUnifiedTopology: true })
   try {
     await client.connect()
     const db = client.db(dbname)

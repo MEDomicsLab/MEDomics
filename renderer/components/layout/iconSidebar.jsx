@@ -8,14 +8,18 @@ import { Tooltip } from "primereact/tooltip"
 import { LayoutModelContext } from "./layoutContext"
 import { PiFlaskFill } from "react-icons/pi"
 import { FaMagnifyingGlassChart } from "react-icons/fa6"
+import { TbCloudDataConnection } from "react-icons/tb";
 import { FaDatabase } from "react-icons/fa6"
 import { LuNetwork } from "react-icons/lu"
 import { Button } from "primereact/button"
 import { TbFileExport } from "react-icons/tb"
 import { VscChromeClose } from "react-icons/vsc"
 import { PiGraphFill } from "react-icons/pi"
-import { MdOutlineGroups3, MdSunny } from "react-icons/md"
-import { MdOutlineDarkMode } from "react-icons/md";
+import ConnectionModal from "../mainPages/connectionModal"
+import { toast } from "react-toastify"
+import { useTunnel } from "../tunnel/TunnelContext"
+import { FaCircle } from "react-icons/fa"
+import { MdOutlineGroups3, MdSunny, MdOutlineDarkMode } from "react-icons/md"
 import { useTheme } from "../theme/themeContext"
 
 /**
@@ -32,6 +36,9 @@ const IconSidebar = ({ onSidebarItemSelect }) => {
   const [developerModeNav, setDeveloperModeNav] = useState(true)
   const [extractionBtnstate, setExtractionBtnstate] = useState(false)
   const [buttonClass, setButtonClass] = useState("")
+  const [showConnectionModal, setShowConnectionModal] = useState(false)
+
+  const tunnel = useTunnel()
 
   const delayOptions = { showDelay: 750, hideDelay: 0 }
 
@@ -95,6 +102,10 @@ const IconSidebar = ({ onSidebarItemSelect }) => {
     setButtonClass(buttonClass === "" ? "show" : "")
   }
 
+  const handleRemoteConnect = () => {
+    toast.success("Connected to remote workspace!");
+  }
+  
   function handleThemeToggleClick() {
     toggleTheme()
   }
@@ -105,6 +116,7 @@ const IconSidebar = ({ onSidebarItemSelect }) => {
         {/* ------------------------------------------- Tooltips ----------------------------------------- */}
         <Tooltip target=".homeNavIcon" {...delayOptions} className="tooltip-icon-sidebar" />
         <Tooltip target=".explorerNav" {...delayOptions} className="tooltip-icon-sidebar" />
+        <Tooltip target=".connectionModalBtn" {...delayOptions} className="tooltip-icon-sidebar" />
         <Tooltip target=".inputNav" {...delayOptions} className="tooltip-icon-sidebar" />
         <Tooltip target=".extractionNav" {...delayOptions} className="tooltip-icon-sidebar" data-pr-disabled={extractionBtnstate} />
         <Tooltip target=".exploratoryNav" {...delayOptions} className="tooltip-icon-sidebar" />
@@ -147,6 +159,46 @@ const IconSidebar = ({ onSidebarItemSelect }) => {
             onClick={(event) => handleClick(event, "explorer")}
           >
             <Files size={"1.25rem"} width={"100%"} height={"100%"} style={{ scale: "0.65" }} />
+          </Nav.Link>
+
+          <Nav.Link
+            className="connectionModalBtn btnSidebar"
+            data-pr-at="right center"
+            data-pr-tooltip="Connection Menu"
+            data-pr-my="left center"
+            data-tooltip-id="tooltip-connection-menu"
+            onClick={() => {
+              setShowConnectionModal(true)
+            }}
+            style={{ position: "relative" }}
+          >
+            <TbCloudDataConnection style={{ height: "2.2rem", width: "100%", strokeWidth: "1" }} />
+            {/* SSH Tunnel status indicator */}
+            {tunnel.tunnelActive && (
+              <span
+                style={{
+                  position: "absolute",
+                  bottom: 8,
+                  right: 8,
+                  fontSize: "0.9rem",
+                  color: "#4caf50",
+                  background: "#3a3a3a",
+                  border: "1.5px solid #00ff00",
+                  borderRadius: "50%",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  width: 16,
+                  height: 16,
+                  boxSizing: "border-box"
+                }}
+                title="SSH Tunnel Active"
+              >
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M4.5 8.5L7 11L11.5 6.5" stroke="#00ff00" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              </span>
+            )}
           </Nav.Link>
 
           <NavDropdown.Divider className="icon-sidebar-divider" style={{ height: "3rem" }} />
@@ -359,6 +411,14 @@ const IconSidebar = ({ onSidebarItemSelect }) => {
 
           {/* div that puts the buttons to the bottom of the sidebar*/}
           <div className="d-flex icon-sidebar-divider" style={{ flexGrow: "1" }}></div>
+          
+          {showConnectionModal && <ConnectionModal
+            visible={showConnectionModal}
+            closable={false}
+            onClose={() => setShowConnectionModal(false)}
+            onConnect={handleRemoteConnect}
+          />}
+          
           {/* ------------------------------------------- DARK/LIGHT MODE BUTTON ----------------------------------------- */}
 
           <Nav.Link
@@ -371,7 +431,6 @@ const IconSidebar = ({ onSidebarItemSelect }) => {
             onClick={() => {
               handleThemeToggleClick()
             }}
-            disabled={isDisabled}
           >
             {isDarkMode ? (
 

@@ -1,8 +1,17 @@
 const { MongoClient } = require("mongodb")
 const fs = require("fs")
 const Papa = require("papaparse")
+import { getTunnelState } from "../../utilities/tunnelState"
+import axios from "axios"
 
-const uri = "mongodb://localhost:54017" // Remplacez par votre URI MongoDB
+function getMongoUri() {
+  const tunnel = getTunnelState()
+  if (tunnel && tunnel.tunnelActive && tunnel.localDBPort) {
+    return `mongodb://localhost:${tunnel.localDBPort}`
+  }
+  return "mongodb://localhost:54017"
+}
+
 const dbName = "data" // Remplacez par le nom de votre base de données
 
 let client
@@ -13,7 +22,7 @@ let client
  */
 export async function connectToMongoDB() {
   if (!client) {
-    client = new MongoClient(uri, { useNewUrlParser: true, useUnifiedTopology: true })
+    client = new MongoClient(getMongoUri(), { useNewUrlParser: true, useUnifiedTopology: true })
     await client.connect()
   }
   return client.db(dbName)
@@ -141,24 +150,39 @@ export async function insertMEDDataObjectIfNotExists(medData, path = null, jsonD
     const result = await dataCollection.insertMany(jsonData)
     console.log(`Data inserted with ${result.insertedCount} documents`)
   } else if (path) {
-    switch (medData.type) {
-      case "csv":
-        await insertCSVIntoCollection(path, medData.id)
-        break
-      case "html":
-        await insertHTMLIntoCollection(path, medData.id)
-        break
-      case "png":
-        await insertPNGIntoCollection(path, medData.id)
-        break
-      case "pkl":
-        await insertPKLIntoCollection(path, medData.id)
-        break
-      case "jpg":
-        await insertJPGIntoCollection(path, medData.id)
-        break
-      default:
-        break
+    const tunnel = getTunnelState()
+    if (tunnel && tunnel.tunnelActive && tunnel.localDBPort) { // run remotely
+      axios.post(`http://${tunnel.host}:3000/insert-object-into-collection`, { objectPath: path, medDataObject: medData })
+        .then(response => {
+          if (response.data.success) {
+            console.log(`${medData.type} object successfully inserted remotely.`)
+          } else {
+            console.error(`Failed to insert ${medData.type} : ` + response.data.error)
+          }
+        })
+        .catch(err => {
+          console.error(`Failed to insert ${medData.type} : ` + (err && err.message ? err.message : String(err)))
+        })
+    } else { // run locally
+      switch (medData.type) {
+        case "csv":
+          await insertCSVIntoCollection(path, medData.id)
+          break
+        case "html":
+          await insertHTMLIntoCollection(path, medData.id)
+          break
+        case "png":
+          await insertPNGIntoCollection(path, medData.id)
+          break
+        case "pkl":
+          await insertPKLIntoCollection(path, medData.id)
+          break
+        case "jpg":
+          await insertJPGIntoCollection(path, medData.id)
+          break
+        default:
+          break
+      }
     }
   } else if (copyId) {
     // Copy the data from the collection of the object being copied
@@ -283,6 +307,11 @@ async function insertCSVIntoCollection(filePath, collectionName) {
         dynamicTyping: true, // Automatically convert numeric fields to numbers
         complete: async (results) => {
           try {
+            if (results.data.length == 0) {
+              console.warn("CSV file is empty or has no valid rows.")
+              resolve(null)
+              return
+            } 
             const result = await collection.insertMany(results.data)
             console.log(`CSV data inserted with ${result.insertedCount} documents`)
             resolve(result)
@@ -608,4 +637,27 @@ export async function getCollectionSize(collectionId) {
 export async function getAllCollections() {
   const db = await connectToMongoDB()
   return await db.listCollections().toArray()
+}
+
+
+export async function insertObjectIntoCollection(data) {
+  switch (data.medDataObject.type) {
+    case "csv":
+      await insertCSVIntoCollection(data.objectPath, data.medDataObject.id)
+      break
+    case "html":
+      await insertHTMLIntoCollection(data.objectPath, data.medDataObject.id)
+      break
+    case "png":
+      await insertPNGIntoCollection(data.objectPath, data.medDataObject.id)
+      break
+    case "pkl":
+      await insertPKLIntoCollection(data.objectPath, data.medDataObject.id)
+      break
+    case "jpg":
+      await insertJPGIntoCollection(data.objectPath, data.medDataObject.id)
+      break
+    default:
+      break
+  }
 }

@@ -1,18 +1,20 @@
-import React, { useContext, useEffect, useState } from "react"
+import { useEffect, useState } from "react"
 import path from "node:path"
 import Iframe from "react-iframe"
 import { defaultJupyterPort } from "../layout/flexlayout/mainContainerClass"
-import { LayoutModelContext } from "../layout/layoutContext"
 import { ipcRenderer } from "electron"
+import { useTunnel } from "../tunnel/TunnelContext"
 
 /**
  * Jupyter Notebook viewer
  * @param {string} filePath - the path of the file to edit
+ * @param {string} startJupyterServer - function to start the Jupyter server
+ * @param {boolean} isRemote - whether the file is remote or local
+ * @param {object} jupyterStatus - status of the Jupyter server (running, error)
+ * @param {function} setJupyterStatus - function to set the Jupyter server status
  * @returns {JSX.Element} - A Jupyter Notebook viewer
  */
-const JupyterNotebookViewer = ({ filePath, startJupyterServer }) => {
-  const exec = require("child_process").exec
-  const {jupyterStatus, setJupyterStatus} = useContext(LayoutModelContext)
+const JupyterNotebookViewer = ({ filePath, startJupyterServer, isRemote = false, jupyterStatus, setJupyterStatus }) => {
   const [loading, setLoading] = useState(true)
   const fileName = path.basename(filePath) // Get the file name from the path
   // Get the relative path after "DATA" in the filePath
@@ -20,45 +22,38 @@ const JupyterNotebookViewer = ({ filePath, startJupyterServer }) => {
   const match = filePath.replace(/\\/g, "/").match(/DATA\/(.+)$/)
   const relativePath = match ? match[1] : filePath
 
-  const getPythonPath = async () => {
-    let pythonPath = ""
-    await ipcRenderer.invoke("getBundledPythonEnvironment").then((res) => {
-      pythonPath = res
-    })
-    // Check if pythonPath is set
-    if (pythonPath === "") {
-      return null
-    }
-    return pythonPath
-  }
+  const tunnel = useTunnel()
 
   const checkJupyterServerRunning = async () => {
-    try {
-      const pythonPath = await getPythonPath()
-      if (!pythonPath) {
-        console.error("Python path is not set. Cannot check Jupyter server status.")
-        return false
-      }
-      const result = await exec(`${pythonPath} -m jupyter notebook list`)
-      if (result.stderr) {
-        return false
-      }
-      return result.stdout.includes(defaultJupyterPort.toString())
-    } catch (error) {
-      console.error("Error checking Jupyter server status:", error)
-      return false
-    }
+    return await ipcRenderer.invoke("checkJupyterIsRunning")
   }
 
+  ipcRenderer.on("jupyterReady", () => {
+    if (filePath) {
+      refreshIframe()
+    }
+  })
+
   useEffect(() => {
+    console.log("JupyterNoteBookViewer mounted, checking Jupyter server status...")
+
     const runJupyter = async () => {
       const isRunning = await checkJupyterServerRunning()
-      if (!isRunning) {
+      console.log("Jupyter server running status:", isRunning)
+      if (!isRunning.running) {
         // Start the Jupyter server
         setLoading(true)
         try{
           await startJupyterServer()
-          setJupyterStatus({ running: true, error: null })
+          if (isRemote) {
+            let tunnelSuccess = await ipcRenderer.invoke('startJupyterTunnel')
+            console.log("SSH Tunnel start result:", tunnelSuccess, jupyterStatus)
+            if (!tunnelSuccess) {
+              setJupyterStatus({ running: false, error: "Failed to start SSH tunnel for Jupyter. Please check the tunnel settings." })
+              setLoading(false)
+              return
+            }
+          }
           setLoading(false)
         } catch (error) {
           setLoading(false)
@@ -66,14 +61,17 @@ const JupyterNotebookViewer = ({ filePath, startJupyterServer }) => {
           console.error("Error starting Jupyter server:", error)
           return
         }
-        setLoading(false)
-      }
+      } 
+      setLoading(false)
     }
     runJupyter()
   }
   , [])
 
   const getJupyterURL = () => {
+    if (isRemote) {
+      return "http://localhost:" + tunnel.localJupyterPort + "/notebooks/" + relativePath
+    }
     return "http://localhost:" + defaultJupyterPort + "/notebooks/" + relativePath
   }
 

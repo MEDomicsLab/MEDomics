@@ -12,6 +12,9 @@ import {
   updateMEDDataObjectName,
   updateMEDDataObjectPath
 } from "../mongoDB/mongoDBUtils"
+import { remoteDirname } from "../../utilities/fileManagementUtils"
+import axios from "axios"
+import { getTunnelState } from "../../utilities/tunnelState"
 
 /**
  * @description class definition of a MEDDataObject
@@ -154,7 +157,7 @@ export class MEDDataObject {
         pathParts.unshift(object.name)
       }
     }
-    return path.join(workspacePath, ...pathParts)
+    return path.posix.join(workspacePath, ...pathParts)
   }
 
   /**
@@ -230,13 +233,13 @@ export class MEDDataObject {
   }
 
   /**
-   * @description Delete a MEDDataObject and its children from the dictionary and the local workspace
+   * @description Delete a MEDDataObject and its children from the dictionary and the workspace
    * @param {Dictionary} dict - dictionary of all MEDDataObjects
    * @param {String} id - the id of the object to delete
    * @param {String} workspacePath - the root path of the workspace
    * @returns {Promise<void>}
    */
-  static async deleteObjectAndChildren(dict, id, workspacePath) {
+  static async deleteObjectAndChildren(dict, id, workspacePath, isRemote = false) {
     // Get the object to delete
     const objectToDelete = dict[id]
 
@@ -249,7 +252,24 @@ export class MEDDataObject {
     if (objectToDelete.inWorkspace) {
       // Get the full path of the object in the workspace
       const fullPath = this.getFullPath(dict, id, workspacePath)
-      fs.rmSync(fullPath, { recursive: true, force: true })
+      if (isRemote) {
+        try {
+          const result = await ipcRenderer.invoke('deleteRemoteFile', { path: fullPath, recursive: true })
+          if (result && result.success) {
+            console.log(`Deleted ${fullPath} from remote workspace`)
+          } else {
+            console.error(`Failed to delete ${fullPath} from remote workspace: ${result ? result.error : 'unknown error'}`)
+            toast.error(`Failed to delete ${objectToDelete.name} from remote workspace: ${result ? result.error : 'unknown error'}`)
+            return
+          }
+        } catch (error) {
+          console.error(`Failed to delete ${fullPath} from remote workspace: ${error.message}`)
+          toast.error(`Failed to delete ${objectToDelete.name} from remote workspace: ${error.message}`)
+          return
+        }
+      } else {
+        fs.rmSync(fullPath, { recursive: true, force: true })
+      }
       console.log(`Deleted ${fullPath} from workspace`)
     }
 
@@ -266,7 +286,7 @@ export class MEDDataObject {
    * @param {Boolean} notify - Wether to display a toast message while success
    * @returns {Promise<void>}
    */
-  static async deleteObjectAndChildrenFromWorkspace(dict, id, workspacePath, notify = true) {
+  static async deleteObjectAndChildrenFromWorkspace(dict, id, workspacePath, notify = true, isRemote = false) {
     // Get the object to delete
     const objectToDelete = dict[id]
 
@@ -279,7 +299,24 @@ export class MEDDataObject {
     if (objectToDelete.inWorkspace) {
       // Get the full path of the object in the workspace
       const fullPath = this.getFullPath(dict, id, workspacePath)
-      fs.rmSync(fullPath, { recursive: true, force: true })
+      if (isRemote) {
+        try {
+          const result = await ipcRenderer.invoke('deleteRemoteFile', { path: fullPath, recursive: true })
+          if (result && result.success) {
+            console.log(`Deleted ${fullPath} from remote workspace`)
+          } else {
+            console.error(`Failed to delete ${fullPath} from remote workspace: ${result ? result.error : 'unknown error'}`)
+            toast.error(`Failed to delete ${objectToDelete.name} from remote workspace: ${result ? result.error : 'unknown error'}`)
+            return
+          }
+        } catch (error) {
+          console.error(`Failed to delete ${fullPath} from remote workspace: ${error.message}`)
+          toast.error(`Failed to delete ${objectToDelete.name} from remote workspace: ${error.message}`)
+          return
+        }
+      } else {
+        fs.rmSync(fullPath, { recursive: true, force: true })
+      }
       console.log(`Deleted ${fullPath} from workspace`)
       const success = await overwriteMEDDataObjectProperties(id, { inWorkspace: false })
       if (success) {
@@ -395,9 +432,10 @@ export class MEDDataObject {
    * @param {String} id - the id of the MEDDataObject to rename
    * @param {String} newName - the new name for the MEDDataObject
    * @param {String} workspacePath - the root path of the workspace
+   * @param {string} isRemote - A flag indicating if the workspace is remote
    * @returns {void}
    */
-  static async rename(dict, id, newName, workspacePath) {
+  static async rename(dict, id, newName, workspacePath, isRemote = false) {
     const object = dict[id]
 
     if (!object) {
@@ -426,8 +464,26 @@ export class MEDDataObject {
         toast.error(`Failed to rename ${object.name}`)
         return
       }
-      fs.renameSync(oldPath, newPath)
+      if (isRemote) {
+        try {
+          const result = await ipcRenderer.invoke('renameRemoteFile', { oldPath: oldPath, newPath: newPath })
+          if (result && result.success) {
+            console.log(`Renamed ${oldPath} to ${newPath} on remote`)
+          } else {
+            console.error(`Failed to rename ${oldPath} to ${newPath} on remote: ${result ? result.error : 'unknown error'}`)
+            toast.error(`Failed to rename ${object.name} on remote: ${result ? result.error : 'unknown error'}`)
+            return
+          }
+        } catch (error) {
+          console.error(`Failed to rename ${oldPath} to ${newPath} on remote: ${error.message}`)
+          toast.error(`Failed to rename ${object.name} on remote: ${error.message}`)
+          return
+        }
+      } else {
+        fs.renameSync(oldPath, newPath)
+      }
       console.log(`Renamed ${oldPath} to ${newPath}`)
+      toast.success(`Renamed ${oldPath} to ${newPath}`)
     }
 
     // Notify the system to update the workspace
@@ -442,8 +498,9 @@ export class MEDDataObject {
    * @param {Boolean} notify - Wether to display a toast message while success
    * @param {Set} syncedObjects - A set to track already synced objects to avoid infinite loops
    */
-  static async sync(dict, id, workspacePath, notify = true, syncedObjects = new Set()) {
+  static async sync(dict, id, workspacePath, notify = true, syncedObjects = new Set(), isRemote) {
     const medDataObject = dict[id]
+    console.log(`Syncing MEDDataObject with id ${id}, name ${medDataObject ? medDataObject.name : "unknown"}, isRemote: ${isRemote}`)
 
     if (!medDataObject) {
       console.log(`MEDDataObject with id ${id} not found`)
@@ -458,32 +515,55 @@ export class MEDDataObject {
 
     // Recursively sync parent objects
     if (medDataObject.parentID && medDataObject.parentID !== "ROOT") {
-      await this.sync(dict, medDataObject.parentID, workspacePath, notify, syncedObjects)
+      await this.sync(dict, medDataObject.parentID, workspacePath, notify, syncedObjects, isRemote)
     }
 
     // Define the file path where the content will be downloaded
     const filePath = this.getFullPath(dict, id, workspacePath)
-
     // Ensure the directory exists
-    const directoryPath = path.dirname(filePath)
-    if (!fs.existsSync(directoryPath)) {
-      fs.mkdirSync(directoryPath, { recursive: true })
+    if (isRemote) {
+      const directoryPath = remoteDirname(filePath)
+      console.log(`Creating directory at ${directoryPath} for remote sync`)
+      const fileExists = await ipcRenderer.invoke('checkRemoteFileExists', directoryPath)
+      if (fileExists === "does not exist") {
+        await ipcRenderer.invoke('createRemoteFolder', { path: directoryPath, recursive: true })
+      }
+    } else {
+      const directoryPath = path.dirname(filePath)
+      if (!fs.existsSync(directoryPath)) {
+        fs.mkdirSync(directoryPath, { recursive: true })
+      }
     }
 
     // Download the content based on the type
     try {
       if (medDataObject.type != "directory" && medDataObject.type != "medml" && medDataObject.type != "medeval" && medDataObject.type != "medmlres" && medDataObject.type != "medmodel") {
-        await downloadCollectionToFile(id, filePath, medDataObject.type)
+        if (isRemote) {
+          const tunnelState = getTunnelState()
+          axios.post(`http://${tunnelState.host}:3000/download-collection-to-file`, { collectionId: id, filePath: filePath, type: medDataObject.type })
+            .then(response => {
+              if (response.data.success) {
+                console.log(`Downloaded collection ${id} to remote file successfully`)
+              } else {
+                toast.error(`Failed to download collection ${id} to remote file: ` + response.data.error)
+              }
+            })
+            .catch(err => {
+              toast.error(`Failed to download collection ${id} to remote file: ` + (err && err.message ? err.message : String(err)))
+            })
+        } else {
+          await downloadCollectionToFile(id, filePath, medDataObject.type)
+        }  
       }
 
       // Sync child objects for specific types
       if (medDataObject.type === "medml" || medDataObject.type === "medeval" || medDataObject.type === "medmlres" || medDataObject.type === "medmodel") {
-        await this.syncChildren(dict, medDataObject.childrenIDs, workspacePath, notify, syncedObjects)
+        await this.syncChildren(dict, medDataObject.childrenIDs, workspacePath, notify, syncedObjects, isRemote)
       }
 
       // If the object is a directory, create it in the workspace and sync its children
       if (medDataObject.type === "directory") {
-        await this.syncChildren(dict, medDataObject.childrenIDs, workspacePath, notify, syncedObjects)
+        await this.syncChildren(dict, medDataObject.childrenIDs, workspacePath, notify, syncedObjects, isRemote)
       }
 
       // Update inWorkspace property to true after successful download
@@ -512,16 +592,17 @@ export class MEDDataObject {
    * @param {String} workspacePath - the root path of the workspace
    * @param {Boolean} notify - Whether to display a toast message while success
    * @param {Set} syncedObjects - A set to track already synced objects to avoid infinite loops
+   * @param {Set} isRemote - A flag indicating if the sync is for a remote workspace
    */
-  static async syncChildren(dict, childrenIDs, workspacePath, notify, syncedObjects) {
+  static async syncChildren(dict, childrenIDs, workspacePath, notify, syncedObjects, isRemote) {
     for (const childID of childrenIDs) {
       const child = dict[childID]
       if (!child) {
         console.log(`Child MEDDataObject with id ${childID} not found`)
         continue
       }
-      await this.sync(dict, childID, workspacePath, notify, syncedObjects)
-      await this.syncChildren(dict, child.childrenIDs, workspacePath, notify, syncedObjects)
+      await this.sync(dict, childID, workspacePath, notify, syncedObjects, isRemote)
+      await this.syncChildren(dict, child.childrenIDs, workspacePath, notify, syncedObjects, isRemote)
     }
   }
 

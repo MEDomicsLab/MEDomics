@@ -1,5 +1,6 @@
 import { app, dialog, ipcRenderer } from "electron"
 import MEDconfig from "../../medomics.dev"
+import { getTunnelState } from "./remoteFunctions"
 
 const fs = require("fs")
 var path = require("path")
@@ -172,6 +173,14 @@ export function createWorkingDirectory() {
   createFolder("EXPERIMENTS")
 }
 
+// Function to create the working directory on the server
+export function createRemoteWorkingDirectory() {
+  // See the workspace menuTemplate in the repository
+  const folderPath = app.getPath("remoteSessionData")
+  createRemoteFolder(folderPath + "/DATA")
+  createRemoteFolder(folderPath + "/EXPERIMENTS")
+}
+
 // Function to create a folder from a given path
 function createFolder(folderString) {
   // Creates a folder in the working directory
@@ -186,6 +195,46 @@ function createFolder(folderString) {
       console.log("Folder created successfully!")
     })
   }
+}
+
+// Function to create a folder on the server from a given path using SFTP
+function createRemoteFolder(folderPath, callback) {
+  // Use SFTP via active tunnel to create a folder in the remote working directory
+  const tunnel = getTunnelState()
+  if (!tunnel || !tunnel.tunnelActive || !tunnel.tunnelObject || !tunnel.tunnelObject.sshClient) {
+    const errMsg = 'No active SSH tunnel for remote folder creation.'
+    console.error(errMsg)
+    if (callback) callback(new Error(errMsg))
+    return
+  }
+
+  tunnel.tunnelObject.sshClient.sftp((err, sftp) => {
+    if (err) {
+      console.error('SFTP error:', err)
+      if (callback) callback(err)
+      return
+    }
+    // Check if folder exists
+    sftp.stat(folderPath, (statErr, stats) => {
+      if (!statErr && stats && stats.isDirectory && stats.isDirectory()) {
+        // Folder exists
+        if (callback) callback(null, 'exists')
+        sftp.end && sftp.end()
+        return
+      }
+      // Try to create folder
+      sftp.mkdir(folderPath, { mode: 0o755 }, (mkErr) => {
+        if (mkErr) {
+          console.error('SFTP mkdir error:', mkErr)
+          if (callback) callback(mkErr)
+        } else {
+          console.log('Remote folder created successfully!')
+          if (callback) callback(null, 'created')
+        }
+        sftp.end && sftp.end()
+      })
+    })
+  })
 }
 
 // Function to create the .medomics directory and necessary files
@@ -219,4 +268,73 @@ export const createMedomicsDirectory = (directoryPath) => {
     `
     fs.writeFileSync(mongoConfigPath, mongoConfig)
   }
+}
+
+
+// Function to create the .medomics directory and necessary files
+export const createRemoteMedomicsDirectory = (directoryPath) => {
+  const medomicsDir = path.join(directoryPath, ".medomics")
+  const mongoDataDir = path.join(medomicsDir, "MongoDBdata")
+  const mongoConfigPath = path.join(medomicsDir, "mongod.conf")
+
+  // Create the .medomics directory on the remote server
+  createRemoteFolder(medomicsDir, (err) => {
+    if (err) {
+      console.error("Error creating remote .medomics directory:", err)
+      return
+    }
+    console.log(".medomics directory created successfully on remote server.")
+  })
+
+  // Create the mongoDataDir directory on the remote server
+  createRemoteFolder(mongoDataDir, (err) => {
+    if (err) {
+      console.error("Error creating remote .medomics directory:", err)
+      return
+    }
+    console.log(".medomics directory created successfully on remote server.")
+  })
+
+  // SFTP: Check if mongod.conf exists and write if not
+  const tunnel = getTunnelState()
+  if (!tunnel || !tunnel.tunnelActive || !tunnel.tunnelObject || !tunnel.tunnelObject.sshClient) {
+    console.error('No active SSH tunnel for remote file creation.')
+    return
+  }
+  tunnel.tunnelObject.sshClient.sftp((err, sftp) => {
+    if (err) {
+      console.error('SFTP error:', err)
+      return
+    }
+    sftp.stat(mongoConfigPath, (statErr, stats) => {
+      if (!statErr && stats && stats.isFile && stats.isFile()) {
+        // File exists, do nothing
+        sftp.end && sftp.end()
+        return
+      }
+      // File does not exist, write it
+      const mongoConfig = `
+    systemLog:
+      destination: file
+      path: ${path.join(medomicsDir, "mongod.log")}
+      logAppend: true
+    storage:
+      dbPath: ${mongoDataDir}
+    net:
+      bindIp: localhost
+      port: ${MEDconfig.mongoPort}
+    `
+      const writeStream = sftp.createWriteStream(mongoConfigPath, { encoding: 'utf8', mode: 0o644 })
+      writeStream.on('error', (e) => {
+        console.error('SFTP write error:', e)
+        sftp.end && sftp.end()
+      })
+      writeStream.on('finish', () => {
+        console.log('mongod.conf created successfully on remote server.')
+        sftp.end && sftp.end()
+      })
+      writeStream.write(mongoConfig)
+      writeStream.end()
+    })
+  })
 }

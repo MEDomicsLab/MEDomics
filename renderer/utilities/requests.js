@@ -1,17 +1,24 @@
 import { ipcRenderer } from "electron"
 import axios from "axios"
 import { toast } from "react-toastify"
+import { getTunnelState } from "./tunnelState"
 
 /**
  *
- * @param {int} port server port
+ * @param {int} port server port (optional, can be null if using tunnel)
  * @param {string} topic route to send the request to
  * @param {Object} json2send json to send
  * @param {Function} jsonReceivedCB executed when the json is received
  * @param {Function} onError executed when an error occurs
  */
 export const requestBackend = (port, topic, json2send, jsonReceivedCB, onError) => {
-  axiosPostJsonGo(port, topic, json2send, jsonReceivedCB, onError)
+  // Use tunnel state if available
+  const tunnel = getTunnelState()
+  let finalPort = port
+  if (tunnel && tunnel.tunnelActive && tunnel.localBackendPort) {
+    finalPort = tunnel.localBackendPort // Use the local port forwarded by the tunnel
+  }
+  axiosPostJsonGo(finalPort, topic, json2send, jsonReceivedCB, onError)
 }
 
 /**
@@ -67,11 +74,11 @@ export const requestJson = (port, topic, json2send, jsonReceivedCB, onError) => 
  */
 export const axiosPostJsonGo = async (port, topic, json2send, jsonReceivedCB, onError) => {
   try {
-    let url = "http://localhost:" + port + (topic[0] != "/" ? "/" : "") + topic
+    let url = "http://localhost" + ":" + port + (topic[0] != "/" ? "/" : "") + topic
     if (topic.includes("http")) {
       url = topic
     }
-    console.log(url)
+    console.log("[axiosPostJsonGo] Request URL:", url)
     const response = await axios.post(url, { message: JSON.stringify(json2send) }, { headers: { "Content-Type": "application/json" } })
     if (response.data.type == "toParse") {
       let cleanResponse = {}

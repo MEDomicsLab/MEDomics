@@ -11,8 +11,8 @@ import { randomUUID } from "crypto"
 import { requestBackend } from "../../utilities/requests"
 import { ServerConnectionContext } from "../serverConnection/connectionContext"
 import { toast } from "react-toastify"
-import { FaRegQuestionCircle } from "react-icons/fa"
-
+import { FaRegQuestionCircle } from "react-icons/fa";
+import ConnectionModal from "./connectionModal"
 
 /**
  * @returns the home page component
@@ -23,6 +23,9 @@ const HomePage = () => {
   const [appVersion, setAppVersion] = useState("")
   const [sampleGenerated, setSampleGenerated] = useState(false)
   const { port } = useContext(ServerConnectionContext)
+  const [showConnectionModal, setShowConnectionModal] = useState(false)
+
+
   const [requirementsMet, setRequirementsMet] = useState(true)
 
   async function handleWorkspaceChange() {
@@ -52,14 +55,12 @@ const HomePage = () => {
       "/input/generate_sample_data/",
       jsonToSend,
       async (jsonResponse) => {
-        console.log("jsonResponse", jsonResponse)
         if (jsonResponse.error) {
-          console.log("Sample data error")
           if (jsonResponse.error.message) {
-            console.error(jsonResponse.error.message)
+            console.error("Sample data generating error: ", jsonResponse.error.message)
             toast.error(jsonResponse.error.message)
           } else {
-            console.error(jsonResponse.error)
+            console.error("Sample data generating error: ", jsonResponse.error)
             toast.error(jsonResponse.error)
           }
         } else {
@@ -72,7 +73,7 @@ const HomePage = () => {
       },
       (error) => {
         console.log(error)
-        toast.error("Error generating sample data " + error)
+        toast.error("Error generating sample data :", error)
       }
     )
   }
@@ -130,6 +131,10 @@ const HomePage = () => {
     ipcRenderer.send("messageFromNext", "getRecentWorkspaces")
   }, [])
 
+  const handleRemoteConnect = () => {
+    toast.success("Connected to remote workspace!");
+  };
+
   return (
     <>
       <div 
@@ -156,7 +161,7 @@ const HomePage = () => {
                 Set Workspace
               </Button>
               <h5>Or open a recent workspace</h5>
-              <Stack direction="vertical" gap={0} style={{ padding: "0 0 0 0", alignContent: "center" }}>
+              <Stack direction="vertical" gap={0} style={{ padding: "0 0 0 0", alignContent: "center", flex: "0 1 auto", marginBottom: "3rem" }}>
                 {recentWorkspaces.map((workspace, index) => {
                   if (index > 4) return
                   return (
@@ -177,6 +182,10 @@ const HomePage = () => {
                   )
                 })}
               </Stack>
+              <h5>Or connect to a remote workspace</h5>
+              <Button onClick={() => setShowConnectionModal(true)} style={{ margin: "1rem" }}>
+                Connect to a remote workspace
+              </Button>
             </>
           ) : (
             <div className="workspace-set" style={{ display: "flex", flexDirection: "column", alignItems: "flex-start" }}>
@@ -253,6 +262,13 @@ const HomePage = () => {
 
         </div>
       </div>
+      {!requirementsMet && process.platform !=="darwin" && <FirstSetupModal visible={!requirementsMet} closable={false} setRequirementsMet={setRequirementsMet} />}
+      {showConnectionModal && <ConnectionModal
+        visible={showConnectionModal}
+        closable={false}
+        onClose={() => setShowConnectionModal(false)}
+        onConnect={handleRemoteConnect}
+      />}
 
       {!requirementsMet && process.platform !== "darwin" && (
         <FirstSetupModal visible={!requirementsMet} closable={false} setRequirementsMet={setRequirementsMet} />

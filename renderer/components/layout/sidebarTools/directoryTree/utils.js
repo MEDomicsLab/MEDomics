@@ -5,6 +5,7 @@ import { confirmDialog } from "primereact/confirmdialog"
 import { toast } from "react-toastify"
 import { insertMEDDataObjectIfNotExists } from "../../../mongoDB/mongoDBUtils"
 import { MEDDataObject } from "../../../workspace/NewMedDataObject"
+import { ipcRenderer } from "electron"
 
 const untouchableIDs = ["ROOT", "DATA", "EXPERIMENTS"]
 
@@ -68,10 +69,11 @@ export function fromJSONtoTree(data, showHiddenFiles) {
  * @param {String} workspacePath - The workspace path
  * @param {Object} item - The item linked to a `MedDataObject` to rename
  * @param {string} newName - The new name of the `MedDataObject`
+ * @param {string} isRemote - A flag indicating if the workspace is remote
  * @returns {void}
  * @note - This function is called when the user renames a file or folder in the directory tree, either by F2 or by right-clicking and selecting "Rename".
  */
-export function rename(globalData, workspacePath, item, newName) {
+export function rename(globalData, workspacePath, item, newName, isRemote = false) {
   if (newName == "") {
     toast.error("Error: Name cannot be empty")
     return
@@ -99,7 +101,7 @@ export function rename(globalData, workspacePath, item, newName) {
     toast.error("Error: This name cannot be changed")
     return
   }
-  MEDDataObject.rename(globalData, item.index, newName, workspacePath)
+  MEDDataObject.rename(globalData, item.index, newName, workspacePath, isRemote)
 }
 
 /**
@@ -124,11 +126,12 @@ export function onPaste(globalData, copiedObjectId, placeToCopyId) {
 /**
  * This function deletes a list of `MEDDataObject` in the workspace.
  * @param {[string]} items - The list `MEDDataObject` to delete
- * @param {Int} index The index of the item to delete
+ * @param {Int} index - The index of the item to delete
+ * @param {Int} isRemote - A flag indicating if the workspace is remote
  * @returns {void}
  * @note - This function is called when the user deletes files or folders in the directory tree, either by pressing the delete key or by right-clicking and selecting "Delete".
  */
-export async function onDeleteSequentially(globalData, workspacePath, setIsDialogShowing, items, index = 0) {
+export async function onDeleteSequentially(globalData, workspacePath, setIsDialogShowing, items, index = 0, isRemote = false) {
   MEDDataObject.updateWorkspaceDataObject() // Update the workspace data object before deleting
   MEDDataObject.verifyLockedObjects(globalData) // Verify if the locked objects and unlock them if they are not linked to any other object
   const id = items[index]
@@ -141,7 +144,7 @@ export async function onDeleteSequentially(globalData, workspacePath, setIsDialo
       icon: "pi pi-info-circle",
       closable: false,
       accept: async () => {
-        await MEDDataObject.deleteObjectAndChildren(globalData, id, workspacePath)
+        await MEDDataObject.deleteObjectAndChildren(globalData, id, workspacePath, isRemote)
         toast.success(`Deleted ${globalData[id].name}`)
         setIsDialogShowing(false)
       },
@@ -157,7 +160,7 @@ export async function onDeleteSequentially(globalData, workspacePath, setIsDialo
   }
   if (untouchableIDs.includes(id)) {
     toast.warning(`Cannot delete this element ${globalData[id].name}`)
-    onDeleteSequentially(globalData, workspacePath, setIsDialogShowing, items, index + 1) // Move to the next item
+    onDeleteSequentially(globalData, workspacePath, setIsDialogShowing, items, index + 1, isRemote) // Move to the next item
   } else {
     setIsDialogShowing(true)
     confirmDialog({
@@ -167,17 +170,17 @@ export async function onDeleteSequentially(globalData, workspacePath, setIsDialo
       closable: false,
       accept: async () => {
         const name = globalData[id].name
-        await MEDDataObject.deleteObjectAndChildren(globalData, id, workspacePath)
+        await MEDDataObject.deleteObjectAndChildren(globalData, id, workspacePath, isRemote)
         toast.success(`Deleted ${name}`)
         setIsDialogShowing(false)
         setTimeout(() => {
-          onDeleteSequentially(globalData, workspacePath, setIsDialogShowing, items, index + 1) // Move to the next item
+          onDeleteSequentially(globalData, workspacePath, setIsDialogShowing, items, index + 1, isRemote) // Move to the next item
         }, 1000)
       },
       reject: () => {
         setIsDialogShowing(false)
         setTimeout(() => {
-          onDeleteSequentially(globalData, workspacePath, setIsDialogShowing, items, index + 1) // Move to the next item
+          onDeleteSequentially(globalData, workspacePath, setIsDialogShowing, items, index + 1, isRemote) // Move to the next item
         }, 1000)
       }
     })
@@ -191,7 +194,7 @@ export async function onDeleteSequentially(globalData, workspacePath, setIsDialo
  * @param {Array} selectedItems - The array of selected items in the directory tree
  * @returns {void}
  */
-export async function createFolder(globalData, selectedItems, workspacePath) {
+export async function createFolder(globalData, selectedItems, workspacePath, isRemote = false) {
   if (selectedItems && selectedItems.length > 0) {
     const item = globalData[selectedItems[0]]
     let parentID = null
@@ -226,14 +229,18 @@ export async function createFolder(globalData, selectedItems, workspacePath) {
     MEDDataObject.updateWorkspaceDataObject()
 
     // Check if the folder already exists
-    if (!fs.existsSync(medObject.path)) {
-      fs.mkdir(medObject.path, { recursive: true }, (err) => {
-        if (err) {
-          console.error(err)
-          return
-        }
-        console.log("Folder created successfully!")
-      })
+    if (isRemote) {
+      await ipcRenderer.invoke('createRemoteFolder', { path: medObject.path })
+    } else {
+      if (!fs.existsSync(medObject.path)) {
+        fs.mkdir(medObject.path, { recursive: true }, (err) => {
+          if (err) {
+            console.error(err)
+            return
+          }
+          console.log("Folder created successfully!")
+        })
+      }
     }
   } else {
     toast.warning("Please select a directory")
