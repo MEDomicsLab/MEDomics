@@ -181,8 +181,10 @@ export async function startSSHTunnel({ host, username, privateKey, password, rem
  * @param {number|string} port - The port to check.
  * @returns {Promise<boolean>}
  */
-export async function checkRemotePortOpen(conn, port) {
-  mainWindow.webContents.send("setSidebarLoading", { processing: true, message: "Checking if MongoDB is running on server..." })
+export async function checkRemotePortOpen(conn, port, loadBlocking = false) {
+  if (loadBlocking) {
+    mainWindow.webContents.send("setSidebarLoading", { processing: true, message: "Checking if MongoDB is running on server..." })
+  }
   // Use detectRemoteOS to determine the remote OS and select the right command
   const remoteOS = await detectRemoteOS()
   let checkCmd
@@ -290,8 +292,10 @@ export async function startMongoTunnel() {
  * @description Confirms that the mongoDB tunnel is active and the server is listening.
  * @returns {Promise<{success: boolean, error?: string}>}
  */
-export async function confirmMongoTunnel() {
-  mainWindow.webContents.send("setSidebarLoading", { processing: true, message: "Confirming that the MongoDB tunnel is active..." })
+export async function confirmMongoTunnel(loadBlocking = false) {
+  if (loadBlocking) {
+    mainWindow.webContents.send("setSidebarLoading", { processing: true, message: "Confirming that the MongoDB tunnel is active..." })
+  }
   console.log("Confirming MongoDB tunnel is active...")
   return new Promise((resolve, reject) => {
     // Check the value of activeTunnelServer.mongoServer every 3000 ms, up to 10 times
@@ -916,8 +920,8 @@ ipcMain.handle('startMongoTunnel', async () => {
   return startMongoTunnel()
 })
 
-ipcMain.handle('confirmMongoTunnel', async () => {
-  return confirmMongoTunnel()
+ipcMain.handle('confirmMongoTunnel', async (_event, loadBlocking ) => {
+  return confirmMongoTunnel(loadBlocking)
 })
 
 ipcMain.handle('stopSSHTunnel', async () => {

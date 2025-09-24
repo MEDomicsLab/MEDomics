@@ -249,7 +249,7 @@ function App({ Component, pageProps }) {
     async function getGlobalData() {
       let result
       if (workspaceObject.isRemote) {
-        result = await ipcRenderer.invoke("confirmMongoTunnel")
+        result = await ipcRenderer.invoke("confirmMongoTunnel", true)
       }
       setSidebarLoadingCustom(true, "Loading workspace data...")
       if (!result || (result && result.success)) {
