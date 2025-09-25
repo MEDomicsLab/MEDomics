@@ -191,6 +191,39 @@ const DropColumnsAndTagsToolsDB = ({ currentCollection }) => {
           MEDDataObject.updateWorkspaceDataObject();
         }
 
+        // Update tags if tags were removed
+        if (selectedTags.length > 0) {
+          try {
+            const cols = await getCollectionColumns(currentCollection);
+            setAllColumns(Array.isArray(cols) ? cols : []);
+            const cursorOrArray = await getCollectionTags(collectionId);
+            const docs = Array.isArray(cursorOrArray)
+              ? cursorOrArray
+              : (await cursorOrArray?.toArray?.()) || [];
+            const tagMap = {};
+            for (const d of docs) {
+              const col = d?.column_name;
+              const tlist = Array.isArray(d?.tags) ? d.tags : [];
+              for (const t of tlist) {
+                if (!tagMap[t]) tagMap[t] = new Set();
+                if (col) tagMap[t].add(col);
+              }
+            }
+            const tags = Object.keys(tagMap).sort();
+            const taggedColumns = Object.fromEntries(
+              Object.entries(tagMap).map(([t, set]) => [t, Array.from(set).sort()])
+            );
+            setAllTags(tags);
+            setTaggedColumnsMap(taggedColumns);
+          } catch (e) {
+            console.error(e);
+            toast.error("Error refreshing tags after deletion.");
+            setAllTags([]);
+            setTaggedColumnsMap({});
+          }
+        }
+
+        // Success
         toast.success("Dataset updated successfully.");
         setSelectedColumns([]);
         setSelectedTags([]);
@@ -231,21 +264,23 @@ const DropColumnsAndTagsToolsDB = ({ currentCollection }) => {
   };
 
   return (
-    <div>
-      <Message
-        text="Select multiple columns and/or tags, then apply deletion by overwriting the dataset or by creating a cleaned copy."
-        severity="info"
-        className="mb-3"
-      />
-      <Message
-        style={{ marginTop: 10 }}
-        severity="success"
-        text={`Current Collection: ${collectionName || ""}`}
-      />
+    <div  style={{padding: "5px"}}>
+      <div style={{ textAlign: "center", marginTop: 20 }}>
+        <Message
+          text="Select multiple columns and/or tags, then apply deletion by overwriting the dataset or by creating a cleaned copy."
+          severity="info"
+          className="mb-3"
+        />
+        <Message
+          style={{ marginTop: 10 }}
+          severity="success"
+          text={`Current Collection: ${collectionName || ""}`}
+        />
+      </div>
 
       {/* Columns */}
       <div style={panelStyle}>
-        <b>Columns</b>
+        <b>Drop by columns</b>
         <MultiSelect
           value={selectedColumns}
           options={allColumns.map((c) => ({ label: c, value: c }))}
@@ -267,12 +302,12 @@ const DropColumnsAndTagsToolsDB = ({ currentCollection }) => {
 
       {/* Tags */}
       <div style={panelStyle}>
-        <b>Tags</b>
+        <b>Drop by tags</b>
         <MultiSelect
           value={selectedTags}
           options={allTags.map((t) => ({ label: t, value: t }))}
           onChange={(e) => setSelectedTags(e.value)}
-          placeholder={loadingFetch ? "Loading tags..." : "Select tags"}
+          placeholder={loadingFetch ? "Loading tags..." : allTags.length > 0 ? "Select tags" : "No tags found in this dataset"}
           display="chip"
           filter
           style={{ width: "100%" }}
@@ -325,19 +360,6 @@ const DropColumnsAndTagsToolsDB = ({ currentCollection }) => {
           <span className="p-inputgroup-addon">.csv</span>
         </div>
 
-        {/* Overwrite dataset */}
-        <Button
-          icon="pi pi-trash"
-          label="Overwrite dataset"
-          className="p-button-danger"
-          style={{ margin: 5, fontSize: "1rem", padding: "6px 10px", height: 48, marginTop: 12 }}
-          loading={loadingAction}
-          disabled={disableOverwriteBtn}
-          onClick={() => runDeletion(true)}
-          tooltip="Apply changes on the current dataset"
-          tooltipOptions={{ position: "top" }}
-        />
-
         {/* Create new dataset (no overlay) */}
         <Button
           icon="pi pi-plus"
@@ -349,6 +371,20 @@ const DropColumnsAndTagsToolsDB = ({ currentCollection }) => {
           tooltip="Create a new dataset with the selected changes"
           tooltipOptions={{ position: "top" }}
         />
+
+        {/* Overwrite dataset */}
+        <Button
+          icon="pi pi-times"
+          label="Overwrite dataset"
+          className="p-button-warning"
+          style={{ margin: 5, fontSize: "1rem", padding: "6px 10px", height: 48, marginTop: 12 }}
+          loading={loadingAction}
+          disabled={disableOverwriteBtn}
+          onClick={() => runDeletion(true)}
+          tooltip="Apply changes on the current dataset"
+          tooltipOptions={{ position: "top" }}
+        />
+
       </div>
     </div>
   );
