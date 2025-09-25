@@ -235,6 +235,17 @@ const SupersetDashboard = () => {
     )
   }
 
+  function supersetKilled(stderr, stdout) {
+    console.log("stdout", stdout)
+    console.error("stderr", stderr)
+    setLaunched(false)
+    setSupersetPort(null)
+    setUrl(null)
+    toast.success("Process killed successfully")
+    // Close tab
+    dispatchLayout({ type: "DELETE_DATA_OBJECT", payload: {uuid: "Superset"} })
+  }
+
   async function killProcess() {
      // Get system
      const { exec } = require('child_process')
@@ -256,31 +267,31 @@ const SupersetDashboard = () => {
         exec(`taskkill /F /PID ${pid}`, (err, stdout, stderr) => {
           if (err) {
             console.error(err)
-            toast.error("Error killing process", {autoClose: 5000})
+            toast.error("Error killing Superset", {autoClose: 5000})
             return
           }
-          console.log("stdout", stdout)
-          console.error("stderr", stderr)
-          setLaunched(false)
-          setSupersetPort(null)
-          toast.success("Process killed successfully")
+          supersetKilled(stderr, stdout)
         })
       } else {
         // Linux or MacOS
         exec(`killall superset`, (err, stdout, stderr) => {
           if (err) {
             console.error(err)
-            return
+            
+            // try with forced pkill
+            exec(`pkill -f superset`, (err2, stdout2, stderr2) => {
+              if (err2) {
+                console.error(err2)
+                toast.error("Error killing Superset", {autoClose: 5000})
+                return
+              }
+              supersetKilled(stderr2, stdout2)
+            })
+          } else {
+            supersetKilled(stderr, stdout)
           }
-          console.log("stdout", stdout)
-          console.error("stderr", stderr)
-          setLaunched(false)
-          setSupersetPort(null)
-          toast.success("Process killed successfully")
         })
       }
-      // Close tab
-      dispatchLayout({ type: "DELETE_DATA_OBJECT", payload: {uuid: "Superset"} })
     }
     const reject = () => {
       return

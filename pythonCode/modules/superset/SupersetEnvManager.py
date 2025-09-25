@@ -8,6 +8,7 @@ SUPERSET_PACKAGES = [
     "apache-superset==4.1.1",
     "flask-cors==5.0.0",
     "marshmallow==3.26.1",
+    "psycopg2-binary==2.9.9"
 ]
 
 class SupersetEnvManager:
