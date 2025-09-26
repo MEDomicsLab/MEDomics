@@ -279,6 +279,14 @@ class ModelHandler(Node):
             trained_model = pycaret_exp.create_model(**settings)
             self.CodeHandler.add_line("code", f"trained_models = [pycaret_exp.create_model({self.CodeHandler.convert_dict_to_params(settings)})]")
 
+            # tune model if enabled
+            if self.isTuningEnabled:
+                # Check if a custom grid is provided
+                if self.useTuningGrid and self.model_id in list(self.config_json['data']['internal'].keys()) and 'custom_grid' in list(self.config_json['data']['internal'][self.model_id].keys()):
+                    self.settingsTuning['custom_grid'] = self.config_json['data']['internal'][self.model_id]['custom_grid']
+                trained_model = pycaret_exp.tune_model(trained_model, **self.settingsTuning)
+                self.CodeHandler.add_line("code", f"trained_models = [pycaret_exp.tune_model(trained_models[0], {self.CodeHandler.convert_dict_to_params(self.settingsTuning)})]")
+
             if finalize:
                 self.CodeHandler.add_line("md", "##### *Finalizing models*")
                 self.CodeHandler.add_line("code", f"for model in trained_models:")
