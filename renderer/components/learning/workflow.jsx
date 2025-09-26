@@ -1302,6 +1302,7 @@ const Workflow = forwardRef(({ setWorkflowType, workflowType, isExperiment }, re
           inWorkspace: false
         })
         const plotDirectoryID = await insertMEDDataObjectIfNotExists(plotsDirectory)
+        MEDDataObject.updateWorkspaceDataObject()
 
         // Clean everything before running a new experiment
         console.log("sending flow ", flow)
