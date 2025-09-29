@@ -1,7 +1,11 @@
 import { checkJupyterIsRunning, startJupyterServer, stopJupyterServer } from "./utils/jupyterServer.js"
-
+import { setPath } from "./utils/serverPathUtils.js"
 import express from "express"
 import bodyParser from "body-parser"
+import { createServerMedomicsDirectory, createServerWorkingDirectory } from "./utils/serverWorkspace.js"
+import { startMongoDB, stopMongoDB, getMongoDBPath } from "./utils/mongoDBServer.js"
+
+// --- Express server section ---
 
 const cors = require("cors")
 const expressApp = express()
@@ -44,7 +48,7 @@ expressApp.post("/set-working-directory", async (req, res, next) =>{
   let workspacePath = normalizePathForPlatform(req.body.workspacePath)
   console.log("Received request to set workspace directory from remote: ", workspacePath)
   try {
-    const result = await setWorkspaceDirectory(workspacePath);
+    const result = await setWorkspaceDirectory(workspacePath)
     if (result && result.hasBeenSet) {
       console.log('Workspace (from remote) set to: ' + workspacePath)
       result.isRemote = true
@@ -200,6 +204,49 @@ expressApp.post("/stop-jupyter-server", async (req, res) => {
   }
 })
 
+
+export async function setWorkspaceDirectoryServer(workspacePath) {
+  if (!workspacePath) {
+    throw new Error("No workspace path provided")
+  }
+  setPath("sessionData", workspacePath)
+  console.log("Setting workspace directory to: " + workspacePath)
+  createServerWorkingDirectory()
+  createServerMedomicsDirectory(workspacePath)
+  let hasBeenSet = true
+  try {
+      // Stop MongoDB if it's running
+      await stopMongoDB()
+      if (process.platform === "win32") {
+        // Kill the process on the port
+        // killProcessOnPort(serverPort)
+      } else if (process.platform === "darwin") {
+        await new Promise((resolve) => {
+          exec("pkill -f mongod", (error, stdout, stderr) => {
+            resolve()
+          })
+        })
+      } else {
+        try {
+          execSync("killall mongod")
+        } catch (error) {
+          console.warn("Failed to kill mongod: ", error)
+        }
+      }
+      // Start MongoDB with the new configuration
+      startMongoDB(data)
+      return {
+        workingDirectory: dirTree(getPath("sessionData")),
+        hasBeenSet: hasBeenSet,
+        newPort: serverPort
+      }
+    } catch (error) {
+      console.error("Failed to change workspace: ", error)
+    }
+}
+
+
+// Main process if this file is run directly (npm run start:server)
 if (require.main === module) {
   startExpressServer()
 }

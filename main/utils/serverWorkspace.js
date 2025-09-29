@@ -1,71 +1,11 @@
-import { app, dialog, ipcRenderer } from "electron"
 import MEDconfig from "../../medomics.dev"
-import { getTunnelState } from "./remoteFunctions"
+import { getPath, setPath } from "./serverPathUtils"
 
 const fs = require("fs")
 var path = require("path")
 const dirTree = require("directory-tree")
 
-/**
- * @description Set the working directory
- * @summary Opens the dialog to select the working directory and  creates the folder structure if it does not exist
- *          When the working directory is set, the function returns the folder structure of the working directory as a JSON object in a reply to Next.js
- * @param {*} event
- * @param {*} mainWindow
- * @param {*} hasBeenSet
- */
-export function setWorkingDirectory(event, mainWindow) {
-  dialog
-    .showOpenDialog(mainWindow, {
-      // Opens the dialog to select the working directory (Select a folder window)
-      properties: ["openDirectory"]
-    })
-    .then((result) => {
-      if (result.canceled) {
-        // If the user cancels the dialog
-        console.log("Dialog was canceled")
-        event.reply("messageFromElectron", "Dialog was canceled")
-      } else {
-        const file = result.filePaths[0]
-        if (dirTree(file).children.length > 0) {
-          // If the selected folder is not empty
-          console.log("Selected folder is not empty")
-          event.reply("messageFromElectron", "Selected folder is not empty")
-          // Open a dialog to ask the user if he wants to still use the selected folder as the working directory or if he wants to select another folder
-          dialog
-            .showMessageBox(mainWindow, {
-              type: "question",
-              buttons: ["Yes", "No"],
-              title: "Folder is not empty",
-              message: "The selected folder is not empty. Do you want to use this folder as the working directory?"
-            })
-            .then((result) => {
-              if (result.response === 0) {
-                // If the user clicks on "Yes"
-                mainWindow.webContents.send("setWorkingDirectoryInApp", file)
-                mainWindow.webContents.send("setRecentWorkspacesInApp", file)
-              } else if (result.response === 1) {
-                // If the user clicks on "No"
-                console.log("Dialog was canceled")
-                event.reply("messageFromElectron", "Dialog was canceled")
-              }
-            })
-        } else if (file === app.getPath("sessionData")) {
-          // If the working directory is already set to the selected folder
-          console.log("Working directory is already set to " + file)
-        } else {
-          // If the working directory is not set to the selected folder
-          // The working directory is set to the selected folder and the folder structure is returned to Next.js
-          mainWindow.webContents.send("setWorkingDirectoryInApp", file)
-        }
-      }
-    })
-    .catch((err) => {
-      console.log(err)
-    })
-}
-
-function getWorkingDirectory() {
+function getServerWorkingDirectory() {
   // Returns the working directory
   return app.getPath("sessionData")
 }
@@ -74,8 +14,8 @@ function getWorkingDirectory() {
  * Loads the recent workspaces
  * @returns {Array} An array of workspaces
  */
-export function loadWorkspaces() {
-  const userDataPath = app.getPath("userData")
+export function loadServerWorkspaces() {
+  const userDataPath = getPath("userData")
   const workspaceFilePath = path.join(userDataPath, "workspaces.json")
   if (fs.existsSync(workspaceFilePath)) {
     const workspaces = JSON.parse(fs.readFileSync(workspaceFilePath, "utf8"))
@@ -100,8 +40,8 @@ export function loadWorkspaces() {
  * Saves the recent workspaces
  * @param {Array} workspaces An array of workspaces
  */
-function saveWorkspaces(workspaces) {
-  const userDataPath = app.getPath("userData")
+function saveServerWorkspaces(workspaces) {
+  const userDataPath = getPath("userData")
   const workspaceFilePath = path.join(userDataPath, "workspaces.json")
   fs.writeFileSync(workspaceFilePath, JSON.stringify(workspaces))
 }
@@ -110,8 +50,8 @@ function saveWorkspaces(workspaces) {
  * Updates the recent workspaces
  * @param {String} workspacePath The path of the workspace to update
  */
-export function updateWorkspace(workspacePath) {
-  const workspaces = loadWorkspaces()
+export function updateServerWorkspace(workspacePath) {
+  const workspaces = loadServerWorkspaces()
   const workspaceIndex = workspaces.findIndex((workspace) => workspace.path === workspacePath)
   if (workspaceIndex !== -1) {
     // Workspace exists, update it
@@ -125,8 +65,8 @@ export function updateWorkspace(workspacePath) {
       last_time_it_was_opened: new Date().toISOString()
     })
   }
-  app.setPath("sessionData", workspacePath)
-  saveWorkspaces(workspaces)
+  setPath("sessionData", workspacePath)
+  saveServerWorkspaces(workspaces)
 }
 
 /**
@@ -137,10 +77,10 @@ export function updateWorkspace(workspacePath) {
  * @param {*} workspacesArray The array of workspaces, if null, the function will load the workspaces
  * @returns {Array} An array of recent workspaces options
  */
-export function getRecentWorkspacesOptions(event, mainWindow, hasBeenSet, serverPort, workspacesArray = null) {
+export function getRecentServerWorkspacesOptions(event, mainWindow, hasBeenSet, serverPort, workspacesArray = null) {
   let workspaces
   if (workspacesArray === null) {
-    workspaces = loadWorkspaces()
+    workspaces = loadServerWorkspaces()
   } else {
     workspaces = workspacesArray
   }
@@ -152,7 +92,7 @@ export function getRecentWorkspacesOptions(event, mainWindow, hasBeenSet, server
     return {
       label: workspace.path,
       click() {
-        updateWorkspace(workspace.path)
+        updateServerWorkspace(workspace.path)
         let workspaceObject = {
           workingDirectory: dirTree(workspace.path),
           hasBeenSet: true,
@@ -167,7 +107,7 @@ export function getRecentWorkspacesOptions(event, mainWindow, hasBeenSet, server
 }
 
 // Function to create the working directory
-export function createWorkingDirectory() {
+export function createServerWorkingDirectory() {
   // See the workspace menuTemplate in the repository
   createFolder("DATA")
   createFolder("EXPERIMENTS")
@@ -177,7 +117,7 @@ export function createWorkingDirectory() {
 // Function to create a folder from a given path
 function createFolder(folderString) {
   // Creates a folder in the working directory
-  const folderPath = path.join(app.getPath("sessionData"), folderString)
+  const folderPath = path.join(getPath("sessionData"), folderString)
   // Check if the folder already exists
   if (!fs.existsSync(folderPath)) {
     fs.mkdir(folderPath, { recursive: true }, (err) => {
@@ -191,7 +131,7 @@ function createFolder(folderString) {
 }
 
 // Function to create the .medomics directory and necessary files
-export const createMedomicsDirectory = (directoryPath) => {
+export const createServerMedomicsDirectory = (directoryPath) => {
   const medomicsDir = path.join(directoryPath, ".medomics")
   const mongoDataDir = path.join(medomicsDir, "MongoDBdata")
   const mongoConfigPath = path.join(medomicsDir, "mongod.conf")

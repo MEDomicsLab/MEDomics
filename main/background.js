@@ -39,12 +39,12 @@ import {
   checkRemotePortOpen
 } from './utils/remoteFunctions.js'
 import { startExpressServer } from "./expressServer.js"
+import { startMongoDB, stopMongoDB, getMongoDBPath } from "./utils/mongoDBServer.js"
 
 
 const fs = require("fs")
 const terminalManager = new TerminalManager()
 var path = require("path")
-let mongoProcess = null
 const dirTree = require("directory-tree")
 const { exec, spawn, execSync } = require("child_process")
 let serverProcess = null
@@ -380,7 +380,9 @@ if (isProd) {
   })
 
   ipcMain.handle("setWorkingDirectory", async (event, data) => {
-    return setWorkspaceDirectory(data)
+    const result = await setWorkspaceDirectory(data)
+    console.log("setWorkingDirectory result: ", result)
+    return result
   })
 
   const setWorkspaceDirectory = async (data) => {
@@ -391,7 +393,7 @@ if (isProd) {
     hasBeenSet = true
     try {
       // Stop MongoDB if it's running
-      await stopMongoDB(mongoProcess)
+      await stopMongoDB()
       if (process.platform === "win32") {
         // Kill the process on the port
         // killProcessOnPort(serverPort)
@@ -409,7 +411,7 @@ if (isProd) {
         }
       }
       // Start MongoDB with the new configuration
-      startMongoDB(data, mongoProcess)
+      startMongoDB(data)
       return {
         workingDirectory: dirTree(app.getPath("sessionData")),
         hasBeenSet: hasBeenSet,
@@ -419,68 +421,6 @@ if (isProd) {
       console.error("Failed to change workspace: ", error)
     }
   }
-
-  ipcMain.handle("setRemoteWorkingDirectory", async (event, data) => {
-    app.setPath("remoteSessionData", data)
-    createRemoteWorkingDirectory() // Create DATA & EXPERIMENTS directories
-    console.log(`setWorkspaceDirectory (remote) : ${data}`)
-    createRemoteMedomicsDirectory(data)
-    hasBeenSet = true
-    try {
-      // Stop MongoDB if it's running
-      await stopMongoDB(mongoProcess)
-      // Kill mongod on remote via SSH exec
-      if (activeTunnel && typeof activeTunnel.exec === 'function') {
-        // 1. Detect remote OS
-        const remoteOS = await detectRemoteOS()
-        // 2. Run the appropriate kill command
-        let killCmd
-        if (remoteOS === 'unix' | remoteOS === 'linux' || remoteOS === 'darwin') {
-          killCmd = 'pkill -f mongod || killall mongod || true'
-        } else {
-          // Windows: try taskkill
-          killCmd = 'taskkill /IM mongod.exe /F'
-        }
-        await new Promise((resolve) => {
-          activeTunnel.exec(killCmd, (err, stream) => {
-            if (err) return resolve()
-            stream.on('close', () => resolve())
-            stream.on('data', () => {})
-            stream.stderr.on('data', () => {})
-          })
-        })
-      } else {
-        // Fallback: local logic if no tunnel
-        if (process.platform === "win32") {
-          // Kill the process on the port
-          // killProcessOnPort(serverPort)
-        } else if (process.platform === "darwin") {
-          await new Promise((resolve) => {
-            exec("pkill -f mongod", (error, stdout, stderr) => {
-              resolve()
-            })
-          })
-        } else {
-          try {
-            execSync("killall mongod")
-          } catch (error) {
-            console.warn("Failed to kill mongod: ", error)
-          }
-        }
-      }
-      // Start MongoDB with the new configuration
-      startMongoDB(data, mongoProcess)
-      return {
-        workingDirectory: dirTree(app.getPath("remoteSessionData")),
-        hasBeenSet: hasBeenSet,
-        newPort: serverPort,
-        isRemote: false,
-        success: true
-      }
-    } catch (error) {
-      console.error("Failed to change workspace: ", error)
-    }
-  })
 
 
   /**
@@ -822,7 +762,7 @@ app.on("window-all-closed", () => {
   console.log("app quit")
   // Clean up terminals
   terminalManager.cleanup()
-  stopMongoDB(mongoProcess)
+  stopMongoDB()
   if (MEDconfig.runServerAutomatically) {
     try {
       // Check if the serverProcess has the kill method
@@ -962,141 +902,4 @@ function openWindowFromURL(url) {
   }
 }
 
-// Function to start MongoDB
-function startMongoDB(workspacePath) {
-  const mongoConfigPath = path.join(workspacePath, ".medomics", "mongod.conf")
-  if (fs.existsSync(mongoConfigPath)) {
-    console.log("Starting MongoDB with config: " + mongoConfigPath)
-    let mongod = getMongoDBPath()
-    if (process.platform !== "darwin") {
-      mongoProcess = spawn(mongod, ["--config", mongoConfigPath])
-    } else {
-      if (fs.existsSync(getMongoDBPath())) {
-        mongoProcess = spawn(getMongoDBPath(), ["--config", mongoConfigPath])
-      } else {
-        mongoProcess = spawn("/opt/homebrew/Cellar/mongodb-community/7.0.12/bin/mongod", ["--config", mongoConfigPath], { shell: true })
-      }
-    }
-    mongoProcess.stdout.on("data", (data) => {
-      console.log(`MongoDB stdout: ${data}`)
-    })
-
-    mongoProcess.stderr.on("data", (data) => {
-      console.error(`MongoDB stderr: ${data}`)
-    })
-
-    mongoProcess.on("close", (code) => {
-      console.log(`MongoDB process exited with code ${code}`)
-    })
-
-    mongoProcess.on("error", (err) => {
-      console.error("Failed to start MongoDB: ", err)
-      // reject(err)
-    })
-  } else {
-    const errorMsg = `MongoDB config file does not exist: ${mongoConfigPath}`
-    console.error(errorMsg)
-  }
-}
-
-// Function to stop MongoDB
-async function stopMongoDB(mongoProcess) {
-  return new Promise((resolve, reject) => {
-    if (mongoProcess) {
-      mongoProcess.on("exit", () => {
-        mongoProcess = null
-        resolve()
-      })
-      try {
-        mongoProcess.kill()
-        resolve()
-      } catch (error) {
-        console.log("Error while stopping MongoDB ", error)
-        // reject()
-      }
-    } else {
-      resolve()
-    }
-  })
-}
-
-export function getMongoDBPath() {
-  if (process.platform === "win32") {
-    // Check if mongod is in the process.env.PATH
-    const paths = process.env.PATH.split(path.delimiter)
-    for (let i = 0; i < paths.length; i++) {
-      const binPath = path.join(paths[i], "mongod.exe")
-      if (fs.existsSync(binPath)) {
-        console.log("mongod found in PATH")
-        return binPath
-      }
-    }
-    // Check if mongod is in the default installation path on Windows - C:\Program Files\MongoDB\Server\<version to establish>\bin\mongod.exe
-    const programFilesPath = process.env["ProgramFiles"]
-    if (programFilesPath) {
-      const mongoPath = path.join(programFilesPath, "MongoDB", "Server")
-      // Check if the MongoDB directory exists
-      if (!fs.existsSync(mongoPath)) {
-        console.error("MongoDB directory not found")
-        return null
-      }
-      const dirs = fs.readdirSync(mongoPath)
-      for (let i = 0; i < dirs.length; i++) {
-        const binPath = path.join(mongoPath, dirs[i], "bin", "mongod.exe")
-        if (fs.existsSync(binPath)) {
-          return binPath
-        }
-      }
-    }
-    console.error("mongod not found")
-    return null
-  } else if (process.platform === "darwin") {
-    // Check if it is installed in the .medomics directory
-    const binPath = path.join(process.env.HOME, ".medomics", "mongodb", "bin", "mongod")
-    if (fs.existsSync(binPath)) {
-      console.log("mongod found in .medomics directory")
-      return binPath
-    }
-    if (process.env.NODE_ENV !== "production") {
-      // Check if mongod is in the process.env.PATH
-      const paths = process.env.PATH.split(path.delimiter)
-      for (let i = 0; i < paths.length; i++) {
-        const binPath = path.join(paths[i], "mongod")
-        if (fs.existsSync(binPath)) {
-          console.log("mongod found in PATH")
-          return binPath
-        }
-      }
-      // Check if mongod is in the default installation path on macOS - /usr/local/bin/mongod
-      const binPath = "/usr/local/bin/mongod"
-      if (fs.existsSync(binPath)) {
-        return binPath
-      }
-    }
-    console.error("mongod not found")
-    return null
-  } else if (process.platform === "linux") {
-    // Check if mongod is in the process.env.PATH
-    const paths = process.env.PATH.split(path.delimiter)
-    for (let i = 0; i < paths.length; i++) {
-      const binPath = path.join(paths[i], "mongod")
-      if (fs.existsSync(binPath)) {
-        return binPath
-      }
-    }
-    console.error("mongod not found in PATH" + paths)
-    // Check if mongod is in the default installation path on Linux - /usr/bin/mongod
-    if (fs.existsSync("/usr/bin/mongod")) {
-      return "/usr/bin/mongod"
-    }
-    console.error("mongod not found in /usr/bin/mongod")
-
-    if (fs.existsSync("/home/" + process.env.USER + "/.medomics/mongodb/bin/mongod")) {
-      return "/home/" + process.env.USER + "/.medomics/mongodb/bin/mongod"
-    }
-    return null
-  } else {
-    return "mongod"
-  }
-}
 

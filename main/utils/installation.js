@@ -1,7 +1,8 @@
 import { app } from "electron"
 import { execCallbacksForChildWithNotifications } from "../utils/pythonEnv"
-import { mainWindow, getMongoDBPath } from "../background"
+import { mainWindow } from "../background"
 import { getBundledPythonEnvironment } from "../utils/pythonEnv"
+import { getMongoDBPath } from "../utils/mongoDBServer"
 import fs from "fs"
 
 //**** LOG ****// This is used to send the console.log messages to the main window
