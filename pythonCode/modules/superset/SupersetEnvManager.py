@@ -88,13 +88,6 @@ class SupersetEnvManager:
                     name, version = line.split('==', 1)
                     packages[name.lower()] = version.strip()
             return packages
-    
-    def get_pip_path(self):
-        """Get the path to pip in the environment"""
-        if sys.platform == "win32":
-            return str(self.env_path) + "/Scripts/pip.exe"
-        else:
-            return str(self.env_path).split("superset_env")[0] + "superset_env/bin/pip"
 
     def is_package_installed(self, package_name, installed_packages=None):
         """Check if a specific package with optional version is installed"""
@@ -109,10 +102,8 @@ class SupersetEnvManager:
 
     def install_requirements(self):
         """Install packages in the environment"""
-        pip_path = self.get_pip_path()
-
         # Build install command
-        install_cmd = [str(pip_path), "install"]
+        install_cmd = [str(self.env_path), "-m", "pip", "install"]
 
         for requirement in SUPERSET_PACKAGES:
             if isinstance(requirement, dict):
