@@ -23,7 +23,7 @@ import { OverlayPanel } from 'primereact/overlaypanel'
  */
 const DatasetNode = ({ id, data }) => {
   const [modalShow, setModalShow] = useState(false) // state of the modal
-  const [selection, setSelection] = useState(data.internal.selection || "medomics") // state of the selection (medomics or custom
+  const [selection, setSelection] = useState(data.internal.selection || "custom") // state of the selection (medomics or custom)
   const { updateNode } = useContext(FlowFunctionsContext)
   const { setLoader } = useContext(LoaderContext)
   const [tagId, setTagId] = useState(localStorage.getItem("myUUID"))
@@ -253,18 +253,18 @@ const DatasetNode = ({ id, data }) => {
               }}
             >
               <option
-                key="medomics"
-                value="medomics"
-                // selected={optionName === selection}
-              >
-                MEDomics standard
-              </option>
-              <option
                 key="custom"
                 value="custom"
                 // selected={optionName === selection}
               >
                 Custom data file
+              </option>
+              <option
+                key="medomics"
+                value="medomics"
+                // selected={optionName === selection}
+              >
+                MEDomics standard
               </option>
             </Form.Select>
           </>
