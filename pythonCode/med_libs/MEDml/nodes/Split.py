@@ -90,9 +90,12 @@ class Split(Node):
         print("======= Split =======")
 
         # Generic parameters
-        dataset = kwargs.get("dataset")
+        pycaret_exp = experiment["pycaret_exp"]
+        medml_logger = experiment["medml_logger"]
+        cleaning_settings = kwargs.get("cleaning_settings", {})
         target = kwargs.get("target")
         stratify_columns = self.settings['global'].get("stratify_columns", [])
+        dataset = pycaret_exp.get_config('X').join(pycaret_exp.get_config('y'))
         experiment_df = experiment.get("df", dataset)
         random_state = int(self.settings['global']['random_state'])
         split_type = self.settings['outer_split_type']
@@ -133,11 +136,6 @@ class Split(Node):
 
         use_stratification = bool(stratify_columns)
         strat_classes_name = stratify_columns[0]
-
-        # Build kwargs for the first Pycaret setup 
-        pycaret_exp = experiment["pycaret_exp"]
-        medml_logger = experiment["medml_logger"]
-        cleaning_settings = kwargs.get("cleaning_settings", {})
 
         # Add tags to stratify_columns if use_tags is enabled
         if use_tags:
