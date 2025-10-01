@@ -495,6 +495,13 @@ class MEDexperiment(ABC):
         model_save_name = self.global_json_config.get('modelName', None)
         if model_save_name is not None:
             self.global_json_config['nodes']['save']['data']['internal']['settings']['model_name'] = model_save_name
+        path_save = None
+        scene_name = self.global_json_config.get('sceneName', None)
+        workspace_path = self.global_json_config.get('workspacePath', None)
+        if workspace_path is not None and scene_name is not None:
+            path_save = os.path.join(workspace_path, scene_name, "models")
+        if path_save is not None:
+            self.global_json_config['nodes']['save']['data']['internal']['settings']['pathSave'] = path_save
         node = self.create_Node(self.global_json_config['nodes']['save'])
         experiment = self.copy_experiment(experiment)
         self._progress['currentLabel'] = 'Saving experiment'

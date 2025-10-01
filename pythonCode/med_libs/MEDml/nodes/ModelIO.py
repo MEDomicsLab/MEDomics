@@ -22,6 +22,8 @@ from mongodb_utils import (get_child_id_by_name,
 
 DATAFRAME_LIKE = Union[dict, list, tuple, np.ndarray, pd.DataFrame]
 TARGET_LIKE = Union[int, str, list, tuple, np.ndarray, pd.Series]
+MONGO_BSON_MAX = 16_777_216 # 16MB
+MONGO_SAFETY_MARGIN = 1_000_000 # 1MB safety margin
 
 
 class ModelIO(Node):
@@ -51,10 +53,20 @@ class ModelIO(Node):
             self.CodeHandler.add_line("code", f"for model in trained_models:")
             for model in kwargs['models']:
                 model = format_model(model)
+                # Model's name
                 if 'model_name' in settings.keys() and settings['model_name']:
                     model_name = settings['model_name']
                 else:
                     model_name = model.__class__.__name__
+
+                # Path save model (if too big for MongoDB)
+                if 'pathSave' in settings.keys() and settings['pathSave']:
+                    path_save = settings['pathSave']
+                    os.makedirs(path_save, exist_ok=True)
+
+                # Serialize model
+                serialized_model = pickle.dumps(model)
+                
                 # .medmodel object
                 model_med_object = MEDDataObject(
                     id = str(uuid.uuid4()),
@@ -64,6 +76,14 @@ class ModelIO(Node):
                     childrenIDs = [],
                     inWorkspace = False
                 )
+
+                # Check if the model size is less than MongoDB BSON limit (16MB)
+                fits_mongo = len(serialized_model) <= (MONGO_BSON_MAX - MONGO_SAFETY_MARGIN)
+                if not fits_mongo:
+                    if 'pathSave' not in settings.keys() or not settings['pathSave']:
+                        raise ValueError("Model is too large to be stored in MongoDB. Please provide a valid 'pathSave' setting to save the model locally.")
+                    model_med_object.inWorkspace = True
+                    model_med_object.path = path_save + f"/{model_name}_model.pkl"
                 model_med_object_id = insert_med_data_object_if_not_exists(model_med_object, None)
 
                 settings_copy = copy.deepcopy(settings)
@@ -84,14 +104,25 @@ class ModelIO(Node):
                     childrenIDs = [],
                     inWorkspace = False
                 )
+    
+                if fits_mongo:
+                    serialized_model_id = insert_med_data_object_if_not_exists(serialized_model_med_object, [{'model': serialized_model}])
+                    # If model already existed we overwrite its content
+                    if serialized_model_id != serialized_model_med_object.id:
+                        success_pkl = overwrite_med_data_object_content(serialized_model_id, [{'model': serialized_model}])
+                        print("pickle overwrite succeed : ", success_pkl)
+                else:
+                    # Save model locally
+                    path_save = Path(path_save) / f"{model_name}_model.pkl"
+                    with open(path_save, "wb") as f:
+                        f.write(serialized_model)
+                    # Read it back as binary to store the path in the database
+                    serialized_model_id = insert_med_data_object_if_not_exists(serialized_model_med_object, [{'model_path': str(path_save)}])
+                    # If model already existed we overwrite its content
+                    if serialized_model_id != serialized_model_med_object.id:
+                        success_pkl = overwrite_med_data_object_content(serialized_model_id, [{'model_path': str(path_save)}])
+                        print("pickle overwrite succeed : ", success_pkl)
 
-                serialized_model = pickle.dumps(model)
-                serialized_model_id = insert_med_data_object_if_not_exists(serialized_model_med_object, [{'model': serialized_model}])
-                # If model already existed we overwrite its content
-                if serialized_model_id != serialized_model_med_object.id:
-                    success_pkl = overwrite_med_data_object_content(serialized_model_id, [{'model': serialized_model}])
-                    print("pickle overwrite succeed : ", success_pkl)
-                
                 # .medmodel metadata
                 metadata_med_object = MEDDataObject(
                     id=str(uuid.uuid4()),

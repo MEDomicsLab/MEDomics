@@ -1213,7 +1213,15 @@ const Workflow = forwardRef(({ setWorkflowType, workflowType, isExperiment }, re
       requestBackend(
         port,
         "/learning/run_experiment/" + pageId,
-        { DBName: "data", id: flowID, saveAndFinalize: saveAndFinalize, modelToFinalize: modelToFinalize, modelName: modelName },
+        { 
+          DBName: "data", 
+          id: flowID, 
+          saveAndFinalize: saveAndFinalize, 
+          modelToFinalize: modelToFinalize, 
+          modelName: modelName, 
+          workspacePath: globalData["EXPERIMENTS"].path,
+          sceneName: globalData[pageId].name.split(".")[0]
+        },
         (jsonResponse) => {
           console.log("received results:", jsonResponse)
           if (!jsonResponse) {

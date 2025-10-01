@@ -102,10 +102,19 @@ class GoExecScriptOpenDashboard(GoExecutionScript):
         target = json_config["target"]
         dashboard_name = json_config["dashboardName"]
         sample_size = json_config["sampleSizeFrac"]
-
         pickle_object_id = get_child_id_by_name(model_infos["id"], "model.pkl")
+        
+        # Check if pickle_object_id is None
+        if pickle_object_id is None:
+            raise ValueError("Could not find the model.pkl in the database.")
+        
+        # Load the model
         self.model = get_pickled_model_from_collection(pickle_object_id)
         go_print(f"model loaded: {self.model}")
+
+        # Check if model is not None
+        if self.model is None:
+            raise ValueError("The model could not be loaded from the database.")
 
         # Determine columns used by the trained model (if exposed)
         columns_to_keep = None
