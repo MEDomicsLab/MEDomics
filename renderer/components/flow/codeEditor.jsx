@@ -1,7 +1,9 @@
+import fs from 'fs'
 import { Button } from "primereact/button"
 import { Dropdown } from "primereact/dropdown"
-import React, { useCallback, useContext, useEffect, useState } from "react"
+import { useCallback, useContext, useEffect, useState } from "react"
 import AceEditor from "react-ace"
+import { Col, Row } from "react-bootstrap"
 import { toast } from "react-toastify"
 import { requestBackend } from "../../utilities/requests"
 import { ServerConnectionContext } from "../serverConnection/connectionContext"
@@ -10,8 +12,8 @@ import { DataContext } from "../workspace/dataContext"
 import "ace-builds/src-noconflict/ext-language_tools"
 import "ace-builds/src-noconflict/mode-javascript"
 import "ace-builds/src-noconflict/mode-json"
-import "ace-builds/src-noconflict/mode-python"
 import "ace-builds/src-noconflict/mode-markdown"
+import "ace-builds/src-noconflict/mode-python"
 import "ace-builds/src-noconflict/mode-text"
 import "ace-builds/src-noconflict/theme-ambiance"
 import "ace-builds/src-noconflict/theme-chaos"
@@ -61,7 +63,6 @@ import "ace-builds/src-noconflict/theme-tomorrow_night_eighties"
 import "ace-builds/src-noconflict/theme-twilight"
 import "ace-builds/src-noconflict/theme-vibrant_ink"
 import "ace-builds/src-noconflict/theme-xcode"
-
 
 
 /**
@@ -117,6 +118,7 @@ const CodeEditor = ({id, path, updateSavedCode}) => {
   const [saved, setSaved] = useState(true)
   const [content, setContent] = useState("Loading...")
   const [mode, setMode] = useState("text")
+  const [error, setError] = useState("")
   const [loading, setLoading] = useState(true)
   const [loadingSave, setLoadingSave] = useState(false)
   const { globalData } = useContext(DataContext)
@@ -133,35 +135,25 @@ const CodeEditor = ({id, path, updateSavedCode}) => {
     updateSavedCode(false, id)
   }
 
+  const writeFileContent = async (filePath, newContent) => {
+    fs.writeFileSync(filePath, newContent, "utf-8"); // Overwrites the file
+  };
+
   // Add the handleSave function
   const saveChanges = useCallback(async () => {
-    let requestBody = {
-      filePath: path,
-      content: content
+    try{
+      setLoadingSave(true)
+      await writeFileContent(path, content)
+      setSaved(true)
+      updateSavedCode(true, id)
+      setLoadingSave(false)
+      toast.success("Saved file successfully")
+    } catch (error) {
+      console.error("Error saving file:", error)
+      setLoadingSave(false)
+      toast.error("Error saving file")
     }
-    setLoadingSave(true)
-    requestBackend(
-      port,
-      "/learning/save_file_content/",
-      requestBody,
-      (response) => {
-        setLoadingSave(false)
-        console.log("Response from backend:", response)
-        if (response.error){
-          throw new Error("Error in backend while saving file.")
-        }
-        else {
-          setSaved(true)
-          updateSavedCode(true, id)
-          toast.success("Saved file successfully")
-        }
-      },
-      (error) => {
-        setLoadingSave(false)
-        console.error("Error from backend:", error)
-        toast.error("Error saving file")
-      }
-    )
+    return
   })
 
   /**
@@ -192,7 +184,8 @@ const CodeEditor = ({id, path, updateSavedCode}) => {
         setLoading(false)
         console.log("Response from backend:", response)
         if (response.error){
-          throw new Error("Error in backend while loading file.")
+          setError(response.error)
+          toast.error("Error opening file: " + response.error)
         }
         else {
           setContent(response.content)
@@ -202,7 +195,7 @@ const CodeEditor = ({id, path, updateSavedCode}) => {
       },
       (error) => {
         console.error("Error from backend:", error)
-        setContent(error)
+        setError(String(error))
       }
     )
   }
@@ -233,6 +226,14 @@ const CodeEditor = ({id, path, updateSavedCode}) => {
 
   return (
     <>
+    {error ? (
+      <Row className="error-dialog-header">
+        <Col md="auto">
+          <h5>{error}</h5>
+        </Col>
+      </Row>
+    ) : (
+      <>
     {(loading || !content) ? (
       <div>Loading...</div> ) : (
         <>
@@ -279,6 +280,8 @@ const CodeEditor = ({id, path, updateSavedCode}) => {
           />
         </>
       )}
+      </>
+    )}
     </>
   )
 }

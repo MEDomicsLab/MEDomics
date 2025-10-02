@@ -49,6 +49,8 @@ import ModelViewer from "../../mainPages/modelViewer"
 import ModulePage from "../../mainPages/moduleBasics/modulePage"
 import OutputPage from "../../mainPages/output"
 import SettingsPage from "../../mainPages/settings"
+import Superset from "../../mainPages/superset/supersetEmbedder"
+import SupersetFrame from "../../mainPages/superset/SupersetFrame"
 import TerminalPage from "../../mainPages/terminal"
 import { getCollectionSize, updateMEDDataObjectName, updateMEDDataObjectPath, updateMEDDataObjectType } from "../../mongoDB/mongoDBUtils"
 import { DataContext } from "../../workspace/dataContext"
@@ -60,6 +62,7 @@ import { Utils } from "./utils"
 import ZoomPanPinchComponent from "./zoomPanPinchComponent"
 import CodeEditor from "../../flow/codeEditor"
 import { confirmDialog } from "primereact/confirmdialog"
+import { SiApachesuperset  } from "react-icons/si"
 
 var fields = ["Name", "Field1", "Field2", "Field3", "Field4", "Field5"]
 
@@ -162,7 +165,7 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
       let uuidToCheck = idMap[key]._attributes.config?.uuid
       // let dataObject = uuidToCheck?.uuid
       console.log("dataObject", dataObject)
-      if (uuidToCheck !== undefined && uuidToCheck === dataObject._UUID) {
+      if (uuidToCheck !== undefined && uuidToCheck === dataObject.uuid) {
         tabsToDelete.push(idMap[key])
       }
     })
@@ -510,7 +513,7 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
    * @param savedCode the new value of savedCode
    */
   updateSavedCode = (savedCode: boolean, nodeId: string) => {
-    const fileName = this.state.model?.getNodeById(nodeId)?.getHelpText()
+    const fileName = this.state.model?.getNodeById(nodeId)?.getHelpText() ?? this.state.model?.getNodeById(nodeId)?.getId()
     this.saved[nodeId] = savedCode
     if (fileName) this.state.model!.doAction(Actions.renameTab(nodeId, fileName + (savedCode ? "" : "*")))
   }
@@ -884,6 +887,24 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
           return <ApplicationPage pageId={"EvaluationPage"} />
         }
       }
+    } else if (component === "supersetPage") {
+      if (node.getExtraData().data == null) {
+        const config = node.getConfig()
+        if (config.path !== null) {
+          return <Superset pageId={config.uuid} />
+        } else {
+          return <Superset pageId={"supersetPage"} />
+        }
+      }
+    } else if (component === "SupersetFramePage") {
+      if (node.getExtraData().data == null) {
+        const config = node.getConfig()
+        if (config.path !== null) {
+          return <SupersetFrame pageId={config.uuid} />
+        } else {
+          return <SupersetFrame pageId={"supersetPage"} />
+        }
+      }
     } else if (component === "terminal") {
       if (node.getExtraData().data == null) {
         const config = node.getConfig()
@@ -912,7 +933,7 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
         console.log("config", config)
         return <Iframe url={config.path} width="100%" height="100%" />
       }
-    } else if (component === "codeEditor") {
+    } else if (component === "codeEditor" || component === "Code Editor") {
       if (node.getExtraData().data == null) {
         const config = node.getConfig()
         setIsEditorOpen(true)
@@ -1044,6 +1065,12 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
       }
       if (component === "Settings") {
         return <span style={{ marginRight: 3 }}>⚙️</span>
+      }
+      if (component === "supersetPage") {
+        return <SiApachesuperset style={{ marginRight: 3 }} />
+      }
+      if (component === "SupersetFramePage") {
+        return <SiApachesuperset style={{ marginRight: 3 }} />
       }
     }
   }
