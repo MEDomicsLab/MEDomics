@@ -1,7 +1,5 @@
 import fs from "fs"
-import { getBundledPythonEnvironment } from "./pythonEnv"
-import { ipcMain } from "electron"
-import { mainWindow } from "../background"
+import { getBundledPythonEnvironment } from "./pythonEnv.js"
 
 const util = require("util")
 const exec = util.promisify(require("child_process").exec)
@@ -21,7 +19,7 @@ async function getPythonPath() {
 }
 
 
-export async function startJupyterServer(workspacePath, port = 8900) {
+async function startJupyterServer(workspacePath, port = 8900) {
   if (!workspacePath) {
     return { running: false, error: "No workspace path found. Jupyter server cannot be started." }
   }
@@ -48,7 +46,6 @@ export async function startJupyterServer(workspacePath, port = 8900) {
       console.log(`[Jupyter STDOUT]: ${data}`)
       if (data.toString().includes(port.toString())) {
         console.log("Jupyter server is ready and running.")
-        mainWindow.webContents.send("jupyterReady")
       }
     })
     jupyter.on('close', (code) => {
@@ -144,7 +141,7 @@ async function setJupyterConfig(pythonPathArg) {
   }
 }
 
-export async function stopJupyterServer() {
+async function stopJupyterServer() {
   const pythonPath = await getPythonPath()
   
   if (!pythonPath) {
@@ -182,7 +179,7 @@ export async function stopJupyterServer() {
   }
 }
 
-export async function checkJupyterIsRunning() {
+async function checkJupyterIsRunning() {
   console.log("Checking if Jupyter server is running on port", jupyterPort)
   try {
     const pythonPath = await getPythonPath()
@@ -205,14 +202,5 @@ export async function checkJupyterIsRunning() {
   }
 }
 
-ipcMain.handle("startJupyterServer", async (event, workspacePath, port) => {
-  return startJupyterServer(workspacePath, port)
-})
-
-ipcMain.handle("stopJupyterServer", async () => {
-  return stopJupyterServer()
-})
-
-ipcMain.handle("checkJupyterIsRunning", async () => {
-  return checkJupyterIsRunning()
-})
+module.exports = { startJupyterServer, stopJupyterServer, checkJupyterIsRunning }
+export { startJupyterServer, stopJupyterServer, checkJupyterIsRunning }

@@ -1,5 +1,5 @@
-import MEDconfig from "../../medomics.dev"
-import { getPath, setPath } from "./serverPathUtils"
+import MEDconfig from "../../medomics.dev.js"
+const { getAppPath, setAppPath } = require("./serverPathUtils.js")
 
 const fs = require("fs")
 var path = require("path")
@@ -7,15 +7,11 @@ const dirTree = require("directory-tree")
 
 function getServerWorkingDirectory() {
   // Returns the working directory
-  return app.getPath("sessionData")
+  return getAppPath("sessionData")
 }
 
-/**
- * Loads the recent workspaces
- * @returns {Array} An array of workspaces
- */
-export function loadServerWorkspaces() {
-  const userDataPath = getPath("userData")
+function loadServerWorkspaces() {
+  const userDataPath = getAppPath("userData")
   const workspaceFilePath = path.join(userDataPath, "workspaces.json")
   if (fs.existsSync(workspaceFilePath)) {
     const workspaces = JSON.parse(fs.readFileSync(workspaceFilePath, "utf8"))
@@ -41,7 +37,7 @@ export function loadServerWorkspaces() {
  * @param {Array} workspaces An array of workspaces
  */
 function saveServerWorkspaces(workspaces) {
-  const userDataPath = getPath("userData")
+  const userDataPath = getAppPath("userData")
   const workspaceFilePath = path.join(userDataPath, "workspaces.json")
   fs.writeFileSync(workspaceFilePath, JSON.stringify(workspaces))
 }
@@ -50,7 +46,7 @@ function saveServerWorkspaces(workspaces) {
  * Updates the recent workspaces
  * @param {String} workspacePath The path of the workspace to update
  */
-export function updateServerWorkspace(workspacePath) {
+function updateServerWorkspace(workspacePath) {
   const workspaces = loadServerWorkspaces()
   const workspaceIndex = workspaces.findIndex((workspace) => workspace.path === workspacePath)
   if (workspaceIndex !== -1) {
@@ -65,7 +61,7 @@ export function updateServerWorkspace(workspacePath) {
       last_time_it_was_opened: new Date().toISOString()
     })
   }
-  setPath("sessionData", workspacePath)
+  setAppPath("sessionData", workspacePath)
   saveServerWorkspaces(workspaces)
 }
 
@@ -77,7 +73,7 @@ export function updateServerWorkspace(workspacePath) {
  * @param {*} workspacesArray The array of workspaces, if null, the function will load the workspaces
  * @returns {Array} An array of recent workspaces options
  */
-export function getRecentServerWorkspacesOptions(event, mainWindow, hasBeenSet, serverPort, workspacesArray = null) {
+function getRecentServerWorkspacesOptions(event, mainWindow, hasBeenSet, serverPort, workspacesArray = null) {
   let workspaces
   if (workspacesArray === null) {
     workspaces = loadServerWorkspaces()
@@ -107,7 +103,7 @@ export function getRecentServerWorkspacesOptions(event, mainWindow, hasBeenSet, 
 }
 
 // Function to create the working directory
-export function createServerWorkingDirectory() {
+function createServerWorkingDirectory() {
   // See the workspace menuTemplate in the repository
   createFolder("DATA")
   createFolder("EXPERIMENTS")
@@ -117,7 +113,7 @@ export function createServerWorkingDirectory() {
 // Function to create a folder from a given path
 function createFolder(folderString) {
   // Creates a folder in the working directory
-  const folderPath = path.join(getPath("sessionData"), folderString)
+  const folderPath = path.join(getAppPath("sessionData"), folderString)
   // Check if the folder already exists
   if (!fs.existsSync(folderPath)) {
     fs.mkdir(folderPath, { recursive: true }, (err) => {
@@ -131,7 +127,7 @@ function createFolder(folderString) {
 }
 
 // Function to create the .medomics directory and necessary files
-export const createServerMedomicsDirectory = (directoryPath) => {
+const createServerMedomicsDirectory = (directoryPath) => {
   const medomicsDir = path.join(directoryPath, ".medomics")
   const mongoDataDir = path.join(medomicsDir, "MongoDBdata")
   const mongoConfigPath = path.join(medomicsDir, "mongod.conf")
@@ -162,3 +158,12 @@ export const createServerMedomicsDirectory = (directoryPath) => {
     fs.writeFileSync(mongoConfigPath, mongoConfig)
   }
 }
+
+module.exports = {
+  getServerWorkingDirectory,
+  loadServerWorkspaces,
+  updateServerWorkspace,
+  getRecentServerWorkspacesOptions,
+  createServerWorkingDirectory,
+  createServerMedomicsDirectory
+ }

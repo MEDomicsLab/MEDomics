@@ -1,14 +1,13 @@
-
-import os from "os"
-import path from "path"
+const os = require("os")
+const path = require("path")
 
 const pathOverrides = {}
 
-export function setPath(alias, value) {
+function setAppPath(alias, value) {
   pathOverrides[alias] = value
 }
 
-export function getPath(alias) {
+function getAppPath(alias) {
   if (pathOverrides[alias]) return pathOverrides[alias]
 
   switch (alias) {
@@ -23,4 +22,10 @@ export function getPath(alias) {
     default:
       throw new Error("Unknown path alias: " + alias)
   }
+}
+
+export { setAppPath, getAppPath }
+
+if (typeof module !== "undefined" && typeof module.exports !== "undefined") {
+  module.exports = { setAppPath, getAppPath }
 }

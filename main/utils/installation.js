@@ -1,28 +1,9 @@
 import { app } from "electron"
 import { execCallbacksForChildWithNotifications } from "../utils/pythonEnv"
-import { mainWindow } from "../background"
+import { mainWindow } from "../background.js"
 import { getBundledPythonEnvironment } from "../utils/pythonEnv"
 import { getMongoDBPath } from "../utils/mongoDBServer"
 import fs from "fs"
-
-//**** LOG ****// This is used to send the console.log messages to the main window
-const originalConsoleLog = console.log
-/**
- * @description Sends the console.log messages to the main window
- * @param {*} message The message to send
- * @summary We redefine the console.log function to send the messages to the main window
- */
-console.log = function () {
-  try {
-    originalConsoleLog(...arguments)
-    if (mainWindow !== undefined) {
-      mainWindow.webContents.send("log", ...arguments)
-    }
-  } catch (error) {
-    console.error(error)
-  }
-}
-
 
 export const checkIsBrewInstalled = async () => {
   let isBrewInstalled = false

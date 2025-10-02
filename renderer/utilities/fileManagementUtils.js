@@ -5,9 +5,9 @@ const fs = require("fs")
 const Path = require("path")
 const { parse } = require("csv-parse")
 // Replace danfojs imports with local implementation
-const dfd = require("../utilities/danfo.js")
+const dfd = require("./danfo.js")
 // Using the same implementation for both browser and Node environments
-const dfdNode = require("../utilities/danfo.js")
+const dfdNode = require("./danfo.js")
 var Papa = require("papaparse")
 import { ipcRenderer } from "electron"
 

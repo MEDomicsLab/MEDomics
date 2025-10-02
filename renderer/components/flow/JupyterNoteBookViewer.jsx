@@ -55,6 +55,16 @@ const JupyterNotebookViewer = ({ filePath, startJupyterServer, isRemote = false,
             }
           }
           setLoading(false)
+          // Start polling every 2 seconds to check if Jupyter is running, and refresh iframe when ready
+          let hasRefreshed = false
+          const intervalId = setInterval(async () => {
+            const status = await checkJupyterServerRunning()
+            if (status && status.running && !hasRefreshed) {
+              refreshIframe()
+              hasRefreshed = true
+              clearInterval(intervalId)
+            }
+          }, 2000);
         } catch (error) {
           setLoading(false)
           setJupyterStatus({ running: false, error: "Failed to start Jupyter server. Please check the logs." })
@@ -65,8 +75,7 @@ const JupyterNotebookViewer = ({ filePath, startJupyterServer, isRemote = false,
       setLoading(false)
     }
     runJupyter()
-  }
-  , [])
+  }, [])
 
   const getJupyterURL = () => {
     if (isRemote) {

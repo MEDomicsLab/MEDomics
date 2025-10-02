@@ -4,8 +4,7 @@ const { exec, spawn, execSync } = require("child_process")
 let mongoProcess = null
 
 
-// Function to start MongoDB
-export function startMongoDB(workspacePath) {
+function startMongoDB(workspacePath) {
   const mongoConfigPath = path.join(workspacePath, ".medomics", "mongod.conf")
   if (fs.existsSync(mongoConfigPath)) {
     console.log("Starting MongoDB with config: " + mongoConfigPath)
@@ -42,8 +41,7 @@ export function startMongoDB(workspacePath) {
 }
 
 
-// Function to stop MongoDB
-export async function stopMongoDB() {
+async function stopMongoDB() {
   return new Promise((resolve, reject) => {
     if (mongoProcess) {
       mongoProcess.on("exit", () => {
@@ -63,7 +61,7 @@ export async function stopMongoDB() {
   })
 }
 
-export function getMongoDBPath() {
+function getMongoDBPath() {
   if (process.platform === "win32") {
     // Check if mongod is in the process.env.PATH
     const paths = process.env.PATH.split(path.delimiter)
@@ -142,3 +140,5 @@ export function getMongoDBPath() {
     return "mongod"
   }
 }
+
+module.exports = { startMongoDB, stopMongoDB, getMongoDBPath }

@@ -1,6 +1,6 @@
 import { Client } from "ssh2"
 import { app, ipcMain } from "electron"
-import { mainWindow } from "../background"
+import { mainWindow } from "../background.js"
 import { generateSSHKeyPair } from '../sshKeygen'
 const net = require("net")
 var path = require("path")

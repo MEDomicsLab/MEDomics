@@ -12,6 +12,7 @@ import { createWindow, TerminalManager } from "./helpers"
 import { installExtension, REACT_DEVELOPER_TOOLS } from "electron-extension-installer"
 import MEDconfig from "../medomics.dev"
 import { runServer, findAvailablePort } from "./utils/server"
+import { setPath } from "./utils/serverPathUtils.js"
 import {
   setWorkingDirectory,
   getRecentWorkspacesOptions,
@@ -40,6 +41,7 @@ import {
 } from './utils/remoteFunctions.js'
 import { startExpressServer } from "./expressServer.js"
 import { startMongoDB, stopMongoDB, getMongoDBPath } from "./utils/mongoDBServer.js"
+import { checkJupyterIsRunning, startJupyterServer, stopJupyterServer } from "./utils/jupyterServer.js"
 
 
 const fs = require("fs")
@@ -204,6 +206,7 @@ if (isProd) {
   serve({ directory: "app" })
 } else {
   app.setPath("userData", `${app.getPath("userData")} (development)`)
+  setPath('userData', `${app.getPath("userData")} (development)`)
 }
 
 
@@ -704,18 +707,24 @@ ipcMain.handle("getBundledPythonEnvironment", async (event) => {
 })
 
 ipcMain.handle("installBundledPythonExecutable", async (event) => {
+  // Notification callback for Electron
+  const notify = (payload) => {
+    if (mainWindow && mainWindow.webContents) {
+      mainWindow.webContents.send("notification", payload)
+    }
+  }
   // Check if Python is installed
   let pythonInstalled = getBundledPythonEnvironment()
   if (pythonInstalled === null) {
     // If Python is not installed, install it
-    return installBundledPythonExecutable(mainWindow)
+    return installBundledPythonExecutable(notify)
   } else {
     // Check if the required packages are installed
     let requirementsInstalled = checkPythonRequirements()
     if (requirementsInstalled) {
       return true
     } else {
-      await installRequiredPythonPackages(mainWindow)
+      await installRequiredPythonPackages(notify, pythonInstalled)
       return true
     }
   }
@@ -732,6 +741,19 @@ ipcMain.handle("checkPythonRequirements", async (event) => {
 ipcMain.handle("checkMongoDBisInstalled", async (event) => {
   return getMongoDBPath()
 })
+
+ipcMain.handle("startJupyterServer", async (event, workspacePath, port) => {
+  return startJupyterServer(workspacePath, port)
+})
+
+ipcMain.handle("stopJupyterServer", async () => {
+  return stopJupyterServer()
+})
+
+ipcMain.handle("checkJupyterIsRunning", async () => {
+  return checkJupyterIsRunning()
+})
+
 
 ipcMain.on("restartApp", (event, data, args) => {
   app.relaunch()
