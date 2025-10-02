@@ -50,7 +50,11 @@ class GoExecScriptRunExperiment(GoExecutionScript):
         database = mongo_client[json_config["DBName"]]
         collection = database[json_config["id"]]
         flow = list(collection.find({}, {'_id': False}))[0]
-            
+        flow['finalize'] = json_config.get("saveAndFinalize", False)
+        flow['modelToFinalize'] = json_config.get("modelToFinalize", None)
+        flow['modelName'] = json_config.get("modelName", None)
+        flow['workspacePath'] = json_config.get('workspacePath', None)
+        flow['sceneName'] = json_config.get('sceneName', None)
         self.current_experiment = MEDexperimentLearning(flow)
         self.current_experiment.start()
         results_pipeline = self.current_experiment.get_results()
@@ -74,6 +78,60 @@ class GoExecScriptRunExperiment(GoExecutionScript):
             self.update_progress()
             self.push_progress()
             time.sleep(1.0 / self._progress_update_frequency_HZ)
+
+def save_experiment(experiment: MEDexperimentLearning):
+    """
+    triggered by the button save in the dashboard, it saves the pipeline execution
+
+    Returns: the results of the pipeline execution
+    """
+    
+    # A ÉTÉ ENLEVÉ DANS UN COMMIT PRÉCÉDENT... À REMETTRE ET UPDATER POUR MONGODB
+    # go_print("saving experiment")
+    # experiment.make_save_ready()
+    # basePath = str(Path(os.path.dirname(os.path.abspath(__file__))).parent.parent)
+    # local_path = os.path.join(basePath, 'local_dir')
+    # if not os.path.exists(local_path):
+    #     os.makedirs(local_path)
+    # with open(os.path.join(local_path, 'MEDexperiment_' + experiment.id + '.medexp'), 'wb') as f:
+    #     pickle.dump(experiment, f)
+    #     del experiment
+    pass
+        
+
+
+def load_experiment(id_):
+    """
+    triggered by the button load in the dashboard, it loads the pipeline execution
+
+    Returns: the previously saved MEDexperiment
+    """
+    # A ÉTÉ ENLEVÉ DANS UN COMMIT PRÉCÉDENT... À REMETTRE ET UPDATER POUR MONGODB
+    # go_print("loading experiment")
+    # basePath = str(Path(os.path.dirname(os.path.abspath(__file__))).parent.parent)
+    # local_path = os.path.join(basePath, 'local_dir')
+    # if not os.path.exists(local_path):
+    #     os.makedirs(local_path)
+    # with open(os.path.join(local_path, 'MEDexperiment_' + id_ + '.medexp'), 'rb') as f:
+    #     experiment = pickle.load(f)
+    #     experiment.init_obj()
+    #     return experiment
+    pass
+
+
+def is_experiment_exist(id_):
+    """
+    triggered by the button load in the dashboard, it loads the pipeline execution
+
+    Returns: the results of the pipeline execution
+    """
+    # A ÉTÉ ENLEVÉ DANS UN COMMIT PRÉCÉDENT... À REMETTRE ET UPDATER POUR MONGODB
+    # basePath = str(Path(os.path.dirname(os.path.abspath(__file__))).parent.parent)
+    # local_path = os.path.join(basePath, 'local_dir')
+    # if not os.path.exists(local_path):
+    #     os.makedirs(local_path)
+    # return os.path.exists(os.path.join(local_path, 'MEDexperiment_' + id_ + '.medexp'))
+    pass
 
 run_experiment = GoExecScriptRunExperiment(json_params_dict, id_, True)
 run_experiment.start()

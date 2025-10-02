@@ -26,6 +26,7 @@ function LayoutModelProvider({ children, layoutModel, setLayoutModel }) {
   const [layoutMainState, setLayoutMainState] = useState(layoutModel)
   const [layoutRequestQueue, setLayoutRequestQueue] = useState([])
   const [developerMode, setDeveloperMode] = useState(false)
+  const [isEditorOpen, setIsEditorOpen] = useState(false)
 
   /**
    * @param {FlexLayout.Model.Action} action - The actions passed on by the flexlayout-react library
@@ -616,7 +617,7 @@ function LayoutModelProvider({ children, layoutModel, setLayoutModel }) {
   // The children are wrapped by the LayoutModelContext.Provider and will have access to the layoutModel, the dispatchLayout function and the flexlayoutInterpreter function
   return (
     <LayoutModelContext.Provider
-      value={{ layoutModel, setLayoutModel, dispatchLayout, flexlayoutInterpreter, layoutMainState, setLayoutMainState, layoutRequestQueue, setLayoutRequestQueue, developerMode, setDeveloperMode }}
+      value={{ layoutModel, setLayoutModel, dispatchLayout, flexlayoutInterpreter, layoutMainState, setLayoutMainState, layoutRequestQueue, setLayoutRequestQueue, developerMode, setDeveloperMode, isEditorOpen, setIsEditorOpen }}
     >
       {children}
     </LayoutModelContext.Provider>

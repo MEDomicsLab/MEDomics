@@ -52,7 +52,7 @@ const HomePage = () => {
         <Stack direction="vertical" gap={1} style={{ padding: "0 0 0 0", alignContent: "center" }}>
           <h2>Home page</h2>
           <Stack direction="horizontal" gap={0} style={{ padding: "0 0 0 0", alignContent: "center" }}>
-            <h1 style={{ fontSize: "5rem" }}>MEDomicsLab </h1>
+            <h1 style={{ fontSize: "5rem" }}>MEDomics</h1>
 
             <Image src={myimage} alt="" style={{ height: "175px", width: "175px" }} />
           </Stack>

@@ -12,10 +12,13 @@ import ConvertCategoricalColumnIntoNumericDB from "./inputToolsDB/convertCategor
 import GroupingTaggingToolsDB from "./inputToolsDB/groupingTaggingToolsDB"
 import HoldoutSetCreationToolsDB from "./inputToolsDB/holdoutSetCreationToolsDB"
 import MergeToolsDB from "./inputToolsDB/mergeToolsDB"
+import DropColumnsAndTagsToolsDB from "./inputToolsDB/dropColumnsToolsDB"
+import NormalizationToolsDB from "./inputToolsDB/normalizationToolsDB"
 import SimpleCleaningToolsDB from "./inputToolsDB/simpleCleaningToolsDB"
 import SubsetCreationToolsDB from "./inputToolsDB/subsetCreationToolsDB"
 import TransformColumnToolsDB from "./inputToolsDB/transformColumnToolsDB"
 import { getCollectionSize } from "../mongoDB/mongoDBUtils.js"
+
 
 /**
  * @description
@@ -102,8 +105,14 @@ const InputToolsComponent = ({ exportOptions }) => {
           <Panel header="Drop Duplicates Tools" toggleable collapsed={true}>
             <DropDuplicatesToolsDB exportOptions={exportOptions} currentCollection={!collectionId ? null : collectionId} />
           </Panel>
-          <Panel header="Transform Column Tools" toggleable collapsed={true}>
+          <Panel header="Encode Column Tools" toggleable collapsed={true}>
             <TransformColumnToolsDB currentCollection={!collectionId ? null : collectionId} />
+          </Panel>
+          <Panel header="Drop Columns Tools" toggleable collapsed={true}>
+            <DropColumnsAndTagsToolsDB currentCollection={!collectionId ? null : collectionId} />
+          </Panel>
+          <Panel header="Normalization Tools" toggleable collapsed={true}>
+            <NormalizationToolsDB currentCollection={!collectionId ? null : collectionId} />
           </Panel>
           <Panel header="Merge Tools" toggleable collapsed={true}>
             <MergeToolsDB currentCollection={!collectionId ? null : collectionId} />
@@ -114,10 +123,10 @@ const InputToolsComponent = ({ exportOptions }) => {
           <Panel header="Holdout Set Creation Tools" toggleable collapsed={true}>
             <HoldoutSetCreationToolsDB currentCollection={!collectionId ? null : collectionId} />
           </Panel>
-          <Panel header="Sample | Row Grouping Tools" toggleable collapsed={true}>
+          <Panel header="Row Tagging & Subset Creation Tools" toggleable collapsed={true}>
             <SubsetCreationToolsDB currentCollection={!collectionId ? null : collectionId} />
           </Panel>
-          <Panel header="Feature | Column Tagging Tools" toggleable collapsed={true}>
+          <Panel header="Column Tagging Tools" toggleable collapsed={true}>
             <GroupingTaggingToolsDB />
           </Panel>
           <Panel header="Feature Reduction Tools" toggleable collapsed={true}>

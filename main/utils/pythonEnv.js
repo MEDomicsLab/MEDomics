@@ -187,7 +187,7 @@ export function getBundledPythonEnvironment() {
 }
 
 export async function installRequiredPythonPackages(mainWindow) {
-  let requirementsFileName = process.platform === "darwin" ? "requirements_mac.txt" : "requirements.txt"
+  let requirementsFileName = "merged_requirements.txt"
   if (process.env.NODE_ENV === "production") {
     installPythonPackage(mainWindow, pythonExecutablePath, null, path.join(process.cwd(), "resources", "pythonEnv", requirementsFileName))
   } else {
@@ -206,6 +206,12 @@ function comparePythonInstalledPackages(pythonPackages, requirements) {
     for (let j = 0; j < pythonPackages.length; j++) {
       let pythonPackage = pythonPackages[j]
       if (pythonPackage.name === requirementName && pythonPackage.version === requirementVersion) {
+        found = true
+        break
+      } else if (pythonPackage.name.replace('-', '_') === requirementName && pythonPackage.version === requirementVersion) {
+        found = true
+        break
+      } else if (pythonPackage.name.replace('_', '-') === requirementName && pythonPackage.version === requirementVersion) {
         found = true
         break
       }
@@ -360,9 +366,9 @@ export async function installBundledPythonExecutable(mainWindow) {
 
       // Install the required python packages
       if (process.env.NODE_ENV === "production") {
-        installPythonPackage(mainWindow, pythonExecutablePath, null, path.join(process.cwd(), "resources", "pythonEnv", "requirements.txt"))
+        installPythonPackage(mainWindow, pythonExecutablePath, null, path.join(process.cwd(), "resources", "pythonEnv", "merged_requirements.txt"))
       } else {
-        installPythonPackage(mainWindow, pythonExecutablePath, null, path.join(process.cwd(), "pythonEnv", "requirements.txt"))
+        installPythonPackage(mainWindow, pythonExecutablePath, null, path.join(process.cwd(), "pythonEnv", "merged_requirements.txt"))
       }
       let removeCommand = `rm ${outputFileName}`
       let removePromise = exec(removeCommand, { shell: "powershell.exe" })
@@ -429,9 +435,9 @@ export async function installBundledPythonExecutable(mainWindow) {
       console.log("process.resourcesPath: ", process.resourcesPath)
       // Install the required python packages
       if (process.env.NODE_ENV === "production") {
-        installPythonPackage(mainWindow, pythonExecutablePath, null, path.join(process.resourcesPath, "pythonEnv", "requirements.txt"))
+        installPythonPackage(mainWindow, pythonExecutablePath, null, path.join(process.resourcesPath, "pythonEnv", "merged_requirements.txt"))
       } else {
-        installPythonPackage(mainWindow, pythonExecutablePath, null, path.join(process.cwd(), "pythonEnv", "requirements.txt"))
+        installPythonPackage(mainWindow, pythonExecutablePath, null, path.join(process.cwd(), "pythonEnv", "merged_requirements.txt"))
       }
     }
   }

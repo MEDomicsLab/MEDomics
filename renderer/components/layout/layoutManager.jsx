@@ -65,7 +65,6 @@ const LayoutManager = (props) => {
               toast.error("Go server is not connected !")
             }
           )
-
         }
       })
     }

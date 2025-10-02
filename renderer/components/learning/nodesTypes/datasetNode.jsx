@@ -23,7 +23,7 @@ import { OverlayPanel } from 'primereact/overlaypanel'
  */
 const DatasetNode = ({ id, data }) => {
   const [modalShow, setModalShow] = useState(false) // state of the modal
-  const [selection, setSelection] = useState(data.internal.selection || "medomics") // state of the selection (medomics or custom
+  const [selection, setSelection] = useState(data.internal.selection || "custom") // state of the selection (medomics or custom)
   const { updateNode } = useContext(FlowFunctionsContext)
   const { setLoader } = useContext(LoaderContext)
   const [tagId, setTagId] = useState(localStorage.getItem("myUUID"))
@@ -34,6 +34,8 @@ const DatasetNode = ({ id, data }) => {
       localStorage.setItem("myUUID", uuid)
       setTagId(uuid)
     }
+    data.internal.hasWarning = (data.internal.settings.target && Object.keys(data.internal.settings.files).length > 0) ? 
+      {state : false} : { state: true, tooltip: <p>Some default fields are missing</p> }
   }, [])
 
   // update the node internal data when the selection changes
@@ -100,13 +102,21 @@ const DatasetNode = ({ id, data }) => {
       let columnsArray = await getCollectionColumns(inputUpdate.value.id)
       let columnsObject = {}
       columnsArray.forEach((column) => {
-        columnsObject[column] = column
+        if (column !== '_id'){
+          columnsObject[column] = column
+        }
       })
       let steps = null
       setLoader(false)
       steps && (data.internal.settings.steps = steps)
       data.internal.settings.columns = columnsObject
       data.internal.settings.target = columnsArray[columnsArray.length - 1]
+      data.outputs = {
+        dataset: {                     
+          files  : inputUpdate.value,  
+          columns: columnsObject    
+        }
+      };
     } else {
       delete data.internal.settings.target
       delete data.internal.settings.columns
@@ -171,7 +181,8 @@ const DatasetNode = ({ id, data }) => {
    * This function is used to update the node internal data when the tags input changes.
    */
   const onMultipleTagsChange = async (inputUpdate) => {
-    data.internal.settings[inputUpdate.name] = inputUpdate.value
+    if (inputUpdate.value.length === 0) return
+    data.internal.settings.tags= inputUpdate.value
     updateNode({
       id: id,
       updatedData: data.internal
@@ -242,18 +253,18 @@ const DatasetNode = ({ id, data }) => {
               }}
             >
               <option
-                key="medomics"
-                value="medomics"
-                // selected={optionName === selection}
-              >
-                MEDomicsLab standard
-              </option>
-              <option
                 key="custom"
                 value="custom"
                 // selected={optionName === selection}
               >
                 Custom data file
+              </option>
+              <option
+                key="medomics"
+                value="medomics"
+                // selected={optionName === selection}
+              >
+                MEDomics standard
               </option>
             </Form.Select>
           </>
@@ -281,7 +292,7 @@ const DatasetNode = ({ id, data }) => {
 
                         <Input
                           key={"tags"}
-                          name="tags"
+                          name="Column tags"
                           settingInfos={{
                             type: "tags-input-multiple",
                             tooltip: "<p>Specify a data file (xlsx, csv, json)</p>",

@@ -40,9 +40,10 @@ const SidebarDirectoryTreeControlled = ({ setExternalSelectedItems, setExternalD
   const [isDialogShowing, setIsDialogShowing] = useState(false) // This state is used to know if the dialog is showing or not
   const [dirTree, setDirTree] = useState({}) // We get the directory tree from the workspace
   const [isDropping, setIsDropping] = useState(false) // Set if the item is getting dropped something in (for elements outside of the tree)
+  const [isDirectoryTreeFocused, setIsDirectoryTreeFocused] = useState(false); // New state to track focus
 
   const { globalData } = useContext(DataContext) // We get the global data from the context to retrieve the directory tree of the workspace, thus retrieving the data files
-  const { dispatchLayout, developerMode } = useContext(LayoutModelContext)
+  const { dispatchLayout, developerMode, isEditorOpen } = useContext(LayoutModelContext)
   const { workspace } = useContext(WorkspaceContext)
 
   const delayOptions = { showDelay: 750, hideDelay: 0 }
@@ -111,7 +112,7 @@ const SidebarDirectoryTreeControlled = ({ setExternalSelectedItems, setExternalD
     // For mac, add Enter key to rename
     // If os is mac and enter key is pressed
     if (navigator.platform.indexOf("Mac") > -1) {
-      if (event.code === "Enter" && !isDialogShowing) {
+      if (event.code === "Enter" && !isDialogShowing && isDirectoryTreeFocused) {
         // We check if the dialog is showing to avoid renaming when the user is in the process of deleting a file
         if (tree.current !== undefined) {
           if (tree.current.isRenaming) {
@@ -136,6 +137,9 @@ const SidebarDirectoryTreeControlled = ({ setExternalSelectedItems, setExternalD
    * This useEffect hook attaches an event listener to the document to listen for key presses.
    */
   useEffect(() => {
+    if(isEditorOpen) {
+      return
+    }
     // attach the event listener
     document.addEventListener("keydown", handleKeyPress)
     // remove the event listener
@@ -161,6 +165,10 @@ const SidebarDirectoryTreeControlled = ({ setExternalSelectedItems, setExternalD
    * @param {String} newName
    */
   function handleNameChange(item, newName) {
+    if (isEditorOpen) {
+      toast.error("Please close the editor before renaming")
+      return
+    }
     rename(globalData, workspace.workingDirectory.path, item, newName)
   }
 
@@ -286,6 +294,7 @@ const SidebarDirectoryTreeControlled = ({ setExternalSelectedItems, setExternalD
         dispatchLayout({ type: "openInModelViewer", payload: item })
       } else {
         console.log("DBCLICKED", event, item)
+        toast.warn("You can't open this file type.")
       }
       setDbClickedItem(item)
     } else {
@@ -465,7 +474,7 @@ const SidebarDirectoryTreeControlled = ({ setExternalSelectedItems, setExternalD
             </Stack>
           </Accordion.Header>
           <Accordion.Body className="sidebar-acc-body" onEnter={() => setIsAccordionShowing(true)} onExit={() => setIsAccordionShowing(false)}>
-            <div className="directory-tree" onMouseEnter={() => setIsHovering(true)} onMouseLeave={() => setIsHovering(false)}>
+            <div className="directory-tree" onMouseEnter={() => setIsHovering(true)} onMouseLeave={() => setIsHovering(false)} onFocus={() => setIsDirectoryTreeFocused(true)} onBlur={() => setIsDirectoryTreeFocused(false)}>
               <ControlledTreeEnvironment
                 ref={environment}
                 items={dirTree}
@@ -482,7 +491,7 @@ const SidebarDirectoryTreeControlled = ({ setExternalSelectedItems, setExternalD
                     dirTree
                   })
                 }
-                getItemTitle={(item) => item.data}
+                getItemTitle={(item) => item ? item.data : ""}
                 viewState={{
                   ["tree-2"]: {
                     focusedItem,

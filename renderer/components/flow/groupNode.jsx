@@ -1,4 +1,4 @@
-import React, { useContext } from "react"
+import { useContext } from "react"
 import { FlowFunctionsContext } from "./context/flowFunctionsContext"
 import Node from "./node"
 
@@ -15,11 +15,9 @@ import Node from "./node"
  * It does not implement a Node because it does not need to have access to an offcanvas
  */
 const GroupNode = ({ id, data }) => {
-  const { changeSubFlow } = useContext(FlowFunctionsContext) // used to get the functions to change the subflow, run the node and delete the node
-
   return (
     <>
-      <Node id={id} data={data} onClickCustom={() => changeSubFlow(id)} isGroupNode />
+      <Node id={id} data={data} />
     </>
   )
 }

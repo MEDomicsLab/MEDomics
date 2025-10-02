@@ -768,13 +768,17 @@ const DataTableFromDB = ({ data, tablePropsData, tablePropsColumn, isReadOnly })
     let groupNames = new Set(); // Use a Set to ensure uniqueness
 
     // Loop through each tag to find the group names for the current rowData
-    rowTags.forEach(tag => {
-      tag.data.forEach(item => {
-        if (item?._id.toString() === rowData?._id.toString()) { 
-          item.groupNames.forEach(groupName => groupNames.add(groupName)); 
-        }
+    try{
+      rowTags.forEach(tag => {
+        tag.data.forEach(item => {
+          if (item?._id?.toString() === rowData?._id?.toString()) { 
+            item.groupNames.forEach(groupName => groupNames.add(groupName)); 
+          }
+        });
       });
-    });
+    } catch (error) {
+      console.error("Error fetching row tags:", error, " Try creating a new workspace.");
+    }
 
     // Convert the Set back to an array
     const uniqueGroupNames = Array.from(groupNames);

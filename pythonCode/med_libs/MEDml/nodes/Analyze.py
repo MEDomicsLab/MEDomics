@@ -13,7 +13,8 @@ import pandas as pd
 from colorama import Fore
 from MEDDataObject import MEDDataObject
 from mongodb_utils import (insert_med_data_object_if_not_exists, overwrite_med_data_object_content)
-from PIL import Image
+from PIL import Image, ImageFile
+ImageFile.LOAD_TRUNCATED_IMAGES = True  # To handle truncated images
 
 from .NodeObj import Node, format_model
 
@@ -38,16 +39,18 @@ class Analyze(Node):
         """
         This function is used to execute the node.
         """
+        self._info_for_next_node = kwargs  # Pass all kwargs to finalze and save models
         selection = self.config_json['data']['internal']['selection']
+        if selection not in ['interpret_model', 'plot_model', 'dashboard']:
+            selection = 'plot_model'  # Default to plot_model if not specified
         print()
-        print(Fore.BLUE + "=== Analysing === " + 'paths' +
+        print(Fore.BLUE + "=== Analysing === " +
               Fore.YELLOW + f"({self.username})" + Fore.RESET)
         print(Fore.CYAN + f"Using {selection}" + Fore.RESET)
         settings = copy.deepcopy(self.settings)
         plot_paths = {}
-        if selection == 'plot_model':
-            settings.update({'save': True})
-            settings.update({"plot_kwargs": {}})
+        settings.update({'save': True})
+        #settings.update({"plot_kwargs": {}})
         """ if selection == 'interpret_model':
             settings.update({'save': self.global_config_json["tmp_path"]}) """
 
@@ -63,8 +66,7 @@ class Analyze(Node):
             if 'plot' in settings and type(settings['plot']) == str:
                 settings['plot'] = settings['plot'].lower()
             # Set saving path for plot_model
-            if 'save' in settings and settings['save']:
-                settings['save'] = Path("/tmp") if platform.system().lower() == "darwin" else True
+            settings['save'] = Path("/tmp") if platform.system().lower() == "darwin" else True
             plot_image = experiment['pycaret_exp'].plot_model(model, **settings)
 
             # Save Image into MongoDB

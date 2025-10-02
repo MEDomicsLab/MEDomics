@@ -52,7 +52,7 @@ import SettingsPage from "../../mainPages/settings"
 import Superset from "../../mainPages/superset/supersetEmbedder"
 import SupersetFrame from "../../mainPages/superset/SupersetFrame"
 import TerminalPage from "../../mainPages/terminal"
-import { getCollectionSize, updateMEDDataObjectName, updateMEDDataObjectPath } from "../../mongoDB/mongoDBUtils"
+import { getCollectionSize, updateMEDDataObjectName, updateMEDDataObjectPath, updateMEDDataObjectType } from "../../mongoDB/mongoDBUtils"
 import { DataContext } from "../../workspace/dataContext"
 import { MEDDataObject } from "../../workspace/NewMedDataObject"
 import { LayoutModelContext } from "../layoutContext"
@@ -69,6 +69,8 @@ var fields = ["Name", "Field1", "Field2", "Field3", "Field4", "Field5"]
 interface LayoutContextType {
   layoutRequestQueue: any[]
   setLayoutRequestQueue: (value: any[]) => void
+  isEditorOpen: boolean
+  setIsEditorOpen: (value: boolean) => void
 }
 
 interface DataContextType {
@@ -91,9 +93,9 @@ interface MyComponentState {
  * @returns the main container
  */
 const MainContainer = (props) => {
-  const { layoutRequestQueue, setLayoutRequestQueue } = React.useContext(LayoutModelContext) as unknown as LayoutContextType
+  const { layoutRequestQueue, setLayoutRequestQueue, isEditorOpen, setIsEditorOpen } = React.useContext(LayoutModelContext) as unknown as LayoutContextType
   const { globalData, setGlobalData } = React.useContext(DataContext) as unknown as DataContextType
-  return <MainInnerContainer layoutRequestQueue={layoutRequestQueue} setLayoutRequestQueue={setLayoutRequestQueue} globalData={globalData} setGlobalData={setGlobalData} />
+  return <MainInnerContainer layoutRequestQueue={layoutRequestQueue} setLayoutRequestQueue={setLayoutRequestQueue} isEditorOpen={isEditorOpen} setIsEditorOpen={setIsEditorOpen} globalData={globalData} setGlobalData={setGlobalData} />
 }
 
 /**
@@ -523,19 +525,48 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
    * @description here we catch RENAME_TAB actions and update the medDataObject name
    */
   onAction = (action: Action) => {
+    const { isEditorOpen, setIsEditorOpen } = this.props as LayoutContextType
     console.log("MainContainer action: ", action, this.layoutRef, this.state.model, this.saved)
     if (action.type === Actions.RENAME_TAB) {
+      if(isEditorOpen) {
+        console.error("Please close the editor before renaming")
+        toast.error("Please close the editor before renaming")
+        return Actions.RENAME_TAB
+      }
       const { globalData, setGlobalData } = this.props as DataContextType
       let newName = action.data.text
       let medObject = globalData[action.data.node]
       console.log("medObject", medObject)
       if (medObject) {
+        // Check name is not empty
+        if (newName == "") {
+          toast.error("Error: Name cannot be empty")
+          return Actions.RENAME_TAB
+        }
+        // Check if the name keeps the original extension
+        if (medObject.type != "directory") {
+          const newNameParts = newName.split(".")
+          if (medObject.type != newNameParts[newNameParts.length - 1]) {
+            toast.error("Invalid Name")
+            return Actions.RENAME_TAB
+          }
+        }
+        // Check if the new name is different from the original
+        if (medObject.name == newName) {
+          toast.warning("Warning: same name")
+          return Actions.RENAME_TAB
+        }
+        // Check if the name is not DATA or EXPERIMENTS
+        if (["ROOT", "DATA", "EXPERIMENTS"].includes(newName)) {
+          toast.error("Error: This name is reserved and cannot be used")
+          return Actions.RENAME_TAB
+        }
         // update the medDataObject name
         let success = updateMEDDataObjectName(medObject.id, newName)
         if (!success) {
           toast.error("Failed to update MEDDataObject name of the file")
           console.error("Failed to update MEDDataObject name")
-          return null
+          return action
         }
         // Update the path
         let oldPath = medObject.path
@@ -567,6 +598,8 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
           return null // Return null to cancel the action
         },
       })
+    } else if (action.type === Actions.DELETE_TAB) {
+      setIsEditorOpen(false)
     }
     return action
   }
@@ -581,6 +614,7 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
    * @returns the react component to display
    */
   factory = (node: TabNode) => {
+    const { isEditorOpen, setIsEditorOpen } = this.props as LayoutContextType
     var component = node.getComponent()
 
     /**
@@ -902,6 +936,7 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
     } else if (component === "codeEditor" || component === "Code Editor") {
       if (node.getExtraData().data == null) {
         const config = node.getConfig()
+        setIsEditorOpen(true)
         return <CodeEditor id={config.uuid} path={config.path} updateSavedCode={this.updateSavedCode}/>
       }
     } else if (component === "Settings") {

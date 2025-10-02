@@ -1,3 +1,5 @@
+import { toast } from "react-toastify"
+
 const { MongoClient } = require("mongodb")
 const fs = require("fs")
 const Papa = require("papaparse")
@@ -11,6 +13,16 @@ let client
  * @description Establish a connection to MongoDB data database
  * @returns Connection to the data database
  */
+
+function stripIds(doc = {}) {
+  const { _id, id, ...rest } = doc;
+  return rest;
+}
+
+function sanitizeColumns(keys = []) {
+  return keys.filter(k => k && k !== '_id' && k !== 'id');
+}
+
 export async function connectToMongoDB() {
   if (!client) {
     client = new MongoClient(uri, { useNewUrlParser: true, useUnifiedTopology: true })
@@ -28,6 +40,23 @@ export async function connectToMongoDB() {
 export async function updateMEDDataObjectName(id, newName) {
   const db = await connectToMongoDB()
   const result = await db.collection("medDataObjects").updateOne({ id: id }, { $set: { name: newName } })
+  return result.modifiedCount > 0
+}
+
+/**
+ * @description Update the type of a MEDDataObject specified by id in the DB
+ * @param {String} id Id of the MEDDataObject to update
+ * @param {String} newType New type for the MEDDataObject to update
+ * @returns bool true if succeed
+ */
+export async function updateMEDDataObjectType(id, newType) {
+  const db = await connectToMongoDB()
+  // Check if type has alphabetic characters only
+  if (newType.match(/[a-z]/)) {
+    console.error("Type can only contain alphabetic characters")
+    return false
+  }
+  const result = await db.collection("medDataObjects").updateOne({ id: id }, { $set: { type: newType } })
   return result.modifiedCount > 0
 }
 
@@ -169,6 +198,16 @@ async function insertPKLIntoCollection(filePath, collectionName) {
   const collection = db.collection(collectionName)
 
   const pklContent = fs.readFileSync(filePath)
+  
+  // Check size of the file
+  const fileSize = fs.statSync(filePath).size
+  const maxBSONSize = 16 * 1024 * 1024 // 16MB
+  if (fileSize > maxBSONSize) {
+    console.error(`PKL file ${filePath} size exceeds the maximum BSON document size of 16MB and will not be inserted in the database`)
+    toast.error(`PKL file ${filePath} size exceeds the maximum BSON document size of 16MB and will not be inserted in the database`)
+    return
+  }
+
   const document = { pklContent: pklContent }
 
   const result = await collection.insertOne(document)
@@ -192,37 +231,31 @@ async function insertBigCSVIntoCollection(filePath, collectionName) {
   let batch = []
 
   Papa.parse(fs.createReadStream(filePath), {
-    header: true,
-    dynamicTyping: true,
-    skipEmptyLines: true,
-    step: (results, parser) => {
-      const row = results.data
+  header: true,
+  dynamicTyping: true,
+  skipEmptyLines: true,
+  transformHeader: (h) => (h || '').trim(),   // NEW
+  step: (results, parser) => {
+    const row = results.data;
 
-      // We look at the columns and then we know which ones we want (makes it so no new useless columns gets added)
-      if (!allowedColumns && Object.keys(row).length > 0) {
-        allowedColumns = Object.keys(row)
-      }
+    if (!allowedColumns && Object.keys(row).length > 0) {
+      allowedColumns = Object.keys(row);
+    }
 
-      // Filter out any keys not in allowedColumns (usually not necessary since header:true)
-      const cleanedRow = Object.fromEntries(Object.entries(row).filter(([key]) => allowedColumns.includes(key)))
-      batch.push(cleanedRow)
+    // Keep only allowed headers and strip ids just in case
+    const cleanedRow = stripIds(
+      Object.fromEntries(Object.entries(row).filter(([key]) => allowedColumns.includes(key)))
+    );
 
-      // Once the batch size is reached (number of rows is reached), pause parsing and insert the batch.
-      if (batch.length >= batchSize) {
-        parser.pause()
-        collection
-          .insertMany(batch)
-          .then(() => {
-            // Clear the batch and resume parsing
-            batch = []
-            parser.resume()
-          })
-          .catch((error) => {
-            console.error("Error inserting batch:", error)
-            parser.abort()
-          })
-      }
-    },
+    batch.push(cleanedRow);
+
+    if (batch.length >= batchSize) {
+      parser.pause();
+      collection.insertMany(batch)
+        .then(() => { batch = []; parser.resume(); })
+        .catch((error) => { console.error("Error inserting batch:", error); parser.abort(); });
+    }
+  },
     complete: () => {
       // When parsing is complete, check if any rows remain to be inserted.
       if (batch.length > 0) {
@@ -357,14 +390,20 @@ export async function overwriteMEDDataObjectProperties(id, newData) {
  */
 export async function overwriteMEDDataObjectContent(id, jsonData) {
   try {
-    const db = await connectToMongoDB()
-    const collection = db.collection(id)
-    await collection.deleteMany({})
-    await collection.insertMany(jsonData)
-    return true
+    const db = await connectToMongoDB();
+    const collection = db.collection(id);
+    await collection.deleteMany({});
+
+    // remove any lingering _id / id fields before re-insert
+    const cleaned = (jsonData || []).map(stripIds);
+
+    if (cleaned.length) {
+      await collection.insertMany(cleaned);
+    }
+    return true;
   } catch (error) {
-    console.error("Error in overwriteMEDDataObjectContent", error)
-    return false
+    console.error("Error in overwriteMEDDataObjectContent", error);
+    return false;
   }
 }
 
@@ -427,16 +466,34 @@ export async function deleteMEDDataObject(id) {
  */
 export async function getCollectionColumns(collectionId) {
   try {
-    const db = await connectToMongoDB()
-    const collection = db.collection(collectionId)
-    const document = await collection.findOne({}) // Fetch first document
+    const db = await connectToMongoDB();
+    const collection = db.collection(collectionId);
 
-    return document ? Object.keys(document) : [] // Return column names or empty array
+    // Look across multiple docs to capture sparse columns, and exclude _id at source
+    const cursor = collection.find({}, { projection: { _id: 0 } }).limit(200);
+    const keys = new Set();
+    for await (const doc of cursor) {
+      Object.keys(doc || {}).forEach(k => {
+        if (k && k !== '_id' && k !== 'id') keys.add(k);
+      });
+    }
+    return Array.from(keys).sort();
   } catch (error) {
-    console.error("Error fetching collection columns:", error)
-    return [] // Return empty array to avoid breaking UI
+    console.error("Error fetching collection columns:", error);
+    return [];
   }
 }
+
+export async function getCollectionRows(collectionId, limit = 10000) {
+  const db = await connectToMongoDB();
+  const collection = db.collection(collectionId);
+  const docs = await collection
+    .find({}, { projection: { _id: 0 } })
+    .limit(limit)
+    .toArray();
+  return docs.map(stripIds);
+}
+
 
 /**
  * @description Get the tags of a collection specified by id
@@ -452,6 +509,21 @@ export async function getCollectionTags(collectionId) {
   const result = await collection.find({ collection_id: collectionId })
 
   return result
+}
+
+/**
+ * @description Get the row tags of a collection specified by id
+ * @param {String} collectionId Id of the collection to retrieve row tags from
+ * @returns {Array} An array of row tags
+ */
+export async function getCollectionRowTags(collectionId) {
+  const db = await connectToMongoDB()
+  const tags = await db.collection('row_tags').find({ collectionName: collectionId }).toArray()
+  if (tags.length === 0) {
+    console.error(`No tags found for collection ${collectionId}`)
+    return []
+  }
+  return tags
 }
 
 /**
