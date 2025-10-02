@@ -1,3 +1,5 @@
+import { toast } from "react-toastify"
+
 const { MongoClient } = require("mongodb")
 const fs = require("fs")
 const Papa = require("papaparse")
@@ -196,6 +198,16 @@ async function insertPKLIntoCollection(filePath, collectionName) {
   const collection = db.collection(collectionName)
 
   const pklContent = fs.readFileSync(filePath)
+  
+  // Check size of the file
+  const fileSize = fs.statSync(filePath).size
+  const maxBSONSize = 16 * 1024 * 1024 // 16MB
+  if (fileSize > maxBSONSize) {
+    console.error(`PKL file ${filePath} size exceeds the maximum BSON document size of 16MB and will not be inserted in the database`)
+    toast.error(`PKL file ${filePath} size exceeds the maximum BSON document size of 16MB and will not be inserted in the database`)
+    return
+  }
+
   const document = { pklContent: pklContent }
 
   const result = await collection.insertOne(document)
