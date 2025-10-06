@@ -159,11 +159,22 @@ const createServerMedomicsDirectory = (directoryPath) => {
   }
 }
 
-module.exports = {
+export {
   getServerWorkingDirectory,
   loadServerWorkspaces,
   updateServerWorkspace,
   getRecentServerWorkspacesOptions,
   createServerWorkingDirectory,
   createServerMedomicsDirectory
- }
+}
+
+if (typeof module !== "undefined" && typeof module.exports !== "undefined") {
+  module.exports = {
+    getServerWorkingDirectory,
+    loadServerWorkspaces,
+    updateServerWorkspace,
+    getRecentServerWorkspacesOptions,
+    createServerWorkingDirectory,
+    createServerMedomicsDirectory
+   }
+}

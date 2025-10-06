@@ -12,7 +12,7 @@ import { createWindow, TerminalManager } from "./helpers"
 import { installExtension, REACT_DEVELOPER_TOOLS } from "electron-extension-installer"
 import MEDconfig from "../medomics.dev"
 import { runServer, findAvailablePort } from "./utils/server"
-import { setPath } from "./utils/serverPathUtils.js"
+import { setAppPath } from "./utils/serverPathUtils.js"
 import {
   setWorkingDirectory,
   getRecentWorkspacesOptions,
@@ -39,7 +39,7 @@ import {
   getRemoteWorkspacePath,
   checkRemotePortOpen
 } from './utils/remoteFunctions.js'
-import { startExpressServer } from "./expressServer.js"
+import { startExpressServer } from "./expressServer.mjs"
 import { startMongoDB, stopMongoDB, getMongoDBPath } from "./utils/mongoDBServer.js"
 import { checkJupyterIsRunning, startJupyterServer, stopJupyterServer } from "./utils/jupyterServer.js"
 
@@ -206,7 +206,7 @@ if (isProd) {
   serve({ directory: "app" })
 } else {
   app.setPath("userData", `${app.getPath("userData")} (development)`)
-  setPath('userData', `${app.getPath("userData")} (development)`)
+  setAppPath('userData', `${app.getPath("userData")} (development)`)
 }
 
 

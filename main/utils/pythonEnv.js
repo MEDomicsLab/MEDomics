@@ -1,6 +1,7 @@
 const { getAppPath } = require("./serverPathUtils.js")
 var path = require("path")
 const util = require("util")
+const fs = require("fs")
 const { execSync } = require("child_process")
 const exec = util.promisify(require("child_process").exec)
 
@@ -442,7 +443,7 @@ async function installBundledPythonExecutable(notify) {
   }
 }
 
-module.exports = { 
+export {
   getPythonEnvironment,
   getBundledPythonEnvironment,
   installRequiredPythonPackages,
@@ -453,3 +454,15 @@ module.exports = {
   installBundledPythonExecutable
 }
 
+if (typeof module !== "undefined" && typeof module.exports !== "undefined") {
+  module.exports = { 
+    getPythonEnvironment,
+    getBundledPythonEnvironment,
+    installRequiredPythonPackages,
+    checkPythonRequirements,
+    getInstalledPythonPackages,
+    installPythonPackage,
+    execCallbacksForChildWithNotifications,
+    installBundledPythonExecutable
+  }
+}

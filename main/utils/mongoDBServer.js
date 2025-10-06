@@ -141,4 +141,8 @@ function getMongoDBPath() {
   }
 }
 
-module.exports = { startMongoDB, stopMongoDB, getMongoDBPath }
+export { startMongoDB, stopMongoDB, getMongoDBPath }
+
+if (typeof module !== "undefined" && typeof module.exports !== "undefined") {
+  module.exports = { startMongoDB, stopMongoDB, getMongoDBPath }
+}

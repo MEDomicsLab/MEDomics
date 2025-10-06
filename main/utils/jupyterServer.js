@@ -202,5 +202,8 @@ async function checkJupyterIsRunning() {
   }
 }
 
-module.exports = { startJupyterServer, stopJupyterServer, checkJupyterIsRunning }
 export { startJupyterServer, stopJupyterServer, checkJupyterIsRunning }
+
+if (typeof module !== "undefined" && typeof module.exports !== "undefined") {
+  module.exports = { startJupyterServer, stopJupyterServer, checkJupyterIsRunning }
+}

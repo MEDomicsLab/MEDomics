@@ -1,20 +1,14 @@
-import serverPathUtils from "./utils/serverPathUtils.js"
-const { setAppPath } = serverPathUtils
+import { setAppPath } from "./utils/serverPathUtils.js"
 import express from "express"
 import bodyParser from "body-parser"
-import serverWorkspace from "./utils/serverWorkspace.js"
-const { createServerMedomicsDirectory, createServerWorkingDirectory } = serverWorkspace
-import mongoDBServer from "./utils/mongoDBServer.js"
-const { startMongoDB, stopMongoDB, getMongoDBPath } = mongoDBServer
+import { createServerMedomicsDirectory, createServerWorkingDirectory } from "./utils/serverWorkspace.js"
+import { startMongoDB, stopMongoDB, getMongoDBPath } from "./utils/mongoDBServer.js"
 import cors from "cors"
 import dirTree from "directory-tree"
 import { exec, execSync } from "child_process"
-import pythonEnv from "./utils/pythonEnv.js"
-const { getBundledPythonEnvironment } = pythonEnv
-import jupyterServer from "./utils/jupyterServer.js"
-const { startJupyterServer, stopJupyterServer, checkJupyterIsRunning } = jupyterServer
-import serverInstallation  from "./utils/serverInstallation.js"
-const { checkRequirements } = serverInstallation
+import { getBundledPythonEnvironment } from "./utils/pythonEnv.js"
+import { startJupyterServer, stopJupyterServer, checkJupyterIsRunning } from "./utils/jupyterServer.js"
+import { checkRequirements }  from "./utils/serverInstallation.js"
 
 const expressApp = express()
 expressApp.use(bodyParser.json())

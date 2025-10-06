@@ -39,14 +39,12 @@ async function installXcodeSelect() {
   return true
 }
 
-module.exports = { checkIsBrewInstalled, checkIsXcodeSelectInstalled, installBrew, installXcodeSelect }
-
 
 var path = require("path")
 const util = require("util")
 const exec = util.promisify(require("child_process").exec)
 
-export async function checkRequirements() {
+async function checkRequirements() {
   // Ensure .medomics directory exists
   const homeDir = getAppPath("home")
   const medomicsDir = path.join(homeDir, ".medomics")
@@ -67,7 +65,7 @@ export async function checkRequirements() {
   return { pythonInstalled, mongoDBInstalled: getMongoDBPath() }
 }
 
-export async function installMongoDB() {
+async function installMongoDB() {
   const exec = require("util").promisify(require("child_process").exec)
   const downloadsDir = getAppPath("downloads")
   if (process.platform === "win32") {
@@ -132,5 +130,27 @@ async function promptAndInstallMongoDB() {
     }
   } else {
     console.log("MongoDB installation skipped. The application may not function correctly without it.")
+  }
+}
+
+export {
+  checkIsBrewInstalled,
+  checkIsXcodeSelectInstalled,
+  installBrew,
+  installXcodeSelect,
+  installMongoDB,
+  promptAndInstallMongoDB,
+  checkRequirements
+}
+
+if (typeof module !== "undefined" && typeof module.exports !== "undefined") {
+  module.exports = {
+    checkIsBrewInstalled,
+    checkIsXcodeSelectInstalled,
+    installBrew,
+    installXcodeSelect,
+    installMongoDB,
+    promptAndInstallMongoDB,
+    checkRequirements
   }
 }
