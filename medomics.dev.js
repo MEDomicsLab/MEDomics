@@ -1,4 +1,4 @@
-const PORT_FINDING_METHOD = {
+export const PORT_FINDING_METHOD = {
   FIX: 0,
   AVAILABLE: 1
 }
@@ -11,4 +11,4 @@ const config = {
   portFindingMethod: PORT_FINDING_METHOD.FIX
 }
 
-module.exports = { config, PORT_FINDING_METHOD }
+export default config
