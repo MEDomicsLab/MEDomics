@@ -81,7 +81,7 @@ class GoExecScriptPredictTest(GoExecutionScript):
         # if model.__class__.__name__ != 'LGBMClassifier':
             # Get the feature names from the model
         if dir(model).__contains__('feature_names_in_'):
-            columns_to_keep = model.__getattribute__('feature_names_in_').tolist()
+            columns_to_keep = model.__getattribute__('feature_names_in_')
         
         if dir(model).__contains__('feature_name_') and columns_to_keep is None:
             columns_to_keep = model.__getattribute__('feature_name_')
@@ -112,15 +112,15 @@ class GoExecScriptPredictTest(GoExecutionScript):
 
         # calculate the predictions
         self.set_progress(label="Setting up the experiment", now=30)
-        exp = None
         if ml_type == 'regression':
-            exp = RegressionExperiment()
+            from pycaret.regression import predict_model
+            self.set_progress(label="Predicting...", now=70)
+            pred_unseen = predict_model(model, data=dataset)
         elif ml_type == 'classification':
-            exp = ClassificationExperiment()
-        self.set_progress(label="Setting up the experiment", now=50)
-        exp.setup(data=dataset, target=model_metadata['target'])
-        self.set_progress(label="Predicting...", now=70)
-        pred_unseen = exp.predict_model(model, data=dataset)
+            from pycaret.classification import predict_model
+            self.set_progress(label="Predicting...", now=70)
+            pred_unseen = predict_model(model, data=dataset)
+        self.set_progress(now=50)
         
         # Save predictions
         prediction_object = MEDDataObject(

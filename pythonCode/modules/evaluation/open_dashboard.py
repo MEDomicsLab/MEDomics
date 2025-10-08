@@ -10,6 +10,7 @@ import numpy as np
 import pandas as pd
 from explainerdashboard import ClassifierExplainer, ExplainerDashboard, RegressionExplainer
 from explainerdashboard.explainer_methods import guess_shap
+from pycaret.internal.pipeline import Pipeline
 
 sys.path.append(str(Path(os.path.dirname(os.path.abspath(__file__))).parent.parent))
 from med_libs.GoExecutionScript import GoExecutionScript, parse_arguments
@@ -109,21 +110,6 @@ class GoExecScriptOpenDashboard(GoExecutionScript):
         if pickle_object_id is None:
             raise ValueError("Could not find the model.pkl in the database.")
         
-        # Load the model
-        self.model = get_pickled_model_from_collection(pickle_object_id)
-        go_print(f"model loaded: {self.model}")
-
-        # Check if model is not None
-        if self.model is None:
-            raise ValueError("The model could not be loaded from the database.")
-
-        # Determine columns used by the trained model (if exposed)
-        columns_to_keep = None
-        if "feature_names_in_" in dir(self.model):
-            columns_to_keep = list(getattr(self.model, "feature_names_in_"))
-        if "feature_name_" in dir(self.model) and columns_to_keep is None:
-            columns_to_keep = getattr(self.model, "feature_name_")
-
         # Load dataset
         use_med_standard = json_config["useMedStandard"]
         if use_med_standard:
@@ -141,9 +127,30 @@ class GoExecScriptOpenDashboard(GoExecutionScript):
             print("dataset_infos", dataset_infos)
             raise ValueError("Dataset has no ID and is not MEDomicsLab standard")
 
+        # Load the model
+        self.model = get_pickled_model_from_collection(pickle_object_id)
+        #self.model = self.model.steps[-1][1]    # Unwrap the Pipeline to get the actual model
+        go_print(f"model loaded: {self.model}")
+
+        # Check if model is not None
+        if self.model is None:
+            raise ValueError("The model could not be loaded from the database.")
+
+        # Apply all model transformations on the dataset
+        if type(self.model) == Pipeline and hasattr(self.model, 'transform'):
+            temp_df = self.model.transform(temp_df)
+            self.model = self.model.steps[-1][1]    # Unwrap the Pipeline to get the actual model
+
         # Optional downsample for SHAP performance and stability
         if sample_size < 1:
             temp_df = temp_df.sample(frac=sample_size, random_state=42)
+        
+        # Determine columns used by the trained model (if exposed)
+        columns_to_keep = None
+        if "feature_names_in_" in dir(self.model):
+            columns_to_keep = list(getattr(self.model, "feature_names_in_"))
+        if "feature_name_" in dir(self.model) and columns_to_keep is None:
+            columns_to_keep = getattr(self.model, "feature_name_")
 
         go_print(f"MODEL NAME: {self.model.__class__.__name__}")
 

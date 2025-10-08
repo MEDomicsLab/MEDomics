@@ -10,6 +10,7 @@ from typing import Union
 import numpy as np
 import pandas as pd
 from colorama import Fore
+from sklearn.pipeline import Pipeline
 
 from .NodeObj import Node, format_model
 
@@ -47,6 +48,7 @@ class ModelIO(Node):
         print(Fore.BLUE + "=== model io === " + Fore.YELLOW + f"({self.username})" + Fore.RESET)
         print(Fore.CYAN + f"Using {self.type}" + Fore.RESET)
         settings = copy.deepcopy(self.settings)
+        pycaret_exp = experiment['pycaret_exp']
         return_val = {}
         
         if self.type == 'save_model':
@@ -65,8 +67,12 @@ class ModelIO(Node):
                     os.makedirs(path_save, exist_ok=True)
 
                 # Serialize model
-                serialized_model = pickle.dumps(model)
-                
+                model = pycaret_exp.save_model(model, model_name)
+                serialized_model = pickle.dumps(model[0])
+
+                # Remove model save locally
+                os.remove(model[1])
+
                 # .medmodel object
                 model_med_object = MEDDataObject(
                     id = str(uuid.uuid4()),
@@ -104,7 +110,7 @@ class ModelIO(Node):
                     childrenIDs = [],
                     inWorkspace = False
                 )
-    
+
                 if fits_mongo:
                     serialized_model_id = insert_med_data_object_if_not_exists(serialized_model_med_object, [{'model': serialized_model}])
                     # If model already existed we overwrite its content
