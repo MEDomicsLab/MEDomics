@@ -34,9 +34,9 @@ const HoldoutSetCreationToolsDB = ({ currentCollection }) => {
   const [holdoutSetSize, setHoldoutSetSize] = useState(20)
   const [cleaningOption, setCleaningOption] = useState("drop")
   const cleaningOptions = ["drop", "random fill", "mean fill", "median fill", "mode fill", "bfill", "ffill"]
-  const [newCollectionName, setNewCollectionName] = useState("")
   const [loading, setLoading] = useState(false)
   const { globalData } = useContext(DataContext)
+  const [newCollectionName, setNewCollectionName] = globalData[currentCollection] ? useState(globalData[currentCollection].name.split(".csv")[0]) : useState("")
   const { port } = useContext(ServerConnectionContext)
 
   // Fetch the columns of the current collection without fetching the whole dataset
@@ -279,7 +279,7 @@ const HoldoutSetCreationToolsDB = ({ currentCollection }) => {
               style={{ margin: "10px" }}
             />
             <div className="p-inputgroup w-full md:w-30rem" style={{ margin: "10px", fontSize: "1rem", width: "230px", marginTop: "5px" }}>
-              <InputText value={newCollectionName} onChange={(e) => setNewCollectionName(e.target.value)} placeholder="New set name" />
+              <InputText value={newCollectionName} onChange={(e) => setNewCollectionName(e.target.value)} placeholder={newCollectionName} />
               <span className="p-inputgroup-addon">.csv</span>
             </div>
             <Button
