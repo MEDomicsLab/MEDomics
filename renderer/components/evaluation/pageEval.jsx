@@ -2,7 +2,7 @@ import { Button } from "primereact/button"
 import { TabPanel, TabView } from "primereact/tabview"
 import { Tag } from "primereact/tag"
 import { Tooltip } from "primereact/tooltip"
-import React, { useCallback, useContext, useEffect, useRef, useState } from "react"
+import { useCallback, useContext, useEffect, useRef, useState } from "react"
 import { PiFlaskFill } from "react-icons/pi"
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels"
 import { toast } from "react-toastify"
@@ -31,9 +31,12 @@ import PredictPanel from "./predictPanel"
 const PageEval = ({ run, pageId, config, updateWarnings, setChosenModel, updateConfigClick, setChosenDataset, modelHasWarning, setModelHasWarning, datasetHasWarning, setDatasetHasWarning, useMedStandard }) => {
   const evaluationHeaderPanelRef = useRef(null)
   const [showHeader, setShowHeader] = useState(true)
+  const [activeIndex, setActiveIndex] = useState(0) // tab index
   const [isDashboardUpdating, setIsDashboardUpdating] = useState(false)
   const [isPredictUpdating, setIsPredictUpdating] = useState(false)
   const [predictedData, setPredictedData] = useState(undefined) // we use this to store the predicted data
+  const [predictError, setPredictError] = useState(undefined) // we use this to store any error from the predict step
+  const [dashboardError, setDashboardError] = useState(undefined) // we use this to store any error from the dashboard step
   const { port } = useContext(WorkspaceContext) // we get the port for server connexion
   const { setError } = useContext(ErrorRequestContext)
 
@@ -99,15 +102,20 @@ const PageEval = ({ run, pageId, config, updateWarnings, setChosenModel, updateC
         "evaluation/predict_test/predict/" + pageId,
         { pageId: pageId, ...config, useMedStandard: useMedStandard },
         (data) => {
+          console.log("received response:", data)
           setIsPredictUpdating(false)
           if (data.error) {
             if (typeof data.error == "string") {
               data.error = JSON.parse(data.error)
             }
             setError(data.error)
+            setPredictError(data.error)
           } else {
             setPredictedData(data)
+            startDashboardCall()
             toast.success("Predicted data is ready")
+            toast.info("Dashboard is being prepared")
+            setActiveIndex(1) // switch to dashboard tab
           }
           console.log("predict_test received data:", data)
         },
@@ -118,45 +126,48 @@ const PageEval = ({ run, pageId, config, updateWarnings, setChosenModel, updateC
       )
 
       // start dashboard
-      requestBackend(
-        port,
-        "evaluation/close_dashboard/dashboard/" + pageId,
-        { pageId: pageId },
-        () => {
-          setIsDashboardUpdating(true)
-          // TODO: @NicoLongfield - Let choose sample size
-          requestBackend(
-            port,
-            "evaluation/open_dashboard/dashboard/" + pageId,
-            {
-              pageId: pageId,
-              ...config,
-              sampleSizeFrac: 1,
-              dashboardName: config.model.name.split(".")[0],
-              useMedStandard: useMedStandard
-            },
-            (data) => {
-              console.log("openDashboard received data:", data)
-              setIsDashboardUpdating(false)
-              if (data.error) {
-                if (typeof data.error == "string") {
-                  data.error = JSON.parse(data.error)
+      const startDashboardCall = () => {
+        requestBackend(
+          port,
+          "evaluation/close_dashboard/dashboard/" + pageId,
+          { pageId: pageId },
+          () => {
+            setIsDashboardUpdating(true)
+            // TODO: @NicoLongfield - Let choose sample size
+            requestBackend(
+              port,
+              "evaluation/open_dashboard/dashboard/" + pageId,
+              {
+                pageId: pageId,
+                ...config,
+                sampleSizeFrac: 1,
+                dashboardName: config.model.name.split(".")[0],
+                useMedStandard: useMedStandard
+              },
+              (data) => {
+                console.log("openDashboard received data:", data)
+                setIsDashboardUpdating(false)
+                if (data.error) {
+                  if (typeof data.error == "string") {
+                    data.error = JSON.parse(data.error)
+                  }
+                  setError(data.error)
+                  setDashboardError(data.error)
+                } else {
+                  toast.success("Dashboard is ready")
                 }
-                setError(data.error)
-              } else {
-                toast.success("Dashboard is ready")
+              },
+              (error) => {
+                console.log("openDashboard received error:", error)
+                setIsDashboardUpdating(false)
               }
-            },
-            (error) => {
-              console.log("openDashboard received error:", error)
-              setIsDashboardUpdating(false)
-            }
-          )
-        },
-        (error) => {
-          console.log("closeDashboard received error:", error)
-        }
-      )
+            )
+          },
+          (error) => {
+            console.log("closeDashboard received error:", error)
+          }
+        )
+      }
     },
     [config]
   )
@@ -251,12 +262,12 @@ const PageEval = ({ run, pageId, config, updateWarnings, setChosenModel, updateC
           )}
 
           <div className="eval-body-content">
-            <TabView renderActiveOnly={false}>
+            <TabView renderActiveOnly={false} activeIndex={activeIndex} onTabChange={(e) => setActiveIndex(e.index)}>
               <TabPanel key="Predict" header="Predict/Test">
-                <PredictPanel isUpdating={isPredictUpdating} setIsUpdating={setIsPredictUpdating} data={predictedData} />
+                <PredictPanel isUpdating={isPredictUpdating} setIsUpdating={setIsPredictUpdating} data={predictedData} error={predictError} />
               </TabPanel>
               <TabPanel key="Dash" header="Dashboard">
-                <Dashboard isUpdating={isDashboardUpdating} setIsUpdating={setIsDashboardUpdating} />
+                <Dashboard isUpdating={isDashboardUpdating} setIsUpdating={setIsDashboardUpdating} errorPrediction={predictError} error={dashboardError} />
               </TabPanel>
             </TabView>
           </div>
