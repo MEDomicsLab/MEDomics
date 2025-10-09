@@ -114,13 +114,13 @@ class GoExecScriptPredictTest(GoExecutionScript):
         self.set_progress(label="Setting up the experiment", now=30)
         if ml_type == 'regression':
             from pycaret.regression import predict_model
-            self.set_progress(label="Predicting...", now=70)
+            self.set_progress(label="Predicting...", now=50)
             pred_unseen = predict_model(model, data=dataset)
         elif ml_type == 'classification':
             from pycaret.classification import predict_model
-            self.set_progress(label="Predicting...", now=70)
+            self.set_progress(label="Predicting...", now=50)
             pred_unseen = predict_model(model, data=dataset)
-        self.set_progress(now=50)
+        self.set_progress(now=70)
         
         # Save predictions
         prediction_object = MEDDataObject(

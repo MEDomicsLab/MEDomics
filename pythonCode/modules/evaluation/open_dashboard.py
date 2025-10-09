@@ -111,6 +111,7 @@ class GoExecScriptOpenDashboard(GoExecutionScript):
             raise ValueError("Could not find the model.pkl in the database.")
         
         # Load dataset
+        self.set_progress(label="Loading the dataset and model")
         use_med_standard = json_config["useMedStandard"]
         if use_med_standard:
             temp_df = load_med_standard_data(
@@ -129,7 +130,6 @@ class GoExecScriptOpenDashboard(GoExecutionScript):
 
         # Load the model
         self.model = get_pickled_model_from_collection(pickle_object_id)
-        #self.model = self.model.steps[-1][1]    # Unwrap the Pipeline to get the actual model
         go_print(f"model loaded: {self.model}")
 
         # Check if model is not None
@@ -137,6 +137,7 @@ class GoExecScriptOpenDashboard(GoExecutionScript):
             raise ValueError("The model could not be loaded from the database.")
 
         # Apply all model transformations on the dataset
+        self.set_progress(label="Applying model transformations")
         if type(self.model) == Pipeline and hasattr(self.model, 'transform'):
             temp_df = self.model.transform(temp_df)
             self.model = self.model.steps[-1][1]    # Unwrap the Pipeline to get the actual model
@@ -150,7 +151,7 @@ class GoExecScriptOpenDashboard(GoExecutionScript):
         if "feature_names_in_" in dir(self.model):
             columns_to_keep = list(getattr(self.model, "feature_names_in_"))
         if "feature_name_" in dir(self.model) and columns_to_keep is None:
-            columns_to_keep = getattr(self.model, "feature_name_")
+            columns_to_keep = list(getattr(self.model, "feature_name_"))
 
         go_print(f"MODEL NAME: {self.model.__class__.__name__}")
 
@@ -174,10 +175,13 @@ class GoExecScriptOpenDashboard(GoExecutionScript):
 
         # 2) Align to model's expected columns if available
         if columns_to_keep is not None:
-            if target not in columns_to_keep:
-                columns_to_keep.append(target)
-            # Reindex to preserve order and fill missing features with 0
-            temp_df = temp_df.reindex(columns=columns_to_keep, fill_value=0)
+            try:
+                if target not in columns_to_keep:
+                    columns_to_keep.append(target)
+                # Reindex to preserve order and fill missing features with 0
+                temp_df = temp_df.reindex(columns=columns_to_keep, fill_value=0)
+            except Exception as e:
+                raise ValueError(f"Error aligning dataset to model's expected features: {e}")
 
         # 3) Split features/target with guards
         if target not in temp_df.columns:
@@ -205,6 +209,7 @@ class GoExecScriptOpenDashboard(GoExecutionScript):
             shap_kwargs = {"check_additivity": False}
 
         # Handle binary classification edge case
+        self.set_progress(label="Testing SHAP computations")
         if ml_type == "classification":
             # If y is non-binary but has exactly two unique values, map to {0,1}
             unique_values = y_test.squeeze().unique()
@@ -244,6 +249,7 @@ class GoExecScriptOpenDashboard(GoExecutionScript):
                 )
 
         # Progress & dashboard startup
+        self.set_progress(label="Building the dashboard")
         self.row_count = len(y_test)
         self._progress["duration"] = "{:.2f}".format(self.row_count / self.speed / 60.0)
         self.now = 0

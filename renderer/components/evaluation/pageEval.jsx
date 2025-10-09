@@ -172,6 +172,13 @@ const PageEval = ({ run, pageId, config, updateWarnings, setChosenModel, updateC
     [config]
   )
 
+  const updateConfigClickWrapper = () => {
+    setPredictError(undefined)
+    setDashboardError(undefined)
+    setActiveIndex(0) // switch to predict tab
+    updateConfigClick()
+  }
+
   // handle resizing of the header when clicking on the button
   useEffect(() => {
     if (evaluationHeaderPanelRef.current) {
@@ -244,7 +251,7 @@ const PageEval = ({ run, pageId, config, updateWarnings, setChosenModel, updateC
                   icon="pi pi-refresh"
                   iconPos="right"
                   disabled={modelHasWarning.state || datasetHasWarning.state}
-                  onClick={updateConfigClick}
+                  onClick={updateConfigClickWrapper}
                 />
               </div>
             </Panel>
