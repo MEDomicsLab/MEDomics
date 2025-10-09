@@ -49,6 +49,8 @@ export function fromJSONtoTree(data) {
         data: element.name,
         canRename: ableToRename,
         type: element.type,
+        inWorkspace: element.inWorkspace,
+        path: element.path ? element.path : null,
         isLocked: element.isLocked,
         usedIn: element.usedIn
       }

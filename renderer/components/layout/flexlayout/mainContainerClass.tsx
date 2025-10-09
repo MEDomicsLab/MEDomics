@@ -63,6 +63,7 @@ import ZoomPanPinchComponent from "./zoomPanPinchComponent"
 import CodeEditor from "../../flow/codeEditor"
 import { confirmDialog } from "primereact/confirmdialog"
 import { SiApachesuperset  } from "react-icons/si"
+import { PiGraph } from "react-icons/pi"
 
 var fields = ["Name", "Field1", "Field2", "Field3", "Field4", "Field5"]
 
@@ -1071,6 +1072,9 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
       }
       if (component === "SupersetFramePage") {
         return <SiApachesuperset style={{ marginRight: 3 }} />
+      }
+      if (component === "modelViewer") {
+        return <span><PiGraph className="icon-offset" style={{ color: "#97edfb" }} /></span>
       }
     }
   }

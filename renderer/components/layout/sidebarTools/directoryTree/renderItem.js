@@ -255,6 +255,7 @@ const renderItem = ({ item, depth, children, title, context, arrow }, additional
                       🔒
                     </span>
                   )}
+                  {!item.path && <img src="https://cdn3.emoji.gg/emojis/21146-mongodb.png" width="16px" height="16px" alt="mongodb" />}
                 </div>
               </InteractiveComponent>
             </div>
