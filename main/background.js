@@ -11,8 +11,8 @@ import serve from "electron-serve"
 import { createWindow, TerminalManager } from "./helpers"
 import { installExtension, REACT_DEVELOPER_TOOLS } from "electron-extension-installer"
 import MEDconfig from "../medomics.dev"
-import { runServer, findAvailablePort } from "./utils/server"
-import { setAppPath } from "./utils/serverPathUtils.js"
+import { runServer, findAvailablePort } from "../backend/utils/server.js"
+import { setAppPath } from "../backend/utils/serverPathUtils.js"
 import {
   setWorkingDirectory,
   getRecentWorkspacesOptions,
@@ -30,8 +30,8 @@ import {
   installBundledPythonExecutable,
   checkPythonRequirements,
   installRequiredPythonPackages
-} from "./utils/pythonEnv"
-import { installMongoDB, checkRequirements } from "./utils/installation"
+} from "../backend/utils/pythonEnv.js"
+import { installMongoDB, checkRequirements } from "../backend/utils/installation.js"
 import {
   getTunnelState,
   getActiveTunnel,
@@ -39,9 +39,9 @@ import {
   getRemoteWorkspacePath,
   checkRemotePortOpen
 } from './utils/remoteFunctions.js'
-import { startExpressServer } from "./expressServer.mjs"
-import { startMongoDB, stopMongoDB, getMongoDBPath } from "./utils/mongoDBServer.js"
-import { checkJupyterIsRunning, startJupyterServer, stopJupyterServer } from "./utils/jupyterServer.js"
+import { startExpressServer } from "../backend/expressServer.mjs"
+import { startMongoDB, stopMongoDB, getMongoDBPath } from "../backend/utils/mongoDBServer.js"
+import { checkJupyterIsRunning, startJupyterServer, stopJupyterServer } from "../backend/utils/jupyterServer.js"
 
 
 const fs = require("fs")

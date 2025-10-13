@@ -1,6 +1,6 @@
 import { app } from "electron"
 import { execCallbacksForChildWithNotifications } from "../utils/pythonEnv"
-import { mainWindow } from "../background.js"
+import { mainWindow } from "../../main/background.js"
 import { getBundledPythonEnvironment } from "../utils/pythonEnv"
 import { getMongoDBPath } from "../utils/mongoDBServer"
 import fs from "fs"

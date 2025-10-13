@@ -10,7 +10,7 @@
     "dev": "nextron",
     "dev:headless": "nextron --electron-options=\"--no-gui\"",
     "dev:linux": "bash ./utilScripts/go_build.sh && nextron ",
-  "start:server": "node ./main/expressServer.mjs",
+  "start:server": "node ./backend/expressServer.mjs",
     "build": "nextron build",
     "build:linux": "bash ./utilScripts/build_preparation_linux.sh && nextron build --linux",
     "build:win": ".\\utilScripts\\build_preparation_win.bat && nextron build --win",
