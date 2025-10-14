@@ -133,7 +133,7 @@ async function promptAndInstallMongoDB() {
   }
 }
 
-export {
+module.exports = {
   checkIsBrewInstalled,
   checkIsXcodeSelectInstalled,
   installBrew,
@@ -141,16 +141,4 @@ export {
   installMongoDB,
   promptAndInstallMongoDB,
   checkRequirements
-}
-
-if (typeof module !== "undefined" && typeof module.exports !== "undefined") {
-  module.exports = {
-    checkIsBrewInstalled,
-    checkIsXcodeSelectInstalled,
-    installBrew,
-    installXcodeSelect,
-    installMongoDB,
-    promptAndInstallMongoDB,
-    checkRequirements
-  }
 }

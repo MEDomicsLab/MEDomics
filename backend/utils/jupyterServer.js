@@ -1,5 +1,5 @@
-import fs from "fs"
-import { getBundledPythonEnvironment } from "./pythonEnv.js"
+const fs = require("fs")
+const { getBundledPythonEnvironment } = require("./pythonEnv")
 
 const util = require("util")
 const exec = util.promisify(require("child_process").exec)
@@ -202,8 +202,4 @@ async function checkJupyterIsRunning() {
   }
 }
 
-export { startJupyterServer, stopJupyterServer, checkJupyterIsRunning }
-
-if (typeof module !== "undefined" && typeof module.exports !== "undefined") {
-  module.exports = { startJupyterServer, stopJupyterServer, checkJupyterIsRunning }
-}
+module.exports = { startJupyterServer, stopJupyterServer, checkJupyterIsRunning }

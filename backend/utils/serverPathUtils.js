@@ -24,8 +24,4 @@ function getAppPath(alias) {
   }
 }
 
-export { setAppPath, getAppPath }
-
-if (typeof module !== "undefined" && typeof module.exports !== "undefined") {
-  module.exports = { setAppPath, getAppPath }
-}
+module.exports = { setAppPath, getAppPath }

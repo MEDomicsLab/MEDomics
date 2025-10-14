@@ -443,7 +443,7 @@ async function installBundledPythonExecutable(notify) {
   }
 }
 
-export {
+module.exports = { 
   getPythonEnvironment,
   getBundledPythonEnvironment,
   installRequiredPythonPackages,
@@ -454,15 +454,3 @@ export {
   installBundledPythonExecutable
 }
 
-if (typeof module !== "undefined" && typeof module.exports !== "undefined") {
-  module.exports = { 
-    getPythonEnvironment,
-    getBundledPythonEnvironment,
-    installRequiredPythonPackages,
-    checkPythonRequirements,
-    getInstalledPythonPackages,
-    installPythonPackage,
-    execCallbacksForChildWithNotifications,
-    installBundledPythonExecutable
-  }
-}

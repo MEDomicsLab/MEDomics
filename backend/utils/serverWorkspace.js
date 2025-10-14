@@ -1,4 +1,4 @@
-import MEDconfig from "../../medomics.dev.js"
+const MEDconfig = require("./medomics.server.dev.js")
 const { getAppPath, setAppPath } = require("./serverPathUtils.js")
 
 const fs = require("fs")
@@ -16,7 +16,7 @@ function loadServerWorkspaces() {
   if (fs.existsSync(workspaceFilePath)) {
     const workspaces = JSON.parse(fs.readFileSync(workspaceFilePath, "utf8"))
     // Sort workspaces by date, most recent first
-    let sortedWorkspaces = workspaces.sort((a, b) => new Date(b.last_time_it_was_opened) - new Date(a.last_time_it_was_opened))
+    let sortedWorkspaces = workspaces.sort((a, b) => new Date(b.lastTimeItWasOpened) - new Date(a.lastTimeItWasOpened))
     // Check if the workspaces still exist
     let workspacesThatStillExist = []
     sortedWorkspaces.forEach((workspace) => {
@@ -52,13 +52,13 @@ function updateServerWorkspace(workspacePath) {
   if (workspaceIndex !== -1) {
     // Workspace exists, update it
     workspaces[workspaceIndex].status = "opened"
-    workspaces[workspaceIndex].last_time_it_was_opened = new Date().toISOString()
+    workspaces[workspaceIndex].lastTimeItWasOpened = new Date().toISOString()
   } else {
     // Workspace doesn't exist, add it
     workspaces.push({
       path: workspacePath,
       status: "opened",
-      last_time_it_was_opened: new Date().toISOString()
+      lastTimeItWasOpened: new Date().toISOString()
     })
   }
   setAppPath("sessionData", workspacePath)
@@ -159,22 +159,11 @@ const createServerMedomicsDirectory = (directoryPath) => {
   }
 }
 
-export {
+module.exports = {
   getServerWorkingDirectory,
   loadServerWorkspaces,
   updateServerWorkspace,
   getRecentServerWorkspacesOptions,
   createServerWorkingDirectory,
   createServerMedomicsDirectory
-}
-
-if (typeof module !== "undefined" && typeof module.exports !== "undefined") {
-  module.exports = {
-    getServerWorkingDirectory,
-    loadServerWorkspaces,
-    updateServerWorkspace,
-    getRecentServerWorkspacesOptions,
-    createServerWorkingDirectory,
-    createServerMedomicsDirectory
-   }
 }
