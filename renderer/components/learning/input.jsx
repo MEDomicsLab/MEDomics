@@ -465,37 +465,57 @@ const Input = ({ name, settingInfos, currentValue, onInputChange, disabled = fal
           </>
         )
 
-      case "data-input-multiple":
+      case "data-input-multiple": {
+        const safeName   = String(name ?? "files");
+        const safeValue  = Array.isArray(currentValue) ? currentValue : [];
+        const remountKey = `ws-multi-${safeName}-${safeValue.length}`;
+
         return (
-          <>
+          <div data-test="data-input-multiple" key={remountKey}>
+
             <WsSelectMultiple
-              key={name}
-              rootDir={["learning", "holdout"]}
-              placeholder={name}
-              disabled={disabled}
-              selectedPaths={currentValue}
-              acceptedExtensions={["csv"]}
-              matchRegex={new RegExp("T[0-9]*_(w+)?")}
-              acceptFolder={settingInfos.acceptFolder ? settingInfos.acceptFolder : false}
-              onChange={(value) => {
-                if (value.length === 0) {
-                  setHasWarning({ state: true, tooltip: <p>No file(s) selected</p> })
-                } else {
-                  setHasWarning({ state: false })
+
+              rootDir={undefined}         
+              acceptFolder={true}          
+              acceptedExtensions={["csv"]}      
+              matchRegex={null}   
+
+              whenEmpty={
+                <Message
+                  severity="warn"
+                  text="No data file found in the workspace"
+                  style={{ marginTop: 8 }}
+                />
+              }
+
+              selectedPaths={safeValue}
+              placeholder={safeName}
+              disabled={!!disabled}
+
+              onChange={(vals) => {
+                const value = Array.isArray(vals) ? vals : [];
+                if (typeof handleWarning === "function") {
+                  handleWarning(
+                    value.length === 0
+                      ? { state: true, tooltip: <p>No file(s) selected</p> }
+                      : { state: false }
+                  );
                 }
-                setInputUpdate({
-                  name: name,
-                  value: value,
-                  type: settingInfos.type
-                })
+                setInputUpdate({ name: safeName, value, type: settingInfos.type });
               }}
-              setHasWarning={setHasWarning}
-              whenEmpty={<Message severity="warn" text="No file(s) found in the workspace under '/learning' folder containing 'TX_' prefix (X is a number)" />}
+
+              setHasWarning={(w) => {
+                if (typeof handleWarning === "function") handleWarning(w);
+              }}
+
               customProps={customProps}
             />
-            {createTooltip(settingInfos.tooltip, name)}
-          </>
-        )
+
+            {typeof createTooltip === "function" && createTooltip(settingInfos.tooltip, safeName)}
+          </div>
+        );
+      }
+
       case "tags-input-multiple":
         return (
           <>
