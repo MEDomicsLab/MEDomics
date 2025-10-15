@@ -16,12 +16,8 @@ const SplitNode = ({ id, data }) => {
 
   // Update available options when split type changes
   useEffect(() => {
-    if (!data.internal.settings.columns){
-      handleWarning({ state: true, tooltip: <p>No columns available for stratification. Please select a dataset with columns.</p> })
-    }
-    if (data.internal.settings?.global?.stratify_columns.length === 0){
-      handleWarning({ state: true, tooltip: <p>Please select the stratification columns.</p> })
-    }
+    // Ensure we start unblocked
+     handleWarning({ state: false })
   }, [data.internal.settings])
 
   const handleStratificationWarning = () => {
@@ -141,7 +137,7 @@ const SplitNode = ({ id, data }) => {
             columnsTags: data.internal.settings.columnsTags || [],
             rowsTagsMapped: data.internal.settings.rowsTagsMapped || {},
             rowsTags: data.internal.settings.rowsTags || [],
-            stratify_columns: "",
+            stratify_columns: columnsArray.length > 0 ? columnsArray[columnsArray.length - 1] :"",
           },
         },
       },
