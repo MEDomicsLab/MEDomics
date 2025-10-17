@@ -53,7 +53,15 @@ const PredictPanel = ({ isUpdating, setIsUpdating, data, error=null }) => {
             />
           </Col>
         </Row>
-        <pre>{error.stack_trace && error.stack_trace}</pre>
+        <pre
+          style={{ 
+            maxHeight: '600px', 
+            overflow: 'auto',
+            whiteSpace: 'pre-wrap',
+            wordWrap: 'break-word'
+          }}>
+          {error.stack_trace && error.stack_trace}
+        </pre>
         </Card>
       ) : (
       <>
