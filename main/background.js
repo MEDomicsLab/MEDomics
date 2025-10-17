@@ -106,6 +106,33 @@ console.log = function () {
   }
 }
 
+function getBackendServerExecutable() {
+  const platform = process.platform
+  if (app.isPackaged) {
+    // In release, use packaged binaries
+    if (platform === "win32") return path.join(process.resourcesPath, "backend", "server_win.exe")
+    if (platform === "darwin") return path.join(process.resourcesPath, "backend", "server_mac")
+    if (platform === "linux") return path.join(process.resourcesPath, "backend", "server_linux")
+  } else {
+    // In development, use Node.js script
+    return ["node", path.join(__dirname, "../backend/expressServer.mjs")]
+  }
+}
+
+function startBackendServer() {
+  let serverProcess
+  const execPath = getBackendServerExecutable()
+  if (Array.isArray(execPath)) {
+    // Development: run node script
+    serverProcess = spawn(execPath[0], [execPath[1]], { stdio: "ignore", detached: true })
+  } else {
+    // Packaged: run native binary
+    serverProcess = spawn(execPath, [], { stdio: "ignore", detached: true })
+  }
+  serverProcess.unref()
+  return serverProcess
+}
+
 //**** AUTO-UPDATER ****//
 
 function sendStatusToWindow(text) {
@@ -206,7 +233,6 @@ if (isProd) {
   serve({ directory: "app" })
 } else {
   app.setPath("userData", `${app.getPath("userData")} (development)`)
-  setAppPath('userData', `${app.getPath("userData")} (development)`)
 }
 
 
