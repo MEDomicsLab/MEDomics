@@ -330,12 +330,12 @@ const Input = ({ name, settingInfos, currentValue, onInputChange, disabled = fal
       );
 
       // for list input but with name not indexes (form select of all the options, multiple selection possible)
-      case "list-multiple-name":
+      case "list-multiple-columns":
       const safeValue1 = Array.isArray(currentValue) ? currentValue : (currentValue ? [currentValue] : []);
 
       return (
         <>
-          <label htmlFor={name} className="block mb-2 text-sm font-medium text-gray-700">
+          <label htmlFor={name} className="block mb-1 text-sm font-medium text-gray-700">
             {settingInfos.label || name}
           </label>
 
@@ -390,8 +390,11 @@ const Input = ({ name, settingInfos, currentValue, onInputChange, disabled = fal
       case "custom-list":
         return (
           <>
-            <div id={name} style={{ height: "52px" }} className="custom-list">
-              <label className="custom-lbl">{name}</label>
+          <div id={name} className="flex flex-column gap-2 w-full position-relative">
+            <label htmlFor={name} className="font-medium text-sm z-2 position-relative" style={{color: 'rgba(33, 37, 41)'}}>
+              {name}
+            </label>
+            <div className="w-full position-relative">
               <CreatableSelect
                 disabled={disabled}
                 components={{ DropdownIndicator: null }}
@@ -410,10 +413,20 @@ const Input = ({ name, settingInfos, currentValue, onInputChange, disabled = fal
                 onKeyDown={handleKeyDown}
                 placeholder="Add"
                 value={currentValue}
-                className="input-hov"
+                styles={{
+                  container: (base) => ({
+                    ...base,
+                    zIndex: 1
+                  }),
+                  control: (base) => ({
+                    ...base,
+                    zIndex: 1
+                  })
+                }}
               />
             </div>
             {createTooltip(settingInfos.tooltip, name)}
+          </div>
           </>
         )
       // for pandas dataframe input (basically a string input for now)
@@ -465,57 +478,37 @@ const Input = ({ name, settingInfos, currentValue, onInputChange, disabled = fal
           </>
         )
 
-      case "data-input-multiple": {
-        const safeName   = String(name ?? "files");
-        const safeValue  = Array.isArray(currentValue) ? currentValue : [];
-        const remountKey = `ws-multi-${safeName}-${safeValue.length}`;
-
+      case "data-input-multiple":
         return (
-          <div data-test="data-input-multiple" key={remountKey}>
-
+          <>
             <WsSelectMultiple
-
-              rootDir={undefined}         
-              acceptFolder={true}          
-              acceptedExtensions={["csv"]}      
-              matchRegex={null}   
-
-              whenEmpty={
-                <Message
-                  severity="warn"
-                  text="No data file found in the workspace"
-                  style={{ marginTop: 8 }}
-                />
-              }
-
-              selectedPaths={safeValue}
-              placeholder={safeName}
-              disabled={!!disabled}
-
-              onChange={(vals) => {
-                const value = Array.isArray(vals) ? vals : [];
-                if (typeof handleWarning === "function") {
-                  handleWarning(
-                    value.length === 0
-                      ? { state: true, tooltip: <p>No file(s) selected</p> }
-                      : { state: false }
-                  );
+              key={name}
+              rootDir={["learning", "holdout"]}
+              placeholder={name}
+              disabled={disabled}
+              selectedPaths={currentValue}
+              acceptedExtensions={["csv"]}
+              matchRegex={new RegExp("T[0-9]*_(w+)?")}
+              acceptFolder={settingInfos.acceptFolder ? settingInfos.acceptFolder : false}
+              onChange={(value) => {
+                if (value.length === 0) {
+                  setHasWarning({ state: true, tooltip: <p>No file(s) selected</p> })
+                } else {
+                  setHasWarning({ state: false })
                 }
-                setInputUpdate({ name: safeName, value, type: settingInfos.type });
+                setInputUpdate({
+                  name: name,
+                  value: value,
+                  type: settingInfos.type
+                })
               }}
-
-              setHasWarning={(w) => {
-                if (typeof handleWarning === "function") handleWarning(w);
-              }}
-
+              setHasWarning={setHasWarning}
+              whenEmpty={<Message severity="warn" text="No file(s) found in the workspace under '/learning' folder containing 'TX_' prefix (X is a number)" />}
               customProps={customProps}
             />
-
-            {typeof createTooltip === "function" && createTooltip(settingInfos.tooltip, safeName)}
-          </div>
-        );
-      }
-
+            {createTooltip(settingInfos.tooltip, name)}
+          </>
+        )
       case "tags-input-multiple":
         return (
           <>

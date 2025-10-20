@@ -9,6 +9,7 @@ import { getCollectionColumns } from "../../mongoDB/mongoDBUtils"
 import Input from "../input"
 import ModalSettingsChooser from "../modalSettingsChooser"
 import { OverlayPanel } from 'primereact/overlaypanel'
+import { toast } from 'react-toastify'
 
 /**
  *
@@ -36,6 +37,14 @@ const DatasetNode = ({ id, data }) => {
     }
     data.internal.hasWarning = (data.internal.settings.target && Object.keys(data.internal.settings.files).length > 0) ? 
       {state : false} : { state: true, tooltip: <p>Some default fields are missing</p> }
+    const checkedOptions = data.internal.checkedOptions
+    checkedOptions.forEach((optionName) => {
+      if (data.setupParam.possibleSettings.options[optionName].type == "list-multiple-columns") {
+        if (!Object.keys(data.setupParam.possibleSettings.options[optionName]).includes("choices")) {
+          data.setupParam.possibleSettings.options[optionName].choices = data.internal.settings.columns || []
+        }
+      }
+    })
   }, [])
 
   // update the node internal data when the selection changes
@@ -46,6 +55,20 @@ const DatasetNode = ({ id, data }) => {
       updatedData: data.internal
     })
   }, [selection])
+
+  // Update checked options settings with new columns if needed
+  useEffect(() => {
+    // sleep 5 seconds
+    const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+    sleep(5000).then(() => {
+      const checkedOptions = data.internal.checkedOptions
+      checkedOptions.forEach((optionName) => {
+        if (data.setupParam.possibleSettings.options[optionName].type == "list-multiple-columns") {
+          data.setupParam.possibleSettings.options[optionName].choices = data.internal.settings.columns || []
+        }
+      })
+    })
+  }, [data.internal.settings.columns, data.internal.checkedOptions])
 
   // update the node when the selection changes
   const onSelectionChange = (e) => {
@@ -66,6 +89,20 @@ const DatasetNode = ({ id, data }) => {
    * Custom to this node, it also updates the global data when the files input changes.
    */
   const onInputChange = (inputUpdate) => {
+    if (inputUpdate.name === "categorical_features" || inputUpdate.name === "numeric_features") {
+      if ((inputUpdate.name === "categorical_features" && data.internal.settings.numeric_features && data.internal.settings.numeric_features.length > 0) ||
+        (inputUpdate.name === "numeric_features" && data.internal.settings.categorical_features && data.internal.settings.categorical_features.length > 0)
+      ){
+        let categoricalFeatures = data.internal.settings.categorical_features || []
+        let numericFeatures = data.internal.settings.numeric_features || []
+        let allFeatures = [...categoricalFeatures, ...numericFeatures, ...inputUpdate.value]
+        const duplicateFeatures = allFeatures.filter((item, index) => allFeatures.indexOf(item) !== index)
+        if (duplicateFeatures.length > 0) {
+          toast.error("The feature(s): " + duplicateFeatures.join(", ") + " cannot be both categorical and numeric.")
+          return
+        }
+      }
+    }
     data.internal.settings[inputUpdate.name] = inputUpdate.value
     updateNode({
       id: id,
@@ -116,7 +153,7 @@ const DatasetNode = ({ id, data }) => {
           files  : inputUpdate.value,  
           columns: columnsObject    
         }
-      };
+      }
     } else {
       delete data.internal.settings.target
       delete data.internal.settings.columns
@@ -219,7 +256,7 @@ const DatasetNode = ({ id, data }) => {
     }
   }
 
-  const op = useRef(null);
+  const op = useRef(null)
 
   return (
     <>

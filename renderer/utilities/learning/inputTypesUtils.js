@@ -50,6 +50,13 @@ const implementedTypesDescription = [
     }
   },
   {
+    type: "list-multiple-columns",
+    description: "for list input (form select of all the options, multiple selection possible)",
+    default: () => {
+      return []
+    }
+  },
+  {
     type: "range",
     description: "for range input",
     default: (min, max) => {
