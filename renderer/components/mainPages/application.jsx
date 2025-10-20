@@ -297,8 +297,15 @@ const ApplicationPage = ({ pageId }) => {
       let columnsArray = await getCollectionColumns(chosenDataset.id)
       setLoader(false)
 
-      //   getting colummns of the model
-      let modelColumns = modelMetadata.columns
+      // getting colummns of the model
+      let modelColumns = modelMetadata.columns.sort()
+      columnsArray = columnsArray.sort()
+      let missingCols = []
+      modelColumns.forEach((col) => {
+        if (!columnsArray.includes(col)) {
+          missingCols.push(col)
+        }
+      })
       checkWarnings(columnsArray, modelColumns)
     }
   }
