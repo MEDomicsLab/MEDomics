@@ -14,6 +14,7 @@ const { getBundledPythonEnvironment } = pythonEnv
 import jupyterServer from "./utils/jupyterServer.js"
 const { startJupyterServer, stopJupyterServer, checkJupyterIsRunning } = jupyterServer
 import serverInstallation  from "./utils/serverInstallation.js"
+import { findAvailablePort } from "./utils/server.js"
 const { checkRequirements } = serverInstallation
 
 const expressApp = express()
@@ -26,12 +27,18 @@ expressApp.use(function(req, res, next) {
 	next()
 })
 
-const EXPRESS_PORT = 3000
+const EXPRESS_PORT_START = 3000
+const EXPRESS_PORT_END = 8000
 
 export function startExpressServer() {
-	expressApp.listen(EXPRESS_PORT, () => {
-		console.log(`Express server listening on port ${EXPRESS_PORT}`)
+	const expressPort = findAvailablePort(EXPRESS_PORT_START, EXPRESS_PORT_END)
+	expressApp.listen(expressPort, () => {
+		console.log(`Express server listening on port ${expressPort}`)
 	})
+	// Notify the Electron main process about the port
+	if (process.send) {
+	process.send({ type: "EXPRESS_PORT", expressPort })
+	}
 }
 
 function normalizePathForPlatform(p) {

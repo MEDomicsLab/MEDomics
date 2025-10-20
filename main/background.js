@@ -106,6 +106,13 @@ console.log = function () {
   }
 }
 
+// **** BACKEND EXPRESS SERVER **** //
+let expressPort = null
+
+ipcMain.handle("get-express-port", async () => {
+  return expressPort
+})
+
 function getBackendServerExecutable() {
   const platform = process.platform
   if (app.isPackaged) {
@@ -122,13 +129,23 @@ function getBackendServerExecutable() {
 function startBackendServer() {
   let serverProcess
   const execPath = getBackendServerExecutable()
-  if (Array.isArray(execPath)) {
+  const isDev = Array.isArray(execPath)
+
+  if (isDev) {
     // Development: run node script
     serverProcess = spawn(execPath[0], [execPath[1]], { stdio: "ignore", detached: true })
   } else {
     // Packaged: run native binary
     serverProcess = spawn(execPath, [], { stdio: "ignore", detached: true })
   }
+
+  serverProcess.on("message", (message) => {
+    if (message.type === "EXPRESS_PORT") {
+      console.log(`Local Express server started on port: ${message.port}`)
+      expressPort = message.port
+    }
+  })
+
   serverProcess.unref()
   return serverProcess
 }
@@ -363,7 +380,7 @@ if (isProd) {
   ]
 
   // Start backend server
-  
+  startBackendServer()
   console.log("running mode:", isProd ? "production" : "development")
   console.log("process.resourcesPath: ", process.resourcesPath)
   console.log(MEDconfig.runServerAutomatically ? "Server will start automatically here (in background of the application)" : "Server must be started manually")
