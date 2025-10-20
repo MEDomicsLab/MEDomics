@@ -365,7 +365,13 @@ const Workflow = forwardRef(({ setWorkflowType, workflowType, isExperiment }, re
     } else {
       // Remove warnings if no duplicates are found
       nodes.forEach((node) => {
-        if (node.data.internal.hasWarning && node.data.internal.hasWarning.state && node.data.internal.hasWarning.tooltip && node.data.internal.hasWarning.tooltip.props && node.data.internal.hasWarning.tooltip.props.children.startsWith("This node shares the same ID")) {
+        if (node.data.internal.hasWarning && 
+            node.data.internal.hasWarning.state && 
+            node.data.internal.hasWarning.tooltip && 
+            node.data.internal.hasWarning.tooltip.props && 
+            node.data.internal.hasWarning.tooltip.props.children && 
+            node.data.internal.hasWarning.tooltip.props.children.startsWith("This node shares the same ID")
+        ) {
           node.data.internal.hasWarning = { state: false }
           setNodes((nds) =>
             nds.map((n) => {
