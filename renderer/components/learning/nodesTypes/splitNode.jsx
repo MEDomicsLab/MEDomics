@@ -14,12 +14,6 @@ const SplitNode = ({ id, data }) => {
   const [useUserDefinedSettings, setUseUserDefinedSettings] = useState(false)
   const [useTags, setUseTags] = useState(false)
 
-  // Update available options when split type changes
-  useEffect(() => {
-    // Ensure we start unblocked
-     handleWarning({ state: false })
-  }, [data.internal.settings])
-
   const handleStratificationWarning = () => {
   const sc = data.internal.settings.global?.stratify_columns
   const hasStratCols = Array.isArray(sc)
@@ -137,7 +131,7 @@ const SplitNode = ({ id, data }) => {
             columnsTags: data.internal.settings.columnsTags || [],
             rowsTagsMapped: data.internal.settings.rowsTagsMapped || {},
             rowsTags: data.internal.settings.rowsTags || [],
-            stratify_columns: columnsArray.length > 0 ? columnsArray[columnsArray.length - 1] :"",
+            stratify_columns: "",
           },
         },
       },
@@ -216,13 +210,13 @@ const SplitNode = ({ id, data }) => {
       }
       // Only update if something changed
       if (JSON.stringify(data.internal.settings.columnsTagsMapped) !== JSON.stringify(newSettings.columnsTagsMapped)) {
-        newSettings.global.columnsTags = newSettings.columnsTags
-        newSettings.global.columnsTagsMapped = newSettings.columnsTagsMapped
+        newSettings.columnsTags = newSettings.columnsTags
+        newSettings.columnsTagsMapped = newSettings.columnsTagsMapped
         hasChanged = true
       }
       if (JSON.stringify(data.internal.settings.rowsTagsMapped) !== JSON.stringify(newSettings.rowsTagsMapped)) {
-        newSettings.global.rowsTags = newSettings.rowsTags
-        newSettings.global.rowsTagsMapped = newSettings.rowsTagsMapped
+        newSettings.rowsTags = newSettings.rowsTags
+        newSettings.rowsTagsMapped = newSettings.rowsTagsMapped
         hasChanged = true
       }
       if (hasChanged) {
