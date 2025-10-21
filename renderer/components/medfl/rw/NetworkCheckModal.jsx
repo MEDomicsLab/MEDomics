@@ -20,9 +20,13 @@ import { FaUsersLine } from "react-icons/fa6"
 import DatasetInfo from "./Datasetinfo"
 import { FiRefreshCw } from "react-icons/fi"
 import ConnectedWSAgents from "./ConnectedWSAgents"
+import DatasetOverview from "./DatasetsOverview"
+import { useMEDflContext } from "../../workspace/medflContext"
 
 export default function NetworkCheckModal({ show, onHide, setNetworkChecked }) {
   const { port } = useContext(WorkspaceContext)
+
+
   const { config, pageId, configPath } = useContext(PageInfosContext)
 
   const [waitingForServer, setWaitingForServer] = React.useState(false)
@@ -50,71 +54,6 @@ export default function NetworkCheckModal({ show, onHide, setNetworkChecked }) {
     if (osLower.includes("linux")) return <FaLinux />
     return <FaLaptop className="text-secondary" />
   }
-
-  // useEffect(() => {
-  //   ipcRenderer.on("log", (event, data) => {
-  //     if (data.includes("Server started with PID")) {
-  //       const match = data.match(/PID (\d+)/)
-  //       if (match) {
-  //         const pid = parseInt(match[1], 10)
-  //         setServerPageId(pid)
-  //       }
-  //     }
-  //     if (data.includes("Starting Flower server")) {
-  //       setWaitingForClients(true)
-  //       setServerRunning(true)
-  //       setFinished(false)
-  //       setWaitingForServer(false)
-  //     }
-  //     if (data.includes("Finished running script") && data.includes("runServer.py")) {
-  //       setWaitingForClients(false)
-  //       setFinished(true)
-  //     }
-
-  //     if (data.includes("Client connected - CID:")) {
-  //       console.log("Client connected:", data)
-  //       const match = data.match(/CID:\s*([a-fA-F0-9]+)/)
-  //       if (!match) return
-  //       const cid = match[1]
-  //       const connected = { id: cid, name: "", os: "unknown", joinedAt: new Date() }
-  //       setConnectedClients((prev) => {
-  //         const exists = prev.some((client) => client.id === cid)
-  //         return exists ? prev : [...prev, connected]
-  //       })
-  //     }
-
-  //     if (data.includes("Properties:")) {
-  //       console.log("Processing Properties entry ▶", data)
-  //       const regex = /📋.*Client\s+([A-Fa-f0-9]+)\s+Properties:\s*(\{.*\})/
-  //       const m = data.match(regex)
-  //       if (!m) {
-  //         console.warn("Properties regex did not match CID:", data)
-  //         return
-  //       }
-  //       const cid = m[1]
-  //       const propsJson = m[2].replace(/'/g, '"')
-  //       let props
-  //       try {
-  //         props = JSON.parse(propsJson)
-  //       } catch (err) {
-  //         console.error("❌ Failed to JSON-parse props:", propsJson, err)
-  //         return
-  //       }
-  //       const entry = { id: cid, ...props }
-  //       const host = props.hostname
-  //       setClientProperties((prev) => {
-  //         const bucket = prev[host] || []
-  //         if (bucket.some((item) => item.id === cid)) {
-  //           console.log(`Client ${cid} @ ${host} already recorded, skipping.`)
-  //           return prev
-  //         }
-  //         const next = { ...prev, [host]: [...bucket, entry] }
-  //         console.log("Updated clientProperties ▶", next)
-  //         return next
-  //       })
-  //     }
-  //   })
-  // }, [])
 
   useEffect(() => {
     !wsAgents && getWSAgents()
@@ -156,45 +95,8 @@ export default function NetworkCheckModal({ show, onHide, setNetworkChecked }) {
     )
   }
 
-  const runServer = () => {
-    setWaitingForServer(true)
-    requestBackend(
-      port,
-      "/medfl/rw/run-server/" + pageId,
-      {
-        strategy_name: "FedAvg",
-        serverAddress: "0.0.0.0:8080",
-        num_rounds: 2,
-        fraction_fit: 1,
-        fraction_evaluate: 1,
-        min_fit_clients: Number(minAvailableClients),
-        min_evaluate_clients: Number(minAvailableClients),
-        min_available_clients: Number(minAvailableClients),
-        port: 8080,
-        use_transfer_learning: false,
-        pretrained_model_path: "",
-        local_epochs: 1,
-        threshold: 0.5,
-        optimizer: "SGD",
-        learning_rate: 0.01,
-        savingPath: null,
-        saveOnRounds: 1,
-        // Optionally include selected agents; your backend can use this
-        selected_agents: Object.keys(selectedAgents).filter((k) => selectedAgents[k])
-      },
-      (json) => {
-        if (json.error) {
-          // toast.error?.("Error: " + json.error)
-          console.error("runServer error:", json.error)
-        } else {
-          console.log(json)
-        }
-      },
-      (err) => {
-        console.error(err)
-      }
-    )
-  }
+
+  
 
   const getDataAgentStats = () => {
     const checkedAgents = wsAgents?.filter((agent) => selectedAgents[agent]) || []
@@ -209,8 +111,10 @@ export default function NetworkCheckModal({ show, onHide, setNetworkChecked }) {
             console.error("getDataAgentStats error:", json.error)
           } else {
             console.log("Agent stats:", json)
-            setDatasetStats({ ...datasetStats, [agent]: json })
-            // Process and display the stats as needed
+            setDatasetStats((prev) => ({
+              ...prev,
+              [agent]: json
+            })) // Process and display the stats as needed
           }
         },
         (err) => {
@@ -245,25 +149,6 @@ export default function NetworkCheckModal({ show, onHide, setNetworkChecked }) {
       )
   }
 
-  const getLogs = () => {
-    requestBackend(
-      port,
-      "/medfl/rw/ws/logs/" + pageId,
-      { id: "DINF-MEDOMI-13J-darwin", lines: 200 },
-      (json) => {
-        if (json.error) {
-          console.error("getLogs error:", json.error)
-        } else {
-          console.log("Server logs:", json)
-          // Handle the logs as needed, e.g., display in a modal
-        }
-      },
-      (err) => {
-        console.error(err)
-      }
-    )
-  }
-
   return (
     <div>
       <Modal show={show} onHide={onHide} size="xl" aria-labelledby="contained-modal-title-vcenter" centered className="modal-settings-chooser">
@@ -272,7 +157,6 @@ export default function NetworkCheckModal({ show, onHide, setNetworkChecked }) {
         </Modal.Header>
 
         <Modal.Body>
-          <button onClick={getLogs}> click me</button>
           {/* Info Box */}
           <div
             style={{
@@ -355,15 +239,16 @@ export default function NetworkCheckModal({ show, onHide, setNetworkChecked }) {
             </>
           )}
 
-          {datasetStats && (
-            <Tab.Container defaultActiveKey={Object.keys(datasetStats)[0]}>
+          {datasetStats && Object.keys(datasetStats).length > 0 && (
+            <Tab.Container defaultActiveKey="__overview__">
               <Nav variant="pills">
+                <Nav.Item>
+                  <Nav.Link eventKey="__overview__">Overview</Nav.Link>
+                </Nav.Item>
                 {Object.keys(datasetStats).map((agent) => (
                   <Nav.Item key={agent}>
                     <Nav.Link eventKey={agent}>
-                      {" "}
                       {renderOsIcon(agent.split("-")[agent.split("-").length - 1])}
-                      {/* <MdComputer size={20} className="text-secondary" /> */}
                       <span style={{ fontFamily: "monospace" }}> {agent}</span>
                     </Nav.Link>
                   </Nav.Item>
@@ -371,6 +256,9 @@ export default function NetworkCheckModal({ show, onHide, setNetworkChecked }) {
               </Nav>
 
               <Tab.Content>
+                <Tab.Pane eventKey="__overview__">
+                  <DatasetOverview datasetStats={datasetStats} />
+                </Tab.Pane>
                 {Object.entries(datasetStats).map(([agent, data]) => (
                   <Tab.Pane eventKey={agent} key={agent}>
                     <DatasetInfo data={data} agent={agent} />

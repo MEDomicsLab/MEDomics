@@ -13,7 +13,7 @@ const nodesParams = {
   // },
   model: {
     type: "flModelNode",
-    classes: "object model",
+    classes: "object model startNode",
     nbInput: 0,
     nbOutput: 1,
     input: ["dataset"],
@@ -23,16 +23,16 @@ const nodesParams = {
     section: "initialization",
     possibleSettings: {}
   },
-  network: {
+  fl_network: {
     type: "groupNode",
     classes: "object",
     nbInput: 1,
     nbOutput: 1,
     input: ["model"],
-    output: ["network"],
+    output: ["fl_network"],
     img: "network.png",
-    title: "Network",
-    section: "initialization",
+    section: "network",
+    title: "FL Network",
     possibleSettings: {}
   },
   optimize: {
@@ -70,12 +70,24 @@ const nodesParams = {
   //   title: "FL Strategy",
   //   possibleSettings: {}
   // },
+  ml_strategy: {
+    type: "mlStrategyNode",
+    classes: "object",
+    nbInput: 1,
+    nbOutput: 1,
+    input: ["fl_network"],
+    output: ["ml_strategy"],
+    img: "ml_icon.png",
+    title: "ML Strategy",
+    section: "train",
+    possibleSettings: {}
+  },
   fl_strategy: {
     type: "flRunServerNode",
     classes: "object",
     nbInput: 1,
     nbOutput: 0,
-    input: ["network"],
+    input: ["ml_strategy"],
     output: ["results"],
     img: "strategy.png",
     title: "FL Strategy",

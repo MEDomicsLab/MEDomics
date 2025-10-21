@@ -295,8 +295,8 @@ const FlInput = ({ name, settingInfos, currentValue, onInputChange, disabled, se
         return (
           <div className="w-100  ">
             <MultiSelect
-              maxSelectedLabels={2}
               optionLabel="name"
+              placeholder={name}
               display="chip"
               disabled={disabled}
               value={currentValue ? currentValue : []}

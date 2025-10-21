@@ -295,75 +295,75 @@ const Input = ({ name, settingInfos, currentValue, onInputChange, disabled = fal
         )
       // for list input (form select of all the options, multiple selection possible)
       case "list-multiple":
-      const safeValue = Array.isArray(currentValue) ? currentValue : (currentValue ? [currentValue] : []);
+        const safeValue = Array.isArray(currentValue) ? currentValue : currentValue ? [currentValue] : []
 
-      return (
-        <>
-          <label htmlFor={name} className="block mb-2 text-sm font-medium text-gray-700">
-            {settingInfos.label || name}
-          </label>
+        return (
+          <>
+            <label htmlFor={name} className="block mb-2 text-sm font-medium text-gray-700">
+              {settingInfos.label || name}
+            </label>
 
-          <MultiSelect
-            key={name}
-            id={name}
-            disabled={disabled}
-            value={safeValue}
-            filter
-            onChange={(e) => {
-              setInputUpdate({
-                name,
-                value: e.value,
-                type: settingInfos.type,
-              });
-            }}
-            options={Object.entries(settingInfos?.choices || {}).map(([option, label]) => ({
-              label,
-              value: option,
-            }))}
-            optionLabel="label"
-            display="chip"
-            className="w-full md:w-20rem"
-          />
+            <MultiSelect
+              key={name}
+              id={name}
+              disabled={disabled}
+              value={safeValue}
+              filter
+              onChange={(e) => {
+                setInputUpdate({
+                  name,
+                  value: e.value,
+                  type: settingInfos.type
+                })
+              }}
+              options={Object.entries(settingInfos?.choices || {}).map(([option, label]) => ({
+                label,
+                value: option
+              }))}
+              optionLabel="label"
+              display="chip"
+              className="w-full md:w-20rem"
+            />
 
-          {createTooltip(settingInfos.tooltip, name)}
-        </>
-      );
+            {createTooltip(settingInfos.tooltip, name)}
+          </>
+        )
 
       // for list input but with name not indexes (form select of all the options, multiple selection possible)
       case "list-multiple-name":
-      const safeValue1 = Array.isArray(currentValue) ? currentValue : (currentValue ? [currentValue] : []);
+        const safeValue1 = Array.isArray(currentValue) ? currentValue : currentValue ? [currentValue] : []
 
-      return (
-        <>
-          <label htmlFor={name} className="block mb-2 text-sm font-medium text-gray-700">
-            {settingInfos.label || name}
-          </label>
+        return (
+          <>
+            <label htmlFor={name} className="block mb-2 text-sm font-medium text-gray-700">
+              {settingInfos.label || name}
+            </label>
 
-          <MultiSelect
-            key={name}
-            id={name}
-            disabled={disabled}
-            value={safeValue1}
-            filter
-            onChange={(e) => {
-              setInputUpdate({
-                name,
-                value: e.value,
-                type: settingInfos.type,
-              });
-            }}
-            options={Object.entries(settingInfos?.choices || {}).map(([option, label]) => ({
-              name: label,
-              value: label,
-            }))}
-            optionLabel="name"
-            display="chip"
-            className="w-full md:w-20rem"
-          />
+            <MultiSelect
+              key={name}
+              id={name}
+              disabled={disabled}
+              value={safeValue1}
+              filter
+              onChange={(e) => {
+                setInputUpdate({
+                  name,
+                  value: e.value,
+                  type: settingInfos.type
+                })
+              }}
+              options={Object.entries(settingInfos?.choices || {}).map(([option, label]) => ({
+                name: label,
+                value: label
+              }))}
+              optionLabel="name"
+              display="chip"
+              className="w-full md:w-20rem"
+            />
 
-          {createTooltip(settingInfos.tooltip, name)}
-        </>
-      );
+            {createTooltip(settingInfos.tooltip, name)}
+          </>
+        )
 
       // for range input
       case "range":
@@ -591,29 +591,29 @@ const Input = ({ name, settingInfos, currentValue, onInputChange, disabled = fal
           </>
         )
 
-        case "float-bool":
-          return (
-            <>
-              <FloatingLabel controlId={name} label={name} className=" input-hov">
-                <Form.Control
-                  disabled={settingInfos.disabled || disabled || settingInfos.forceBootstrap632}
-                  type="number"
-                  step={settingInfos.step || "0.05"}
-                  min={settingInfos.min}
-                  max={settingInfos.max}
-                  value={settingInfos.forceBootstrap632 ? 0.632 : currentValue}
-                  onChange={(e) =>
-                    setInputUpdate({
-                      name: name,
-                      value: parseFloat(e.target.value),
-                      type: "float"
-                    })
-                  }
-                />
-              </FloatingLabel>
-              {createTooltip(settingInfos.tooltip, name)}
-            </>
-          )
+      case "float-bool":
+        return (
+          <>
+            <FloatingLabel controlId={name} label={name} className=" input-hov">
+              <Form.Control
+                disabled={settingInfos.disabled || disabled || settingInfos.forceBootstrap632}
+                type="number"
+                step={settingInfos.step || "0.05"}
+                min={settingInfos.min}
+                max={settingInfos.max}
+                value={settingInfos.forceBootstrap632 ? 0.632 : currentValue}
+                onChange={(e) =>
+                  setInputUpdate({
+                    name: name,
+                    value: parseFloat(e.target.value),
+                    type: "float"
+                  })
+                }
+              />
+            </FloatingLabel>
+            {createTooltip(settingInfos.tooltip, name)}
+          </>
+        )
 
       // for all the other types of input (basically a string input for now)
       default:

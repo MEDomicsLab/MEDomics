@@ -20,6 +20,8 @@ export const MEDflContextProvider = ({ children }) => {
 
   const [flPipelineConfigs, setFlresultsConfigs] = useState([])
 
+  const [columnsIntersectionFromNetworkCheck, setColumnsIntersectionFromNetworkCheck] = useState([])
+
   /**
    * @function addFlData
    * @description Adds new data to the global data array.
@@ -38,7 +40,15 @@ export const MEDflContextProvider = ({ children }) => {
     setFlresultsConfigs(newData)
   }
 
-  return <MEDflContext.Provider value={{ medflData, addFlData, flPipelineConfigs, updatePipelineConfigs }}>{children}</MEDflContext.Provider>
+  const updateColumnsIntersectionFromNetworkCheck = (newData) => {
+    setColumnsIntersectionFromNetworkCheck(newData)
+  }
+
+  return (
+    <MEDflContext.Provider value={{ medflData, addFlData, flPipelineConfigs, updatePipelineConfigs, columnsIntersectionFromNetworkCheck, updateColumnsIntersectionFromNetworkCheck }}>
+      {children}
+    </MEDflContext.Provider>
+  )
 }
 
 /**

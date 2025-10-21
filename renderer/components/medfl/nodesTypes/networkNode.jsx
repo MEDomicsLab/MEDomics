@@ -21,7 +21,7 @@ export default function NetworkNode({ id, data }) {
         data={data}
         onClickCustom={() => {
           changeSubFlow(id)
-        }}
+        }} 
       />
     </>
   )

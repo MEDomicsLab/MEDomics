@@ -2,6 +2,7 @@ import { Card } from "primereact/card"
 import nodesParams from "../../public/setupVariables/allNodesParams"
 import { Stack } from "react-bootstrap"
 import { useMemo } from "react"
+import SideBarClients from "../medfl/rw/SideBarClients"
 
 /**
  *
@@ -23,9 +24,7 @@ const onDragStart = (event, node) => {
 
 const SectionContainer = ({ title, children }) => (
   <div className="mb-3">
-    <h6 className="section-header bg-light p-2 border-bottom">
-      {title}
-    </h6>
+    <h6 className="section-header bg-light p-2 border-bottom">{title}</h6>
     <Stack direction="vertical" gap={1}>
       {children}
     </Stack>
@@ -33,39 +32,36 @@ const SectionContainer = ({ title, children }) => (
 )
 
 const SidebarAvailableNodes = ({ title, sidebarType, experimenting }) => {
-  const { initializationNodes, trainingNodes, otherNodes } = useMemo(() => {
+  const { initializationNodes, trainingNodes, networkNodes, otherNodes } = useMemo(() => {
     const originalNodes = nodesParams[sidebarType] || {}
     const filteredNodes = experimenting
-      ? Object.fromEntries(
-          Object.entries(originalNodes).filter(([, node]) => 
-            node?.experimenting === true
-          )
-        )
-      : Object.fromEntries(
-          Object.entries(originalNodes).filter(([, node]) => 
-            node?.experimenting === false || node?.section !== 'training' && node?.section !== 'analysis'
-          )
-        )
+      ? Object.fromEntries(Object.entries(originalNodes).filter(([, node]) => node?.experimenting === true))
+      : Object.fromEntries(Object.entries(originalNodes).filter(([, node]) => node?.experimenting === false || (node?.section !== "training" && node?.section !== "analysis")))
     // Categorize nodes when not in experimenting mode
     if (!experimenting) {
-      return Object.entries(filteredNodes).reduce((acc, [nodeName, node]) => {
-        const section = node?.section?.toLowerCase() || 'other'
-        if (section.includes('init')) acc.initializationNodes[nodeName] = node
-        else if (section.includes('train')) acc.trainingNodes[nodeName] = node
-        else acc.otherNodes[nodeName] = node
-        return acc
-      }, { 
-        initializationNodes: {}, 
-        trainingNodes: {}, 
-        otherNodes: {} 
-      })
+      return Object.entries(filteredNodes).reduce(
+        (acc, [nodeName, node]) => {
+          const section = node?.section?.toLowerCase() || "other"
+          if (section.includes("init")) acc.initializationNodes[nodeName] = node
+          else if (section.includes("train")) acc.trainingNodes[nodeName] = node
+          else if (section.includes("network")) acc.networkNodes[nodeName] = node
+          else acc.otherNodes[nodeName] = node
+          return acc
+        },
+        {
+          initializationNodes: {},
+          trainingNodes: {},
+          networkNodes: {},
+          otherNodes: {}
+        }
+      )
     }
 
     // Return all nodes in one group when not experimenting
-    return { 
-      initializationNodes: {}, 
-      trainingNodes: {}, 
-      otherNodes: filteredNodes 
+    return {
+      initializationNodes: {},
+      trainingNodes: {},
+      otherNodes: filteredNodes
     }
   }, [sidebarType, experimenting])
 
@@ -91,11 +87,7 @@ const SidebarAvailableNodes = ({ title, sidebarType, experimenting }) => {
         header={
           <>
             {node.title}
-            <img 
-              src={`/icon/${sidebarType}/${node.img}`} 
-              alt={node.title} 
-              className="icon-nodes" 
-            />
+            <img src={`/icon/${sidebarType}/${node.img}`} alt={node.title} className="icon-nodes" />
           </>
         }
       />
@@ -114,38 +106,21 @@ const SidebarAvailableNodes = ({ title, sidebarType, experimenting }) => {
         {!experimenting ? (
           <>
             {Object.keys(initializationNodes).length > 0 && (
-              <SectionContainer title="Initialization Nodes">
-                {Object.entries(initializationNodes).map(([nodeName, node]) => 
-                  renderNode(nodeName, node)
-                )}
-              </SectionContainer>
+              <SectionContainer title="Initialization Nodes">{Object.entries(initializationNodes).map(([nodeName, node]) => renderNode(nodeName, node))}</SectionContainer>
             )}
+            {Object.keys(networkNodes).length > 0 && <SectionContainer title="Network Nodes">{Object.entries(networkNodes).map(([nodeName, node]) => renderNode(nodeName, node))}</SectionContainer>}
 
-            {Object.keys(trainingNodes).length > 0 && (
-              <SectionContainer title="Training Nodes">
-                {Object.entries(trainingNodes).map(([nodeName, node]) => 
-                  renderNode(nodeName, node)
-                )}
-              </SectionContainer>
-            )}
+            {Object.keys(trainingNodes).length > 0 && <SectionContainer title="Training Nodes">{Object.entries(trainingNodes).map(([nodeName, node]) => renderNode(nodeName, node))}</SectionContainer>}
 
-
-            {Object.keys(otherNodes).length > 0 && (
-              <SectionContainer title="Other Nodes">
-                {Object.entries(otherNodes).map(([nodeName, node]) => 
-                  renderNode(nodeName, node)
-                )}
-              </SectionContainer>
-            )}
+            {Object.keys(otherNodes).length > 0 && <SectionContainer title="Other Nodes">{Object.entries(otherNodes).map(([nodeName, node]) => renderNode(nodeName, node))}</SectionContainer>}
           </>
         ) : (
           <Stack direction="vertical" gap={1}>
-            {Object.entries(otherNodes).map(([nodeName, node]) => 
-              renderNode(nodeName, node)
-            )}
+            {Object.entries(otherNodes).map(([nodeName, node]) => renderNode(nodeName, node))}
           </Stack>
         )}
       </Card>
+      <div>{sidebarType == "rwfl" && <SideBarClients />}</div>
     </div>
   )
 }

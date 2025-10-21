@@ -28,7 +28,7 @@ var wsBase = "/" + prePath + "/rw/ws"
 
 // Tailscale config (as provided)
 var (
-	apiKey  = "tskey-api-kC3ZfJiUj611CNTRL-fLy7HQTUmoKH3K1io8GRoKwaiKWutqJ4"
+	apiKey  = "tskey-api-kWfnEVGAk321CNTRL-4g9yhN4QaFEAM3A7sU3FFEgx7VCeuUzWH"
 	tailnet = "taild030b7.ts.net"
 )
 
@@ -251,8 +251,6 @@ func handleWsRun(jsonConfig string, id string) (string, error) {
 	return `{"status":"sent","agent":"` + id + `"}`, nil
 }
 
-
-
 // NEW: Request dataset stats from an agent
 func handleWsStats(jsonConfig string, id string) (string, error) {
 	agent := ""
@@ -291,7 +289,6 @@ func handleWsStats(jsonConfig string, id string) (string, error) {
 		return "", fmt.Errorf("timeout waiting for stats from agent %q", agent)
 	}
 }
-
 
 // --------------------------------------------------------
 // Existing MEDfl handlers

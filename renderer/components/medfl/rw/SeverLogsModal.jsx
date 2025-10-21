@@ -32,8 +32,10 @@ import ConnectedWSAgents from "./ConnectedWSAgents"
 import { FcLinux } from "react-icons/fc"
 import ClientLogs from "./ClientLogs"
 import { MEDDataObject } from "../../workspace/NewMedDataObject"
+import { Message } from "primereact/message"
+import { start } from "repl"
 
-const ServerLogosModal = ({ show, onHide, nodes, onSaveScean, setRunServer }) => {
+const ServerLogosModal = ({ show, onHide, nodes, onSaveScean, setRunServer, configs }) => {
   const { port } = useContext(WorkspaceContext)
   const { config, pageId, configPath } = useContext(PageInfosContext)
 
@@ -60,7 +62,7 @@ const ServerLogosModal = ({ show, onHide, nodes, onSaveScean, setRunServer }) =>
   const [finishedruning, setFinished] = useState(false)
   const [clientTrainMetrics, setClientTrainMetrics] = useState([])
   const [clientEvalMetrics, setClientEvalMetrics] = useState([])
-  const [waitingForServer, setWaitingForServer] = useState(false)
+  const [waitingForServer, setWaitingForServer] = useState([])
   const [clientProperties, setClientProperties] = useState({})
   const [isListening, setIsListening] = useState(false)
 
@@ -74,6 +76,9 @@ const ServerLogosModal = ({ show, onHide, nodes, onSaveScean, setRunServer }) =>
   const [minEvaluateClients, setMinEvaluateClients] = useState(strategyConfigs[0]?.data.internal.settings.minEvaluateClients || 3)
   const [minAvailableClients, setMinAvailableClients] = useState(strategyConfigs[0]?.data.internal.settings.minAvailableClients || 3)
 
+  const [currentExecConfig, setCurrentExecConfig] = useState(0)
+  const [startRunningConfig, setStartRunningConfig] = useState(false)
+
   // for saving the results
   const [fileName, setFileName] = useState("")
   const [isFileName, showFileName] = useState(false)
@@ -82,13 +87,112 @@ const ServerLogosModal = ({ show, onHide, nodes, onSaveScean, setRunServer }) =>
   const [savingPath, setSavingPath] = useState("")
 
   const [wsAgents, setWSAgents] = React.useState(null) // e.g., ["DESKTOP-ENI5U7G-windows"]
-  const [selectedAgents, setSelectedAgents] = React.useState({}) // { "DESKTOP-...": true }
+  const [selectedAgents, setSelectedAgents] = React.useState([]) // { "DESKTOP-...": true }
   const [datasetStats, setDatasetStats] = React.useState({})
 
   const [canRun, setCanRun] = React.useState(false)
 
   // context
   const { globalData } = useContext(DataContext)
+
+  const [experimentConfig, setConfig] = useState(null)
+
+  const getConfigInfos = () => {
+    console.log("this is the nodes", configs)
+    let fullConfig = []
+    configs.map((config, index) => {
+      fullConfig[index] = {}
+      Object.keys(config).map((key) => {
+        let nodeId = config[key].id
+        let [nodeData, nodeType] = getNodeById(nodeId)
+
+        fullConfig[index][nodeType == "groupNode" ? "Network" : nodeType] = nodeData
+      })
+    })
+
+    setConfig(fullConfig)
+    console.log(fullConfig)
+  }
+
+  useEffect(() => {
+    setConfig(null)
+  }, [show])
+
+  const getNodeById = (id) => {
+    let n
+    let nodeType
+
+    nodes.forEach((node) => {
+      if (node.id == id) {
+        switch (node.type) {
+          case "groupNode":
+            n = {
+              name: node.data.internal.name,
+              clients: []
+            }
+            nodes.forEach((client) => {
+              if (client.data.internal.subflowId == node.id) {
+                if (client.type == "flClientNode") {
+                  n.clients = [
+                    ...n.clients,
+                    {
+                      name: client.data.internal.name,
+                      type: client.data.internal.settings.nodeType,
+                      dataset: client.data.internal.settings.Node_Dataset
+                    }
+                  ]
+                } else {
+                  n.server = {
+                    name: client.data.internal.name,
+                    nRounds: client.data.internal.settings.nRounds,
+                    activateDP: client.data.internal.settings.diffPrivacy
+                  }
+                  if (client.data.internal.settings.diffPrivacy == "Activate") {
+                    n.server = {
+                      ...n.server,
+                      delta: client.data.internal.settings.delta,
+                      alpha: client.data.internal.settings.alpha
+                    }
+                  } else {
+                    n.server.delta && delete n.server.delta
+                    n.server.alpha && delete n.server.alpha
+                  }
+                }
+              }
+            })
+
+            break
+
+          case "flModelNode":
+            if (node.data.internal.settings.activateTl == "false") {
+              delete node.data.internal.settings.file
+            } else {
+              delete node.data.internal.settings["Model type"]
+              delete node.data.internal.settings["Hidden size"]
+              delete node.data.internal.settings["Number of layers"]
+            }
+            n = node.data.internal.settings
+
+            break
+          case "flStrategyNode":
+            n = node.data.internal.settings
+            break
+
+          default:
+            n = node.data.internal.settings
+
+            break
+        }
+        nodeType = node.type
+      }
+    })
+
+    return [n, nodeType]
+  }
+
+  useEffect(() => {
+    if (!experimentConfig) getConfigInfos()
+  }, [experimentConfig, configs])
 
   const renderOsIcon = (os) => {
     const osName = os?.toLowerCase()
@@ -200,6 +304,13 @@ const ServerLogosModal = ({ show, onHide, nodes, onSaveScean, setRunServer }) =>
           setWaitingForClients(false)
           setFinished(true)
           setIsListening(false)
+
+          if (experimentConfig.length == currentExecConfig) {
+            setStartRunningConfig(false)
+            setCurrentExecConfig(0)
+          } else {
+            setCurrentExecConfig((prev) => prev + 1)
+          }
         }
 
         if (data.includes("Client connected - CID:")) {
@@ -565,32 +676,87 @@ const ServerLogosModal = ({ show, onHide, nodes, onSaveScean, setRunServer }) =>
         })
       })
     }, Promise.resolve())
-    // setTimeout(() => {
-    //   selectedClients.map((client) => {
-    //     requestBackend(
-    //       port,
-    //       "/medfl/rw/ws/run/" + pageId,
-    //       {
-    //         id: client,
-    //         ServerAddr: "100.65.215.27:8080",
-    //         DP: "none"
-    //       },
-    //       (json) => {
-    //         if (json.error) {
-    //           toast.error("Error: " + json.error)
-    //         } else {
-    //           console.log("Client connected:", json)
-    //           toast.success("Client " + client + " connected successfully")
-    //         }
-    //       },
-    //       (err) => {
-    //         console.error(err)
-    //         // toast.error("Fetch failed")
-    //         // setLoading(false)
-    //       }
-    //     )
-    //   })
-    // }, 4000)
+  }
+
+  useEffect(() => {
+    if (startRunningConfig && currentExecConfig < experimentConfig?.length) {
+      runServerWithMultipleConfigs(experimentConfig[currentExecConfig], currentExecConfig)
+    }
+  }, [startRunningConfig, currentExecConfig])
+
+  const runServerWithMultipleConfigs = (conf, index) => {
+    setIsListening(true)
+    setWaitingForServer(true)
+    console.log("experimentConfig", experimentConfig)
+    console.log("selectedAgents", selectedAgents)
+
+    console.log("Ruuning config ", index)
+    requestBackend(
+      port,
+      "/medfl/rw/run-server/" + pageId,
+      {
+        strategy_name: conf.flRunServerNode.strategy,
+        // serverAddress: conf.flRunServerNode.serverAddress,
+        serverAddress: "0.0.0.0:808" + String(index),
+        num_rounds: conf.flRunServerNode.numRounds,
+        fraction_fit: conf.flRunServerNode.fractionFit,
+        fraction_evaluate: conf.flRunServerNode.fractionEvaluate,
+        min_fit_clients: Object.keys(selectedAgents[index]).length,
+        min_evaluate_clients: Object.keys(selectedAgents[index]).length,
+        min_available_clients: Object.keys(selectedAgents[index]).length,
+        port: "808" + String(index),
+        use_transfer_learning: conf.flModelNode.activateTl == "true" ? true : false,
+        pretrained_model_path: conf.flModelNode.file.path || "",
+        local_epochs: conf.flModelNode["Local epochs"] || 1,
+        threshold: conf.flModelNode.Threshold || 0.5,
+        optimizer: conf.flModelNode.optimizer || "SGD",
+        learning_rate: conf.flModelNode["Learning rate"] || 0.01,
+        savingPath: savingPath + "/models",
+        saveOnRounds: conf.flRunServerNode.saveOnRounds || 5
+      },
+      (json) => {
+        if (json.error) {
+          toast.error("Error: " + json.error)
+        } else {
+          MedDataObject.updateWorkspaceDataObject()
+        }
+      },
+      (err) => {
+        console.error(err)
+        // toast.error("Fetch failed")
+        // setLoading(false)
+      }
+    )
+
+    const selectedClients = Object.keys(selectedAgents[index]).filter((key) => selectedAgents[index][key])
+
+    selectedClients.reduce((promise, client) => {
+      return promise.then(() => {
+        return new Promise((resolve) => {
+          requestBackend(
+            port,
+            "/medfl/rw/ws/run/" + pageId,
+            {
+              id: client,
+              ServerAddr: "100.65.215.27:808" + String(index),
+              DP: "none"
+            },
+            (json) => {
+              if (json.error) {
+                toast.error("Error: " + json.error)
+              } else {
+                console.log("Client connected:", json)
+                toast.success("Client " + client + " connected successfully")
+              }
+            },
+            (err) => {
+              console.error(err)
+            }
+          )
+          setTimeout(resolve, 1000)
+        })
+      })
+    }, Promise.resolve())
   }
 
   const stopServer = () => {
@@ -655,11 +821,11 @@ const ServerLogosModal = ({ show, onHide, nodes, onSaveScean, setRunServer }) =>
           if (!Array.isArray(agents)) agents = []
           setWSAgents(agents)
           // Keep selection in sync (preserve known selections, drop removed items)
-          setSelectedAgents((prev) => {
-            const next = {}
-            agents.forEach((a) => (next[a] = !!prev[a]))
-            return next
-          })
+          // setSelectedAgents((prev) => {
+          //   const next = {}
+          //   agents.forEach((a) => (next[a] = !!prev[a]))
+          //   return next
+          // })
           console.log("WS Agents set:", agents)
         }
       },
@@ -690,24 +856,67 @@ const ServerLogosModal = ({ show, onHide, nodes, onSaveScean, setRunServer }) =>
           {!serverRunning ? (
             <>
               {/* <FederatedLearningAnimation  /> */}
-              <FederatedNetworkConfigView
+              {/* <FederatedNetworkConfigView
                 config={{
                   server: { rounds: numRounds, strategy: strategy },
                   model: modelConfigs[0]?.data.internal.settings || {},
                   savingPath: savingPath
                 }}
                 setDevices={setDevices}
-              />
+              /> */}
 
-              <ConnectedWSAgents
-                wsAgents={wsAgents}
-                selectedAgents={selectedAgents}
-                setSelectedAgents={setSelectedAgents}
-                setMinAvailableClients={setMinAvailableClients}
-                getWSAgents={getWSAgents}
-                setCanRun={setCanRun}
-                renderOsIcon={renderOsIcon}
-              ></ConnectedWSAgents>
+              {experimentConfig?.length > 0 ? (
+                <Tabs defaultActiveKey="conf0" id="uncontrolled-tab-example" className="mb-3">
+                  {experimentConfig?.map((config, index) => {
+                    return (
+                      <Tab key={index} eventKey={"conf" + index} title={"Configuration " + (index + 1)}>
+                        {Object.keys(config).map((key) =>
+                          key != "Network" ? (
+                            <div className="card shadow-sm border-0 mb-3">
+                              <div
+                                className="card-header fw-semibold"
+                                style={{
+                                  background: "var(--bs-primary-bg-subtle)",
+                                  color: "var(--bs-emphasis-color)",
+                                  fontSize: 16
+                                }}
+                              >
+                                {key}
+                              </div>
+
+                              <div className="card-body p-3">
+                                <div className="bg-body-tertiary rounded p-2">
+                                  <JsonView data={config[key]} shouldExpandNode={allExpanded} />
+                                </div>
+                              </div>
+                            </div>
+                          ) : (
+                            <ConnectedWSAgents
+                              wsAgents={wsAgents}
+                              selectedAgents={selectedAgents[index] || {}}
+                              setSelectedAgents={(value) =>
+                                setSelectedAgents((prev) => {
+                                  const next = [...prev]
+                                  next[index] = value // replace value at index
+                                  return next
+                                })
+                              }
+                              setMinAvailableClients={setMinAvailableClients}
+                              getWSAgents={getWSAgents}
+                              setCanRun={setCanRun}
+                              renderOsIcon={renderOsIcon}
+                            ></ConnectedWSAgents>
+                          )
+                        )}
+                      </Tab>
+                    )
+                  })}
+                </Tabs>
+              ) : (
+                <div className="text-center fs-3">
+                  <Message severity="info" text="    You have no configurations !! " className="w-100   " />
+                </div>
+              )}
             </>
           ) : (
             <>
@@ -848,7 +1057,23 @@ const ServerLogosModal = ({ show, onHide, nodes, onSaveScean, setRunServer }) =>
               </button>{" "}
             </div>
           ) : (
-            <button className="btn btn-success w-25" onClick={runServer} disabled={waitingForServer}>
+            <button
+              className="btn btn-success w-25"
+              onClick={() => {
+                if (experimentConfig?.length > 0) {
+                  // Check if any configuration has no selected agents
+                  const emptyConfigIndex = experimentConfig.findIndex((_, idx) => !selectedAgents[idx] || Object.keys(selectedAgents[idx]).length === 0)
+                  console.log("Empty config index:", emptyConfigIndex)
+                  if (emptyConfigIndex !== -1) {
+                    toast.error(`Please select at least one agent for configuration ${emptyConfigIndex + 1}`)
+                    return
+                  } else {
+                    // setStartRunningConfig(true)
+                  }
+                }
+              }}
+              disabled={waitingForServer}
+            >
               <span className="me-2"> {waitingForServer ? "waiting for server" : "Run Server"} </span>
               {waitingForServer ? <FaSpinner /> : <FaPlay />}
             </button>

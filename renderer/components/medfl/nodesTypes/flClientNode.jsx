@@ -1,6 +1,6 @@
 import React, { useContext, useEffect, useState } from "react"
 import Node from "../../flow/node"
-import { Button } from "react-bootstrap"
+import { Button, Form } from "react-bootstrap"
 import FlInput from "../flInput"
 import { FlowFunctionsContext } from "../../flow/context/flowFunctionsContext"
 import { DataContext } from "../../workspace/dataContext"
@@ -64,6 +64,17 @@ export default function FlClientNode({ id, data }) {
     })
   }
 
+  const onClientCheck = async (value) => {
+    console.log("onClientCheck", value)
+    data.internal.settings.isParticipating = value
+
+    console.log("data.internal.settings.isParticipating", data.internal.settings.isParticipating)
+    updateNode({
+      id: id,
+      updatedData: data.internal
+    })
+  }
+
   return (
     <>
       {/* build on top of the Node component */}
@@ -77,9 +88,18 @@ export default function FlClientNode({ id, data }) {
         nodeBody={
           <>
             {data.isOnWs && (
-              <div className="text-center" style={{ fontSize: 10 }}>
-                Client is on socket 
-                
+              <div className="mx-auto d-flex gap-2 justify-content-center  " style={{ fontSize: 10 }}>
+                {/* <Form.Check
+                  onClick={(e) => e.stopPropagation()}
+                  type="checkbox"
+                  id={`chk-${data.internal.nameID ?? data.internal.name ?? "node"}`}
+                  checked={!!data.internal.settings.isParticipating}
+                  onChange={(e) => onClientCheck(e.currentTarget.checked)}
+                  
+                  style={{ fontSize: 15 }}
+                />
+                <lable>Select for participation</lable> */}
+                Client is on socket
               </div>
             )}
             {data.internal.settings.Node_Dataset?.path && (

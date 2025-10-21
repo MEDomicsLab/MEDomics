@@ -24,7 +24,7 @@ import Path from "path"
 import nodesParams from "../../public/setupVariables/allNodesParams"
 
 // here are static functions used in the workflow
-import { removeDuplicates, deepCopy } from "../../utilities/staticFunctions"
+import { removeDuplicates, deepCopy, getId } from "../../utilities/staticFunctions"
 import { defaultValueFromType } from "../../utilities/learning/inputTypesUtils.js"
 import { FlowInfosContext } from "../flow/context/flowInfosContext.jsx"
 import StandardNode from "../learning/nodesTypes/standardNode.jsx"
@@ -823,6 +823,22 @@ const MedflWorkflow = ({ setWorkflowType, workflowType }) => {
     [reactFlowInstance, MLType, nodes, edges, intersections]
   )
 
+  const duplicateNode = (id) => {
+    const nodeToDuplicate = nodes.find((node) => node.id === id)
+    if (!nodeToDuplicate) return
+
+    const newNode = {
+      ...deepCopy(nodeToDuplicate),
+      id: getId(),
+      position: {
+        x: nodeToDuplicate.position.x + 40,
+        y: nodeToDuplicate.position.y + 100
+      }
+    }
+
+    setNodes((nds) => [...nds, newNode])
+  }
+
   /**
    * Get the byte size of the json object
    * @param {Object} json json object
@@ -949,6 +965,7 @@ const MedflWorkflow = ({ setWorkflowType, workflowType }) => {
   }, [])
 
   const getConfigs = (tree, i, result = []) => {
+    console.log("tree", tree)
     let nodes = {}
     Object.keys(tree)?.map((nod) => {
       if (nodes[tree[nod].label]) {
@@ -1305,7 +1322,8 @@ const MedflWorkflow = ({ setWorkflowType, workflowType }) => {
           edges: edges,
           setEdges: setEdges,
           onEdgesChange: onEdgesChange,
-          runNode: runNode
+          runNode: runNode,
+          duplicateNode: duplicateNode
         }}
         // optional props
         onDeleteNode={onDeleteNode}

@@ -3,7 +3,7 @@ import { Button, ListGroup, Alert, Form } from "react-bootstrap"
 import { FaLaptop } from "react-icons/fa"
 import { FiRefreshCw } from "react-icons/fi"
 
-export default function ConnectedWSAgents({ wsAgents = [], selectedAgents, setSelectedAgents, setMinAvailableClients, setCanRun, getWSAgents, renderOsIcon = () => null  }) {
+export default function ConnectedWSAgents({ wsAgents = [], selectedAgents, setSelectedAgents, setMinAvailableClients, setCanRun, getWSAgents, renderOsIcon = () => null }) {
   // ✅ Always normalize wsAgents to a safe array
   const agents = Array.isArray(wsAgents) ? wsAgents : []
 
@@ -14,6 +14,8 @@ export default function ConnectedWSAgents({ wsAgents = [], selectedAgents, setSe
     const next = { ...selectedAgents, [agent]: !selectedAgents[agent] }
     setSelectedAgents(next)
     setMinAvailableClients(agents.filter((a) => next[a]).length)
+
+    console.log("toggleAgent", selectedAgents, next)
   }
 
   const toggleSelectAll = () => {
@@ -39,7 +41,7 @@ export default function ConnectedWSAgents({ wsAgents = [], selectedAgents, setSe
 
   return (
     <div
-      className="d-flex flex-column gap-2 mt-3 p-3 rounded shadow-sm"
+      className="d-flex flex-column gap-2 mt-3 p-3  rounded shadow-sm"
       style={{
         background: "#fff",
         border: "1px solid #e5e7eb",
@@ -47,6 +49,7 @@ export default function ConnectedWSAgents({ wsAgents = [], selectedAgents, setSe
         color: "#2c3e50"
       }}
     >
+      {!someSelected && <span className="alert-warning alert   rounded" style={{ color: "red", fontWeight: 500, fontSize: "0.95em" }}>Select some Clients</span>}
       <div className="d-flex justify-content-between align-items-center">
         <div className="d-flex align-items-center gap-2">
           <FaLaptop size={18} />

@@ -39,7 +39,7 @@ const MEDflrwConfig = ({ pageId, configPath = "" }) => {
 
   const getOsIcon = (os) => {
     if (os.includes("win")) return <FaWindows size={20} />
-    if (os.includes("mac") || os.includes("apple") || os.includes("darwin"))  return <FaApple size={20} />
+    if (os.includes("mac") || os.includes("apple") || os.includes("darwin")) return <FaApple size={20} />
     if (os.includes("linux")) return <FcLinux size={23} />
     return null
   }
@@ -414,10 +414,10 @@ python3 client.py --server-address ${serverIP} --server-port ${port}
               </label>
             </div>
 
-            <div className="form-group" style={styles.formGroup}>
+            {/* <div className="form-group" style={styles.formGroup}>
               <label style={styles.label}>GitHub Repo URL:</label>
               <input style={styles.input} type="url" value={repoUrl} onChange={(e) => setRepoUrl(e.target.value)} placeholder="Enter repository URL" />
-            </div>
+            </div> */}
 
             <div className="form-group" style={styles.formGroup}>
               <label style={styles.label}>Operating System:</label>
@@ -433,15 +433,15 @@ python3 client.py --server-address ${serverIP} --server-port ${port}
                 </button>
               </div>
               <div style={{ marginTop: "100px" }}>
-                  <button
-                className="btn btn-primary   mt-auto d-flex gap-1 px-5"
-                onClick={() => setShowEmailSection(true)}
-                style={{ marginLeft: "auto", width: "fit-content", display: "block", marginTop: "" }}
-              >
-                <IoIosSend size={20} />
-                Send Script xzs
-              </button></div>
-          
+                <button
+                  className="btn btn-primary   mt-auto d-flex gap-1 px-5"
+                  onClick={() => setShowEmailSection(true)}
+                  style={{ marginLeft: "auto", width: "fit-content", display: "block", marginTop: "" }}
+                >
+                  <IoIosSend size={20} />
+                  Send Script xzs
+                </button>
+              </div>
             </div>
           </div>
 

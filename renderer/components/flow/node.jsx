@@ -10,8 +10,8 @@ import * as Icon from "react-bootstrap-icons"
 import NodeWrapperResults from "./nodeWrapperResults"
 import { OverlayPanel } from "primereact/overlaypanel"
 import { Stack } from "react-bootstrap"
-import { IoClose } from "react-icons/io5"
-import { BsPlay } from "react-icons/bs"
+import { IoClose, IoDuplicateOutline } from "react-icons/io5"
+import { BsPlay, BsThreeDots } from "react-icons/bs"
 import { Tooltip } from "primereact/tooltip"
 import { AiOutlineInfoCircle } from "react-icons/ai"
 import { defaultValueFromType } from "../../utilities/learning/inputTypesUtils"
@@ -19,6 +19,7 @@ import { deepCopy } from "../../utilities/staticFunctions"
 import { Tag } from "primereact/tag"
 import { shell } from "electron"
 import { FaWindows, FaLinux, FaApple } from "react-icons/fa"
+import { MdCopyAll } from "react-icons/md"
 
 // keep this import for the code editor (to be implemented)
 // import dynamic from "next/dynamic"
@@ -33,7 +34,6 @@ import { FaWindows, FaLinux, FaApple } from "react-icons/fa"
  * @param {JSX.Element} nodeSpecific jsx element to display specific settings of the node inside the offcanvas
  * @param {JSX.Element} nodeBody jsx element to display the body of the node
  * @param {JSX.Element} defaultSettings jsx element to display default settings of the node inside the offcanvas
- * @param {string} nodeLink link to the documentation of the node
  *
  * @returns {JSX.Element} A node
  *
@@ -43,18 +43,17 @@ import { FaWindows, FaLinux, FaApple } from "react-icons/fa"
  * Note: all JSX.Element props are not mandatory
  * Note: see Powerpoint for additionnal
  */
-const NodeObject = ({ id, data, nodeSpecific, color = null, nodeBody, defaultSettings, nodeLink }) => {
-  const [nodeName, setNodeName] = useState(data.internal.nameID || data.internal.name) // used to store the name of the node
+const NodeObject = ({ id, data, nodeSpecific, nodeBody, defaultSettings, onClickCustom, isGroupNode }) => {
+  const [nodeName, setNodeName] = useState(data.internal.name) // used to store the name of the node
   const { flowInfos, canRun } = useContext(FlowInfosContext) // used to get the flow infos
   const { showResultsPane } = useContext(FlowResultsContext) // used to get the flow results
-  const { updateNode, onDeleteNode, runNode } = useContext(FlowFunctionsContext) // used to get the function to update the node
+  const { updateNode, onDeleteNode, runNode, onDuplicateNode } = useContext(FlowFunctionsContext) // used to get the function to update the node
   const [nodeStatus, setNodeStatus] = useState("") // used to store the status of the node
   const op = useRef(null)
 
   // update warnings when the node is loaded
   useEffect(() => {
     updateHasWarning(data)
-    console.log(data.internal)
   }, [])
 
   useEffect(() => {
@@ -79,9 +78,8 @@ const NodeObject = ({ id, data, nodeSpecific, color = null, nodeBody, defaultSet
    * It calls the parent function wich is defined in the workflow component
    */
   useEffect(() => {
-    if (nodeName && data.internal.nameID) {
-      data.internal.nameID = nodeName
-    }
+    console.log("Node name updated to: ", data)
+    data.internal.name = nodeName
     updateNode({
       id: id,
       updatedData: data.internal
@@ -115,10 +113,14 @@ const NodeObject = ({ id, data, nodeSpecific, color = null, nodeBody, defaultSet
     setNodeName(newName)
   }
 
+  const duplidateNode = (id) => {
+    onDuplicateNode(id)
+  }
+
   return (
     <>
       <div className="node">
-        {data.device && (
+        {data.device ? (
           <div
             style={{
               position: "absolute",
@@ -131,11 +133,13 @@ const NodeObject = ({ id, data, nodeSpecific, color = null, nodeBody, defaultSet
             <img src={`/icon/${flowInfos.type}/` + `${data.internal.img.replaceAll(" ", "_")}`} alt={data.internal.img} style={{ width: "15px", marginRight: "5px" }} />
             {data.device.tags || [].includes("tag:server") ? "Central Server" : "Client"}
           </div>
+        ) : (
+          <div className="d-flex justify-content-between"></div>
         )}
         {data.internal.hasWarning.state && (
           <>
-            <Tag className={`node-warning-tag-${id}`} icon="pi pi-exclamation-triangle" severity="warning" value="" rounded data-pr-position="left" data-pr-showdelay={200} />
-            <Tooltip target={`.node-warning-tag-${id}`}>
+            <Tag className="node-warning-tag" icon="pi pi-exclamation-triangle" severity="warning" value="" rounded data-pr-position="left" data-pr-showdelay={200} />
+            <Tooltip target=".node-warning-tag">
               <span>{data.internal.hasWarning.tooltip}</span>
             </Tooltip>
           </>
@@ -147,18 +151,14 @@ const NodeObject = ({ id, data, nodeSpecific, color = null, nodeBody, defaultSet
         <Card
           key={id}
           id={id}
-          // style={{ backgroundColor: color }}
           pt={{
             body: { className: `${nodeBody ? "padding-0_2rem-important" : "padding-0-important"}` }
           }}
-          onClick={(e) => op.current.toggle(e)}
+          onClick={(e) => (onClickCustom ? onClickCustom(e) : op.current.toggle(e))}
           // if the node has run and the results pane is displayed, the node is displayed normally
           // if the node has not run and the results pane is displayed, the node is displayed with a notRun class (see .css file)
-
-          className={`text-left ${data.internal.hasRun && showResultsPane ? "" : showResultsPane ? "notRun" : ""} ${data.className ?? ""}`}
-          style={{
-            backgroundColor: nodeStatus == "Online" && data.isOnWs ? "#C1E1C1" : nodeStatus == "Offline" ? "#F0808050" : nodeStatus == "Online" && !data.isOnWs ? "#f0cc8050" : ""
-          }}
+          className={`text-left ${data.internal.hasRun && showResultsPane ? "" : showResultsPane ? "notRun" : ""} `}
+          style={{ backgroundColor: nodeStatus == "Online" && data.isOnWs ? "#C1E1C1" : nodeStatus == "Offline" ? "#F0808050" : nodeStatus == "Online" && !data.isOnWs ? "#f0cc8050" : "" }}
           header={
             <>
               {data.device && (
@@ -174,42 +174,41 @@ const NodeObject = ({ id, data, nodeSpecific, color = null, nodeBody, defaultSet
                   }}
                 ></span>
               )}
-              <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                <div className="align-center">
-                  {!data.device ? (
-                    <img src={`/icon/${flowInfos.type}/` + `${data.internal.img.replaceAll(" ", "_")}`} alt={data.internal.img} className="icon-nodes" />
-                  ) : data.device.os === "windows" ? (
-                    <FaWindows className="me-2" />
-                  ) : data.device.os === "linux" ? (
-                    <FaLinux className="me-2" />
-                  ) : (
-                    <FaApple className="me-2" />
-                  )}
-                </div>
-
-                <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start" }}>
-                  {data.internal.name}
-                  {data.internal.nameID && (
-                    <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                      <label>ID:</label>
-                      <label style={{ fontWeight: "bold" }}>{data.internal.nameID}</label>
-                    </div>
-                  )}
-                </div>
+              <div className="align-center">
+                {!data.device ? (
+                  <img src={`/icon/${flowInfos.type}/` + `${data.internal.img.replaceAll(" ", "_")}`} alt={data.internal.img} className="icon-nodes" />
+                ) : data.device.os === "windows" ? (
+                  <FaWindows className="me-2" />
+                ) : data.device.os === "linux" ? (
+                  <FaLinux className="me-2" />
+                ) : (
+                  <FaApple className="me-2" />
+                )}{" "}
+                {data.internal.name}
               </div>
 
               <div className="btn-node-div">
-                {/* here are the buttons to delete and run the node*/}
-                <IoClose
-                  className="btn-close-node"
-                  onClick={(e) => {
-                    if (!showResultsPane) {
+                <div className="d-flex ">
+                  {/* here are the buttons to duplicate and run the node*/}
+                  <IoDuplicateOutline
+                    className="btn-duplicate-node"
+                    onClick={(e) => {
                       e.stopPropagation()
-                      onDeleteNode(id)
-                    }
-                  }}
-                  disabled={showResultsPane}
-                />
+                      duplidateNode(id)
+                    }}
+                  />
+                  {/* here are the buttons to delete and run the node*/}
+                  <IoClose
+                    className="btn-close-node"
+                    onClick={(e) => {
+                      if (!showResultsPane) {
+                        e.stopPropagation()
+                        onDeleteNode(id)
+                      }
+                    }}
+                    disabled={showResultsPane}
+                  />
+                </div>
 
                 {/* if the node is a run node (by checking setupParam classes), a button to run the node is displayed*/}
                 {data.setupParam.classes.split(" ").includes("run") && (
@@ -234,16 +233,16 @@ const NodeObject = ({ id, data, nodeSpecific, color = null, nodeBody, defaultSet
           {nodeBody && <>{nodeBody}</>}
         </Card>
       </div>
-      {(defaultSettings || nodeSpecific) && (
+      {!isGroupNode && (
         <>
           {/* here is an overlay panel that is displayed when the user clicks on the node name. It contains the settings of the node*/}
-          <OverlayPanel className="options-overlayPanel" ref={op}>
-            <Stack direction="vertical" gap={1} style={{ maxHeight: "25rem", overflowY: "auto" }}>
+          <OverlayPanel className="options-overlayPanel" ref={op} onMouseLeave={(e) => op.current.hide(e)}>
+            <Stack direction="vertical" gap={1}>
               <div className="header">
                 <div className="editable-node-name">
                   <Icon.Pencil width="18px" height="18px" />
                   <EditableLabel
-                    text={data.internal.nameID || data.internal.name}
+                    text={data.internal.name}
                     labelClassName="node-editableLabel"
                     inputClassName="node-editableLabel"
                     inputWidth="20ch"
@@ -258,21 +257,17 @@ const NodeObject = ({ id, data, nodeSpecific, color = null, nodeBody, defaultSet
                 <AiOutlineInfoCircle
                   className="btn-info-node"
                   onClick={() => {
-                    shell.openExternal(nodeLink)
+                    shell.openExternal("http://google.com")
                   }}
                 />
               </div>
               <hr className="solid" />
-              <div className="options-overlayPanel-settingsBody">
-                <Stack direction="vertical" gap={1}>
-                  {/* here are the default settings of the node. if nothing is specified, nothing is displayed*/}
-                  {defaultSettings}
-                  {/* here are the node specific settings. if nothing is specified, nothing is displayed*/}
-                  {nodeSpecific}
-                  {/* note : quand on va implémenter codeeditor */}
-                  {/* <CodeEditor data={data} /> */}
-                </Stack>
-              </div>
+              {/* here are the default settings of the node. if nothing is specified, nothing is displayed*/}
+              {defaultSettings}
+              {/* here are the node specific settings. if nothing is specified, nothing is displayed*/}
+              {nodeSpecific}
+              {/* note : quand on va implémenter codeeditor */}
+              {/* <CodeEditor data={data} /> */}
             </Stack>
           </OverlayPanel>
         </>
@@ -313,22 +308,18 @@ export const updateHasWarning = (data) => {
   data.internal.hasWarning = { state: false }
   if ("default" in data.setupParam.possibleSettings) {
     Object.entries(data.setupParam.possibleSettings.default).map(([settingName, setting]) => {
-      try {
-        if (settingName in data.internal.settings) {
-          let value = deepCopy(data.internal.settings[settingName])
-          let defaultVal = deepCopy(defaultValueFromType[setting.type])
-          if (typeof data.internal.settings[settingName] === "object") {
-            value = JSON.stringify(data.internal.settings[settingName])
-            defaultVal = JSON.stringify(defaultValueFromType[setting.type])
-          }
-          if (value == defaultVal) {
-            data.internal.hasWarning = { state: true, tooltip: <p>Please fill all the mandatory fields</p> }
-          }
-        } else {
+      if (settingName in data.internal.settings) {
+        let value = deepCopy(data.internal.settings[settingName])
+        let defaultVal = deepCopy(defaultValueFromType[setting.type])
+        if (typeof data.internal.settings[settingName] === "object") {
+          value = JSON.stringify(data.internal.settings[settingName])
+          defaultVal = JSON.stringify(defaultValueFromType[setting.type])
+        }
+        if (value == defaultVal) {
           data.internal.hasWarning = { state: true, tooltip: <p>Please fill all the mandatory fields</p> }
         }
-      } catch (error) {
-        console.error("Error in updateHasWarning function:", error)
+      } else {
+        data.internal.hasWarning = { state: true, tooltip: <p>Please fill all the mandatory fields</p> }
       }
     })
   }

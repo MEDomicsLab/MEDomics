@@ -25,7 +25,7 @@ import Path from "path"
 import nodesParams from "../../public/setupVariables/allNodesParams"
 
 // here are static functions used in the workflow
-import { removeDuplicates, deepCopy } from "../../utilities/staticFunctions"
+import { removeDuplicates, deepCopy, getId } from "../../utilities/staticFunctions"
 import { defaultValueFromType } from "../../utilities/learning/inputTypesUtils.js"
 import { FlowInfosContext } from "../flow/context/flowInfosContext.jsx"
 import StandardNode from "../learning/nodesTypes/standardNode.jsx"
@@ -41,6 +41,7 @@ import FlOptimizeNode from "./nodesTypes/flOptimizeNode.jsx"
 import FlStrategyNode from "./nodesTypes/flStrategyNode.jsx"
 import FlPipelineNode from "./nodesTypes/flPipelineNode.jsx"
 import FlResultsNode from "./nodesTypes/flResultsNode.jsx"
+import MlStrategyNode from "./nodesTypes/mlStrategyNode.jsx"
 import { Button } from "primereact/button"
 import RunPipelineModal from "./runPipelineModal"
 import FlConfigModal from "./flConfigModal"
@@ -63,6 +64,7 @@ import ClientDatasetModal from "./rw/ClientDatasetModal.jsx"
 import { MEDDataObject } from "../workspace/NewMedDataObject.js"
 import boxNode from "../learning/nodesTypes/boxNode.jsx"
 import analysisBoxNode from "../learning/nodesTypes/analysisBoxNode.jsx"
+import NewServerLogsModal from "./rw/SeverLogsModal_copy.jsx"
 
 const staticNodesParams = nodesParams // represents static nodes parameters
 
@@ -77,44 +79,55 @@ const staticNodesParams = nodesParams // represents static nodes parameters
  *
  */
 const MedflrwWorkflow = ({ setWorkflowType, workflowType, mode = "fl" }) => {
-  const [nodes, setNodes, onNodesChange] = useNodesState([]) // nodes array, setNodes is used to update the nodes array, onNodesChange is a callback hook that is executed when the nodes array is changed
-  const [edges, setEdges, onEdgesChange] = useEdgesState([]) // edges array, setEdges is used to update the edges array, onEdgesChange is a callback hook that is executed when the edges array is changed
-  const [reactFlowInstance, setReactFlowInstance] = useState(null) // reactFlowInstance is used to get the reactFlowInstance object important for the reactFlow library
-  const [MLType, setMLType] = useState("classification") // MLType is used to know which machine learning type is selected
-  const { setViewport } = useReactFlow() // setViewport is used to update the viewport of the workflow
-  const [treeData, setTreeData] = useState({}) // treeData is used to set the data of the tree menu
-  const { getIntersectingNodes } = useReactFlow() // getIntersectingNodes is used to get the intersecting nodes of a node
-  const [intersections, setIntersections] = useState([]) // intersections is used to store the intersecting nodes related to optimize nodes start and end
-  const [isProgressUpdating, setIsProgressUpdating] = useState(false) // progress is used to store the progress of the workflow execution
-  const [progress, setProgress] = useState({
-    now: 0,
-    currentLabel: ""
-  })
-  const [showScriptConfigs, setShowScriptConfigs] = useState(false) // showScriptConfigs is used to show the script configurations modal
-  const [showNetworkCheckModal, setShowNetworkCheckModal] = useState(false) // showNetworkCheckModal is used to show the network check modal
-
-  const [flWorkflowSettings, setflWorkflowSettings] = useState({})
-
-  const [serverRunning, setServerRunning] = useState(false)
-  const [isServerRunning, setRunServer] = useState(false)
-
-  const [networkChecked, setNetworkChecked] = useState(false) // networkChecked is used to check if the network is checked
-  const [showClientsDatasetModal, setShowClientsDatasetModal] = useState(false) // showClientsDatasetModal is used to show the clients dataset modal
-
-  const [isSaveModal, openSaveModal] = useState(false)
-  const [scenName, setSceanName] = useState("")
-
+  // ========== External contexts (read first so they’re available below) ==========
   const { groupNodeId, changeSubFlow, hasNewConnection } = useContext(FlowFunctionsContext)
   const { config, pageId, configPath } = useContext(PageInfosContext) // used to get the page infos such as id and config path
   const { updateFlowResults, isResults } = useContext(FlowResultsContext)
   const { canRun } = useContext(FlowInfosContext)
   const { port } = useContext(WorkspaceContext)
   const { setError } = useContext(ErrorRequestContext)
-
   const { globalData } = useContext(DataContext)
+  const { updateColumnsIntersectionFromNetworkCheck } = useMEDflContext()
+
+  // ========== React Flow handles ==========
+  const { setViewport } = useReactFlow() // setViewport is used to update the viewport of the workflow
+  const { getIntersectingNodes } = useReactFlow() // getIntersectingNodes is used to get the intersecting nodes of a node
+  const [reactFlowInstance, setReactFlowInstance] = useState(null) // reactFlowInstance is used to get the reactFlowInstance object important for the reactFlow library
+
+  // ========== Graph state (nodes/edges) ==========
+  const [nodes, setNodes, onNodesChange] = useNodesState([]) // nodes array, setNodes is used to update the nodes array, onNodesChange is a callback hook that is executed when the nodes array is changed
+  const [edges, setEdges, onEdgesChange] = useEdgesState([]) // edges array, setEdges is used to update the edges array, onEdgesChange is a callback hook that is executed when the edges array is changed
+
+  // ========== Workflow configuration / settings ==========
+  const [MLType, setMLType] = useState("classification") // MLType is used to know which machine learning type is selected
+  const [treeData, setTreeData] = useState({}) // treeData is used to set the data of the tree menu
+  const [flWorkflowSettings, setflWorkflowSettings] = useState({})
+
+  // ========== Layout & intersections ==========
+  const [intersections, setIntersections] = useState([]) // intersections is used to store the intersecting nodes related to optimize nodes start and end
+
+  // ========== Execution / progress ==========
+  const [isProgressUpdating, setIsProgressUpdating] = useState(false) // progress is used to store the progress of the workflow execution
+  const [progress, setProgress] = useState({
+    now: 0,
+    currentLabel: ""
+  })
+
+  // ========== Server / network status ==========
+  const [serverRunning, setServerRunning] = useState(false)
+  const [isServerRunning, setRunServer] = useState(false)
+  const [networkChecked, setNetworkChecked] = useState(false) // networkChecked is used to check if the network is checked
   const [socketAgents, setSocketAgents] = useState([]) // socketAgents is used to store the agents connected to the socket server
 
   const [isInitialized, setIsInitialized] = useState(true)
+  // ========== UI modals / toggles ==========
+  const [showScriptConfigs, setShowScriptConfigs] = useState(false) // showScriptConfigs is used to show the script configurations modal
+  const [showNetworkCheckModal, setShowNetworkCheckModal] = useState(false) // showNetworkCheckModal is used to show the network check modal
+  const [showClientsDatasetModal, setShowClientsDatasetModal] = useState(false) // showClientsDatasetModal is used to show the clients dataset modal
+  const [isSaveModal, openSaveModal] = useState(false)
+  const [scenName, setSceanName] = useState("")
+
+  const [datasetConfiguration, setDatasetConfiguration] = useState({})
 
   // declare node types using useMemo hook to avoid re-creating component types unnecessarily (it memorizes the output) https://www.w3schools.com/react/react_usememo.asp
   const nodeTypes = useMemo(
@@ -137,9 +150,10 @@ const MedflrwWorkflow = ({ setWorkflowType, workflowType, mode = "fl" }) => {
       flMergeresultsNode: FlCompareResults,
       flRunServerNode: FlRunServerNode,
       DatasetrwNode: FlDatasetrwNode,
-      flrwServerNode: FlrwServerNode , 
-       boxNode: boxNode,
-            analysisBoxNode: analysisBoxNode
+      flrwServerNode: FlrwServerNode,
+      boxNode: boxNode,
+      analysisBoxNode: analysisBoxNode,
+      mlStrategyNode: MlStrategyNode
     }),
     []
   )
@@ -163,8 +177,22 @@ const MedflrwWorkflow = ({ setWorkflowType, workflowType, mode = "fl" }) => {
         },
         "box-initialization"
       )
+      let netBox = createBoxNode(
+        { x: 800, y: 150 },
+        {
+          nodeType: "boxNode",
+          name: "FL Networks",
+          draggable: false,
+          selectable: true,
+          image: "",
+          size: { width: 700, height: 700 },
+          borderColor: "rgba(230, 198, 150, 0.8)",
+          selectedBorderColor: "rgb(255, 187, 0)"
+        },
+        "box-networks"
+      )
       let trainBox = createBoxNode(
-        { x: 800, y: 250 },
+        { x: 1600, y: 250 },
         {
           nodeType: "boxNode",
           name: "Training",
@@ -192,7 +220,7 @@ const MedflrwWorkflow = ({ setWorkflowType, workflowType, mode = "fl" }) => {
         "box-analysis"
       )
       // const newBoxes = [initBox, trainBox, analysisBox]
-      const newBoxes = [initBox, trainBox]
+      const newBoxes = [initBox, trainBox, netBox]
       newBoxes.forEach((box) => {
         const exists = nodes.find((node) => node.name == box.name && (node.type == "boxNode" || node.type == "analysisBoxNode"))
         if (exists && exists.type === "analysisBoxNode" && !exists.data.setupParam) {
@@ -297,36 +325,42 @@ const MedflrwWorkflow = ({ setWorkflowType, workflowType, mode = "fl" }) => {
     }
   }, [isResults])
 
+  useEffect(() => {
+    if (!networkChecked) {
+      updateColumnsIntersectionFromNetworkCheck([])
+    }
+  }, [networkChecked])
+
   // executed when the machine learning type is changed
   // it updates the possible settings of the nodes
   useEffect(() => {
-     setNodes((nds) =>
-       nds.map((node) => {
-         // it's important that you create a new object here in order to notify react flow about the change
-         node.data = {
-           ...node.data
-         }
-         if (!node.id.includes("opt") && !node.id.startsWith("box-")) {
-           let subworkflowType = node.data.internal.subflowId != "MAIN" ? "optimize" : "learning"
-           node.data.setupParam.possibleSettings = deepCopy(staticNodesParams[subworkflowType][node.data.internal.type]["possibleSettings"][MLType])
-           console.log(node.type)
-           if (node.type == "trainModelNode") {
-             node.data.setupParam.possibleSettingsTuning = deepCopy(staticNodesParams["optimize"]["tune_model"]["possibleSettings"][MLType])
-             node.data.internal.checkedOptionsTuning = []
-             node.data.internal.settingsTuning = {}
-             node.data.internal.settingsCalibration = {}
-             node.data.internal.settingsEnsembling = {}
-           }
-           node.data.internal.settings = {}
-           node.data.internal.checkedOptions = []
-           if (node.type == "selectionNode") {
-             node.data.internal.selection = Object.keys(node.data.setupParam.possibleSettings)[0]
-           }
-         }
-         return node
-       })
-     )
-   }, [MLType])
+    setNodes((nds) =>
+      nds.map((node) => {
+        // it's important that you create a new object here in order to notify react flow about the change
+        node.data = {
+          ...node.data
+        }
+        if (!node.id.includes("opt") && !node.id.startsWith("box-")) {
+          let subworkflowType = node.data.internal.subflowId != "MAIN" ? "optimize" : "learning"
+          node.data.setupParam.possibleSettings = deepCopy(staticNodesParams[subworkflowType][node.data.internal.type]["possibleSettings"][MLType])
+          console.log(node.type)
+          if (node.type == "trainModelNode") {
+            node.data.setupParam.possibleSettingsTuning = deepCopy(staticNodesParams["optimize"]["tune_model"]["possibleSettings"][MLType])
+            node.data.internal.checkedOptionsTuning = []
+            node.data.internal.settingsTuning = {}
+            node.data.internal.settingsCalibration = {}
+            node.data.internal.settingsEnsembling = {}
+          }
+          node.data.internal.settings = {}
+          node.data.internal.checkedOptions = []
+          if (node.type == "selectionNode") {
+            node.data.internal.selection = Object.keys(node.data.setupParam.possibleSettings)[0]
+          }
+        }
+        return node
+      })
+    )
+  }, [MLType])
   const handleIntersectionWithBox = (source, targets = []) => {
     // This function checks if the node is intersecting with a box node
     // If it is, it adds the intersection to the intersections array
@@ -781,6 +815,7 @@ const MedflrwWorkflow = ({ setWorkflowType, workflowType, mode = "fl" }) => {
   const onDeleteNode = useCallback((id) => {
     console.log("delete node", id)
     console.log("nodes before delete", nodes)
+    console.log("edges before delete", edges)
     setNodes((nds) =>
       nds.reduce((filteredNodes, n) => {
         if (n.id !== id) {
@@ -1070,10 +1105,25 @@ const MedflrwWorkflow = ({ setWorkflowType, workflowType, mode = "fl" }) => {
     return result
   }
 
+  const duplicateNode = (id) => {
+    const nodeToDuplicate = nodes.find((node) => node.id === id)
+    if (!nodeToDuplicate) return
+
+    const newNode = {
+      ...deepCopy(nodeToDuplicate),
+      id: getId(),
+      position: {
+        x: nodeToDuplicate.position.x + 40,
+        y: nodeToDuplicate.position.y + 100
+      }
+    }
+
+    setNodes((nds) => [...nds, newNode])
+  }
   return (
     <>
       {/* RUN the fl pipeline modal  */}
-      <ServerLogosModal
+      {/* <ServerLogosModal
         nodes={nodes}
         show={serverRunning}
         onHide={() => {
@@ -1081,11 +1131,24 @@ const MedflrwWorkflow = ({ setWorkflowType, workflowType, mode = "fl" }) => {
         }}
         onSaveScean={onSave}
         setRunServer={setRunServer}
-      ></ServerLogosModal>
+        configs={getConfigs(treeData, 0)}
+      ></ServerLogosModal> */}
+
+      <NewServerLogsModal
+        nodes={nodes}
+        show={serverRunning}
+        onHide={() => {
+          setServerRunning(false)
+        }}
+        onSaveScean={onSave}
+        setRunServer={setRunServer}
+        configs={getConfigs(treeData, 0)}
+        datasetConfig={datasetConfiguration}
+      ></NewServerLogsModal>
 
       <ManageScriptsModal onHide={() => setShowScriptConfigs(false)} show={showScriptConfigs} />
       <NewtworkCheckModal onHide={() => setShowNetworkCheckModal(false)} show={showNetworkCheckModal} setNetworkChecked={setNetworkChecked} />
-      <ClientDatasetModal onHide={() => setShowClientsDatasetModal(false)} show={showClientsDatasetModal} clients={socketAgents} />
+      <ClientDatasetModal setDatasetConfiguration={setDatasetConfiguration} onHide={() => setShowClientsDatasetModal(false)} show={showClientsDatasetModal} clients={socketAgents} />
       <Modal show={isSaveModal} onHide={() => openSaveModal(false)}>
         <Modal.Header>
           <Modal.Title> Save scean</Modal.Title>
@@ -1125,7 +1188,8 @@ const MedflrwWorkflow = ({ setWorkflowType, workflowType, mode = "fl" }) => {
           edges: edges,
           setEdges: setEdges,
           onEdgesChange: onEdgesChange,
-          runNode: runNode
+          runNode: runNode,
+          duplicateNode: duplicateNode
         }}
         // optional props
         onDeleteNode={onDeleteNode}
@@ -1133,7 +1197,7 @@ const MedflrwWorkflow = ({ setWorkflowType, workflowType, mode = "fl" }) => {
         onNodeDrag={onNodeDrag}
         uiTopLeft={
           <>
-            {workflowType == mode && (
+            {workflowType == "rwflNetwork" && (
               <div className="d-flex gap-2">
                 <Button
                   badge={!networkChecked ? "!" : ""}
@@ -1173,7 +1237,8 @@ const MedflrwWorkflow = ({ setWorkflowType, workflowType, mode = "fl" }) => {
                           { type: "load", onClick: onLoad }
                         ]
                       : [
-                          { type: "run", onClick: onRun, disabled: !networkChecked || !canRun },
+                          // { type: "run", onClick: onRun, disabled: !networkChecked || !canRun },
+                          { type: "run", onClick: onRun, disabled: false },
                           { type: "clear", onClick: onClear },
                           {
                             type: "save",
