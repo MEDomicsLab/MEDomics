@@ -2,16 +2,11 @@ import os
 import sys
 import traceback
 from pathlib import Path
-
-<<<<<<< HEAD
-# from pycaret.internal.pipeline import Pipeline
-=======
 import pandas
 import pandas as pd
 import sklearn
 from flask import jsonify
 from pycaret.internal.pipeline import Pipeline
->>>>>>> origin/learningDesign
 
 
 def get_json_from_request(request):
@@ -90,7 +85,7 @@ def get_free_space_mb(folder):
     return free / (1024.0 ** 3)
 
 
-<<<<<<< HEAD
+
 def get_model_from_medmodel(medmodel_path: str) -> sklearn.base.BaseEstimator:
     """
         This function is used to get the model from a medmodel
@@ -112,8 +107,7 @@ def get_model_from_medmodel(medmodel_path: str) -> sklearn.base.BaseEstimator:
         medmodel_path, load_model_from_zip)
 
 
-=======
->>>>>>> origin/learningDesign
+
 def get_model_from_path(path: str) -> sklearn.base.BaseEstimator:
     """
         This function is used to get the model from a medmodel

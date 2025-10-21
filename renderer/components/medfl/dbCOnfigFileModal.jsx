@@ -3,15 +3,15 @@ import { Button, Dropdown, Modal } from "react-bootstrap"
 import FlInput from "./flInput"
 import { Message } from "primereact/message"
 import Path from "path"
-import MedDataObject from "../workspace/medDataObject"
-import { DataContext  , UUID_ROOT} from "../workspace/dataContext"
-import { EXPERIMENTS } from "../workspace/workspaceContext"
-
+import { DataContext, UUID_ROOT } from "../workspace/dataContext"
+import { EXPERIMENTS, WorkspaceContext } from "../workspace/workspaceContext"
+import { MEDDataObject } from "../workspace/NewMedDataObject"
 
 export default function DBCOnfigFileModal({ show, onHide, setFile, configFile, onConfirm }) {
   const { globalData } = useContext(DataContext)
 
   const [useOldDB, setChoice] = useState("not")
+  const { workspace } = useContext(WorkspaceContext)
 
   const onFilesChange = (inputUpdate) => {
     setFile(inputUpdate.value)
@@ -60,7 +60,7 @@ export default function DBCOnfigFileModal({ show, onHide, setFile, configFile, o
               }}
               currentValue={configFile.name || ""}
               onInputChange={(e) => {
-                onFilesChange({value : { name: e.value, path: globalData[UUID_ROOT].path + "/EXPERIMENTS/FL/DB/" + e.value + ".db" }})
+                onFilesChange({ value: { name: e.value, path: workspace.workingDirectory.path + "/EXPERIMENTS/FL/DB/" + e.value + ".db" } })
               }}
               setHasWarning={() => {}}
             />
@@ -69,10 +69,10 @@ export default function DBCOnfigFileModal({ show, onHide, setFile, configFile, o
         <Modal.Footer>
           <Button
             onClick={() => {
-              let path = Path.join(globalData[UUID_ROOT].path, EXPERIMENTS)
+              let path = Path.join(workspace.workingDirectory.path, EXPERIMENTS)
 
-              MedDataObject.createFolderFromPath(path + "/FL")
-              MedDataObject.createFolderFromPath(path + "/FL/DB")
+              MEDDataObject.createFolderFSsync(path + "/FL")
+              MEDDataObject.createFolderFSsync(path + "/FL/DB")
 
               onConfirm()
             }}

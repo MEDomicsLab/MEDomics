@@ -1,7 +1,6 @@
 import React, { useContext, useState } from "react"
 import Modal from "react-bootstrap/Modal"
 import { JsonView, allExpanded } from "react-json-view-lite"
-import MedDataObject from "../workspace/medDataObject"
 import { toast } from "react-toastify"
 
 import { UUID_ROOT, DataContext } from "../workspace/dataContext"
@@ -10,6 +9,7 @@ import { EXPERIMENTS } from "../workspace/workspaceContext"
 import Path from "path"
 import { InputText } from "primereact/inputtext"
 import { Button } from "primereact/button"
+import { MEDDataObject } from "../workspace/NewMedDataObject"
 
 const OptimResultsModal = ({ show, onHide, title, results }) => {
   //states
@@ -23,12 +23,12 @@ const OptimResultsModal = ({ show, onHide, title, results }) => {
     try {
       let path = Path.join(globalData[UUID_ROOT].path, EXPERIMENTS)
 
-      MedDataObject.createFolderFromPath(path + "/FL")
-      MedDataObject.createFolderFromPath(path + "/FL/Optimization")
+      MEDDataObject.createFolderFromPath(path + "/FL")
+      MEDDataObject.createFolderFromPath(path + "/FL/Optimization")
 
       // do custom actions in the folder while it is unzipped
-      await MedDataObject.writeFileSync({ data: results["data"], date: Date.now() }, path + "/FL/Optimization", fileName, "json")
-      await MedDataObject.writeFileSync({ data: results["data"], date: Date.now() }, path + "/FL/Optimization", fileName, "medflopt")
+      await MEDDataObject.writeFileSync({ data: results["data"], date: Date.now() }, path + "/FL/Optimization", fileName, "json")
+      await MEDDataObject.writeFileSync({ data: results["data"], date: Date.now() }, path + "/FL/Optimization", fileName, "medflopt")
       showFileName(false)
       toast.success("Optimization results saved successfuly ")
       onHide()

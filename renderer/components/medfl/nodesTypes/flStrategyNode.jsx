@@ -119,6 +119,17 @@ export default function FlStrategyNode({ id, data }) {
               onInputChange={onModelInputChange}
               setHasWarning={() => {}}
             />
+             <FlInput
+              name="clientRessources"
+              settingInfos={{
+                type: "list",
+                tooltip: "Specify the desription of the federated setup",
+                choices: [{ name: "Use GPU" }, { name: " Use only CPU" }]
+              }}
+              currentValue={data.internal.settings.clientRessources}
+              onInputChange={onModelInputChange}
+              setHasWarning={() => {}}
+            />
           </>
         }
         // node specific is the body of the node, so optional settings

@@ -18,7 +18,7 @@ import { FaRegEye, FaRegEyeSlash } from "react-icons/fa"
 import Path from "path"
 import { EXPERIMENTS } from "../workspace/workspaceContext"
 import { DataContext, UUID_ROOT } from "../workspace/dataContext"
-import MedDataObject from "../workspace/medDataObject"
+import { MEDDataObject } from "../workspace/NewMedDataObject"
 
 const MEDflrwConfig = ({ pageId, configPath = "" }) => {
   const { globalData } = useContext(DataContext)
@@ -343,11 +343,11 @@ python3 client.py --server-address ${serverIP} --server-port ${port}
     try {
       let path = Path.join(globalData[UUID_ROOT].path, EXPERIMENTS)
 
-      MedDataObject.createFolderFromPath(path + "/Scripts")
+      MEDDataObject.createFolderFromPath(path + "/Scripts")
 
       const fileName = os + "_script"
       // do custom actions in the folder while it is unzipped
-      await MedDataObject.writeFileSync(generatedScript, path + "/Scripts", fileName, os == "windows" ? "bat" : "sh")
+      await MEDDataObject.writeFileSync(generatedScript, path + "/Scripts", fileName, os == "windows" ? "bat" : "sh")
 
       toast.success("Script saved successfuly ")
     } catch {

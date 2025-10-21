@@ -8,9 +8,10 @@ import { FlowFunctionsProvider } from "../flow/context/flowFunctionsContext"
 import { PageInfosContext } from "../mainPages/moduleBasics/pageInfosContext"
 import { Panel, PanelGroup, PanelResizeHandle } from "react-resizable-panels"
 import { WorkspaceContext, EXPERIMENTS } from "../workspace/workspaceContext"
-import MedDataObject from "../workspace/medDataObject"
+
 import { loadJsonPath } from "../../utilities/fileManagementUtils"
 import FlResultsPane from "./flResultsPane"
+import { MEDDataObject } from "../workspace/NewMedDataObject"
 
 /**
  *
@@ -41,14 +42,14 @@ const FLFlowPageBaseWithFlowInfos = ({ children, workflowType, id }) => {
   // this useEffect is used to get the experiment name
   useEffect(() => {
     if (configPath) {
-      let pathList = configPath.split(MedDataObject.getPathSeparator())
+      let pathList = configPath.split(MEDDataObject.getPathSeparator())
       let length = pathList.length
       let sceneName = pathList[length - 1].split(".")[0]
       setSceneName(sceneName)
 
       // check if there are results for this scene
-      let path = [getBasePath(EXPERIMENTS), sceneName, sceneName].join(MedDataObject.getPathSeparator()) + ".medmlres"
-      if (MedDataObject.isPathExists(path)) {
+      let path = [getBasePath(EXPERIMENTS), sceneName, sceneName].join(MEDDataObject.getPathSeparator()) + ".medmlres"
+      if (MEDDataObject.isPathExists(path)) {
         let flowResults = loadJsonPath(path)
         updateFlowResults(flowResults)
         console.log("Results loaded")

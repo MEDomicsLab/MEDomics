@@ -10,9 +10,9 @@ import { FlowFunctionsContext } from "../flow/context/flowFunctionsContext"
 import { FlowResultsContext } from "../flow/context/flowResultsContext"
 import { EXPERIMENTS, WorkspaceContext } from "../workspace/workspaceContext"
 import { ErrorRequestContext } from "../generalPurpose/errorRequestContext.jsx"
-import MedDataObject from "../workspace/medDataObject"
 import uuid from "react-native-uuid"
 // import { createZipFileSync, modifyZipFileSync } from "../../utilities/customZipFile.js"
+import { createZipFileSync, modifyZipFileSync } from "../../utilities/customZipFile.js"
 
 import { UUID_ROOT, DataContext } from "../workspace/dataContext"
 
@@ -56,6 +56,7 @@ import { FaLaptop } from "react-icons/fa6"
 
 import boxNode from "../learning/nodesTypes/boxNode.jsx"
 import analysisBoxNode from "../learning/nodesTypes/analysisBoxNode.jsx"
+import { MEDDataObject } from "../workspace/NewMedDataObject.js"
 
 const staticNodesParams = nodesParams // represents static nodes parameters
 
@@ -241,7 +242,8 @@ const MedflWorkflow = ({ setWorkflowType, workflowType }) => {
         },
         "box-analysis"
       )
-      const newBoxes = [initBox, trainBox, analysisBox]
+      // const newBoxes = [initBox, trainBox, analysisBox]
+      const newBoxes = [initBox, trainBox]
       newBoxes.forEach((box) => {
         const exists = nodes.find((node) => node.name == box.name && (node.type == "boxNode" || node.type == "analysisBoxNode"))
         if (exists && exists.type === "analysisBoxNode" && !exists.data.setupParam) {
@@ -880,10 +882,10 @@ const MedflWorkflow = ({ setWorkflowType, workflowType }) => {
     const emptyScene = { useMedStandard: useMedStandard }
     // create custom zip file
     console.log("zipFilePath", Path.join(path, sceneName + "." + extension))
-    // await createZipFileSync(Path.join(path, sceneName + "." + extension), async (path) => {
-    //   // do custom actions in the folder while it is unzipped
-    //   await MedDataObject.writeFileSync(emptyScene, path, "metadata", "json")
-    // })
+    await createZipFileSync(Path.join(path, sceneName + "." + extension), async (path) => {
+      // do custom actions in the folder while it is unzipped
+      await MEDDataObject.writeFileSync(emptyScene, path, "metadata", "json")
+    })
   }
   /**
    * save the workflow as a json file
@@ -898,23 +900,25 @@ const MedflWorkflow = ({ setWorkflowType, workflowType }) => {
           node.data.setupParam = null
         })
         flow.intersections = intersections
-        if (configPath != "") {
+        if (configPath && configPath != "") {
           console.log("Heeeeeeere")
-          // modifyZipFileSync(configPath, async (path) => {
-          //   // do custom actions in the folder while it is unzippsed
-          //   await MedDataObject.writeFileSync(flow, path, "metadata", "json")
-          //   toast.success("Scene has been saved successfully")
-          // })
+          modifyZipFileSync(configPath, async (path) => {
+            // do custom actions in the folder while it is unzippsed
+            await MEDDataObject.writeFileSync(flow, path, "metadata", "json")
+            toast.success("Scene has been saved successfully")
+          })
         } else {
           console.log("here", scean)
-          let configPath = globalData["UUID_ROOT"].path + "/EXPERIMENTS/FL/Sceans"
-          // createSceneContent(configPath, scean, "fl", null).then(() =>
-          //   modifyZipFileSync(configPath + "/" + scean + ".fl", async (path) => {
-          //     // do custom actions in the folder while it is unzipped
-          //     await MedDataObject.writeFileSync(flow, path, "metadata", "json")
-          //     toast.success("Scene has been saved successfully")
-          //   })
-          // )
+          console.log(globalData, "globalData")
+          let configPath = globalData["ROOT"].path + "/EXPERIMENTS/FL/Sceans"
+          createSceneContent(configPath, scean, "fl", null).then(() => {
+            console.log("Scene created successfully ================== ")
+            modifyZipFileSync(configPath + "/" + scean + ".fl", async (path) => {
+              // do custom actions in the folder while it is unzipped
+              await MEDDataObject.writeFileSync(flow, path, scean, "fl")
+              toast.success("Scene has been saved successfully")
+            })
+          })
         }
       }
     },
@@ -1011,12 +1015,12 @@ const MedflWorkflow = ({ setWorkflowType, workflowType }) => {
             try {
               let path = Path.join(globalData[UUID_ROOT].path, EXPERIMENTS)
 
-              MedDataObject.createFolderFromPath(path + "/FL")
-              MedDataObject.createFolderFromPath(path + "/FL/Results")
+              MEDDataObject.createFolderFromPath(path + "/FL")
+              MEDDataObject.createFolderFromPath(path + "/FL/Results")
 
               // do custom actions in the folder while it is unzipped
-              await MedDataObject.writeFileSync(jsonResponse["data"], path + "/FL/Results", flConfig[0]?.flSaveModelNode?.fileName, "json")
-              await MedDataObject.writeFileSync({ data: jsonResponse["data"], configs: flConfig, date: Date.now() }, path + "/FL/Results", flConfig[0]?.flSaveModelNode?.fileName, "medflres")
+              await MEDDataObject.writeFileSync(jsonResponse["data"], path + "/FL/Results", flConfig[0]?.flSaveModelNode?.fileName, "json")
+              await MEDDataObject.writeFileSync({ data: jsonResponse["data"], configs: flConfig, date: Date.now() }, path + "/FL/Results", flConfig[0]?.flSaveModelNode?.fileName, "medflres")
 
               toast.success("Experiment results saved successfuly ")
             } catch {
@@ -1055,12 +1059,12 @@ const MedflWorkflow = ({ setWorkflowType, workflowType }) => {
               try {
                 let path = Path.join(globalData[UUID_ROOT].path, EXPERIMENTS)
 
-                MedDataObject.createFolderFromPath(path + "/FL")
-                MedDataObject.createFolderFromPath(path + "/FL/Results")
+                MEDDataObject.createFolderFromPath(path + "/FL")
+                MEDDataObject.createFolderFromPath(path + "/FL/Results")
 
                 // do custom actions in the folder while it is unzipped
-                await MedDataObject.writeFileSync(resultFileData["data"], path + "/FL/Results", fileName, "json")
-                await MedDataObject.writeFileSync(resultFileData, path + "/FL/Results", fileName, "medflres")
+                await MEDDataObject.writeFileSync(resultFileData["data"], path + "/FL/Results", fileName, "json")
+                await MEDDataObject.writeFileSync(resultFileData, path + "/FL/Results", fileName, "medflres")
 
                 toast.success("Experiment results saved successfuly ")
               } catch {
@@ -1322,7 +1326,7 @@ const MedflWorkflow = ({ setWorkflowType, workflowType }) => {
                     {
                       type: "save",
                       onClick: () => {
-                        configPath != "" ? onSave() : openSaveModal(true)
+                        configPath && configPath != "" ? onSave() : openSaveModal(true)
                       }
                     },
                     { type: "load", onClick: onLoad }

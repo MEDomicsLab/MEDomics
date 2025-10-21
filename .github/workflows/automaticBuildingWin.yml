@@ -8,6 +8,8 @@ permissions:
 jobs:
   build-windows:
     runs-on: windows-latest
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
     steps:
       - name: Checkout code
@@ -54,13 +56,32 @@ jobs:
         shell: bash
         run: |
           VERSION=${GITHUB_REF/refs\/tags\//}
-          echo "::set-output name=VERSION::${VERSION#w}"
+          echo "VERSION=${VERSION#w}" >> "$GITHUB_OUTPUT"
 
       - name: Archive Windows
         uses: actions/upload-artifact@v4
         with:
           name: windows-built
           path: ./build/dist/MEDomicsLab-${{ env.VERSION }}-win.exe
+          compression-level: 0
+        env:
+          VERSION: ${{ steps.get-tag.outputs.VERSION }}
+
+      - name: Archive Windows blockmap
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-built-blockmap
+          path: ./build/dist/MEDomicsLab-${{ env.VERSION }}-win.exe.blockmap
+          compression-level: 0
+        env:
+          VERSION: ${{ steps.get-tag.outputs.VERSION }}
+
+      - name: Archive Windows latest.yml file
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-built-latest
+          path: ./build/dist/latest.yml
+          compression-level: 0
         env:
           VERSION: ${{ steps.get-tag.outputs.VERSION }}
 
@@ -76,6 +97,16 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: windows-built
+
+      - name: Download Windows blockmap
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-built-blockmap
+
+      - name: Download Windows latest.yml file
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-built-latest
 
       - name: Install zip
         run: sudo apt-get install zip
@@ -98,13 +129,15 @@ jobs:
         id: get-tag
         run: |
           VERSION=${GITHUB_REF/refs\/tags\//}
-          echo "::set-output name=VERSION::${VERSION#w}"
+          echo "VERSION=${VERSION#w}" >> "$GITHUB_OUTPUT"
 
       - name: Publish to GitHub
         uses: softprops/action-gh-release@v1
         with:
           files: |
             ./MEDomicsLab-${{ env.VERSION }}-win.exe
+            ./MEDomicsLab-${{ env.VERSION }}-win.exe.blockmap
+            ./latest.yml
             ./MEDomicsLab-PythonEnv-win.zip
           name: MEDomicsLab-${{ env.VERSION }}
           body: |
@@ -116,4 +149,6 @@ jobs:
           prerelease: false
           token: ${{ secrets.GITHUB_TOKEN }}
         env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VERSION: ${{ steps.get-tag.outputs.VERSION }}

@@ -165,7 +165,7 @@ const FlModelNode = ({ id, data }) => {
                           type: "data-input",
                           tooltip: "<p>Specify a data file (xlsx, csv, json)</p>"
                         }}
-                        currentValue={data.internal.settings.file || {}}
+                        currentValue={data.internal.settings.file && data.internal.settings.file.id}
                         onInputChange={onFilesChange}
                         setHasWarning={() => {}}
                         acceptedExtensions={["pth"]}

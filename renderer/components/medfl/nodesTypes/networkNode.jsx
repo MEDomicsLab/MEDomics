@@ -20,7 +20,7 @@ export default function NetworkNode({ id, data }) {
         id={id}
         data={data}
         onClickCustom={() => {
-          changeSubFlow("flNetwork")
+          changeSubFlow(id)
         }}
       />
     </>

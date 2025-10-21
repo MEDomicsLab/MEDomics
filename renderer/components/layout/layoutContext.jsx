@@ -27,6 +27,7 @@ function LayoutModelProvider({ children, layoutModel, setLayoutModel }) {
   const [layoutRequestQueue, setLayoutRequestQueue] = useState([])
   const [developerMode, setDeveloperMode] = useState(false)
   const [isEditorOpen, setIsEditorOpen] = useState(false)
+  const [jupyterStatus, setJupyterStatus] = useState({running: false, port: null, error: null})
 
   /**
    * @param {FlexLayout.Model.Action} action - The actions passed on by the flexlayout-react library
@@ -91,6 +92,8 @@ function LayoutModelProvider({ children, layoutModel, setLayoutModel }) {
           return openDataTableFromDB(action)
         case "openInCodeEditor":
           return openCodeEditor(action)
+        case "openInJupyterNotebook":
+          return openJupyterNotebook(action)
         case "openInImageViewer":
           return openImageViewer(action, globalData)
         case "openInPDFViewer":
@@ -398,6 +401,11 @@ function LayoutModelProvider({ children, layoutModel, setLayoutModel }) {
   }
 
   /**
+<<<<<<< HEAD
+=======
+<<<<<<< HEAD
+=======
+>>>>>>> scalability
    * @summary Function that adds a tab of the MEDfl Clients Module to the layout model
    * @params {Object} action - The action passed on by the dispatchLayout function
    */
@@ -417,6 +425,10 @@ function LayoutModelProvider({ children, layoutModel, setLayoutModel }) {
     openGeneric(action, "MEDfl: Real world", "flRwWorkflowPage")
   }
   /**
+<<<<<<< HEAD
+=======
+>>>>>>> origin/dev_medfl
+>>>>>>> scalability
    * @summary Function that adds a tab of the MED3pa Module to the layout model
    * @params {Object} action - The action passed on by the dispatchLayout function
    */
@@ -547,6 +559,14 @@ function LayoutModelProvider({ children, layoutModel, setLayoutModel }) {
    */
   const openCodeEditor = (action) => {
     openInDotDotDot(action, "codeEditor", globalData)
+  }
+
+  /**
+   * @summary Function that adds a tab with a code editor to the layout model
+   * @params {Object} action - The action passed on by the dispatchLayout function
+   */
+  const openJupyterNotebook = (action) => {
+    openInDotDotDot(action, "jupyterNotebook", globalData)
   }
 
   /**

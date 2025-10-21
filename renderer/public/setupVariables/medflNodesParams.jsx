@@ -38,27 +38,28 @@ const nodesParams = {
   //   title: "FL Setup",
   //   possibleSettings: {}
   // },
-  fl_dataset: {
-    type: "flDatasetNode",
-    classes: "object dataset",
-    nbInput: 1,
-    nbOutput: 1,
-    input: ["network"],
-    output: ["fl_dataset"],
-    img: "fldatabase.png",
-    title: "FL Dataset",
-    section: "initialization",
-    possibleSettings: {}
-  },
+  // fl_dataset: {
+  //   type: "flDatasetNode",
+  //   classes: "object dataset",
+  //   nbInput: 1,
+  //   nbOutput: 1,
+  //   input: ["network"],
+  //   output: ["fl_dataset"],
+  //   img: "fldatabase.png",
+  //   title: "FL Dataset",
+  //   section: "initialization",
+  //   possibleSettings: {}
+  // },
   model: {
     type: "flModelNode",
     classes: "object model",
     nbInput: 1,
     nbOutput: 1,
-    input: ["fl_dataset"],
+    input: ["network"],
     output: ["model"],
     img: "model.png",
     title: "Model",
+    section: "initialization",
     possibleSettings: {}
   },
 
@@ -109,39 +110,40 @@ const nodesParams = {
   //   title: "Results",
   //   possibleSettings: {}
   // }
-  train_model: {
-    type: "flTrainModelNode",
-    classes: "object",
-    nbInput: 1,
-    nbOutput: 1,
-    input: ["fl_strategy"],
-    output: ["train_model"],
-    img: "create_model.png",
-    title: "Train Model",
-    possibleSettings: {}
-  },
-  save_results: {
-    type: "flSaveModelNode",
-    classes: "object",
-    nbInput: 1,
-    nbOutput: 1,
-    input: ["train_model"],
-    output: ["save_results"],
-    img: "save_model.png",
-    title: "Save results",
-    possibleSettings: {}
-  },
-  merge_results: {
-    type: "flMergeresultsNode",
-    classes: "object",
-    nbInput: 1,
-    nbOutput: 0,
-    input: ["save_results"],
-    output: ["save_results"],
-    img: "compare.png",
-    title: "Merge results",
-    possibleSettings: {}
-  }
+  // train_model: {
+  //   type: "flTrainModelNode",
+  //   classes: "object",
+  //   nbInput: 1,
+  //   nbOutput: 0,
+  //   input: ["fl_strategy"],
+  //   output: ["train_model"],
+  //   img: "create_model.png",
+  //   title: "Train Model",
+  //   section: "train",
+  //   possibleSettings: {}
+  // },
+  // save_results: {
+  //   type: "flSaveModelNode",
+  //   classes: "object",
+  //   nbInput: 1,
+  //   nbOutput: 1,
+  //   input: ["train_model"],
+  //   output: ["save_results"],
+  //   img: "save_model.png",
+  //   title: "Save results",
+  //   possibleSettings: {}
+  // },
+  // merge_results: {
+  //   type: "flMergeresultsNode",
+  //   classes: "object",
+  //   nbInput: 1,
+  //   nbOutput: 0,
+  //   input: ["save_results"],
+  //   output: ["save_results"],
+  //   img: "compare.png",
+  //   title: "Merge results",
+  //   possibleSettings: {}
+  // }
 }
 
 export default nodesParams

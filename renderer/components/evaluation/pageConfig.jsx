@@ -18,6 +18,7 @@ import { Tooltip } from "primereact/tooltip"
  * @param {Object} datasetHasWarning Object containing the dataset warning state and tooltip
  * @param {Function} setDatasetHasWarning Function to set the dataset warning state and tooltip
  * @param {Function} updateConfigClick Function to update the config on click
+ * @param {Function} checkForEmptyInput Function to check if model or dataset inputs are not set
  *
  * @returns the configuation page of the evaluation page
  */
@@ -32,7 +33,8 @@ const PageConfig = ({
   datasetHasWarning,
   setDatasetHasWarning,
   updateConfigClick,
-  useMedStandard
+  useMedStandard,
+  checkForEmptyInput
 }) => {
   // on load check if there is a config
 
@@ -53,7 +55,7 @@ const PageConfig = ({
   // footer template
   const footer = (
     <>
-      <Button label="Create evaluation" icon="pi pi-arrow-right" iconPos="right" disabled={modelHasWarning.state || datasetHasWarning.state} onClick={updateConfigClick} />
+      <Button label="Create evaluation" icon="pi pi-arrow-right" iconPos="right" disabled={checkForEmptyInput() || modelHasWarning.state || datasetHasWarning.state} onClick={updateConfigClick} />
     </>
   )
 

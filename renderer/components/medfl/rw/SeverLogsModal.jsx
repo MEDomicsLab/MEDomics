@@ -21,7 +21,6 @@ import ClientEvalLineChart from "./ ClientsLineChart"
 import CommunicationFlow from "./CommunicationFlow"
 
 import { JsonView, allExpanded } from "react-json-view-lite"
-import MedDataObject from "../../workspace/medDataObject"
 import { toast } from "react-toastify"
 
 import { UUID_ROOT, DataContext } from "../../workspace/dataContext"
@@ -32,6 +31,7 @@ import ClientDetails from "./ClientDetails"
 import ConnectedWSAgents from "./ConnectedWSAgents"
 import { FcLinux } from "react-icons/fc"
 import ClientLogs from "./ClientLogs"
+import { MEDDataObject } from "../../workspace/NewMedDataObject"
 
 const ServerLogosModal = ({ show, onHide, nodes, onSaveScean, setRunServer }) => {
   const { port } = useContext(WorkspaceContext)
@@ -101,6 +101,11 @@ const ServerLogosModal = ({ show, onHide, nodes, onSaveScean, setRunServer }) =>
 
   const saveResults = async () => {
     try {
+      let path = Path.join(globalData[UUID_ROOT].path, EXPERIMENTS)
+
+      MEDDataObject.createFolderFromPath(path + "/FL")
+      MEDDataObject.createFolderFromPath(path + "/FL/RW")
+
       // do custom actions in the folder while it is unzipped
 
       let dirPath = ""
@@ -123,9 +128,8 @@ const ServerLogosModal = ({ show, onHide, nodes, onSaveScean, setRunServer }) =>
         connectedClients
       }
 
-      console.log("Saving results to directory:", dirPath, "with file name:", fileName)
-      await MedDataObject.writeFileSync({ data, date: Date.now() }, dirPath, fileName, "json")
-      await MedDataObject.writeFileSync({ data, date: Date.now() }, dirPath, fileName, "medflrw")
+      await MEDDataObject.writeFileSync({ data, date: Date.now() }, path + "/FL/RW", fileName, "json")
+      await MEDDataObject.writeFileSync({ data, date: Date.now() }, path + "/FL/RW", fileName, "medflrw")
 
       toast.success("Experimentation results saved successfully")
     } catch {

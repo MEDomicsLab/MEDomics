@@ -7,7 +7,7 @@ export default function DataFilesLoader(props) {
   //  loadCSVFromPath(config.path, whenDataLoaded)
   const [globalData, setGlobalData] = useState(null)
 
-  const dfd = require("danfojs")
+  const dfd = require("../../utilities/danfo.js")
 
   const whenDataLoaded = (data) => {
     data = new dfd.DataFrame(data)
@@ -15,7 +15,7 @@ export default function DataFilesLoader(props) {
     setGlobalData(data)
   }
 
-  !globalData && loadCSVFromPath(props.path, whenDataLoaded)
+  // !globalData && loadCSVFromPath(props.path, whenDataLoaded)
 
   return (
     <>

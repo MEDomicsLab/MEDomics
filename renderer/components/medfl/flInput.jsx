@@ -10,7 +10,6 @@ import WsSelectMultiple from "../mainPages/dataComponents/wsSelectMultiple"
 import TagsSelectMultiple from "../mainPages/dataComponents/tagsSelectMultiple"
 // import { customZipFile2Object } from "../../utilities/customZipFile"
 import { DataContext } from "../workspace/dataContext"
-import MedDataObject from "../workspace/medDataObject"
 import { Dropdown } from "primereact/dropdown"
 import { MultiSelect } from "primereact/multiselect"
 import VarsSelectMultiple from "../mainPages/dataComponents/varsSelectMultiple"
@@ -399,15 +398,16 @@ const FlInput = ({ name, settingInfos, currentValue, onInputChange, disabled, se
                 acceptedExtensions={acceptedExtensions || ["all"]}
                 acceptFolder={settingInfos.acceptFolder ? settingInfos.acceptFolder : false}
                 onChange={(e, path) => {
-                  console.log("e", e, path)
+                  console.log("e ============== this is the path", e, path)
                   if (path == "") {
                     setHasWarning({ state: true, tooltip: <p>No file selected</p> })
                   } else {
                     setHasWarning({ state: false })
                   }
+                  console.log("globalData", globalData)
                   setInputUpdate({
                     name: name,
-                    value: { name: e.target.value, path: path },
+                    value: { id: e.target.value, name: globalData[e.target.value]?.name || "", path: globalData[e.target.value]?.path },
                     type: settingInfos.type
                   })
                 }}
@@ -425,7 +425,7 @@ const FlInput = ({ name, settingInfos, currentValue, onInputChange, disabled, se
           <>
             <WsSelectMultiple
               key={name}
-              rootDir={["learning", "holdout"]}
+              rootDir={["DATA", "holdout"]}
               placeholder={name}
               disabled={disabled}
               selectedPaths={currentValue}

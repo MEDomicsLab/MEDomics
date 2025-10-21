@@ -20,6 +20,7 @@ const nodesParams = {
     output: ["model"],
     img: "model.png",
     title: "Model",
+    section: "initialization",
     possibleSettings: {}
   },
   network: {
@@ -31,6 +32,7 @@ const nodesParams = {
     output: ["network"],
     img: "network.png",
     title: "Network",
+    section: "initialization",
     possibleSettings: {}
   },
   optimize: {
@@ -42,6 +44,7 @@ const nodesParams = {
     output: ["model"],
     img: "optimize.png",
     title: "Optimize",
+    section: "train",
     possibleSettings: {}
   },
   // optimize: {
@@ -71,13 +74,14 @@ const nodesParams = {
     type: "flRunServerNode",
     classes: "object",
     nbInput: 1,
-    nbOutput: 1,
+    nbOutput: 0,
     input: ["network"],
     output: ["results"],
     img: "strategy.png",
     title: "FL Strategy",
+    section: "train",
     possibleSettings: {}
-  },
+  }
 
   // save_results: {
   //   type: "flSaveModelNode",

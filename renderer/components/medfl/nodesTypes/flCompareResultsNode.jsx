@@ -3,7 +3,6 @@ import Node from "../../flow/node"
 import FlInput from "../flInput"
 import { FlowFunctionsContext } from "../../flow/context/flowFunctionsContext"
 import { Button } from "primereact/button"
-import MedDataObject from "../../workspace/medDataObject"
 
 import Path from "path"
 
@@ -12,6 +11,7 @@ import { EXPERIMENTS } from "../../workspace/workspaceContext"
 import { loadFileFromPathSync } from "../../../utilities/fileManagementUtils"
 import { toast } from "react-toastify"
 import { InputText } from "primereact/inputtext"
+import { MEDDataObject } from "../../workspace/NewMedDataObject"
 
 export default function FlCompareResults({ id, data }) {
   // context
@@ -73,12 +73,12 @@ export default function FlCompareResults({ id, data }) {
       try {
         let path = Path.join(globalData[UUID_ROOT].path, EXPERIMENTS)
 
-        MedDataObject.createFolderFromPath(path + "/FL")
-        MedDataObject.createFolderFromPath(path + "/FL/Results")
+        MEDDataObject.createFolderFromPath(path + "/FL")
+        MEDDataObject.createFolderFromPath(path + "/FL/Results")
 
         // do custom actions in the folder while it is unzipped
-        await MedDataObject.writeFileSync(resultFileData["data"], path + "/FL/Results", fileName, "json")
-        await MedDataObject.writeFileSync(resultFileData, path + "/FL/Results", fileName, "medflres")
+        await MEDDataObject.writeFileSync(resultFileData["data"], path + "/FL/Results", fileName, "json")
+        await MEDDataObject.writeFileSync(resultFileData, path + "/FL/Results", fileName, "medflres")
 
         toast.success("Experiment results saved successfuly ")
       } catch {

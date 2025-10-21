@@ -92,8 +92,8 @@ class GoExecScriptRunPipelineFromMEDfl(GoExecutionScript):
             self.set_progress(label=f"Configuration : {index +1 }, Creating the FL setup", now=20)
             # auto FLsetup creation
             microseconds = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f").split('.')[1]
-            autoFl = FLsetup( name= f"{config['flSetupNode']['name']}_{microseconds}" ,
-                            description=config['flSetupNode']['description'], network=Net_1)
+            autoFl = FLsetup( name= f"_{microseconds}" ,
+                            description="experiment", network=Net_1)
             autoFl.create()
 
             # Create nodes
@@ -199,7 +199,7 @@ class GoExecScriptRunPipelineFromMEDfl(GoExecutionScript):
            
 
             client_resources = None
-            if config['flTrainModelNode']['clientRessources'] == "Use GPU" and torch.cuda.is_available():
+            if config['flStrategyNode']['clientRessources'] == "Use GPU" and torch.cuda.is_available():
                 client_resources = {"num_gpus": 1}
 
                          

@@ -39,14 +39,19 @@ const RunPipelineModal = ({ show, onHide, configs, nodes, onRun }) => {
             n = {
               name: node.data.internal.settings.files?.name,
               path: node.data.internal.settings.files?.path,
-              target: node.data.internal.settings.target
+              target: node.data.internal.settings.target , 
+              validationFraction: node.data.internal.settings.validFrac,
+              testFraction: node.data.internal.settings.testFrac
             }
             break
           case "groupNode":
+            console.log("this is the group node", node)
             n = {
               name: node.data.internal.name,
               clients: []
             }
+
+            console.log("these are the nodes", nodes)
             nodes.forEach((client) => {
               if (client.data.internal.subflowId == node.id) {
                 if (client.type == "flClientNode") {
@@ -124,8 +129,8 @@ const RunPipelineModal = ({ show, onHide, configs, nodes, onRun }) => {
             n = node.data.internal.settings
             break
           default:
-            n  = node.data.internal.settings
-           
+            n = node.data.internal.settings
+
             break
         }
         nodeType = node.type
@@ -178,13 +183,15 @@ const RunPipelineModal = ({ show, onHide, configs, nodes, onRun }) => {
               Optimise hyperparameters
             </Button>
           ) : null}
-          {experimentConfig?.length > 0 && !experimentConfig[0]["flOptimizeNode"] ? <Button
-            onClick={() => {
-              onRun(experimentConfig, "run")
-            }}
-          >
-            Run Pipeline
-          </Button> : null }
+          {experimentConfig?.length > 0 && !experimentConfig[0]["flOptimizeNode"] ? (
+            <Button
+              onClick={() => {
+                onRun(experimentConfig, "run")
+              }}
+            >
+              Run Pipeline
+            </Button>
+          ) : null}
         </Modal.Footer>
       </Modal>
     </div>

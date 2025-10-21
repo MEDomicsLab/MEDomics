@@ -11,11 +11,12 @@ import { FaMagnifyingGlassChart } from "react-icons/fa6"
 import { FaDatabase } from "react-icons/fa6"
 import { LuNetwork } from "react-icons/lu"
 import { Button } from "primereact/button"
-import { TbFileExport, TbDeviceDesktopCog } from "react-icons/tb"
+import { TbFileExport, TbDeviceDesktopCog, TbServerCog } from "react-icons/tb"
 import { VscChromeClose } from "react-icons/vsc"
 import { PiGraphFill } from "react-icons/pi"
 import { MdOutlineGroups3 } from "react-icons/md"
 
+import { FaGlobeAfrica } from "react-icons/fa"
 /**
  * @description Sidebar component containing icons for each page
  * @param {function} onSidebarItemSelect - function to handle sidebar item selection

@@ -188,6 +188,12 @@ function App() {
       setPort(data.newPort)
     })
 
+    ipcRenderer.on("openWorkspace", (event, data) => {MEDflContextProvider
+      console.log("openWorkspace from NEXT", data)
+      let workspace = { ...data }
+      setWorkspaceObject(workspace)
+    })
+
     ipcRenderer.on("toggleDarkMode", () => {
       console.log("toggleDarkMode")
       // setIsDarkMode(!isDarkMode)

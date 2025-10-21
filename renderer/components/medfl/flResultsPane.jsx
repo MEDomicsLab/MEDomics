@@ -13,10 +13,10 @@ import { UUID_ROOT, DataContext } from "../workspace/dataContext"
 import { EXPERIMENTS } from "../workspace/workspaceContext"
 
 import Path from "path"
-import MedDataObject from "../workspace/medDataObject"
 import { useMEDflContext } from "../workspace/medflContext"
 import { toast } from "react-toastify"
 import { InputText } from "primereact/inputtext"
+import { MEDDataObject } from "../workspace/NewMedDataObject"
 
 export default function FlResultsPane() {
   const { globalData } = useContext(DataContext)
@@ -206,12 +206,12 @@ export default function FlResultsPane() {
     try {
       let path = Path.join(globalData[UUID_ROOT].path, EXPERIMENTS)
 
-      MedDataObject.createFolderFromPath(path + "/FL")
-      MedDataObject.createFolderFromPath(path + "/FL/Results")
+      MEDDataObject.createFolderFromPath(path + "/FL")
+      MEDDataObject.createFolderFromPath(path + "/FL/Results")
 
       // do custom actions in the folder while it is unzipped
-      await MedDataObject.writeFileSync(flowResults["data"], path + "/FL/Results", resultsFileName, "json")
-      await MedDataObject.writeFileSync({ data: flowResults["data"], configs: flPipelineConfigs, date: Date.now() }, path + "/FL/Results", resultsFileName, "medflres")
+      await MEDDataObject.writeFileSync(flowResults["data"], path + "/FL/Results", resultsFileName, "json")
+      await MEDDataObject.writeFileSync({ data: flowResults["data"], configs: flPipelineConfigs, date: Date.now() }, path + "/FL/Results", resultsFileName, "medflres")
       showFileName(false)
       toast.success("Experiment results saved successfuly ")
     } catch {
