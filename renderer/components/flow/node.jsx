@@ -10,8 +10,8 @@ import * as Icon from "react-bootstrap-icons"
 import NodeWrapperResults from "./nodeWrapperResults"
 import { OverlayPanel } from "primereact/overlaypanel"
 import { Stack } from "react-bootstrap"
-import { IoClose } from "react-icons/io5"
-import { BsPlay } from "react-icons/bs"
+import { IoClose, IoDuplicateOutline } from "react-icons/io5"
+import { BsPlay, BsThreeDots } from "react-icons/bs"
 import { Tooltip } from "primereact/tooltip"
 import { AiOutlineInfoCircle } from "react-icons/ai"
 import { defaultValueFromType } from "../../utilities/learning/inputTypesUtils"
@@ -19,6 +19,7 @@ import { deepCopy } from "../../utilities/staticFunctions"
 import { Tag } from "primereact/tag"
 import { shell } from "electron"
 import { FaWindows, FaLinux, FaApple } from "react-icons/fa"
+import { MdCopyAll } from "react-icons/md"
 
 // keep this import for the code editor (to be implemented)
 // import dynamic from "next/dynamic"
@@ -46,7 +47,7 @@ const NodeObject = ({ id, data, nodeSpecific, nodeBody, defaultSettings, onClick
   const [nodeName, setNodeName] = useState(data.internal.name) // used to store the name of the node
   const { flowInfos, canRun } = useContext(FlowInfosContext) // used to get the flow infos
   const { showResultsPane } = useContext(FlowResultsContext) // used to get the flow results
-  const { updateNode, onDeleteNode, runNode } = useContext(FlowFunctionsContext) // used to get the function to update the node
+  const { updateNode, onDeleteNode, runNode, onDuplicateNode } = useContext(FlowFunctionsContext) // used to get the function to update the node
   const [nodeStatus, setNodeStatus] = useState("") // used to store the status of the node
   const op = useRef(null)
 
@@ -112,10 +113,14 @@ const NodeObject = ({ id, data, nodeSpecific, nodeBody, defaultSettings, onClick
     setNodeName(newName)
   }
 
+  const duplidateNode = (id) => {
+    onDuplicateNode(id)
+  }
+
   return (
     <>
       <div className="node">
-        {data.device && (
+        {data.device ? (
           <div
             style={{
               position: "absolute",
@@ -128,6 +133,8 @@ const NodeObject = ({ id, data, nodeSpecific, nodeBody, defaultSettings, onClick
             <img src={`/icon/${flowInfos.type}/` + `${data.internal.img.replaceAll(" ", "_")}`} alt={data.internal.img} style={{ width: "15px", marginRight: "5px" }} />
             {data.device.tags || [].includes("tag:server") ? "Central Server" : "Client"}
           </div>
+        ) : (
+          <div className="d-flex justify-content-between"></div>
         )}
         {data.internal.hasWarning.state && (
           <>
@@ -181,17 +188,27 @@ const NodeObject = ({ id, data, nodeSpecific, nodeBody, defaultSettings, onClick
               </div>
 
               <div className="btn-node-div">
-                {/* here are the buttons to delete and run the node*/}
-                <IoClose
-                  className="btn-close-node"
-                  onClick={(e) => {
-                    if (!showResultsPane) {
+                <div className="d-flex ">
+                  {/* here are the buttons to duplicate and run the node*/}
+                  <IoDuplicateOutline
+                    className="btn-duplicate-node"
+                    onClick={(e) => {
                       e.stopPropagation()
-                      onDeleteNode(id)
-                    }
-                  }}
-                  disabled={showResultsPane}
-                />
+                      duplidateNode(id)
+                    }}
+                  />
+                  {/* here are the buttons to delete and run the node*/}
+                  <IoClose
+                    className="btn-close-node"
+                    onClick={(e) => {
+                      if (!showResultsPane) {
+                        e.stopPropagation()
+                        onDeleteNode(id)
+                      }
+                    }}
+                    disabled={showResultsPane}
+                  />
+                </div>
 
                 {/* if the node is a run node (by checking setupParam classes), a button to run the node is displayed*/}
                 {data.setupParam.classes.split(" ").includes("run") && (

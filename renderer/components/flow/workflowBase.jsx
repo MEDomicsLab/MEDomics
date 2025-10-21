@@ -51,7 +51,7 @@ const WorkflowBase = ({ isGoodConnection, groupNodeHandlingDefault, onDeleteNode
 
   const edgeUpdateSuccessful = useRef(true)
   const { pageId } = useContext(PageInfosContext) // used to get the page infos
-  const { updateNode, nodeUpdate, updateEdge, edgeUpdate, node2Delete, node2Run, newConnectionCreated, hasNewConnection } = useContext(FlowFunctionsContext) // used to get the function to update the node
+  const { updateNode, nodeUpdate, updateEdge, edgeUpdate, node2Delete, node2Run, newConnectionCreated, hasNewConnection  , node2Duplicate} = useContext(FlowFunctionsContext) // used to get the function to update the node
   const { showAvailableNodes, setShowAvailableNodes, updateFlowContent } = useContext(FlowInfosContext) // used to update the flow infos
   const { showResultsPane, setShowResultsPane, isResults, flowResults } = useContext(FlowResultsContext) // used to update the flow infos
   const { showError, setShowError } = useContext(ErrorRequestContext) // used to get the flow infos
@@ -125,6 +125,10 @@ const WorkflowBase = ({ isGoodConnection, groupNodeHandlingDefault, onDeleteNode
   useEffect(() => {
     onDeleteNode ? onDeleteNode(node2Delete) : deleteNode(node2Delete)
   }, [node2Delete])
+
+    useEffect(() => {
+    onDeleteNode ? onDeleteNode(node2Delete) : deleteNode(node2Delete)
+  }, [node2Duplicate])
 
   // this useEffect is used to run a node when the node2Run object changes
   useEffect(() => {

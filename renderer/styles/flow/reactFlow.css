@@ -85,6 +85,21 @@
   opacity: 0.75;
 }
 
+.btn-duplicate-node {
+  width: 1.1rem;
+  height: 1.1rem;
+  cursor: pointer;
+  padding: 2px;
+  opacity: 0.75;
+}
+
+.btn-duplicate-node:hover {
+  border-radius: 25%;
+  background-color: rgba(17, 0, 255, 0.25);
+  color: blue;
+  opacity: 0.75;
+}
+
 .btn-run-node {
   width: 1.2rem;
   height: 1.2rem;

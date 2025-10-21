@@ -300,6 +300,7 @@ const Input = ({ name, settingInfos, currentValue, onInputChange, disabled, setH
           <>
             <MultiSelect
               key={name}
+       
               disabled={disabled}
               value={currentValue ? currentValue.value : []}
               onChange={(newValue) =>

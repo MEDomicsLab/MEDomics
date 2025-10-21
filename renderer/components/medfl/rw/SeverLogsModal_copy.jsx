@@ -2,7 +2,7 @@ import React, { useState, useEffect, useContext, useRef } from "react"
 import { Modal, Tabs, Tab, Alert } from "react-bootstrap"
 import { ipcRenderer } from "electron"
 import { FaDatabase, FaServer, FaSpinner } from "react-icons/fa6"
-import { FaApple, FaChartLine, FaFileAlt, FaLaptop, FaNetworkWired, FaPause, FaPlay, FaSave, FaTable, FaWindows } from "react-icons/fa"
+import { FaApple, FaChartLine, FaCode, FaFileAlt, FaLaptop, FaNetworkWired, FaPause, FaPlay, FaSave, FaTable, FaWindows } from "react-icons/fa"
 import Col from "react-bootstrap/Col"
 import Nav from "react-bootstrap/Nav"
 import Row from "react-bootstrap/Row"
@@ -27,6 +27,10 @@ import { DataContext } from "../../workspace/dataContext"
 import { FcLinux } from "react-icons/fc"
 import { Message } from "primereact/message"
 
+import { Form, Button } from "react-bootstrap"
+
+import { buildNotebookText, buildServerNotebookText } from "../../../utilities/medfl/flUtils"
+
 // ---------- helpers ----------
 const ensureIndex = (arr, index, initValue) => {
   const next = Array.isArray(arr) ? [...arr] : []
@@ -42,10 +46,13 @@ const styles = {
   logEntry: { padding: "0.25rem 0", borderBottom: "1px solid #f0f0f0" }
 }
 
-const NewServerLogsModal = ({ show, onHide, nodes, onSaveScean, setRunServer, configs }) => {
+const NewServerLogsModal = ({ show, onHide, nodes, onSaveScean, setRunServer, configs, datasetConfig }) => {
   const { port } = useContext(WorkspaceContext)
   const { pageId, configPath } = useContext(PageInfosContext)
   const { globalData } = useContext(DataContext)
+
+  const [configToCode, setConfigToCode] = useState(0)
+  const [code, setCode] = useState("")
 
   // ---------- config discovery ----------
   const [experimentConfig, setConfig] = useState(null)
@@ -544,7 +551,8 @@ const NewServerLogsModal = ({ show, onHide, nodes, onSaveScean, setRunServer, co
         optimizer: modelConfigs[0]?.data.internal.settings.optimizer || "SGD",
         learning_rate: modelConfigs[0]?.data.internal.settings["Learning rate"] || 0.01,
         savingPath: savingPath + "/models",
-        saveOnRounds: strategyConfigs[0]?.data.internal.settings.saveOnRounds || 5
+        saveOnRounds: strategyConfigs[0]?.data.internal.settings.saveOnRounds || 5,
+        datasetConfig: datasetConfig
       },
       (json) => {
         json?.error ? toast.error("Error: " + json.error) : MedDataObject.updateWorkspaceDataObject()
@@ -741,6 +749,50 @@ const NewServerLogsModal = ({ show, onHide, nodes, onSaveScean, setRunServer, co
     }
   }
 
+  const handleGenerate = async () => {
+    let noteBook = buildNotebookText({
+      model_type: "nn",
+      server_address: "100.65.215.27:8080",
+      data_path: "../data/client1.csv"
+    })
+
+    let servernoteBook = buildServerNotebookText({
+      host: "0.0.0.0",
+      port: 8080,
+      num_rounds: experimentConfig[currentExecConfig]?.flRunServerNode.numRounds || 10,
+      strategy: {
+        name: experimentConfig[currentExecConfig]?.flRunServerNode.strategy || "FedAvg",
+        fraction_fit: experimentConfig[currentExecConfig]?.flRunServerNode.fractionFit || 1,
+        min_fit_clients: experimentConfig[currentExecConfig]?.flRunServerNode.minFitClients || 1,
+        min_evaluate_clients: experimentConfig[currentExecConfig]?.flRunServerNode.minEvaluateClients || 1,
+        min_available_clients: experimentConfig[currentExecConfig]?.flRunServerNode.minAvailableClients || 3,
+        local_epochs: experimentConfig[currentExecConfig]?.flModelNode["Local epochs"] || 1,
+        threshold: experimentConfig[currentExecConfig]?.flModelNode.Threshold || 0.5,
+        learning_rate: experimentConfig[currentExecConfig]?.flModelNode["Learning rate"] || 0.01,
+        optimizer_name: experimentConfig[currentExecConfig]?.flModelNode.optimizer || "SGD",
+        saveOnRounds: experimentConfig[currentExecConfig]?.flRunServerNode.saveOnRounds || 5,
+        savingPath: "/.",
+        total_rounds: experimentConfig[currentExecConfig]?.flRunServerNode.numRounds || 10
+      }
+    })
+
+    console.log(noteBook)
+
+    console.log(servernoteBook)
+
+    if (configPath != "") {
+    } else {
+      let dirPath = savingPath != "" ? savingPath : await onSaveScean("FL_code")
+
+      console.log(dirPath)
+
+      await MedDataObject.writeFileSync(servernoteBook, dirPath + "/notebooks", "Server", "ipynb")
+      await MedDataObject.writeFileSync(noteBook, dirPath + "/notebooks", "Client", "ipynb")
+      setSavingPath(dirPath)
+
+      toast.success(`Notebooks saved to ${dirPath}`)
+    }
+  }
   return (
     <div>
       <Modal show={show} onHide={onHide} size="xl" centered className="modal-settings-chooser">
@@ -752,6 +804,32 @@ const NewServerLogsModal = ({ show, onHide, nodes, onSaveScean, setRunServer, co
         </Modal.Header>
 
         <Modal.Body>
+          <div className="d-flex justify-content-between align-items-center bg-light p-3 rounded mb-3 border">
+            <div>
+              {" "}
+              <h3>Generate code</h3>
+              <p className="text-muted">Choose your configuration and generate its notebook</p>
+            </div>
+            <div className="d-flex gap-3 w-50">
+              <Form.Select value={configToCode} onChange={(e) => setConfigToCode(e.target.value)} className="mb-3">
+                {experimentConfig?.map((_, index) => (
+                  <option key={index} value={index}>
+                    Configuration {index + 1}
+                  </option>
+                ))}
+              </Form.Select>
+
+              <Button onClick={handleGenerate} variant="outline-primary" outline className="mb-3 w-50">
+                Generate Code <FaCode />
+              </Button>
+            </div>
+
+            {code && (
+              <pre className="p-3 bg-light rounded" style={{ whiteSpace: "pre-wrap" }}>
+                {code}
+              </pre>
+            )}
+          </div>
           {waitingForClients[currentExecConfig] && (
             <Alert variant={(connectedClients[currentExecConfig]?.length || 0) < minAvailableClients ? "warning" : "success"} className="shadow-sm rounded">
               <strong>Info:</strong>{" "}
@@ -768,14 +846,30 @@ const NewServerLogsModal = ({ show, onHide, nodes, onSaveScean, setRunServer, co
                   id="configs-tabs"
                   className="mb-3"
                   // activeKey={`conf${currentExecConfig}`}
-                  // onSelect={(k) => {
-                  //   if (!k) return
-                  //   const idx = parseInt(k.replace("conf", ""), 10)
-                  //   setCurrentExecConfig(idx)
-                  // }}
+                  onSelect={(k) => {
+                    if (!k) return
+                    const idx = parseInt(k.replace("conf", ""), 10)
+                    setCurrentExecConfig(idx)
+                  }}
                 >
                   {experimentConfig.map((config, index) => (
                     <Tab key={index} eventKey={"conf" + index} title={"Configuration " + (index + 1)}>
+                      <ConnectedWSAgents
+                        key={`agents-${index}`}
+                        wsAgents={wsAgents}
+                        selectedAgents={selectedAgents[index] || {}}
+                        setSelectedAgents={(value) =>
+                          setSelectedAgents((prev) => {
+                            const next = ensureIndex(prev, index, {})
+                            next[index] = value
+                            return next
+                          })
+                        }
+                        setMinAvailableClients={setMinAvailableClients}
+                        getWSAgents={getWSAgents}
+                        setCanRun={setCanRun}
+                        renderOsIcon={renderOsIcon}
+                      />
                       {Object.keys(config).map((key) =>
                         key !== "Network" ? (
                           <div key={`${key}-${index}`} className="card shadow-sm border-0 mb-3">
@@ -784,42 +878,27 @@ const NewServerLogsModal = ({ show, onHide, nodes, onSaveScean, setRunServer, co
                             </div>
                             <div className="card-body p-3">
                               <div className="bg-body-tertiary rounded p-2">
-                                <JsonView data={config[key]} shouldExpandNode={allExpanded} />
+                                <JsonView data={config[key]} shouldExpandNode={allExpanded} className="bg-transparent" />
                               </div>
                             </div>
                           </div>
                         ) : (
-                          <ConnectedWSAgents
-                            key={`agents-${index}`}
-                            wsAgents={wsAgents}
-                            selectedAgents={selectedAgents[index] || {}}
-                            setSelectedAgents={(value) =>
-                              setSelectedAgents((prev) => {
-                                const next = ensureIndex(prev, index, {})
-                                next[index] = value
-                                return next
-                              })
-                            }
-                            setMinAvailableClients={setMinAvailableClients}
-                            getWSAgents={getWSAgents}
-                            setCanRun={setCanRun}
-                            renderOsIcon={renderOsIcon}
-                          />
+                          <div></div>
                         )
                       )}
-                      <div className="d-flex justify-content-end">
+                      {/* <div className="d-flex justify-content-end mt-4">
                         <button
-                          className="btn btn-success"
+                          className="btn btn-outline-success "
                           onClick={() => {
                             setStartRunningConfig(true)
                             // the effect will call runServerWithMultipleConfigs with currentExecConfig
                           }}
                           disabled={!!waitingForServer[index]}
                         >
-                          <span className="me-2">{waitingForServer[index] ? "waiting for server" : "Run"}</span>
+                          <span className="me-2">{waitingForServer[index] ? "waiting for server" : "Run configuration"}</span>
                           {waitingForServer[index] ? <FaSpinner /> : <FaPlay />}
                         </button>
-                      </div>
+                      </div> */}
                     </Tab>
                   ))}
                 </Tabs>
@@ -968,9 +1047,25 @@ const NewServerLogsModal = ({ show, onHide, nodes, onSaveScean, setRunServer, co
               </button>
             </div>
           ) : (
-            <button className="btn btn-success w-25" onClick={() => setStartRunningConfig(true)} disabled={!!waitingForServer[currentExecConfig]}>
-              <span className="me-2">{waitingForServer[currentExecConfig] ? "waiting for server" : "Run Server"}</span>
-              {waitingForServer[currentExecConfig] ? <FaSpinner /> : <FaPlay />}
+            <button
+              className="btn btn-success w-25"
+              onClick={() => {
+                if (experimentConfig?.length > 0) {
+                  // Check if any configuration has no selected agents
+                  const emptyConfigIndex = experimentConfig.findIndex((_, idx) => !selectedAgents[idx] || Object.keys(selectedAgents[idx]).length === 0)
+                  console.log("Empty config index:", emptyConfigIndex)
+                  if (emptyConfigIndex !== -1) {
+                    toast.error(`Please select at least one agent for configuration ${emptyConfigIndex + 1}`)
+                    return
+                  } else {
+                    setStartRunningConfig(true)
+                  }
+                }
+              }}
+              disabled={waitingForServer.includes(true)}
+            >
+              <span className="me-2"> {waitingForServer.includes(true) ? "waiting for server" : "Run Server"} </span>
+              {waitingForServer.includes(true) ? <FaSpinner /> : <FaPlay />}
             </button>
           )}
         </Modal.Footer>

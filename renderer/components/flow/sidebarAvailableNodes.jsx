@@ -2,6 +2,7 @@ import React from "react"
 import { Card } from "primereact/card"
 import nodesParams from "../../public/setupVariables/allNodesParams"
 import { Stack } from "react-bootstrap"
+import SideBarClients from "../medfl/rw/SideBarClients"
 
 /**
  *
@@ -36,7 +37,7 @@ const SidebarAvailableNodes = ({ title, sidebarType }) => {
     <>
       <div className="available-nodes-panel-container ">
         <Card
-          className="text-center height-100 available-nodes-panel"
+          className="text-center height-100  available-nodes-panel "
           title={title}
           pt={{
             body: { className: "overflow-auto height-100" }
@@ -81,6 +82,7 @@ const SidebarAvailableNodes = ({ title, sidebarType }) => {
           </Stack>
           {/* </div> */}
         </Card>
+        <div >{sidebarType == "rwfl" && <SideBarClients />}</div>
       </div>
     </>
   )

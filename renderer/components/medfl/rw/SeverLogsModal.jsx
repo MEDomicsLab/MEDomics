@@ -62,7 +62,7 @@ const ServerLogosModal = ({ show, onHide, nodes, onSaveScean, setRunServer, conf
   const [finishedruning, setFinished] = useState(false)
   const [clientTrainMetrics, setClientTrainMetrics] = useState([])
   const [clientEvalMetrics, setClientEvalMetrics] = useState([])
-  const [waitingForServer, setWaitingForServer] = useState(false)
+  const [waitingForServer, setWaitingForServer] = useState([])
   const [clientProperties, setClientProperties] = useState({})
   const [isListening, setIsListening] = useState(false)
 
@@ -1056,7 +1056,17 @@ const ServerLogosModal = ({ show, onHide, nodes, onSaveScean, setRunServer, conf
             <button
               className="btn btn-success w-25"
               onClick={() => {
-                setStartRunningConfig(true)
+                if (experimentConfig?.length > 0) {
+                  // Check if any configuration has no selected agents
+                  const emptyConfigIndex = experimentConfig.findIndex((_, idx) => !selectedAgents[idx] || Object.keys(selectedAgents[idx]).length === 0)
+                  console.log("Empty config index:", emptyConfigIndex)
+                  if (emptyConfigIndex !== -1) {
+                    toast.error(`Please select at least one agent for configuration ${emptyConfigIndex + 1}`)
+                    return
+                  } else {
+                    // setStartRunningConfig(true)
+                  }
+                }
               }}
               disabled={waitingForServer}
             >

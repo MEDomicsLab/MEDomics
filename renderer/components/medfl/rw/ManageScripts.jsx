@@ -463,10 +463,10 @@ python3 client.py --server-address ${serverIP} --server-port ${serverPort}
               </label>
             </div>
 
-            <div className="form-group" style={styles.formGroup}>
+            {/* <div className="form-group" style={styles.formGroup}>
               <label style={styles.label}>GitHub Repo URL:</label>
               <input style={styles.input} type="url" value={repoUrl} onChange={(e) => setRepoUrl(e.target.value)} placeholder="Enter repository URL" />
-            </div>
+            </div> */}
 
             <div className="form-group" style={styles.formGroup}>
               <label style={styles.label}>Operating System:</label>

@@ -84,6 +84,7 @@ class GoExecScriptRunPipelineFromMEDfl(GoExecutionScript):
             savingPath=json_config['savingPath'],
             saveOnRounds=json_config['saveOnRounds'],
             total_rounds=json_config['num_rounds'],
+            # datasetConfig=json_config.get('datasetConfig', {})
         )
 
         server = FederatedServer(

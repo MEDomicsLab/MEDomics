@@ -59,7 +59,6 @@ const NodeObject = ({ id, data, nodeSpecific, nodeBody, defaultSettings, onClick
   useEffect(() => {
     // if the node has run, we update the status of the node
     if (data.device) {
-      
       const lastSeen = new Date(data.device.lastSeen)
       const online = Date.now() - lastSeen.getTime() < 60 * 1000
       if (online) {
@@ -198,6 +197,7 @@ const NodeObject = ({ id, data, nodeSpecific, nodeBody, defaultSettings, onClick
                   }}
                   disabled={showResultsPane}
                 />
+               
 
                 {/* if the node is a run node (by checking setupParam classes), a button to run the node is displayed*/}
                 {data.setupParam.classes.split(" ").includes("run") && (

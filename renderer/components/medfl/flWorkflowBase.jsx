@@ -48,11 +48,11 @@ import { ButtonGroup } from "react-bootstrap"
  * It manages base workflow functions such as node creation, node deletion, node connection, etc.
  */
 const FlWorflowBase = ({ workflowType = "fl", isGoodConnection, groupNodeHandlingDefault, onDeleteNode, onNodeDrag, mandatoryProps, ui, uiTopLeft, uiTopRight, uiTopCenter, customOnConnect }) => {
-  const { reactFlowInstance, setReactFlowInstance, addSpecificToNode, nodeTypes, nodes, setNodes, onNodesChange, edges, setEdges, onEdgesChange, runNode } = mandatoryProps
+  const { reactFlowInstance, setReactFlowInstance, addSpecificToNode, nodeTypes, nodes, setNodes, onNodesChange, edges, setEdges, onEdgesChange, runNode, duplicateNode } = mandatoryProps
 
   const edgeUpdateSuccessful = useRef(true)
   const { pageId } = useContext(PageInfosContext) // used to get the page infos
-  const { nodeUpdate, updateEdge, edgeUpdate, node2Delete, node2Run, newConnectionCreated } = useContext(FlowFunctionsContext) // used to get the function to update the node
+  const { nodeUpdate, updateEdge, edgeUpdate, node2Delete, node2Run, newConnectionCreated, node2Duplicate, setNode2Duplicate } = useContext(FlowFunctionsContext) // used to get the function to update the node
   const { showAvailableNodes, setShowAvailableNodes, updateFlowContent } = useContext(FlowInfosContext) // used to update the flow infos
   const { showResultsPane, setShowResultsPane, isResults, flowResults } = useContext(FlowResultsContext) // used to update the flow infos
   const { showError, setShowError } = useContext(ErrorRequestContext) // used to get the flow infos
@@ -136,6 +136,12 @@ const FlWorflowBase = ({ workflowType = "fl", isGoodConnection, groupNodeHandlin
   useEffect(() => {
     runNode(node2Run)
   }, [node2Run])
+
+  useEffect(() => {
+    duplicateNode(node2Duplicate)
+
+    setNode2Duplicate(null)
+  }, [node2Duplicate])
 
   // when showResultsPane changes, update the nodes draggable property
   useEffect(() => {
@@ -288,7 +294,7 @@ const FlWorflowBase = ({ workflowType = "fl", isGoodConnection, groupNodeHandlin
         console.log("error", error)
         toast.error("You cannot drop this element here")
       }
-      console.log("node", node)
+      console.log("node dropped", node)
       if (node) {
         const { nodeType } = node
 

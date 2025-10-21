@@ -48,7 +48,7 @@ export default function NetworkNode({ id, data }) {
           </>
         }
         // node specific is the body of the node, so optional settings
-        nodeSpecific={<></>}
+        nodeSpecific={<>test</>}
       />
     </>
   )

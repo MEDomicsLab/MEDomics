@@ -9,15 +9,14 @@ import DatasetInfo from "./Datasetinfo"
 import { WorkspaceContext } from "../../workspace/workspaceContext"
 import { PageInfosContext } from "../../mainPages/moduleBasics/pageInfosContext"
 
-export default function ClientDatasetModal({ show, onHide, clients = [] }) {
-    const { port } = useContext(WorkspaceContext)
-    const {  pageId } = useContext(PageInfosContext)
-    
-  
+export default function ClientDatasetModal({ show, onHide, clients = [], setDatasetConfiguration }) {
+  const { port } = useContext(WorkspaceContext)
+  const { pageId } = useContext(PageInfosContext)
+
   // Global (same-for-all) configuration
-  const [output, setOutput] = React.useState("")
-  const [validFrac, setValidFrac] = React.useState(null)
-  const [testFrac, setTestFrac] = React.useState(null)
+  const [output, setOutput] = React.useState("label")
+  const [validFrac, setValidFrac] = React.useState(0.2)
+  const [testFrac, setTestFrac] = React.useState(0.2)
 
   // Per-client mode toggle
   const [perClient, setPerClient] = React.useState(false)
@@ -97,7 +96,7 @@ export default function ClientDatasetModal({ show, onHide, clients = [] }) {
   const renderGlobalForm = () => (
     <div className="d-flex flex-column gap-3">
       <FlInput
-        name="Output"
+        name="Target"
         settingInfos={{
           type: "text",
           tooltip: "Output of the dataset"
@@ -157,7 +156,7 @@ export default function ClientDatasetModal({ show, onHide, clients = [] }) {
               <Tab.Pane eventKey={c} key={c}>
                 <div className="d-flex flex-column gap-3 mt-3">
                   <FlInput
-                    name="Output"
+                    name="Target"
                     settingInfos={{ type: "text", tooltip: `Output for client ${c}` }}
                     currentValue={cfg.output}
                     onInputChange={(e) => updateClientField(c, "output", e.value)}
@@ -194,7 +193,25 @@ export default function ClientDatasetModal({ show, onHide, clients = [] }) {
 
   return (
     <div>
-      <Modal show={show} onHide={onHide} size="xl" aria-labelledby="contained-modal-title-vcenter" centered className="modal-settings-chooser">
+      <Modal
+        show={show}
+        onHide={() => {
+          onHide()
+          setDatasetConfiguration({
+            isGlobal: !perClient,
+            globalConfig: {
+              output,
+              validFrac,
+              testFrac
+            },
+            ...clientConfigs
+          })
+        }}
+        size="xl"
+        aria-labelledby="contained-modal-title-vcenter"
+        centered
+        className="modal-settings-chooser"
+      >
         <Modal.Header closeButton>
           <Modal.Title id="contained-modal-title-vcenter">Dataset configuration</Modal.Title>
         </Modal.Header>
@@ -233,7 +250,21 @@ export default function ClientDatasetModal({ show, onHide, clients = [] }) {
         <Modal.Footer>
           {/* Hook up to your save logic if needed */}
           {/* <Button variant="primary" onClick={handleSave}>Save</Button> */}
-          <Button variant="outline-secondary" onClick={onHide}>
+          <Button
+            variant="outline-secondary"
+            onClick={() => {
+              onHide()
+              setDatasetConfiguration({
+                isGlobal: !perClient,
+                globalConfig: {
+                  output,
+                  validFrac,
+                  testFrac
+                },
+                ...clientConfigs
+              })
+            }}
+          >
             Close
           </Button>
         </Modal.Footer>
