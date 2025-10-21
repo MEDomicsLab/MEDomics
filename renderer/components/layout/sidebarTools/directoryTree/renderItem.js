@@ -1,10 +1,11 @@
-import React from "react"
-import DropzoneComponent from "../../../mainPages/dataComponents/dropzoneComponent"
-import medomicsImg from "../../../../../resources/medomics.svg"
-import * as Icon from "react-bootstrap-icons"
 import Image from "next/image"
-import { PiGraph } from "react-icons/pi"
+import React, { useEffect } from "react"
+import * as Icon from "react-bootstrap-icons"
 import { FaPython } from "react-icons/fa"
+import { PiGraph } from "react-icons/pi"
+import medomicsImg from "../../../../../resources/medomics.svg"
+import DropzoneComponent from "../../../mainPages/dataComponents/dropzoneComponent"
+import { collectionExists } from "../../../mongoDB/mongoDBUtils"
 
 const iconExtension = {
   folder: (isExpanded) => (isExpanded ? <span style={{ paddingBottom: "0.15rem" }}>📂</span> : <span style={{ paddingBottom: "0.15rem" }}>📁</span>),
@@ -115,6 +116,7 @@ const cx = (...classNames) => classNames.filter((cn) => !!cn).join(" ")
 const renderItem = ({ item, depth, children, title, context, arrow }, additionalParams) => {
   const InteractiveComponent = context.isRenaming ? "div" : "button"
   const type = context.isRenaming ? undefined : "button"
+  const itemInMongoDB = collectionExists(item.index)
 
   const folderItemContent = (
     <li
@@ -255,7 +257,8 @@ const renderItem = ({ item, depth, children, title, context, arrow }, additional
                       🔒
                     </span>
                   )}
-                  {!item.path && <img src="https://cdn3.emoji.gg/emojis/21146-mongodb.png" width="16px" height="16px" alt="mongodb" />}
+                  {additionalParams.showMongoDetails && itemInMongoDB && <img src="https://cdn3.emoji.gg/emojis/21146-mongodb.png" width="16px" height="16px" alt="mongodb" />}
+                  {additionalParams.showMongoDetails && item.path && <img src="https://www.freeiconspng.com/uploads/floppy-save-icon--23.png" width="16px" height="16px" alt="local" />}
                 </div>
               </InteractiveComponent>
             </div>

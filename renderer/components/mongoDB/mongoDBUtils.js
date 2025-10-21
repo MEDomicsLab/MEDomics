@@ -235,6 +235,21 @@ async function insertBigCSVIntoCollection(filePath, collectionName) {
   dynamicTyping: true,
   skipEmptyLines: true,
   transformHeader: (h) => (h || '').trim(),   // NEW
+  transform: (value) => {
+    // Handle all NaN representations
+    const nanStrings = ['nan', 'NaN', 'NAN', 'null', 'Null', 'NULL', 'none', 'None', 'NONE', '']
+    
+    if (typeof value === 'string' && nanStrings.includes(value.toLowerCase())) {
+      return null
+    }
+    
+    // Handle numeric NaN (if dynamicTyping already converted some)
+    if (typeof value === 'number' && isNaN(value)) {
+      return null
+    }
+    
+    return value
+  },
   step: (results, parser) => {
     const row = results.data;
 
@@ -242,9 +257,23 @@ async function insertBigCSVIntoCollection(filePath, collectionName) {
       allowedColumns = Object.keys(row);
     }
 
-    // Keep only allowed headers and strip ids just in case
+    // Additional cleanup for any remaining NaN values
     const cleanedRow = stripIds(
-      Object.fromEntries(Object.entries(row).filter(([key]) => allowedColumns.includes(key)))
+      Object.fromEntries(
+        Object.entries(row)
+          .filter(([key]) => allowedColumns.includes(key))
+          .map(([key, value]) => {
+            // Final NaN cleanup for any values that slipped through
+            if (value === null || value === undefined) {
+              return [key, null]
+            } else if (typeof value === 'number' && isNaN(value)) {
+              return [key, null]
+            } else if (typeof value === 'string' && value.toLowerCase() === 'nan') {
+              return [key, null]
+            }
+            return [key, value]
+          })
+      )
     );
 
     batch.push(cleanedRow);
@@ -297,9 +326,33 @@ async function insertCSVIntoCollection(filePath, collectionName) {
       Papa.parse(fs.createReadStream(filePath), {
         header: true,
         dynamicTyping: true, // Automatically convert numeric fields to numbers
+        transform: (value) => {
+          // Handle all NaN representations
+          const nanStrings = ['nan', 'NaN', 'NAN', 'null', 'Null', 'NULL', 'none', 'None', 'NONE', '']
+          
+          if (typeof value === 'string' && nanStrings.includes(value.toLowerCase())) {
+            return null
+          }
+          
+          // Handle numeric NaN (if dynamicTyping already converted some)
+          if (typeof value === 'number' && isNaN(value)) {
+            return null
+          }
+          
+          return value
+        },
         complete: async (results) => {
           try {
-            const result = await collection.insertMany(results.data)
+            // Additional cleanup for any remaining NaN values
+            const cleanedData = results.data.map(row => {
+              const cleanRow = {}
+              for (const [key, value] of Object.entries(row)) {
+                cleanRow[key] = (typeof value === 'number' && isNaN(value)) ? null : value
+              }
+              return cleanRow
+            })
+            
+            const result = await collection.insertMany(cleanedData)
             console.log(`CSV data inserted with ${result.insertedCount} documents`)
             resolve(result)
           } catch (error) {

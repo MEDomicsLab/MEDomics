@@ -3,7 +3,7 @@ const classificationSettings = {
   split: {
     global: {
       stratify_columns: {
-        type: "list-multiple-name",
+        type: "list-multiple-columns",
         tooltip: "<p>Select stratification variables. These will be used to stratify the data during splitting.</p>",
         default_val: [],
         choices: {}
@@ -341,8 +341,7 @@ const classificationSettings = {
         tooltip:
           "<p>The maximum number of features to select with feature_selection. If &lt;1,\nit\u2019s the fraction of starting features. Note that this parameter doesn\u2019t\ntake features in ignore_features or keep_features into account\nwhen counting.</p>\n",
         default_val: "0.2",
-        min: 0.0,
-        max: 1.0
+        min: 0.0
       }
     },
     code: ""
@@ -374,13 +373,13 @@ const classificationSettings = {
         default_val: "None"
       },
       numeric_features: {
-        type: "custom-list",
+        type: "list-multiple-columns",
         tooltip:
           "<p>If the inferred data types are not correct, the numeric_features param can\nbe used to define the data types. It takes a list of strings with column\nnames that are numeric.</p>\n",
         default_val: "None"
       },
       categorical_features: {
-        type: "custom-list",
+        type: "list-multiple-columns",
         tooltip:
           "<p>If the inferred data types are not correct, the categorical_features param\ncan be used to define the data types. It takes a list of strings with column\nnames that are categorical.</p>\n",
         default_val: "None"

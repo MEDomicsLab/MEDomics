@@ -1,6 +1,6 @@
 /* eslint-disable no-undef */
-import React, { useContext, useRef, useState, useEffect } from "react"
-import { Trash, BoxArrowUpRight, Eraser, FolderPlus, ArrowClockwise, EyeFill, EyeSlashFill, ArrowRepeat } from "react-bootstrap-icons"
+import { useContext, useRef, useState, useEffect } from "react"
+import { Trash, BoxArrowUpRight, Eraser, FolderPlus, ArrowClockwise, EyeFill, EyeSlashFill, ArrowRepeat, ChevronBarExpand, ChevronBarContract } from "react-bootstrap-icons"
 import { FiFolder } from "react-icons/fi"
 import { Accordion, Stack } from "react-bootstrap"
 import { ControlledTreeEnvironment, Tree } from "react-complex-tree"
@@ -36,6 +36,7 @@ const SidebarDirectoryTreeControlled = ({ setExternalSelectedItems, setExternalD
   const [cutItems, setCutItems] = useState([]) // This state is used to keep track of the items that have been cut
   const [isHovering, setIsHovering] = useState(false) // This state is used to know if the mouse is hovering the directory tree
   const [showHiddenFiles, setShowHiddenFiles] = useState(false) // This state is used to know if the user wants to see hidden files or not
+  const [showMongoDetails, setShowMongoDetails] = useState(true) // This state is used to know if the user wants to see indicator for files saved in MongoDB or not
   const [isAccordionShowing, setIsAccordionShowing] = useState(true) // This state is used to know if the accordion is collapsed or not
   const [isDialogShowing, setIsDialogShowing] = useState(false) // This state is used to know if the dialog is showing or not
   const [dirTree, setDirTree] = useState({}) // We get the directory tree from the workspace
@@ -47,6 +48,14 @@ const SidebarDirectoryTreeControlled = ({ setExternalSelectedItems, setExternalD
   const { workspace } = useContext(WorkspaceContext)
 
   const delayOptions = { showDelay: 750, hideDelay: 0 }
+
+  // Create refs for each tooltip
+  const tooltipRefs = {
+    addFolder: useRef(null),
+    refresh: useRef(null),
+    contextMenu: useRef(null),
+    toggleDetails: useRef(null)
+  }
 
   /**
    * This useEffect hook updates the directory tree when the global data changes.
@@ -423,9 +432,10 @@ const SidebarDirectoryTreeControlled = ({ setExternalSelectedItems, setExternalD
   return (
     <>
       <div id="directory-tree-container" className="directory-tree-container">
-        <Tooltip className="tooltip-small" target=".add-folder-icon" {...delayOptions} />
-        <Tooltip className="tooltip-small" target=".refresh-icon" {...delayOptions} />
-        <Tooltip className="tooltip-small" target=".context-menu-icon" {...delayOptions} />
+        <Tooltip className="tooltip-small" ref={tooltipRefs.addFolder} target=".add-folder-icon" {...delayOptions} />
+        <Tooltip className="tooltip-small" ref={tooltipRefs.refresh} target=".refresh-icon" {...delayOptions} />
+        <Tooltip className="tooltip-small" ref={tooltipRefs.contextMenu} target=".context-menu-icon" {...delayOptions} />
+        <Tooltip className="tooltip-small" ref={tooltipRefs.toggleDetails} target=".toggle-details-icon" {...delayOptions} />
         <Accordion.Item eventKey="dirTree">
           <Accordion.Header /* onClick={() => MedDataObject.updateWorkspaceDataObject()} */>
             <Stack direction="horizontal" style={{ flexGrow: "1" }}>
@@ -441,6 +451,8 @@ const SidebarDirectoryTreeControlled = ({ setExternalSelectedItems, setExternalD
                       onClick={(e) => {
                         e.preventDefault()
                         e.stopPropagation()
+                        // Hide the tooltip before executing the action
+                        tooltipRefs.addFolder.current.hide()
                         createFolder(globalData, selectedItems, workspace.workingDirectory.path)
                       }}
                     >
@@ -450,6 +462,8 @@ const SidebarDirectoryTreeControlled = ({ setExternalSelectedItems, setExternalD
                       onClick={(e) => {
                         e.preventDefault()
                         e.stopPropagation()
+                        // Hide the tooltip before executing the action
+                        tooltipRefs.refresh.current.hide()
                         MEDDataObject.updateWorkspaceDataObject()
                         MEDDataObject.verifyLockedObjects(globalData)
                       }}
@@ -460,12 +474,28 @@ const SidebarDirectoryTreeControlled = ({ setExternalSelectedItems, setExternalD
                       onClick={(e) => {
                         e.preventDefault()
                         e.stopPropagation()
+                        // Hide the tooltip before executing the action
+                        tooltipRefs.contextMenu.current.hide()
                         setShowHiddenFiles(!showHiddenFiles)
                       }}
                     >
                       {showHiddenFiles && <EyeFill size={"1rem"} className="context-menu-icon refresh-icon" data-pr-at="right bottom" data-pr-tooltip="Hide hidden files" data-pr-my="left top" />}
                       {!showHiddenFiles && (
                         <EyeSlashFill size={"1rem"} className="context-menu-icon refresh-icon" data-pr-at="right bottom" data-pr-tooltip="Show hidden files" data-pr-my="left top" />
+                      )}
+                    </a>
+                    <a
+                      onClick={(e) => {
+                        e.preventDefault()
+                        e.stopPropagation()
+                        // Hide the tooltip before executing the action
+                        tooltipRefs.toggleDetails.current.hide()
+                        setShowMongoDetails(!showMongoDetails)
+                      }}
+                    >
+                      {showMongoDetails && <ChevronBarContract size={"1rem"} className="context-menu-icon toggle-details-icon" data-pr-at="right bottom" data-pr-tooltip="Hide Local/MongoDB details" data-pr-my="left top" />}
+                      {!showMongoDetails && (
+                        <ChevronBarExpand size={"1rem"} className="context-menu-icon toggle-details-icon" data-pr-at="right bottom" data-pr-tooltip="Show Local/MongoDB details" data-pr-my="left top" />
                       )}
                     </a>
                   </>
@@ -484,6 +514,7 @@ const SidebarDirectoryTreeControlled = ({ setExternalSelectedItems, setExternalD
                     MENU_ID,
                     displayMenu,
                     isHovering,
+                    showMongoDetails,
                     onDBClickItem,
                     setSelectedItems,
                     setIsDropping,

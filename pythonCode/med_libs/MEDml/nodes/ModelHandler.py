@@ -276,7 +276,6 @@ class ModelHandler(Node):
                 self.CodeHandler.add_line("code", f"# Training model: {model_to_evaluate}")
 
             # Use PyCaret's create_model instead of manual instantiation
-            print("debug settings", settings)
             trained_model = pycaret_exp.create_model(**settings)
             self.CodeHandler.add_line("code", f"trained_models = [pycaret_exp.create_model({self.CodeHandler.convert_dict_to_params(settings)})]")
 
