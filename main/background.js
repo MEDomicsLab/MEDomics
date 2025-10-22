@@ -12,7 +12,6 @@ import { createWindow, TerminalManager } from "./helpers"
 import { installExtension, REACT_DEVELOPER_TOOLS } from "electron-extension-installer"
 import MEDconfig from "../medomics.dev"
 import { runServer, findAvailablePort } from "../backend/utils/server.js"
-import { setAppPath } from "../backend/utils/serverPathUtils.js"
 import {
   setWorkingDirectory,
   getRecentWorkspacesOptions,
@@ -39,7 +38,6 @@ import {
   getRemoteWorkspacePath,
   checkRemotePortOpen
 } from './utils/remoteFunctions.js'
-import { startExpressServer } from "../backend/expressServer.mjs"
 import { startMongoDB, stopMongoDB, getMongoDBPath } from "../backend/utils/mongoDBServer.js"
 import { checkJupyterIsRunning, startJupyterServer, stopJupyterServer } from "../backend/utils/jupyterServer.js"
 

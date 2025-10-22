@@ -14,8 +14,8 @@ const { getBundledPythonEnvironment } = pythonEnv
 import jupyterServer from "./utils/jupyterServer.js"
 const { startJupyterServer, stopJupyterServer, checkJupyterIsRunning } = jupyterServer
 import serverInstallation  from "./utils/serverInstallation.js"
-import { findAvailablePort } from "./utils/server.js"
 const { checkRequirements } = serverInstallation
+import { runServer, findAvailablePort } from "./utils/server.mjs"
 
 const expressApp = express()
 expressApp.use(bodyParser.json())
@@ -30,14 +30,22 @@ expressApp.use(function(req, res, next) {
 const EXPRESS_PORT_START = 3000
 const EXPRESS_PORT_END = 8000
 
-export function startExpressServer() {
-	const expressPort = findAvailablePort(EXPRESS_PORT_START, EXPRESS_PORT_END)
-	expressApp.listen(expressPort, () => {
-		console.log(`Express server listening on port ${expressPort}`)
-	})
-	// Notify the Electron main process about the port
-	if (process.send) {
-	process.send({ type: "EXPRESS_PORT", expressPort })
+let isProd = process.env.NODE_ENV && process.env.NODE_ENV === "production"
+let serverProcess = null
+
+export async function startExpressServer() {
+	try {
+		const expressPort = await findAvailablePort(EXPRESS_PORT_START, EXPRESS_PORT_END)
+		expressApp.listen(expressPort, () => {
+			console.log(`Express server listening on port ${expressPort}`)
+		})
+		// Notify the Electron main process about the port
+		if (process.send) {
+			process.send({ type: "EXPRESS_PORT", expressPort })
+		}
+	} catch (err) {
+		console.error("Failed to start Express server - no available port:", err)
+		throw err
 	}
 }
 
@@ -52,6 +60,28 @@ function normalizePathForPlatform(p) {
 	}
 	return normalized
 }
+
+expressApp.post("/run-go-server", async (req, res) => {
+  try {
+    console.log("Received request to run Go server")
+    if (serverProcess) {
+      serverProcess.kill()
+      console.log("Previous Go server process killed")
+    }
+
+    let bundledPythonPath = getBundledPythonEnvironment()
+    if (!bundledPythonPath) {
+      throw new Error("Bundled Python environment not found")
+    }
+
+    runServer()
+
+  } catch (err) {
+    console.error("Error running Go server: ", err)
+    res.status(500).json({ success: false, error: err.message })
+  }
+})
+
 
 expressApp.post("/set-working-directory", async (req, res, next) =>{
 	let workspacePath = normalizePathForPlatform(req.body.workspacePath)
