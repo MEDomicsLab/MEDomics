@@ -1,9 +1,8 @@
-const fs = require("fs")
-const { getBundledPythonEnvironment } = require("./pythonEnv")
-
-const util = require("util")
-const exec = util.promisify(require("child_process").exec)
-const { spawn } = require('child_process')
+import fs from "fs"
+import { getBundledPythonEnvironment } from "./pythonEnv.js"
+import util from "util"
+import { spawn } from "child_process"
+const exec = util.promisify((await import('child_process')).exec)
 
 let jupyterStatus = { running: false, error: null }
 let jupyterPort = 8900
@@ -202,4 +201,4 @@ async function checkJupyterIsRunning() {
   }
 }
 
-module.exports = { startJupyterServer, stopJupyterServer, checkJupyterIsRunning }
+export { startJupyterServer, stopJupyterServer, checkJupyterIsRunning }

@@ -1,9 +1,9 @@
-const MEDconfig = require("./medomics.server.dev.js")
-const { getAppPath, setAppPath } = require("./serverPathUtils.js")
+import MEDconfig, { PORT_FINDING_METHOD } from "./medomics.server.dev.js"
+import { getAppPath, setAppPath } from "./serverPathUtils.js"
 
-const fs = require("fs")
-var path = require("path")
-const dirTree = require("directory-tree")
+import fs from "fs"
+import path from "path"
+import dirTree from "directory-tree"
 
 function getServerWorkingDirectory() {
   // Returns the working directory
@@ -159,7 +159,7 @@ const createServerMedomicsDirectory = (directoryPath) => {
   }
 }
 
-module.exports = {
+export {
   getServerWorkingDirectory,
   loadServerWorkspaces,
   updateServerWorkspace,

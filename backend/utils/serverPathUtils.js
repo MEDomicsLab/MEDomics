@@ -1,5 +1,5 @@
-const os = require("os")
-const path = require("path")
+import os from "os"
+import path from "path"
 const pathOverrides = {}
 
 function setAppPath(alias, value) {
@@ -33,4 +33,4 @@ function getAppPath(alias, isProd = true) {
   }
 }
 
-module.exports = { setAppPath, getAppPath }
+export { setAppPath, getAppPath }

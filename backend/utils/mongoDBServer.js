@@ -1,6 +1,6 @@
-const fs = require("fs")
-var path = require("path")
-const { exec, spawn, execSync } = require("child_process")
+import fs from "fs"
+import path from "path"
+import { exec, spawn, execSync } from "child_process"
 let mongoProcess = null
 
 
@@ -141,4 +141,4 @@ function getMongoDBPath() {
   }
 }
 
-module.exports = { startMongoDB, stopMongoDB, getMongoDBPath }
+export { startMongoDB, stopMongoDB, getMongoDBPath }

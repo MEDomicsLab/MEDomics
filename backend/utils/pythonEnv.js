@@ -1,9 +1,9 @@
-const { getAppPath } = require("./serverPathUtils.js")
-var path = require("path")
-const util = require("util")
-const fs = require("fs")
-const { execSync } = require("child_process")
-const exec = util.promisify(require("child_process").exec)
+import { getAppPath } from "./serverPathUtils.js"
+import path from "path"
+import util from "util"
+import fs from "fs"
+import { execSync } from "child_process"
+const exec = util.promisify((await import('child_process')).exec)
 
 function getPythonEnvironment(medCondaEnv = "med_conda_env") {
   let pythonEnvironment = process.env.MED_ENV
@@ -443,7 +443,7 @@ async function installBundledPythonExecutable(notify) {
   }
 }
 
-module.exports = { 
+export {
   getPythonEnvironment,
   getBundledPythonEnvironment,
   installRequiredPythonPackages,

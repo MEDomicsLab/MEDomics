@@ -1,8 +1,8 @@
-const { getBundledPythonEnvironment } = require("./pythonEnv.js")
-const { getMongoDBPath } = require("./mongoDBServer.js")
-const { getAppPath } = require("./serverPathUtils.js")
-const fs = require("fs")
-const readline = require("readline")
+import { getBundledPythonEnvironment } from "./pythonEnv.js"
+import { getMongoDBPath } from "./mongoDBServer.js"
+import { getAppPath } from "./serverPathUtils.js"
+import fs from "fs"
+import readline from "readline"
 
 async function checkIsBrewInstalled() {
   let isBrewInstalled = false
@@ -40,9 +40,10 @@ async function installXcodeSelect() {
 }
 
 
-var path = require("path")
-const util = require("util")
-const exec = util.promisify(require("child_process").exec)
+import path from "path"
+import util from "util"
+import child_process from "child_process"
+const exec = util.promisify(child_process.exec)
 
 async function checkRequirements() {
   // Ensure .medomics directory exists
@@ -133,7 +134,7 @@ async function promptAndInstallMongoDB() {
   }
 }
 
-module.exports = {
+export {
   checkIsBrewInstalled,
   checkIsXcodeSelectInstalled,
   installBrew,
