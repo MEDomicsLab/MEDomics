@@ -10,7 +10,7 @@ import cors from "cors"
 import dirTree from "directory-tree"
 import { exec, execSync } from "child_process"
 import * as pythonEnv from "./utils/pythonEnv.js"
-const { getBundledPythonEnvironment } = pythonEnv
+const { getBundledPythonEnvironment, installBundledPythonExecutable, installRequiredPythonPackages, checkPythonRequirements, getInstalledPythonPackages } = pythonEnv
 import * as jupyterServer from "./utils/jupyterServer.js"
 const { startJupyterServer, stopJupyterServer, checkJupyterIsRunning } = jupyterServer
 import * as serverInstallation  from "./utils/serverInstallation.js"
@@ -245,6 +245,93 @@ expressApp.post("/stop-jupyter-server", async (req, res) => {
 	}
 })
 
+	// Stop MongoDB (remote call)
+	expressApp.post("/stop-mongo", async (req, res) => {
+		try {
+			console.log("Received request to stop MongoDB")
+			await stopMongoDB()
+			res.status(200).json({ success: true })
+		} catch (err) {
+			console.error("Error stopping MongoDB:", err)
+			res.status(500).json({ success: false, error: err.message })
+		}
+	})
+
+	// Get path to mongod executable
+	expressApp.get("/get-mongo-path", (req, res) => {
+		try {
+			const path = getMongoDBPath()
+			if (!path) return res.status(404).json({ success: false, error: "mongod not found" })
+			res.status(200).json({ success: true, path })
+		} catch (err) {
+			console.error("Error getting mongo path:", err)
+			res.status(500).json({ success: false, error: err.message })
+		}
+	})
+
+	// Install MongoDB via helper
+	expressApp.post("/install-mongo", async (req, res) => {
+		try {
+			console.log("Received request to install MongoDB")
+			const result = await serverInstallation.installMongoDB()
+			res.status(200).json({ success: !!result })
+		} catch (err) {
+			console.error("Error installing MongoDB:", err)
+			res.status(500).json({ success: false, error: err.message })
+		}
+	})
+
+	// Install bundled python executable
+	expressApp.post("/install-bundled-python", async (req, res) => {
+		try {
+			console.log("Received request to install bundled python")
+			// Provide a basic notify callback that logs to console in headless mode
+			const notify = (payload) => console.log("install-bundled-python:", payload)
+			const result = await installBundledPythonExecutable(notify)
+			res.status(200).json({ success: !!result })
+		} catch (err) {
+			console.error("Error installing bundled python:", err)
+			res.status(500).json({ success: false, error: err.message })
+		}
+	})
+
+	// Install required python packages for a given python path
+	expressApp.post("/install-required-python-packages", async (req, res) => {
+		try {
+			const pythonPath = req.body && req.body.pythonPath
+			console.log("Requested install-required-python-packages for:", pythonPath)
+			const notify = (payload) => console.log("install-required-python-packages:", payload)
+			await installRequiredPythonPackages(notify, pythonPath)
+			res.status(200).json({ success: true })
+		} catch (err) {
+			console.error("Error installing required python packages:", err)
+			res.status(500).json({ success: false, error: err.message })
+		}
+	})
+
+	// Check system requirements (MongoDB, Python)
+	expressApp.get("/check-requirements", async (req, res) => {
+		try {
+			const result = await checkRequirements()
+			res.status(200).json({ success: true, result })
+		} catch (err) {
+			console.error("Error checking requirements:", err)
+			res.status(500).json({ success: false, error: err.message })
+		}
+	})
+
+	// Check whether the python requirements are met for a given pythonPath
+	expressApp.get("/check-python-requirements", (req, res) => {
+		try {
+			const pythonPath = req.query.pythonPath || null
+			const ok = checkPythonRequirements(pythonPath)
+			res.status(200).json({ success: true, requirementsMet: !!ok })
+		} catch (err) {
+			console.error("Error checking python requirements:", err)
+			res.status(500).json({ success: false, error: err.message })
+		}
+	})
+
 export async function setWorkspaceDirectoryServer(workspacePath) {
 	if (!workspacePath) {
 		throw new Error("No workspace path provided")
@@ -260,7 +347,7 @@ export async function setWorkspaceDirectoryServer(workspacePath) {
 				// killProcessOnPort(serverPort)
 			} else if (process.platform === "darwin") {
 				await new Promise((resolve) => {
-					exec("pkill -f mongod", (error, stdout, stderr) => {
+					exec("pkill -f mongod", () => {
 						resolve()
 					})
 				})
@@ -275,7 +362,7 @@ export async function setWorkspaceDirectoryServer(workspacePath) {
 			return {
 				workingDirectory: dirTree(workspacePath),
 				hasBeenSet: hasBeenSet,
-				newPort: EXPRESS_PORT
+				newPort: null
 			}
 		} catch (error) {
 			console.error("Failed to change workspace: ", error)

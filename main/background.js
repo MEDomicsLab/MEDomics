@@ -11,7 +11,113 @@ import serve from "electron-serve"
 import { createWindow, TerminalManager } from "./helpers"
 import { installExtension, REACT_DEVELOPER_TOOLS } from "electron-extension-installer"
 import MEDconfig from "../medomics.dev"
-import { runServer, findAvailablePort } from "../backend/utils/server.js"
+// Backend access is done over HTTP requests to the backend Express server.
+// This avoids importing backend modules into the Electron main process.
+// We expose small wrapper functions below that call the backend endpoints.
+
+// Helper to build backend URL (uses expressPort if available, otherwise falls back to serverPort)
+function backendUrl(path) {
+  const port = expressPort || serverPort || MEDconfig.defaultPort
+  return `http://localhost:${port}${path}`
+}
+
+async function httpGet(path, params = {}) {
+  try {
+    const res = await axios.get(backendUrl(path), { params })
+    return res.data
+  } catch (err) {
+    console.warn(`Backend GET ${path} failed:`, err && err.message)
+    return null
+  }
+}
+
+async function httpPost(path, body = {}) {
+  try {
+    const res = await axios.post(backendUrl(path), body)
+    return res.data
+  } catch (err) {
+    console.warn(`Backend POST ${path} failed:`, err && err.message)
+    return null
+  }
+}
+
+// Wrapper functions that replace previous direct imports
+async function runServerViaBackend() {
+  return await httpPost("/run-go-server", {})
+}
+
+// Find an available port locally (used for dev UI port selection). This is a small
+// local implementation so the main process doesn't import backend code for this.
+function findAvailablePort(startPort, endPort = 8000) {
+  const net = require("net")
+  return new Promise((resolve, reject) => {
+    let port = startPort
+    function tryPort() {
+      const server = net.createServer()
+      server.once("error", (err) => {
+        server.close()
+        if (err.code === "EADDRINUSE") {
+          port++
+          if (port > endPort) return reject(new Error("No available port"))
+          tryPort()
+        } else {
+          reject(err)
+        }
+      })
+      server.once("listening", () => {
+        server.close(() => resolve(port))
+      })
+      server.listen(port)
+    }
+    tryPort()
+  })
+}
+
+async function getBundledPythonEnvironment() {
+  const data = await httpGet("/get-bundled-python-environment")
+  return data && data.pythonEnv ? data.pythonEnv : null
+}
+
+async function getInstalledPythonPackages(pythonPath) {
+  const data = await httpGet("/get-installed-python-packages", { pythonPath })
+  return data && data.packages ? data.packages : null
+}
+
+async function startMongoDB(workspacePath) {
+  return await httpPost("/start-mongo", { workspacePath })
+}
+
+async function stopMongoDB() {
+  // Backend doesn't currently expose a stop-mongo endpoint; call a generic endpoint if available.
+  return await httpPost("/stop-mongo", {})
+}
+
+async function getMongoDBPath() {
+  const data = await httpGet("/get-mongo-path")
+  return data && data.path ? data.path : null
+}
+
+async function checkJupyterIsRunning() {
+  const data = await httpGet("/check-jupyter-status")
+  return data || { running: false, error: "no-response" }
+}
+
+async function startJupyterServer(workspacePath, port) {
+  return await httpPost("/start-jupyter-server", { workspacePath, port })
+}
+
+async function stopJupyterServer() {
+  return await httpPost("/stop-jupyter-server", {})
+}
+
+async function installMongoDB() {
+  return await httpPost("/install-mongo", {})
+}
+
+async function checkRequirements() {
+  const data = await httpGet("/check-requirements")
+  return data
+}
 import {
   setWorkingDirectory,
   getRecentWorkspacesOptions,
@@ -22,15 +128,7 @@ import {
   createWorkingDirectory,
   createRemoteWorkingDirectory
 } from "./utils/workspace"
-import {
-  getBundledPythonEnvironment,
-  getInstalledPythonPackages,
-  installPythonPackage,
-  installBundledPythonExecutable,
-  checkPythonRequirements,
-  installRequiredPythonPackages
-} from "../backend/utils/pythonEnv.js"
-import { installMongoDB, checkRequirements } from "../backend/utils/installation.js"
+// Backend python & installation utilities are accessed via HTTP wrappers defined above.
 import {
   getTunnelState,
   getActiveTunnel,
@@ -38,15 +136,14 @@ import {
   getRemoteWorkspacePath,
   checkRemotePortOpen
 } from './utils/remoteFunctions.js'
-import { startMongoDB, stopMongoDB, getMongoDBPath } from "../backend/utils/mongoDBServer.js"
-import { checkJupyterIsRunning, startJupyterServer, stopJupyterServer } from "../backend/utils/jupyterServer.js"
+// MongoDB and Jupyter functions are accessed via HTTP wrappers (startMongoDB, stopMongoDB, getMongoDBPath, startJupyterServer, stopJupyterServer, checkJupyterIsRunning)
 
 
 const fs = require("fs")
 const terminalManager = new TerminalManager()
 var path = require("path")
 const dirTree = require("directory-tree")
-const { exec, spawn, execSync } = require("child_process")
+const { exec, spawn, execSync, fork } = require("child_process")
 let serverProcess = null
 const serverState = { serverIsRunning: false }
 var serverPort = MEDconfig.defaultPort
@@ -131,16 +228,29 @@ function startBackendServer() {
 
   if (isDev) {
     // Development: run node script
-    serverProcess = spawn(execPath[0], [execPath[1]], { stdio: "ignore", detached: true })
+    // Development: use fork so IPC is set up correctly and ESM loader works
+    try {
+      serverProcess = fork(execPath[1], { silent: false })
+    } catch (e) {
+      // Fallback to spawn with explicit ipc if fork fails for any reason
+      serverProcess = spawn(execPath[0], [execPath[1]], { stdio: ['ignore', 'pipe', 'pipe', 'ipc'], detached: true })
+    }
   } else {
     // Packaged: run native binary
     serverProcess = spawn(execPath, [], { stdio: "ignore", detached: true })
   }
 
+  // Listen for messages from the child process (the backend). The backend sends
+  // { type: 'EXPRESS_PORT', expressPort } when it has bound to a port.
   serverProcess.on("message", (message) => {
-    if (message.type === "EXPRESS_PORT") {
-      console.log(`Local Express server started on port: ${message.port}`)
-      expressPort = message.port
+    try {
+      if (message && message.type === "EXPRESS_PORT") {
+        const port = message.expressPort || message.port
+        console.log(`Local Express server started on port: ${port}`)
+        expressPort = port
+      }
+    } catch (err) {
+      console.warn('Error handling message from backend process:', err)
     }
   })
 
@@ -382,18 +492,16 @@ if (isProd) {
   console.log("running mode:", isProd ? "production" : "development")
   console.log("process.resourcesPath: ", process.resourcesPath)
   console.log(MEDconfig.runServerAutomatically ? "Server will start automatically here (in background of the application)" : "Server must be started manually")
-  let bundledPythonPath = getBundledPythonEnvironment()
+  let bundledPythonPath = await getBundledPythonEnvironment()
   if (MEDconfig.runServerAutomatically && bundledPythonPath !== null) {
     // Find the bundled python environment
     if (bundledPythonPath !== null) {
-      runServer(isProd, serverPort, serverProcess, serverState, bundledPythonPath)
-        .then((process) => {
-          serverProcess = process
-          console.log("Server process started: ", serverProcess)
-        })
-        .catch((err) => {
-          console.error("Failed to start server: ", err)
-        })
+        // Request the backend to start its Go server (backend will spawn its own process)
+        runServerViaBackend()
+          .then((result) => {
+            console.log("Backend run-go-server result:", result)
+          })
+          .catch((err) => console.error("Failed to request backend run-go-server:", err))
     }
   } else {
     //**** NO SERVER ****//
@@ -582,18 +690,9 @@ if (isProd) {
       serverProcess.kill()
     }
     console.log("Received Python path: ", pythonPath)
-    if (MEDconfig.runServerAutomatically) {   
-      runServer(isProd, serverPort, serverProcess, serverState, pythonPath)
-        .then((process) => {
-          serverProcess = process
-          console.log(`success: ${serverState.serverIsRunning}`)
-          return serverState.serverIsRunning
-        })
-        .catch((err) => {
-          console.error("Failed to start server: ", err)
-          serverState.serverIsRunning = false
-          return false
-        })
+    if (MEDconfig.runServerAutomatically) {
+      await runServerViaBackend()
+      return true
     }
     return serverState.serverIsRunning
   })
@@ -744,7 +843,7 @@ ipcMain.handle("getBundledPythonEnvironment", async (event) => {
           })
     return pythonEnv
   } else {
-    return getBundledPythonEnvironment()
+    return await getBundledPythonEnvironment()
   }
 })
 
@@ -756,40 +855,40 @@ ipcMain.handle("installBundledPythonExecutable", async (event) => {
     }
   }
   // Check if Python is installed
-  let pythonInstalled = getBundledPythonEnvironment()
+  let pythonInstalled = await getBundledPythonEnvironment()
   if (pythonInstalled === null) {
-    // If Python is not installed, install it
-    return installBundledPythonExecutable(notify)
+    // If Python is not installed, ask backend to install via its endpoint
+    return await httpPost("/install-bundled-python", { })
   } else {
-    // Check if the required packages are installed
-    let requirementsInstalled = checkPythonRequirements()
-    if (requirementsInstalled) {
+    // Check if required packages are installed via backend
+    const reqInstalled = await httpGet("/check-python-requirements", { pythonPath: pythonInstalled })
+    if (reqInstalled) {
       return true
     } else {
-      await installRequiredPythonPackages(notify, pythonInstalled)
+      await httpPost("/install-required-python-packages", { pythonPath: pythonInstalled })
       return true
     }
   }
 })
 
 ipcMain.handle("checkRequirements", async (event) => {
-  return checkRequirements()
+  return await checkRequirements()
 })
 
 ipcMain.handle("checkPythonRequirements", async (event) => {
-  return checkPythonRequirements()
+  return await httpGet("/check-python-requirements")
 })
 
 ipcMain.handle("checkMongoDBisInstalled", async (event) => {
-  return getMongoDBPath()
+  return await getMongoDBPath()
 })
 
 ipcMain.handle("startJupyterServer", async (event, workspacePath, port) => {
-  return startJupyterServer(workspacePath, port)
+  return await startJupyterServer(workspacePath, port)
 })
 
 ipcMain.handle("stopJupyterServer", async () => {
-  return stopJupyterServer()
+  return await stopJupyterServer()
 })
 
 ipcMain.handle("checkJupyterIsRunning", async () => {

@@ -1,5 +1,5 @@
-import MEDconfig, { PORT_FINDING_METHOD } from "../../medomics.dev"
-import { getPythonEnvironment, getBundledPythonEnvironment } from "./pythonEnv"
+import MEDconfig, { PORT_FINDING_METHOD } from "./medomics.server.dev.js"
+import { getPythonEnvironment, getBundledPythonEnvironment } from "./pythonEnv.js"
 const { exec, execFile } = require("child_process")
 const os = require("os")
 var path = require("path")
