@@ -323,9 +323,6 @@ const ApplicationPage = ({ pageId }) => {
    */
   const updateWarnings = async (chosenDataset, setDatasetHasWarning) => {
     setPredictions(null)
-    setOptionalColumns([])
-    setPredictedTarget(null)
-    setPredictionScore(null)
 
     /**
      *
