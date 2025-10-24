@@ -204,9 +204,10 @@ const FlWorflowBase = ({ workflowType = "fl", isGoodConnection, groupNodeHandlin
 
       // check if the connection creates an infinite loop
       let isLoop = verificationForLoopHoles(params)
+      let isMlStarategyConnected = verifyMlStrategyConnections(sourceNode, targetNode)
       newConnectionCreated() // this is used to update the workflow when a connection is created
 
-      if (!alreadyExists && isValidConnection && !isLoop) {
+      if (!alreadyExists && isValidConnection && !isLoop && !isMlStarategyConnected) {
         setEdges((eds) => addEdge(params, eds))
         customOnConnect && customOnConnect(params)
       } else {
@@ -215,6 +216,8 @@ const FlWorflowBase = ({ workflowType = "fl", isGoodConnection, groupNodeHandlin
           message = "It already exists"
         } else if (isLoop) {
           message = "It creates a loop"
+        } else if (isMlStarategyConnected) {
+          message = "ML Strategy node can only have one network as input"
         }
         toast.error(`Connection refused: ${message}`, {
           position: "bottom-right",
@@ -258,6 +261,27 @@ const FlWorflowBase = ({ workflowType = "fl", isGoodConnection, groupNodeHandlin
     isLoop = verificationForLoopHolesRec(targetNode, false)
 
     return isLoop
+  }
+
+  /**
+   *
+   * @returns {void}
+   *
+   * @description
+   * This function is used to verify if the ml strategy node has the correct connections
+   *
+   */
+  const verifyMlStrategyConnections = (sourceNode, targetNode) => {
+    let existingEdge = false
+
+    console.log("sourceNode", sourceNode)
+    console.log("targetNode", targetNode)
+    console.log("edges", edges)
+    // if the targetNode is a ml strategy node, check if it has a model as input
+    if (targetNode.type == "mlStrategyNode" && sourceNode.type == "groupNode") {
+      existingEdge = edges.find((edge) => edge.target === targetNode.id)
+    }
+    return existingEdge
   }
 
   /**
