@@ -211,14 +211,6 @@ class GoExecScriptOpenDashboard(GoExecutionScript):
         # Handle binary classification edge case
         self.set_progress(label="Testing SHAP computations")
         if ml_type == "classification":
-            # If y is non-binary but has exactly two unique values, map to {0,1}
-            unique_values = y_test.squeeze().unique()
-            if len(unique_values) == 2:
-                print(
-                    f"Converting y to binary {unique_values[0]} -> 0 and {unique_values[1]} -> 1"
-                )
-                y_test = y_test.apply(lambda x: 1 if x == unique_values[1] else 0)
-
             explainer = ClassifierExplainer(
                 self.model,
                 X_test,
