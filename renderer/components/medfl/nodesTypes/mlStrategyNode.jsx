@@ -16,13 +16,10 @@ export default function MlStrategyNode({ id, data }) {
 
   // Initialize selected columns with all available columns (first time)
   useEffect(() => {
-    if ((!selectedColumns || selectedColumns.length === 0) && columnsIntersectionFromNetworkCheck.length > 0) {
-      setSelectedColumns(columnsIntersectionFromNetworkCheck)
+    if (!selectedColumns || selectedColumns.length === 0) {
+      setSelectedColumns(data.internal.settings.intersectionColumns || [])
     }
-
-    console.log("MlStrategyNode columnsIntersectionFromNetworkCheck changed", columnsIntersectionFromNetworkCheck)
-    
-  }, [columnsIntersectionFromNetworkCheck])
+  }, [data.internal.settings.intersectionColumns])
 
   const handleSelectColumns = (v) => {
     const val = v?.value.value ?? v
@@ -76,7 +73,7 @@ export default function MlStrategyNode({ id, data }) {
             settingInfos={{
               type: "list-multiple",
               tooltip: "Select the columns to use",
-              choices: columnsIntersectionFromNetworkCheck
+              choices: data.internal.settings.intersectionColumns
             }}
             setHasWarning={() => {}}
           />

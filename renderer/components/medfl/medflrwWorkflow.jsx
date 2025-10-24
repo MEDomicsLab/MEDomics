@@ -84,7 +84,7 @@ const MedflrwWorkflow = ({ setWorkflowType, workflowType, mode = "fl" }) => {
   const { port } = useContext(WorkspaceContext)
   const { setError } = useContext(ErrorRequestContext)
   const { globalData } = useContext(DataContext)
-  const { updateColumnsIntersectionFromNetworkCheck } = useMEDflContext()
+  const { updateColumnsIntersectionFromNetworkCheck, columnsIntersectionFromNetworkCheck } = useMEDflContext()
 
   // ========== React Flow handles ==========
   const { setViewport } = useReactFlow() // setViewport is used to update the viewport of the workflow
@@ -124,6 +124,8 @@ const MedflrwWorkflow = ({ setWorkflowType, workflowType, mode = "fl" }) => {
   const [scenName, setSceanName] = useState("")
 
   const [datasetConfiguration, setDatasetConfiguration] = useState({})
+
+  const { updateNode } = useContext(FlowFunctionsContext)
 
   // declare node types using useMemo hook to avoid re-creating component types unnecessarily (it memorizes the output) https://www.w3schools.com/react/react_usememo.asp
   const nodeTypes = useMemo(
@@ -177,7 +179,20 @@ const MedflrwWorkflow = ({ setWorkflowType, workflowType, mode = "fl" }) => {
     if (networkChecked == {}) {
       updateColumnsIntersectionFromNetworkCheck({})
     }
-  }, [networkChecked])
+
+    for (const id in networkChecked) {
+      edges.forEach((edge) => {
+        if (edge.source === id) {
+          let targetNode = nodes.find((node) => node.id === edge.target)
+          targetNode.data.internal.settings.intersectionColumns = columnsIntersectionFromNetworkCheck[id] || []
+          updateNode({
+            id: edge.target,
+            updatedData: targetNode.data.internal
+          })
+        }
+      })
+    }
+  }, [networkChecked, edges])
 
   // executed when the machine learning type is changed
   // it updates the possible settings of the nodes
@@ -435,6 +450,8 @@ const MedflrwWorkflow = ({ setWorkflowType, workflowType, mode = "fl" }) => {
         return node
       })
     )
+
+    console.log("theeees ere  the é , é ", edges)
 
     setEdges((edges) =>
       edges.map((edge) => {
