@@ -316,16 +316,15 @@ const DatasetNode = ({ id, data }) => {
                     return (
                       <>
                         <Input
-                          key="files"
+                          key={"files"}
                           name="files"
                           settingInfos={{
                             type: "data-input-multiple",
-                            tooltip: "<p>Specify a data file (xlsx, csv, json)</p>",
-                            acceptFolder: true,               
+                            tooltip: "<p>Specify a data file (xlsx, csv, json)</p>"              
                           }}
                           currentValue={data.internal.settings.files || []}
                           onInputChange={onMultipleFilesChange}
-                          setHasWarning={handleWarning ?? (() => {})}
+                          setHasWarning={handleWarning}
                         />
 
                         <Input
