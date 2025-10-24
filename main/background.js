@@ -792,6 +792,38 @@ ipcMain.handle("request", async (_, axios_request) => {
   return { data: result.data, status: result.status }
 })
 
+// General backend request handler used by the renderer via preload
+ipcMain.handle('backend-request', async (_event, req) => {
+  // Basic validation
+  if (!req || typeof req.path !== 'string' || !req.path.startsWith('/')) {
+    throw { code: 'BAD_REQUEST', message: 'Invalid request shape' }
+  }
+
+  // Optional whitelist - adjust as needed
+  const allowedPrefixes = ['/run-go-server', '/set-working-directory', '/get-working-dir-tree', '/get-bundled-python-environment', '/get-installed-python-packages', '/start-mongo', '/stop-mongo', '/get-mongo-path', '/check-jupyter-status', '/start-jupyter-server', '/stop-jupyter-server', '/install-mongo', '/install-bundled-python', '/install-required-python-packages', '/check-requirements', '/check-python-requirements']
+  if (!allowedPrefixes.some(p => req.path.startsWith(p))) {
+    throw { code: 'NOT_ALLOWED', message: 'Requested path not allowed' }
+  }
+
+  const port = expressPort || serverPort || MEDconfig.defaultPort
+  const url = `http://127.0.0.1:${port}${req.path}`
+
+  try {
+    const axiosResp = await axios({
+      method: req.method || 'get',
+      url,
+      params: req.params || undefined,
+      data: req.body || undefined,
+      headers: req.headers || undefined,
+      timeout: req.timeout || 20000
+    })
+    return { status: axiosResp.status, data: axiosResp.data, headers: axiosResp.headers }
+  } catch (err) {
+    const message = err.response ? (err.response.data || err.response.statusText) : err.message
+    throw { code: 'BACKEND_ERROR', message, details: err.response ? { status: err.response.status } : undefined }
+  }
+})
+
 // Python environment handling
 ipcMain.handle("getInstalledPythonPackages", async (event, pythonPath) => {
   const activeTunnel = getActiveTunnel()
