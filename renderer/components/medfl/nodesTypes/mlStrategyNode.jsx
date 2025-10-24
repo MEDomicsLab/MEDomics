@@ -19,6 +19,9 @@ export default function MlStrategyNode({ id, data }) {
     if ((!selectedColumns || selectedColumns.length === 0) && columnsIntersectionFromNetworkCheck.length > 0) {
       setSelectedColumns(columnsIntersectionFromNetworkCheck)
     }
+
+    console.log("MlStrategyNode columnsIntersectionFromNetworkCheck changed", columnsIntersectionFromNetworkCheck)
+    
   }, [columnsIntersectionFromNetworkCheck])
 
   const handleSelectColumns = (v) => {

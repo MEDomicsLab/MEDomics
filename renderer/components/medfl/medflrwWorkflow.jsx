@@ -61,6 +61,7 @@ import { FaFileCode, FaGlobe } from "react-icons/fa6"
 import NewtworkCheckModal from "./rw/NetworkCheckModal.jsx"
 import ClientDatasetModal from "./rw/ClientDatasetModal.jsx"
 import NewServerLogsModal from "./rw/SeverLogsModal_copy.jsx"
+import RwNetworkNode from "./nodesTypes/flrwNetworkNode.jsx"
 
 const staticNodesParams = nodesParams // represents static nodes parameters
 
@@ -112,7 +113,7 @@ const MedflrwWorkflow = ({ setWorkflowType, workflowType, mode = "fl" }) => {
   // ========== Server / network status ==========
   const [serverRunning, setServerRunning] = useState(false)
   const [isServerRunning, setRunServer] = useState(false)
-  const [networkChecked, setNetworkChecked] = useState(false) // networkChecked is used to check if the network is checked
+  const { networkChecked, setNetworkChecked } = useMEDflContext() // networkChecked is used to check if the network is checked
   const [socketAgents, setSocketAgents] = useState([]) // socketAgents is used to store the agents connected to the socket server
 
   // ========== UI modals / toggles ==========
@@ -146,7 +147,8 @@ const MedflrwWorkflow = ({ setWorkflowType, workflowType, mode = "fl" }) => {
       flRunServerNode: FlRunServerNode,
       DatasetrwNode: FlDatasetrwNode,
       flrwServerNode: FlrwServerNode,
-      mlStrategyNode: MlStrategyNode
+      mlStrategyNode: MlStrategyNode,
+      flrwNetworkNode: RwNetworkNode
     }),
     []
   )
@@ -172,8 +174,8 @@ const MedflrwWorkflow = ({ setWorkflowType, workflowType, mode = "fl" }) => {
   }, [isResults])
 
   useEffect(() => {
-    if (!networkChecked) {
-      updateColumnsIntersectionFromNetworkCheck([])
+    if (networkChecked == {}) {
+      updateColumnsIntersectionFromNetworkCheck({})
     }
   }, [networkChecked])
 
@@ -897,7 +899,7 @@ const MedflrwWorkflow = ({ setWorkflowType, workflowType, mode = "fl" }) => {
       ></NewServerLogsModal>
 
       <ManageScriptsModal onHide={() => setShowScriptConfigs(false)} show={showScriptConfigs} />
-      <NewtworkCheckModal onHide={() => setShowNetworkCheckModal(false)} show={showNetworkCheckModal} setNetworkChecked={setNetworkChecked} />
+      <NewtworkCheckModal onHide={() => setShowNetworkCheckModal(false)} show={showNetworkCheckModal} setNetworkChecked={setNetworkChecked} networkChecked={networkChecked} />
       <ClientDatasetModal setDatasetConfiguration={setDatasetConfiguration} onHide={() => setShowClientsDatasetModal(false)} show={showClientsDatasetModal} clients={socketAgents} />
       <Modal show={isSaveModal} onHide={() => openSaveModal(false)}>
         <Modal.Header>
@@ -950,13 +952,13 @@ const MedflrwWorkflow = ({ setWorkflowType, workflowType, mode = "fl" }) => {
             {workflowType == "rwflNetwork" && (
               <div className="d-flex gap-2">
                 <Button
-                  badge={!networkChecked ? "!" : ""}
+                  badge={!networkChecked[groupNodeId.id] ? "!" : ""}
                   badgeClassName="p-badge-danger"
                   icon="pi pi-verified"
                   rounded
-                  outlined={!networkChecked}
-                  severity={!networkChecked ? "secondary" : "success"}
-                  label={!networkChecked ? "Check Network" : "network checked"}
+                  outlined={!networkChecked[groupNodeId.id]}
+                  severity={!networkChecked[groupNodeId.id] ? "secondary" : "success"}
+                  label={!networkChecked[groupNodeId.id] ? "Check Network" : "network checked"}
                   onClick={() => setShowNetworkCheckModal(!showNetworkCheckModal)}
                 />
               </div>

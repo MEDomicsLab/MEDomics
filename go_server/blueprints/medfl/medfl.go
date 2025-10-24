@@ -28,7 +28,7 @@ var wsBase = "/" + prePath + "/rw/ws"
 
 // Tailscale config (as provided)
 var (
-	apiKey  = "tskey-api-kvfA24AaVL11CNTRL-iG3zV6MLFYMe4YC1fwKwXMQiw3gFANpsT"
+	apiKey  = "tskey-api-kWfnEVGAk321CNTRL-4g9yhN4QaFEAM3A7sU3FFEgx7VCeuUzWH"
 	tailnet = "taild030b7.ts.net"
 )
 
