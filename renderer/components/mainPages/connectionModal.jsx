@@ -15,7 +15,6 @@ import { GoFile, GoFileDirectoryFill, GoChevronDown, GoChevronUp } from "react-i
 import { FaFolderPlus } from "react-icons/fa"
 import { WorkspaceContext } from "../workspace/workspaceContext"
 import { IoMdClose, IoIosRefresh } from "react-icons/io"
-import axios from "axios"
 
 /**
  *
@@ -682,27 +681,23 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
                 const tunnelState = getTunnelState()
                 setConnectionProcessing(true)
                 setNavigationProcessing(true)
-                axios.post(`http://${tunnelState.host}:3000/set-working-directory`, { workspacePath: remoteDirPath })
-                  .then(response => {
+                window.backend.requestExpress({ method: 'post', path: '/set-working-directory', host: tunnelState.host, body: { workspacePath: remoteDirPath } })
+                  .then((response) => {
                     if (response.data.success) {
                       toast.success("Workspace set successfully on remote app.")
                       if (response.data.workspace !== workspace) {
-                        let workspaceToSet = { ...response.data.workspace }
-                        workspaceToSet.newPort = tunnelState.localBackendPort
-                        setWorkspace(workspaceToSet)
-                        ipcRenderer.invoke("setRemoteWorkspacePath", remoteDirPath)
-                        handleConnectMongoDB()
-                        setConnectionProcessing(false)
-                        setNavigationProcessing(false)
+                        setWorkspace(response.data.workspace)
                       }
+                      setConnectionProcessing(false)
+                      setNavigationProcessing(false)
                     } else {
-                      toast.error("Failed to set workspace: " + response.data.error)
+                      toast.error("Failed to set workspace on remote app: " + (response.data.error || "Unknown error"))
                       setConnectionProcessing(false)
                       setNavigationProcessing(false)
                     }
                   })
-                  .catch(err => {
-                    toast.error("Failed to set workspace: " + (err && err.message ? err.message : String(err)))
+                  .catch((error) => {
+                    toast.error("Error setting workspace on remote app: " + error)
                     setConnectionProcessing(false)
                     setNavigationProcessing(false)
                   })

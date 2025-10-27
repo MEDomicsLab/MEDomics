@@ -13,7 +13,6 @@ import {
   updateMEDDataObjectPath
 } from "../mongoDB/mongoDBUtils"
 import { remoteDirname } from "../../utilities/fileManagementUtils"
-import axios from "axios"
 import { getTunnelState } from "../../utilities/tunnelState"
 
 /**
@@ -540,16 +539,16 @@ export class MEDDataObject {
       if (medDataObject.type != "directory" && medDataObject.type != "medml" && medDataObject.type != "medeval" && medDataObject.type != "medmlres" && medDataObject.type != "medmodel") {
         if (isRemote) {
           const tunnelState = getTunnelState()
-          axios.post(`http://${tunnelState.host}:3000/download-collection-to-file`, { collectionId: id, filePath: filePath, type: medDataObject.type })
-            .then(response => {
+          window.backend.requestExpress({ method: 'post', path: '/download-collection-to-file', host: tunnelState.host, body: { collectionId: id, filePath: filePath, type: medDataObject.type } })
+            .then((response) => {
               if (response.data.success) {
                 console.log(`Downloaded collection ${id} to remote file successfully`)
               } else {
-                toast.error(`Failed to download collection ${id} to remote file: ` + response.data.error)
+                toast.error(`Failed to download collection ${id} to remote file: ${response.data.error}`)
               }
             })
-            .catch(err => {
-              toast.error(`Failed to download collection ${id} to remote file: ` + (err && err.message ? err.message : String(err)))
+            .catch((err) => {
+              toast.error(`Failed to download collection ${id} to remote file: ${err && err.message ? err.message : String(err)}`)
             })
         } else {
           await downloadCollectionToFile(id, filePath, medDataObject.type)

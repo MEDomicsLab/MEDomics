@@ -2,7 +2,6 @@ const { MongoClient } = require("mongodb")
 const fs = require("fs")
 const Papa = require("papaparse")
 import { getTunnelState } from "../../utilities/tunnelState"
-import axios from "axios"
 
 function getMongoUri() {
   const tunnel = getTunnelState()
@@ -152,7 +151,7 @@ export async function insertMEDDataObjectIfNotExists(medData, path = null, jsonD
   } else if (path) {
     const tunnel = getTunnelState()
     if (tunnel && tunnel.tunnelActive && tunnel.localDBPort) { // run remotely
-      axios.post(`http://${tunnel.host}:3000/insert-object-into-collection`, { objectPath: path, medDataObject: medData })
+  window.backend.requestExpress({ method: 'post', path: '/insert-object-into-collection', host: tunnel.host, body: { objectPath: path, medDataObject: medData } })
         .then(response => {
           if (response.data.success) {
             console.log(`${medData.type} object successfully inserted remotely.`)

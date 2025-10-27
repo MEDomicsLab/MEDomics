@@ -199,15 +199,17 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
   checkJupyterIsRunning = async () => {
     const { setJupyterStatus } = this.props as LayoutContextType
     if (this.props.workspace?.isRemote) {
-      axios.get(`http://${this.props.tunnel.host}:3000/check-jupyter-running`)
-        .then((response) => {
-          setJupyterStatus(response.data)
-        })
-        .catch((error) => {
-          console.error("Error checking Jupyter on remote server: ", error)
-          toast.error("Error checking Jupyter on remote server: ", error)
-          setJupyterStatus({ running: false, error: "Error checking Jupyter on remote server: " + error })
-        })
+      // Proxy remote Express request via main process
+      // Using new IPC-based request to avoid direct HTTP from renderer
+  window.backend.requestExpress({ method: 'get', path: '/check-jupyter-status', host: this.props.tunnel.host })
+      .then((response) => {
+        setJupyterStatus(response.data)
+      })
+      .catch((error) => {
+        console.error("Error checking Jupyter on remote server: ", error)
+        toast.error("Error checking Jupyter on remote server: ", error)
+        setJupyterStatus({ running: false, error: "Error checking Jupyter on remote server: " + error })
+      })
     } else {
       setJupyterStatus(await ipcRenderer.invoke("checkJupyterIsRunning"))
     }
@@ -220,7 +222,7 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
     }
     const { setJupyterStatus } = this.props as LayoutContextType
     if (this.props.workspace?.isRemote) {
-      axios.post(`http://${this.props.tunnel.host}:3000/start-jupyter-server`, { workspacePath: this.props.workspace?.workingDirectory?.path } )
+  window.backend.requestExpress({ method: 'post', path: '/start-jupyter-server', host: this.props.tunnel.host, body: { workspacePath: this.props.workspace?.workingDirectory?.path } })
         .then((response) => {
           setJupyterStatus(response.data)
           if (response.data.running) {
@@ -245,7 +247,7 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
   stopJupyterServer = async () => {
     const { setJupyterStatus } = this.props as LayoutContextType
     if (this.props.workspace?.isRemote) {
-      axios.post(`http://${this.props.tunnel.host}:3000/stop-jupyter-server`)
+  window.backend.requestExpress({ method: 'post', path: '/stop-jupyter-server', host: this.props.tunnel.host })
         .then((response) => {
           setJupyterStatus(response.data)
           if (!response.data.error) {

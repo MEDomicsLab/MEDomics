@@ -152,7 +152,7 @@ const SettingsPage = ({pageId = "settings", checkJupyterIsRunning, startJupyterS
     console.log("Checking jupyter status")
     let running = false
     if (workspace.isRemote) {
-      axios.get(`http://${tunnel.host}:3000/check-jupyter-status`)
+  window.backend.requestExpress({ method: 'get', path: '/check-jupyter-status', host: tunnel.host })
             .then((response) => {
               console.log("Jupyter status on remote server: ", response)
               if (response.status == 200 && response.data.running) {
@@ -175,7 +175,7 @@ const SettingsPage = ({pageId = "settings", checkJupyterIsRunning, startJupyterS
   const startMongo = () => {
     let workspacePath = workspace.workingDirectory.path
     if (workspace.isRemote) {
-      axios.post(`http://${tunnel.host}:3000/start-mongo`, { workspacePath: workspacePath } )
+  window.backend.requestExpress({ method: 'post', path: '/start-mongo', host: tunnel.host, body: { workspacePath: workspacePath } })
             .then((response) => {
               if (response.data.success) {
                 toast.success("MongoDB started successfully on remote server")

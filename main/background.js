@@ -805,8 +805,9 @@ ipcMain.handle('backend-request', async (_event, req) => {
     throw { code: 'NOT_ALLOWED', message: 'Requested path not allowed' }
   }
 
-  const port = expressPort || serverPort || MEDconfig.defaultPort
-  const url = `http://127.0.0.1:${port}${req.path}`
+  const host = req.host || '127.0.0.1'
+  const port = req.port || expressPort || serverPort || MEDconfig.defaultPort
+  const url = `http://${host}:${port}${req.path}`
 
   try {
     const axiosResp = await axios({

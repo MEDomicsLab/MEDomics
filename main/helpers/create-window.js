@@ -64,10 +64,10 @@ export default function createWindow(windowName, options) {
     ...state,
     ...options,
     webPreferences: {
-      // Use a preload script to expose a minimal API to renderer
+      // Preload to expose a minimal API to renderer (kept alongside current settings)
       preload: path.join(__dirname, '../preload.js'),
-      nodeIntegration: false,
-      contextIsolation: true,
+      nodeIntegration: true,
+      contextIsolation: false,
       ...options.webPreferences
     },
     show: false
