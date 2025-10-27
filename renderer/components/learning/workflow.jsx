@@ -93,7 +93,7 @@ const Workflow = forwardRef(({ setWorkflowType, workflowType, isExperiment }, re
       standardNode: StandardNode,
       splitNode: SplitNode,
       selectionNode: SelectionNode,
-      boxNode, boxNode,
+      boxNode: boxNode,
       analysisBoxNode: analysisBoxNode,
       ResizableGroupNode: ResizableGroupNode,
       CombineModelsNode: CombineModelsNode,
@@ -1240,6 +1240,7 @@ const Workflow = forwardRef(({ setWorkflowType, workflowType, isExperiment }, re
             return
           }
           if (!jsonResponse.error) {
+            MEDDataObject.updateWorkspaceDataObject()
             setCurrentResults(jsonResponse)
             updateFlowResults(jsonResponse, saveAndFinalize, modelToFinalize)
             setProgress({
