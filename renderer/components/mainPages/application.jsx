@@ -18,6 +18,9 @@ import { getCollectionColumns, insertMEDDataObjectIfNotExists } from "../mongoDB
 import DataTableFromDB from "../dbComponents/dataTableFromDB"
 import { randomUUID } from "crypto"
 import { toast } from "react-toastify"
+import { ProgressSpinner } from 'primereact/progressspinner'
+import { Card } from "primereact/card"
+import { Badge } from "primereact/badge"
 
 /**
  *
@@ -34,7 +37,7 @@ import { toast } from "react-toastify"
  *
  * @returns {React.Component} The entry component
  */
-const Entry = ({ pageId, setRequestSettings, chosenModel, modelMetadata, updateWarnings, mode, setMode, setIsValid2Predict, inputsData, setInputsData }) => {
+const Entry = ({ pageId, setRequestSettings, chosenModel, modelMetadata, updateWarnings, mode, setMode, setIsValid2Predict, inputsData, setInputsData, imputedColumns }) => {
   const [inputTypeChecked, setInputTypeChecked] = useState(false)
   const [chosenDataset, setChosenDataset] = useState(null)
   const [datasetHasWarning, setDatasetHasWarning] = useState({ state: true, tooltip: "No dataset selected" })
@@ -44,6 +47,7 @@ const Entry = ({ pageId, setRequestSettings, chosenModel, modelMetadata, updateW
   useEffect(() => {
     if (modelMetadata) {
       let columns = modelMetadata.columns
+      columns = columns.filter((col) => !imputedColumns.includes(col))
       let isValid = true
 
       columns.forEach((columnName) => {
@@ -86,7 +90,15 @@ const Entry = ({ pageId, setRequestSettings, chosenModel, modelMetadata, updateW
 
   // when the chosen model changes, update the model metadata
   useEffect(() => {
-    setInputsData({})
+    if (imputedColumns.length > 0){
+      let inputInit = {}
+      imputedColumns.map((col) => {
+        inputInit[col] = [undefined]
+      })
+      setInputsData(inputInit)
+    } else {
+      setInputsData({})
+    }
     updateWarnings(chosenDataset, setDatasetHasWarning)
   }, [chosenModel])
 
@@ -106,7 +118,7 @@ const Entry = ({ pageId, setRequestSettings, chosenModel, modelMetadata, updateW
    */
   const handleInputUpdate = (inputUpdate) => {
     let newInputsData = { ...inputsData }
-    newInputsData[inputUpdate.name] = [inputUpdate.value]
+    newInputsData[inputUpdate.name.replace("*", "")] = [inputUpdate.value]
     setInputsData(newInputsData)
   }
 
@@ -128,7 +140,7 @@ const Entry = ({ pageId, setRequestSettings, chosenModel, modelMetadata, updateW
               return (
                 <Input
                   key={index}
-                  name={columnName}
+                  name={imputedColumns.includes(columnName) ? columnName : columnName+"*"}
                   settingInfos={{ type: "string", tooltip: "" }}
                   currentValue={inputsData[columnName] ? inputsData[columnName] : ""}
                   onInputChange={handleInputUpdate}
@@ -136,6 +148,7 @@ const Entry = ({ pageId, setRequestSettings, chosenModel, modelMetadata, updateW
               )
             }
           })}
+          <label>* Required columns</label>
         </div>
       ) : (
         <div className="data-input-tag-right">
@@ -148,7 +161,7 @@ const Entry = ({ pageId, setRequestSettings, chosenModel, modelMetadata, updateW
             </>
           )}
           <Input
-            name="files"
+            name="File"
             settingInfos={{
               type: "data-input",
               tooltip: "<p>Specify a data file (csv)</p>"
@@ -171,9 +184,13 @@ const Entry = ({ pageId, setRequestSettings, chosenModel, modelMetadata, updateW
 const ApplicationPage = ({ pageId }) => {
   const [chosenModel, setChosenModel] = useState("")
   const [modelMetadata, setModelMetadata] = useState(null)
+  const [optionalColumns, setOptionalColumns] = useState([])
   const [inputsData, setInputsData] = useState({})
   const [predictions, setPredictions] = useState(null)
+  const [predictedTarget, setPredictedTarget] = useState(null)
+  const [predictionScore, setPredictionScore] = useState(null)
   const [isValid2Predict, setIsValid2Predict] = useState(false)
+  const [loadingModelColumns, setLoadingModelColumns] = useState(false)
   const { port } = useContext(WorkspaceContext)
   const { setError } = useContext(ErrorRequestContext)
   const { setLoader } = useContext(LoaderContext)
@@ -186,6 +203,7 @@ const ApplicationPage = ({ pageId }) => {
   useEffect(() => {
     setModelMetadata(null)
     const fetchData = async (metadataObjectID) => {
+      await getOptionalColumns()
       setModelMetadata(null)
       const metadata = await getCollectionData(metadataObjectID)
       if (metadata) {
@@ -201,6 +219,50 @@ const ApplicationPage = ({ pageId }) => {
     }
     updateWarnings()
   }, [chosenModel])
+
+  /**
+   *
+   * @param {String} type The type of prediction to do
+   */
+  const getOptionalColumns = async () => {
+    if (!chosenModel.id) {
+      toast.error('No model selected to retrieve optional columns from.')
+      return
+    }
+    setLoadingModelColumns(true)
+    requestBackend(
+      port,
+      "application/get_imputed_columns/" + pageId,
+      { model: chosenModel },
+      (response) => {
+        setLoadingModelColumns(false)
+        console.log("response", response)
+        if (response.error) {
+          setError(response.error)
+          setPredictions(null)
+          setOptionalColumns([])
+          setPredictedTarget(null)
+          setPredictionScore(null)
+          toast.error('Failed to retrieve optional columns from the model.')
+        } else {
+          setOptionalColumns(response.imputed_columns)
+          let inputInit = {}
+          response.imputed_columns.map((col) => {
+            inputInit[col] = [undefined]
+          })
+          setInputsData(inputInit)
+        }
+      },
+      () => {
+        setPredictions(null)
+        setOptionalColumns([])
+        setLoadingModelColumns(false)
+        setPredictedTarget(null)
+        setPredictionScore(null)
+        toast.error('Failed to retrieve optional columns from the model.')
+      }
+    )
+  }
 
   /**
    *
@@ -226,8 +288,21 @@ const ApplicationPage = ({ pageId }) => {
         if (response.error) {
           setError(response.error)
           setPredictions(null)
+          setOptionalColumns([])
+          setPredictedTarget(null)
+          setPredictionScore(null)
         } else {
-          setPredictions(response)
+          if (mode === "table") {
+            setPredictions(response)
+          } else {
+            setPredictions(null)
+          }
+          if (response.pred_target){
+            setPredictedTarget(response.pred_target)
+          }
+          if (response.pred_score){
+            setPredictionScore(response.pred_score)
+          }
           toast.info('Predictions saved under "DATA/predictions"')
         }
         MEDDataObject.updateWorkspaceDataObject()
@@ -235,6 +310,9 @@ const ApplicationPage = ({ pageId }) => {
       },
       () => {
         setPredictions(null)
+        setOptionalColumns([])
+        setPredictedTarget(null)
+        setPredictionScore(null)
         setLoader(false)
       }
     )
@@ -312,6 +390,13 @@ const ApplicationPage = ({ pageId }) => {
 
   return (
     <>
+    {
+      loadingModelColumns ? (
+        <div className="text-align center">
+          <h3>Loading model's information...</h3>
+          <ProgressSpinner />
+        </div>
+      ): (
       <Stack gap={2}>
         <div className="data-input-tag-right">
           {modelHasWarning.state && (
@@ -343,12 +428,24 @@ const ApplicationPage = ({ pageId }) => {
               setIsValid2Predict={setIsValid2Predict}
               inputsData={inputsData}
               setInputsData={setInputsData}
+              imputedColumns={optionalColumns}
             />
             <Button label="Predict" outlined severity="success" onClick={() => handlePredictClick()} disabled={!isValid2Predict} />
-            {predictions && predictions.collection_id && <DataTableFromDB data={{ id: predictions.collection_id }} isReadOnly={true} />}
+            {mode === "unique" && predictedTarget && predictionScore ? (
+              <Card className="prediction-result-card" style={{display: "flex", justifyContent: "center", alignItems: "center"}}>
+                <div className="flex align-items-center">
+                  <Badge value={`Predicted Target Value: ${predictedTarget}`} severity="success" size={"large"} />
+                  <Badge value={`Prediction Score: ${predictionScore}`} severity="info" size={"large"} style={{marginLeft: "1rem"}} />
+                </div>
+            </Card>) : (
+              <>{mode === "table" && predictions && predictions.collection_id && <DataTableFromDB data={{ id: predictions.collection_id }} isReadOnly={true} />}</>
+            )}
+            
           </>
         )}
       </Stack>
+      )
+    }
     </>
   )
 }

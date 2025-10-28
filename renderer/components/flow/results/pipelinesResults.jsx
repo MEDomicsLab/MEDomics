@@ -57,6 +57,10 @@ function getNodeResults(flowResults, flowContent, pipeline, targetId) {
 
     // Iterate through the flowResults to find the targetId
     for (const [key, value] of Object.entries(flowResults)) {
+      // Check if key is part of the pipeline
+      if (!pipeline.some(p => key.includes(p))) {
+        continue
+      }
       nodeResults = traverse(value, key)
       if (nodeResults) {
         break // Exit loop when we get a non-empty result
@@ -209,7 +213,7 @@ const PipelineResult = ({ index, pipeline, selectionMode, flowContent, highlight
         setBody(createBody())
       }
     }
-  }, [pipeline, selectedId])
+  }, [selectedId])
 
   /**
    * @description this function checks if the results dictionary contains a specific id and returns the results if it does.
