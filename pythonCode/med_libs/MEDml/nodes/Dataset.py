@@ -76,7 +76,6 @@ class Dataset(Node):
             
         elif self.entry_file_type == FILES:  # Process all files (no timepoints)
             df_ids_list = [f['id'] for f in self.settings['files']]
-            df_name_list = [f['name'] for f in self.settings['files']]
 
             # load all files in order
             df_list = []
@@ -109,7 +108,6 @@ class Dataset(Node):
 
             # traces
             self.CodeHandler.add_line("code", f"df_ids_list = {str([d['id'] for d in self.settings['files']])}")
-            self.CodeHandler.add_line("code", f"df_name_list = {str([d['name'] for d in self.settings['files']])}")
             self.CodeHandler.add_line("code", "df_list = []")
             self.CodeHandler.add_line("code", "for fid in df_ids_list:")
             self.CodeHandler.add_line("code", "    collection = database[fid]", indent=1)
