@@ -81,7 +81,7 @@ const Workflow = forwardRef(({ setWorkflowType, workflowType, isExperiment }, re
 
   const { groupNodeId, changeSubFlow, hasNewConnection } = useContext(FlowFunctionsContext)
   const { pageId } = useContext(PageInfosContext) // used to get the page infos such as id and config path
-  const { updateFlowResults, saveFlowResults, isResults, flowResults } = useContext(FlowResultsContext)
+  const { updateFlowResults, saveFlowResults, isResults } = useContext(FlowResultsContext)
   const { canRun, sceneName, setSceneName } = useContext(FlowInfosContext)
   const { port } = useContext(WorkspaceContext)
   const { setError } = useContext(ErrorRequestContext)
@@ -1508,7 +1508,7 @@ const Workflow = forwardRef(({ setWorkflowType, workflowType, isExperiment }, re
         toast.error("Error while saving scene")
       }
       if (!success2) {
-        toast.error("Could not save results")
+        console.warn("No results saved from the scene", success2)
       }
     }
   }, [reactFlowInstance, MLType, intersections, currentResults])
