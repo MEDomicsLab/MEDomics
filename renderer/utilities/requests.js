@@ -15,8 +15,9 @@ export const requestBackend = (port, topic, json2send, jsonReceivedCB, onError) 
   // Use tunnel state if available
   const tunnel = getTunnelState()
   let finalPort = port
-  if (tunnel && tunnel.tunnelActive && tunnel.localBackendPort) {
-    finalPort = tunnel.localBackendPort // Use the local port forwarded by the tunnel
+  // Prefer direct GO tunnel when available
+  if (tunnel && tunnel.tunnelActive && tunnel.localGoPort) {
+    finalPort = tunnel.localGoPort
   }
   axiosPostJsonGo(finalPort, topic, json2send, jsonReceivedCB, onError)
 }

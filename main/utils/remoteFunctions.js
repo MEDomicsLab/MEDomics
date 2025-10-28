@@ -5,6 +5,7 @@ import { generateSSHKeyPair } from '../sshKeygen'
 const net = require("net")
 var path = require("path")
 const fs = require("fs")
+const axios = require("axios")
 
 // Global tunnel state for remote connection management
 let activeTunnel = null
@@ -17,6 +18,7 @@ let jupyterLocalPort = null
 let jupyterRemotePort = null
 
 let remoteWorkspacePath = null
+let remoteBackendExecutablePath = null
 
 export function setActiveTunnel(tunnel) {
   activeTunnel = tunnel
@@ -37,13 +39,24 @@ export function getRemoteWorkspacePath() {
   return remoteWorkspacePath
 }
 
+export function setRemoteBackendExecutablePath(p) {
+  remoteBackendExecutablePath = p
+}
+export function getRemoteBackendExecutablePath() {
+  return remoteBackendExecutablePath
+}
+
 // Tunnel information and state management
 let tunnelInfo = {
   host: null,
   tunnelActive: false,
   localAddress: "localhost",
-  localBackendPort: null,
-  remoteBackendPort: null,
+  // Express (backend) forwarding
+  localExpressPort: null, // local port forwarded to remote Express
+  remoteExpressPort: null, // remote Express port
+  // Optional GO direct forwarding
+  localGoPort: null,
+  remoteGoPort: null,
   localDBPort: null,
   remoteDBPort: null,
   localJupyterPort: null,
@@ -63,8 +76,10 @@ export function clearTunnelState() {
     host: null,
     tunnelActive: false,
     localAddress: "localhost",
-    localBackendPort: null,
-    remoteBackendPort: null,
+    localExpressPort: null,
+    remoteExpressPort: null,
+    localGoPort: null,
+    remoteGoPort: null,
     localDBPort: null,
     remoteDBPort: null,
     localJupyterPort: null,
@@ -92,6 +107,228 @@ ipcMain.handle('clearTunnelState', () => {
   mainWindow.webContents.send('tunnelStateClear')
 })
 
+// Helpers for managing remote backend (GO) server lifecycle
+async function execRemote(conn, cmd) {
+  return new Promise((resolve, reject) => {
+    conn.exec(cmd, (err, stream) => {
+      if (err) return reject(err)
+      let stdout = ''
+      let stderr = ''
+      stream.on('data', (d) => { stdout += d.toString() })
+      stream.stderr.on('data', (d) => { stderr += d.toString() })
+      stream.on('close', (code) => {
+        resolve({ code, stdout: stdout.trim(), stderr: stderr.trim() })
+      })
+    })
+  })
+}
+
+async function getRemoteHome(conn, remoteOS) {
+  if (remoteOS === 'win32') {
+    const r = await execRemote(conn, 'powershell -NoProfile -Command "$env:USERPROFILE"')
+    return r.stdout || 'C:\\Users\\Public'
+  } else {
+    const r = await execRemote(conn, 'printf "%s" "$HOME"')
+    return r.stdout || '/home'
+  }
+}
+
+async function findRemoteBackendExecutable(conn, remoteOS) {
+  try {
+    if (remoteBackendExecutablePath) {
+      // Verify it exists
+      if (remoteOS === 'win32') {
+        const r = await execRemote(conn, `powershell -NoProfile -Command "If (Test-Path '${remoteBackendExecutablePath.replace(/'/g, "''")}') { Write-Output '${remoteBackendExecutablePath.replace(/'/g, "''")}' }"`)
+        if (r.stdout) return { path: remoteBackendExecutablePath }
+      } else {
+        const r = await execRemote(conn, `[ -x '${remoteBackendExecutablePath.replace(/'/g, "'\\''")}' ] && echo '${remoteBackendExecutablePath.replace(/'/g, "'\\''")}' || true`)
+        if (r.stdout) return { path: remoteBackendExecutablePath }
+      }
+    }
+    const home = await getRemoteHome(conn, remoteOS)
+    if (remoteOS === 'win32') {
+      const candidates = [
+        `${home}\\.medomics\\MEDomicsLab\\go_executables\\server_go_win32.exe`,
+        `${home}\\.medomics\\go_executables\\server_go_win32.exe`,
+        `C:\\Program Files\\MEDomicsLab\\go_executables\\server_go_win32.exe`
+      ]
+      const ps = `powershell -NoProfile -Command "${candidates.map(p=>`If (Test-Path '${p.replace(/'/g, "''")}') { Write-Output '${p.replace(/'/g, "''")}'; exit }`).join(' ')}"`
+      const r = await execRemote(conn, ps)
+      if (r.stdout) return { path: r.stdout }
+      const whereCmd = await execRemote(conn, 'where server_go_win32.exe')
+      if (whereCmd.stdout) return { path: whereCmd.stdout.split(/\r?\n/)[0] }
+    } else {
+      const candidates = [
+        `${home}/.medomics/MEDomicsLab/go_executables/server_go`,
+        `${home}/.medomics/go_executables/server_go`,
+        `${home}/MEDomicsLab/go_executables/server_go`
+      ]
+      const testCmd = candidates.map(p=>`[ -x '${p.replace(/'/g, "'\\''")}' ] && { echo '${p.replace(/'/g, "'\\''")}'; exit 0; }`).join(' ') + '; command -v server_go || true'
+      const r = await execRemote(conn, `bash -lc "${testCmd}"`)
+      if (r.stdout) return { path: r.stdout.split(/\r?\n/)[0] }
+    }
+    return null
+  } catch (e) {
+    return null
+  }
+}
+
+async function startRemoteBackend(conn, remoteOS, exePath, remotePort) {
+  try {
+    if (!exePath) {
+      return { success: false, status: 'not-found', error: 'No remote Express path provided' }
+    }
+    const isScript = exePath.endsWith('.js') || exePath.endsWith('.mjs')
+    let cmd
+    if (remoteOS === 'win32') {
+      if (isScript) {
+        cmd = `powershell -NoProfile -Command "$env:PORT=${remotePort}; Start-Process -FilePath 'node' -ArgumentList '${exePath.replace(/'/g, "''")}' -WindowStyle Hidden -PassThru | Out-Null"`
+      } else {
+        cmd = `powershell -NoProfile -Command "$env:PORT=${remotePort}; Start-Process -FilePath '${exePath.replace(/'/g, "''")}' -WindowStyle Hidden -PassThru | Out-Null"`
+      }
+    } else {
+      if (isScript) {
+        cmd = `bash -lc 'export PORT=${remotePort}; nohup node "${exePath.replace(/"/g, '\\"')}" >/dev/null 2>&1 < /dev/null & echo $!'`
+      } else {
+        cmd = `bash -lc 'export PORT=${remotePort}; nohup "${exePath.replace(/"/g, '\\"')}" >/dev/null 2>&1 < /dev/null & echo $!'`
+      }
+    }
+    const r = await execRemote(conn, cmd)
+    if (r && r.stderr && r.stderr.trim() && !r.stdout) {
+      return { success: false, status: 'failed-to-start', error: r.stderr.trim() }
+    }
+    // Poll for port to open
+    await sleep(800)
+    const maxAttempts = 15
+    for (let i = 0; i < maxAttempts; i++) {
+      const open = await checkRemotePortOpen(conn, remotePort)
+      if (open) return { success: true, status: 'express-running' }
+      await sleep(600)
+    }
+    return { success: false, status: 'timeout', error: `Express did not open port ${remotePort} in time` }
+  } catch (e) {
+    return { success: false, status: 'failed-to-start', error: e && e.message ? e.message : String(e) }
+  }
+}
+
+function sleep(ms){ return new Promise(r=>setTimeout(r, ms)) }
+
+ipcMain.handle('ensureRemoteBackend', async (_event, { port } = {}) => {
+  const conn = getActiveTunnel()
+  if (!conn) return { success: false, status: 'tunnel-inactive', error: 'No active SSH tunnel' }
+
+  const tunnel = getTunnelState()
+  const targetPort = port || tunnel.remoteExpressPort
+  const localPort = tunnel.localExpressPort
+  if (!targetPort || !localPort) {
+    return { success: false, status: 'invalid-config', error: 'Missing local/remote backend port configuration' }
+  }
+  try {
+    // 1) Ensure Express is reachable on remote targetPort
+    let isOpen = await checkRemotePortOpen(conn, targetPort)
+    if (!isOpen) {
+      const remoteOS = await detectRemoteOS()
+      const exePath = getRemoteBackendExecutablePath()
+      if (!exePath) {
+        return { success: false, status: 'not-found', action: 'locate-or-install', error: 'Express not running and no remote path set' }
+      }
+      const startRes = await startRemoteBackend(conn, remoteOS, exePath, targetPort)
+      if (!startRes.success) {
+        return startRes
+      }
+      // Double-check
+      isOpen = await checkRemotePortOpen(conn, targetPort)
+      if (!isOpen) {
+        return { success: false, status: 'timeout', error: `Express did not open port ${targetPort}` }
+      }
+    }
+
+    // 2) Ask Express (reachable through the tunnel at localPort) to start GO
+    try {
+      const url = `http://127.0.0.1:${localPort}/run-go-server`
+      const res = await axios.post(url, {})
+      if (res && res.status >= 200 && res.status < 300) {
+        return { success: true, status: 'running', message: 'Express running; GO start requested via backend', port: targetPort }
+      }
+      return { success: false, status: 'go-start-failed', error: `Unexpected status ${res && res.status}` }
+    } catch (err) {
+      return { success: false, status: 'go-start-error', error: err && err.message ? err.message : 'Failed to call /run-go-server' }
+    }
+  } catch (e) {
+    return { success: false, status: 'error', error: e && e.message ? e.message : String(e) }
+  }
+})
+
+function getLocalGoBinaryForOS(remoteOS) {
+  // Prefer packaged resources; fallback to repo path
+  try {
+    let base = process.resourcesPath ? path.join(process.resourcesPath, 'go_executables') : null
+    let repo = path.join(process.cwd(), 'go_executables')
+    if (remoteOS === 'win32') {
+      const cand = [base && path.join(base,'server_go_win32.exe'), path.join(repo,'server_go_win32.exe')].filter(Boolean)
+      return cand.find(p=>p && fs.existsSync(p)) || null
+    } else if (remoteOS === 'darwin') {
+      const cand = [base && path.join(base,'server_go'), path.join(repo,'server_go_mac')].filter(Boolean)
+      return cand.find(p=>p && fs.existsSync(p)) || null
+    } else {
+      // linux
+      const cand = [base && path.join(base,'server_go'), path.join(repo,'server_go_linux'), path.join(repo,'server_go')].filter(Boolean)
+      return cand.find(p=>p && fs.existsSync(p)) || null
+    }
+  } catch {
+    return null
+  }
+}
+
+ipcMain.handle('installRemoteBackend', async () => {
+  const conn = getActiveTunnel()
+  if (!conn) return { success: false, error: 'No active SSH tunnel' }
+  try {
+    const remoteOS = await detectRemoteOS()
+    const localBin = getLocalGoBinaryForOS(remoteOS)
+    if (!localBin) return { success: false, error: 'Local GO binary not found for remote OS' }
+    const home = await getRemoteHome(conn, remoteOS)
+    let remoteDir, remotePath
+    if (remoteOS === 'win32') {
+      remoteDir = `${home}\\.medomics\\MEDomicsLab\\go_executables`
+      remotePath = path.join(remoteDir, 'server_go_win32.exe')
+    } else {
+      remoteDir = `${home}/.medomics/MEDomicsLab/go_executables`
+      remotePath = `${remoteDir}/server_go`
+    }
+    // mkdir -p remoteDir
+    if (remoteOS === 'win32') {
+      await execRemote(conn, `powershell -NoProfile -Command "New-Item -ItemType Directory -Force -Path '${remoteDir.replace(/'/g, "''")}' | Out-Null"`)
+    } else {
+      await execRemote(conn, `bash -lc "mkdir -p '${remoteDir.replace(/'/g, "'\\''")}'"`)
+    }
+    // Upload file via SFTP
+    const sftp = await new Promise((resolve, reject) => conn.sftp((err, s) => err ? reject(err) : resolve(s)))
+    await new Promise((resolve, reject) => sftp.fastPut(localBin, remotePath, (err) => err ? reject(err) : resolve()))
+    if (remoteOS !== 'win32') {
+      await execRemote(conn, `bash -lc "chmod +x '${remotePath.replace(/'/g, "'\\''")}'"`)
+    }
+    setRemoteBackendExecutablePath(remotePath)
+    try { sftp.end && sftp.end() } catch {}
+    return { success: true, path: remotePath }
+  } catch (e) {
+    return { success: false, error: e.message }
+  }
+})
+
+ipcMain.handle('setRemoteBackendPath', async (_event, p) => {
+  setRemoteBackendExecutablePath(p)
+  return { success: true, path: p }
+})
+
+ipcMain.handle('startRemoteBackendUsingPath', async (_event, { path: exePath, port }) => {
+  const conn = getActiveTunnel()
+  if (!conn) return { success: false, error: 'No active SSH tunnel' }
+  const remoteOS = await detectRemoteOS()
+  const res = await startRemoteBackend(conn, remoteOS, exePath, port || (getTunnelState().remoteExpressPort))
+  return res
+})
+
 
 /**
  * Starts an SSH tunnel and creates the backend port forwarding server only.
@@ -102,15 +339,17 @@ ipcMain.handle('clearTunnelState', () => {
  * @param {string} [params.privateKey] - Private key for SSH authentication.
  * @param {string} [params.password] - Password for SSH authentication.
  * @param {number|string} params.remotePort - Port of the SSH connection
- * @param {number|string} params.localBackendPort - Local port forwarded to the remote backend.
- * @param {number|string} params.remoteBackendPort - Port on the remote host for the backend server.
+ * @param {number|string} params.localExpressPort - Local port forwarded to the remote Express server.
+ * @param {number|string} params.remoteExpressPort - Port on the remote host for the Express server.
+ * @param {number|string} params.localGoPort - (Optional) Local port forwarded to the remote GO server.
+ * @param {number|string} params.remoteGoPort - (Optional) Port on the remote host for the GO server.
  * @param {number|string} params.localDBPort - Local port for the MongoDB server.
  * @param {number|string} params.remoteDBPort - Port on the remote host for the MongoDB server.
  * @param {number|string} params.localJupyterPort - Local port for the Jupyter server.
  * @param {number|string} params.remoteJupyterPort - Port on the remote host for the Jupyter server.
  * @returns {Promise<{success: boolean}>}
  */
-export async function startSSHTunnel({ host, username, privateKey, password, remotePort, localBackendPort, remoteBackendPort, localDBPort, remoteDBPort, localJupyterPort, remoteJupyterPort }) {
+export async function startSSHTunnel({ host, username, privateKey, password, remotePort, localExpressPort, remoteExpressPort, localGoPort, remoteGoPort, localDBPort, remoteDBPort, localJupyterPort, remoteJupyterPort, localBackendPort, remoteBackendPort }) {
   return new Promise((resolve, reject) => {
     mongoDBLocalPort = localDBPort
     mongoDBRemotePort = remoteDBPort
@@ -119,7 +358,10 @@ export async function startSSHTunnel({ host, username, privateKey, password, rem
 
     if (activeTunnelServer) {
       try {
-        activeTunnelServer.backendServer.close()
+        activeTunnelServer.expressServer && activeTunnelServer.expressServer.close()
+      } catch {}
+      try {
+        activeTunnelServer.goServer && activeTunnelServer.goServer.close()
       } catch {}
       try {
         activeTunnelServer.mongoServer && activeTunnelServer.mongoServer.close()
@@ -146,9 +388,12 @@ export async function startSSHTunnel({ host, username, privateKey, password, rem
     conn
       .on("ready", () => {
         console.log("SSH connection established to", host)
-        // Backend port forwarding only
-        const backendServer = net.createServer((socket) => {
-          conn.forwardOut(socket.localAddress || "127.0.0.1", socket.localPort || 0, "127.0.0.1", parseInt(remoteBackendPort), (err, stream) => {
+        // Express (backend) port forwarding
+        // Backward compatibility mapping
+        if (!localExpressPort && localBackendPort) localExpressPort = localBackendPort
+        if (!remoteExpressPort && remoteBackendPort) remoteExpressPort = remoteBackendPort
+        const expressServer = net.createServer((socket) => {
+          conn.forwardOut(socket.localAddress || "127.0.0.1", socket.localPort || 0, "127.0.0.1", parseInt(remoteExpressPort), (err, stream) => {
             if (err) {
               console.error(err)
               socket.destroy()
@@ -157,15 +402,33 @@ export async function startSSHTunnel({ host, username, privateKey, password, rem
             socket.pipe(stream).pipe(socket)
           })
         })
-        backendServer.listen(localBackendPort, "127.0.0.1")
-        backendServer.on("error", (e) => {
+        expressServer.listen(localExpressPort, "127.0.0.1")
+        expressServer.on("error", (e) => {
           conn.end()
-          console.error("Connection to backend server error:", e)
-          reject(new Error("Backend local server error: " + e.message))
+          console.error("Connection to Express server error:", e)
+          reject(new Error("Express local server error: " + e.message))
         })
+        // Optional GO forwarding if provided
+        let goServer = null
+        if (remoteGoPort && localGoPort) {
+          goServer = net.createServer((socket) => {
+            conn.forwardOut(socket.localAddress || "127.0.0.1", socket.localPort || 0, "127.0.0.1", parseInt(remoteGoPort), (err, stream) => {
+              if (err) {
+                console.error(err)
+                socket.destroy()
+                return
+              }
+              socket.pipe(stream).pipe(socket)
+            })
+          })
+          goServer.listen(localGoPort, "127.0.0.1")
+          goServer.on("error", (e) => {
+            console.warn("GO forwarding server error:", e.message)
+          })
+        }
 
         setActiveTunnel(conn)
-        setActiveTunnelServer({ backendServer: backendServer })
+        setActiveTunnelServer({ expressServer, goServer })
         resolve({ success: true })
       })
       .on("error", (err) => {
@@ -327,13 +590,19 @@ export async function stopSSHTunnel() {
   if (activeTunnelServer) {
     try {
       await new Promise((resolve, reject) => {
-        activeTunnelServer.backendServer.close((err) => {
+        activeTunnelServer.expressServer && activeTunnelServer.expressServer.close((err) => {
           if (err) reject(err)
           else resolve()
         })
       })
       await new Promise((resolve, reject) => {
-        activeTunnelServer.mongoServer.close((err) => {
+        activeTunnelServer.goServer && activeTunnelServer.goServer.close((err) => {
+          if (err) reject(err)
+          else resolve()
+        })
+      })
+      await new Promise((resolve, reject) => {
+        activeTunnelServer.mongoServer && activeTunnelServer.mongoServer.close((err) => {
           if (err) reject(err)
           else resolve()
         })

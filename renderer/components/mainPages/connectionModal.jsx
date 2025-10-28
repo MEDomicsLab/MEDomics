@@ -5,6 +5,7 @@ import { InputText } from "primereact/inputtext"
 import { Password } from 'primereact/password'
 import { InputNumber } from 'primereact/inputnumber'
 import { ProgressSpinner } from 'primereact/progressspinner'
+import { Tag } from 'primereact/tag'
 import { ipcRenderer } from "electron"
 import { requestBackend } from "../../utilities/requests"
 import { ServerConnectionContext } from "../serverConnection/connectionContext"
@@ -28,8 +29,12 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
   const [username, setUsername] = useState("")
   const [password, setPassword] = useState("")
   const [remotePort, setRemotePort] = useState("22")
-  const [localBackendPort, setLocalBackendPort] = useState("54280")
-  const [remoteBackendPort, setRemoteBackendPort] = useState("54288")
+  // Express ports (local forwarded port and remote Express port)
+  const [localExpressPort, setlocalExpressPort] = useState("55080")
+  const [remoteExpressPort, setRemoteExpressPort] = useState("55088")
+  // GO ports (optional direct forwarding)
+  const [localGoPort, setLocalGoPort] = useState("54280")
+  const [remoteGoPort, setRemoteGoPort] = useState("54288")
   const [localDBPort, setLocalDBPort] = useState("54020")
   const [remoteDBPort, setRemoteDBPort] = useState("54017")
   const [localJupyterPort, setLocalJupyterPort] = useState("8890")
@@ -42,6 +47,8 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
   const [keyGenerated, setKeyGenerated] = useState(false)
   const [registerStatus, setRegisterStatus] = useState("")
   const [tunnelStatus, setTunnelStatus] = useState("")
+  const [remoteBackendStatus, setRemoteBackendStatus] = useState("")
+  const [remoteBackendPath, setRemoteBackendPath] = useState("")
   const [tunnelActive, setTunnelActive] = useState(false)
   const [reconnectAttempts, setReconnectAttempts] = useState(0)
   const maxReconnectAttempts = 3
@@ -52,6 +59,9 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
   // Process/loading states
   const [connectionProcessing, setConnectionProcessing] = useState(false)
   const [navigationProcessing, setNavigationProcessing] = useState(false)
+  // GO tunnel verification state
+  const [goVerifyStatus, setGoVerifyStatus] = useState('idle') // idle | checking | ok | fail
+  const [goVerifyLoading, setGoVerifyLoading] = useState(false)
 
   // Validation state
   const [inputErrors, setInputErrors] = useState({})
@@ -140,8 +150,10 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
         setHost(tunnel.host || "")
         setUsername(tunnel.username || "")
         setRemotePort(tunnel.remotePort || "22")
-        setLocalBackendPort(tunnel.localBackendPort || "54280")
-        setRemoteBackendPort(tunnel.remoteBackendPort || "54288")
+  setlocalExpressPort(tunnel.localExpressPort || "55080")
+  setRemoteExpressPort(tunnel.remoteExpressPort || "55088")
+  setLocalGoPort(tunnel.localGoPort || "54280")
+  setRemoteGoPort(tunnel.remoteGoPort || "54288")
         setLocalDBPort(tunnel.localDBPort || "54020")
         setRemoteDBPort(tunnel.remoteDBPort || "54017")
         setLocalJupyterPort(tunnel.localJupyterPort || "8890")
@@ -160,7 +172,7 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
     setConnectionProcessing(true)
     setTunnelStatus(isReconnect ? "Reconnecting..." : "Connecting...")
     toast.info(isReconnect ? "Reconnecting SSH tunnel..." : "Establishing SSH tunnel...")
-    const connInfo = info || { host, username, privateKey, password, remotePort, localBackendPort, remoteBackendPort, localDBPort, remoteDBPort, localJupyterPort, remoteJupyterPort }
+  const connInfo = info || { host, username, privateKey, password, remotePort, localExpressPort, remoteExpressPort, localGoPort, remoteGoPort, localDBPort, remoteDBPort, localJupyterPort, remoteJupyterPort }
     setConnectionInfo(connInfo)
     // --- Host validation ---
     const hostPattern = /^(?!-)[A-Za-z0-9-]{1,63}(?<!-)\.?([A-Za-z0-9-]{1,63}\.?)*[A-Za-z]{2,6}$|^(\d{1,3}\.){3}\d{1,3}$/
@@ -197,12 +209,12 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
         toast.error("Remote SSH port is invalid.")
         return
       }
-      if (!connInfo.localBackendPort || isNaN(Number(connInfo.localBackendPort))) {
+      if (!connInfo.localExpressPort || isNaN(Number(connInfo.localExpressPort))) {
         setTunnelStatus("Error: Local port is invalid.")
         toast.error("Local port is invalid.")
         return
       }
-      if (!connInfo.remoteBackendPort || isNaN(Number(connInfo.remoteBackendPort))) {
+      if (!connInfo.remoteExpressPort || isNaN(Number(connInfo.remoteExpressPort))) {
         setTunnelStatus("Error: Remote backend port is invalid.")
         toast.error("Remote backend port is invalid.")
         return
@@ -237,6 +249,22 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
         if (onConnect) onConnect()
         toast.success("SSH tunnel established.")
         setConnectionProcessing(false)
+
+        // Ensure remote backend server is present and running
+        try {
+          setRemoteBackendStatus('Checking remote server...')
+          const ensure = await ipcRenderer.invoke('ensureRemoteBackend', { port: Number(connInfo.remoteExpressPort) })
+          if (ensure && ensure.success && ensure.status === 'running') {
+            setRemoteBackendStatus(`Remote server running on port ${connInfo.remoteExpressPort}`)
+            ensure.path && setRemoteBackendPath(ensure.path)
+          } else if (ensure && ensure.status === 'not-found') {
+            setRemoteBackendStatus('Remote server not found. Install or locate it.')
+          } else {
+            setRemoteBackendStatus(`Remote server not running (${ensure?.status || 'unknown'}). You can install or locate it.`)
+          }
+        } catch (e) {
+          setRemoteBackendStatus('Failed to check/start remote server: ' + (e?.message || String(e)))
+        }
 
         // Fetch home directory contents via IPC and update directoryContents and remoteDirPath
         try {
@@ -284,24 +312,7 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
     }
   }
 
-  const handleConnectMongoDB = async () => {
-    try {
-      const result = await ipcRenderer.invoke('startMongoTunnel')
-      if (result && result.success) {
-        toast.success("MongoDB tunnel established.")
-      } else if (result && result.error) {
-        toast.error("MongoDB Tunnel failed: " + result.error)
-      } else {
-        toast.error("MongoDB Tunnel Failed, Unknown error.")
-      }
-    } catch (err) {
-      let errorMsg = err && err.message ? err.message : String(err)
-      if (err && err.stack) {
-        errorMsg += "\nStack: " + err.stack
-      }
-      toast.error("MongoDB Tunnel Failed: " + errorMsg)
-    }
-  }
+  // Removed unused MongoDB tunnel handler (no UI entry point)
 
   const handleDisconnect = async () => {
     setConnectionProcessing(true)
@@ -359,32 +370,51 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
     }
   }, [visible, username, keyComment])
 
-  const sendTestRequest = async () => {
-    console.log("Port: ", port)
-    console.log("Tunnel state: ", getTunnelState())
-    console.log("Tunnel context: ", tunnelContext.tunnelActive)
-    // if (!tunnelActive) {
-    //   toast.error("SSH tunnel is not active. Please connect first.")
-    //   return
-    // }
-    await requestBackend(
-      port,
-      "/connection/connection_test_request",
-      { data: "" },
-      async (jsonResponse) => {
-        console.log("Test Request Response: ",jsonResponse)
-        if (!jsonResponse.error) {
-          setRegisterStatus("Test request successful!")
-        } else {
-          setRegisterStatus("Test request failed: " + jsonResponse.error)
-          toast.error(jsonResponse.error)
+  const verifyGoTunnel = async () => {
+    if (!tunnelActive) {
+      toast.error('SSH tunnel is not active. Please connect first.')
+      return
+    }
+  setGoVerifyLoading(true)
+  setGoVerifyStatus('checking')
+    try {
+      await requestBackend(
+        port,
+        "/connection/connection_test_request",
+        { data: "" },
+        async (jsonResponse) => {
+          console.log("GO Verify Response: ", jsonResponse)
+          if (!jsonResponse.error) {
+            setRegisterStatus("GO tunnel verified!")
+            setGoVerifyStatus('ok')
+            // Optionally store more detail if needed
+            toast.success("GO tunnel is reachable.")
+          } else {
+            const msg = jsonResponse.error || 'Unknown error'
+            setRegisterStatus("GO tunnel check failed: " + msg)
+            setGoVerifyStatus('fail')
+            // Optionally store more detail if needed
+            toast.error(msg)
+          }
+          setGoVerifyLoading(false)
+        },
+        (err) => {
+          const msg = err && err.message ? err.message : String(err)
+          setRegisterStatus("GO tunnel check failed: " + msg)
+          setGoVerifyStatus('fail')
+          // Optionally store more detail if needed
+          toast.error(msg)
+          setGoVerifyLoading(false)
         }
-      },
-      (err) => {
-        setRegisterStatus("Test request failed: " + err)
-        toast.error(err)
-      }
-    )
+      )
+    } catch (e) {
+      const msg = e && e.message ? e.message : String(e)
+      setRegisterStatus("GO tunnel check failed: " + msg)
+      setGoVerifyStatus('fail')
+  // Optionally store more detail if needed
+      toast.error(msg)
+      setGoVerifyLoading(false)
+    }
   }
 
   // DirectoryBrowser component
@@ -452,11 +482,11 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
     if (!remotePort || isNaN(Number(remotePort)) || Number(remotePort) < 1 || Number(remotePort) > 65535) {
       errors.remotePort = "Remote SSH port must be 1-65535."
     }
-    if (!localBackendPort || isNaN(Number(localBackendPort)) || Number(localBackendPort) < 1 || Number(localBackendPort) > 65535) {
-      errors.localBackendPort = "Local backend port must be 1-65535."
+    if (!localExpressPort || isNaN(Number(localExpressPort)) || Number(localExpressPort) < 1 || Number(localExpressPort) > 65535) {
+      errors.localExpressPort = "Local Express port must be 1-65535."
     }
-    if (!remoteBackendPort || isNaN(Number(remoteBackendPort)) || Number(remoteBackendPort) < 1 || Number(remoteBackendPort) > 65535) {
-      errors.remoteBackendPort = "Remote backend port must be 1-65535."
+    if (!remoteExpressPort || isNaN(Number(remoteExpressPort)) || Number(remoteExpressPort) < 1 || Number(remoteExpressPort) > 65535) {
+      errors.remoteExpressPort = "Remote Express port must be 1-65535."
     }
     if (!localDBPort || isNaN(Number(localDBPort)) || Number(localDBPort) < 1 || Number(localDBPort) > 65535) {
       errors.localDBPort = "Local MongoDB port must be 1-65535."
@@ -467,14 +497,14 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
     if (!keyGenerated || !publicKey || !privateKey) {
       errors.key = "SSH key must be generated."
     }
-    // Warn if localBackendPort matches the main server port
-    if (String(localBackendPort) === String(port)) {
-      warning = `Warning: Local backend port (${localBackendPort}) is the same as the main server port (${port}). This may cause conflicts if the local backend is running.`
+  // Warn if localExpressPort matches the main server port
+    if (String(localExpressPort) === String(port)) {
+      warning = `Warning: Local Express port (${localExpressPort}) is the same as the main server port (${port}). This may cause conflicts if a local backend is running.`
     }
     setInputErrors(errors)
     setInputValid(Object.keys(errors).length === 0)
     setLocalPortWarning(warning)
-  }, [host, username, remotePort, localBackendPort, remoteBackendPort, localDBPort, remoteDBPort, keyGenerated, publicKey, privateKey, port])
+  }, [host, username, remotePort, localExpressPort, remoteExpressPort, localDBPort, remoteDBPort, keyGenerated, publicKey, privateKey, port])
 
   // New folder modal state
   const [showNewFolderModal, setShowNewFolderModal] = useState(false)
@@ -577,29 +607,38 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
                 {inputErrors.remotePort && <div style={{ color: 'var(--danger)', fontSize: 13 }}>{inputErrors.remotePort}</div>}
               </label>
               <label>
-                Local Backend Port:
-                <InputNumber disabled={tunnelActive || connectionProcessing} onChange={e => setLocalBackendPort(e.value)} placeholder="8888" useGrouping={false} min={1} max={65535} />
-                {inputErrors.localBackendPort && <div style={{ color: 'red', fontSize: 13 }}>{inputErrors.localBackendPort}</div>}
+                Local Express Port:
+                <InputNumber disabled={tunnelActive || connectionProcessing} value={localExpressPort} onChange={e => setlocalExpressPort(e.value)} placeholder="54280" useGrouping={false} min={1} max={65535} />
+                {inputErrors.localExpressPort && <div style={{ color: 'red', fontSize: 13 }}>{inputErrors.localExpressPort}</div>}
                 {localPortWarning && <div style={{ color: 'var(--warning)', fontSize: 13, marginTop: 2 }}>{localPortWarning}</div>}
               </label>
               <label>
-                Remote Backend Port:
-                <InputNumber disabled={tunnelActive || connectionProcessing} onChange={e => setRemoteBackendPort(e.value)} placeholder="8888" useGrouping={false} min={1} max={65535} />
-                {inputErrors.remoteBackendPort && <div style={{ color: 'var(--danger)', fontSize: 13 }}>{inputErrors.remoteBackendPort}</div>}
+                Remote Express Port:
+                <InputNumber disabled={tunnelActive || connectionProcessing} value={remoteExpressPort} onChange={e => setRemoteExpressPort(e.value)} placeholder="54288" useGrouping={false} min={1} max={65535} />
+                {inputErrors.remoteExpressPort && <div style={{ color: 'var(--danger)', fontSize: 13 }}>{inputErrors.remoteExpressPort}</div>}
               </label>
             </div>
             <div style={{ width: '100%'}}>
               <label>
                 Local MongoDB Port:
-                <InputNumber disabled={tunnelActive || connectionProcessing} onChange={e => setLocalDBPort(e.value)} placeholder="54020" useGrouping={false} min={1} max={65535} />
+                <InputNumber disabled={tunnelActive || connectionProcessing} value={localDBPort} onChange={e => setLocalDBPort(e.value)} placeholder="54020" useGrouping={false} min={1} max={65535} />
               </label>
               <label>
                 Remote MongoDB Port:
-                <InputNumber disabled={tunnelActive || connectionProcessing} onChange={e => setRemoteDBPort(e.value)} placeholder="54017" useGrouping={false} min={1} max={65535} />
+                <InputNumber disabled={tunnelActive || connectionProcessing} value={remoteDBPort} onChange={e => setRemoteDBPort(e.value)} placeholder="54017" useGrouping={false} min={1} max={65535} />
               </label>
               <label>
                 SSH Key Comment:
                 <InputText disabled={tunnelActive || connectionProcessing} className="ssh-key-command" value={keyComment} onChange={e => setKeyComment(e.target.value)} placeholder="medomicslab-app" />
+              </label>
+              <div style={{ marginTop: 8, fontWeight: 600 }}>GO Server (optional direct tunnel)</div>
+              <label>
+                Local GO Port:
+                <InputNumber disabled={tunnelActive || connectionProcessing} value={localGoPort} onChange={e => setLocalGoPort(e.value)} placeholder="54380" useGrouping={false} min={1} max={65535} />
+              </label>
+              <label>
+                Remote GO Port:
+                <InputNumber disabled={tunnelActive || connectionProcessing} value={remoteGoPort} onChange={e => setRemoteGoPort(e.value)} placeholder="54388" useGrouping={false} min={1} max={65535} />
               </label>
             </div>
             </>}
@@ -627,7 +666,125 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
             </div>
           </div>
         )}
-        <Button onClick={sendTestRequest} style={{ background: "#d9534f", color: "white" }}>Send test request</Button>
+        {/* Remote server (GO backend) status and actions */}
+        <div style={{ border: '1px solid var(--border-color)', borderRadius: 4, padding: 12, background: 'var(--bg-secondary)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <h3 style={{ margin: 0, fontSize: '1rem' }}>Remote Server</h3>
+            <div style={{ fontSize: 13, color: remoteBackendStatus.includes('running') ? 'var(--success)' : remoteBackendStatus ? 'var(--warning)' : 'var(--text-muted)' }}>
+              {remoteBackendStatus || 'Unknown'}
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: 8, marginTop: 8, alignItems: 'center' }}>
+            <Button
+              onClick={async () => {
+                if (!tunnelActive) {
+                  toast.error('SSH tunnel is not active. Connect first.')
+                  return
+                }
+                try {
+                  setRemoteBackendStatus('Checking remote server...')
+                  const ensure = await ipcRenderer.invoke('ensureRemoteBackend', { port: Number(remoteExpressPort) })
+                  if (ensure && ensure.success && ensure.status === 'running') {
+                    setRemoteBackendStatus(`Remote server running on port ${remoteExpressPort}`)
+                    ensure.path && setRemoteBackendPath(ensure.path)
+                  } else if (ensure && ensure.status === 'not-found') {
+                    setRemoteBackendStatus('Remote server not found. Install or locate it.')
+                  } else {
+                    setRemoteBackendStatus(`Remote server not running (${ensure?.status || 'unknown'}). You can install or locate it.`)
+                  }
+                } catch (e) {
+                  setRemoteBackendStatus('Failed to check/start remote server: ' + (e?.message || String(e)))
+                }
+              }}
+              disabled={!tunnelActive || connectionProcessing}
+              style={{ background: 'var(--button-bg)', color: 'var(--button-text)' }}
+              title="Detect and start remote server if present"
+            >
+              Ensure Remote Server
+            </Button>
+            <Button
+              onClick={async () => {
+                if (!tunnelActive) {
+                  toast.error('SSH tunnel is not active. Connect first.')
+                  return
+                }
+                try {
+                  setRemoteBackendStatus('Installing remote server...')
+                  const res = await ipcRenderer.invoke('installRemoteBackend')
+                  if (res && res.success) {
+                    setRemoteBackendPath(res.path)
+                    toast.success('Remote server installed.')
+                    const ensure = await ipcRenderer.invoke('ensureRemoteBackend', { port: Number(remoteExpressPort) })
+                    if (ensure && ensure.success && ensure.status === 'running') {
+                      setRemoteBackendStatus(`Remote server running on port ${remoteExpressPort}`)
+                    } else {
+                      setRemoteBackendStatus('Installed, but failed to start automatically. Try Ensure again.')
+                    }
+                  } else {
+                    setRemoteBackendStatus('Install failed: ' + (res?.error || 'unknown error'))
+                    toast.error('Failed to install remote server: ' + (res?.error || 'unknown error'))
+                  }
+                } catch (e) {
+                  setRemoteBackendStatus('Install failed: ' + (e?.message || String(e)))
+                }
+              }}
+              disabled={!tunnelActive || connectionProcessing}
+              style={{ background: 'var(--button-bg)', color: 'var(--button-text)' }}
+              title="Upload and install the server binary on the remote host"
+            >
+              Install on Remote
+            </Button>
+            <Button
+              onClick={async () => {
+                if (!tunnelActive) {
+                  toast.error('SSH tunnel is not active. Connect first.')
+                  return
+                }
+                const p = window.prompt('Enter full path to remote server executable:')
+                if (!p) return
+                setRemoteBackendPath(p)
+                await ipcRenderer.invoke('setRemoteBackendPath', p)
+                const res = await ipcRenderer.invoke('startRemoteBackendUsingPath', { path: p, port: Number(remoteExpressPort) })
+                if (res && res.success) {
+                  setRemoteBackendStatus('Attempted to start. Verifying...')
+                  const ensure = await ipcRenderer.invoke('ensureRemoteBackend', { port: Number(remoteExpressPort) })
+                  if (ensure && ensure.success && ensure.status === 'running') {
+                    setRemoteBackendStatus(`Remote server running on port ${remoteExpressPort}`)
+                  } else {
+                    setRemoteBackendStatus('Failed to start with the provided path.')
+                    toast.error('Failed to start remote server with provided path.')
+                  }
+                } else {
+                  setRemoteBackendStatus('Failed to start: ' + (res?.error || 'unknown error'))
+                }
+              }}
+              disabled={!tunnelActive || connectionProcessing}
+              style={{ background: 'var(--bg-secondary)', color: 'var(--text-secondary)' }}
+              title="Manually provide the path on the remote host"
+            >
+              Locate manually...
+            </Button>
+          </div>
+          {remoteBackendPath && (
+            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 6 }}>Path: <span style={{ fontFamily: 'monospace' }}>{remoteBackendPath}</span></div>
+          )}
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <Button onClick={verifyGoTunnel} disabled={!tunnelActive || goVerifyLoading} style={{ background: 'var(--button-bg)', color: 'var(--button-text)' }}>
+            {goVerifyLoading ? 'Checking…' : 'Verify GO tunnel'}
+          </Button>
+          {goVerifyLoading && (
+            <ProgressSpinner style={{ width: '18px', height: '18px' }} strokeWidth="6" />
+          )}
+          {goVerifyStatus !== 'idle' && !goVerifyLoading && (
+            <Tag
+              value={goVerifyStatus === 'ok' ? 'Verified' : 'Failed'}
+              severity={goVerifyStatus === 'ok' ? 'success' : 'danger'}
+              icon={goVerifyStatus === 'ok' ? 'pi pi-check' : 'pi pi-times'}
+              rounded
+            />
+          )}
+        </div>
         {/* Directory Browser Section */}
         <div style={{ marginTop: '2rem', borderTop: '1px solid #eee', paddingTop: '1rem' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
@@ -681,7 +838,7 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
                 const tunnelState = getTunnelState()
                 setConnectionProcessing(true)
                 setNavigationProcessing(true)
-                window.backend.requestExpress({ method: 'post', path: '/set-working-directory', host: tunnelState.host, body: { workspacePath: remoteDirPath } })
+                window.backend.requestExpress({ method: 'post', path: '/set-working-directory', host: tunnelState.host, port: tunnelState.localExpressPort, body: { workspacePath: remoteDirPath } })
                   .then((response) => {
                     if (response.data.success) {
                       toast.success("Workspace set successfully on remote app.")

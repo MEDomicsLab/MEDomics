@@ -82,7 +82,7 @@ const HomePage = () => {
   useEffect(() => {
     ipcRenderer.invoke("checkRequirements").then((data) => {
       console.log("Requirements: ", data)
-      if (data.pythonInstalled && data.mongoDBInstalled) {
+      if (data && data.result && data.result.pythonInstalled && data.result.mongoDBInstalled) {
         setRequirementsMet(true)
       } else {
         setRequirementsMet(false)
@@ -119,7 +119,10 @@ const HomePage = () => {
   // We set the recent workspaces -> We send a message to the main process to get the recent workspaces, the workspace context will be updated by the main process in _app.js
   useEffect(() => {
     ipcRenderer.invoke("checkRequirements").then((data) => {
-      setRequirementsMet(data.pythonInstalled && data.mongoDBInstalled)
+      if (!data) {
+        return
+      }
+      setRequirementsMet(data.result.pythonInstalled && data.result.mongoDBInstalled)
     })
   }, [])
 

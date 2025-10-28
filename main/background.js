@@ -742,7 +742,7 @@ if (isProd) {
               event.reply("updateDirectory", {
                 workingDirectory: response.data.workingDirectory,
                 hasBeenSet: true,
-                newPort: tunnel.localBackendPort,
+                newPort: tunnel.localExpressPort,
                 isRemote: true
               }) // Sends the folder structure to Next.js
             } else {
