@@ -604,25 +604,10 @@ const classificationModelSettings = {
     },
     "rf": {
         "options": {
-            "estimator": {
-                "type": "DecisionTreeClassifier",
-                "default_val": "DecisionTreeClassifier(ccp_alpha=0.0, class_weight=None, criterion='gini',\n                       max_depth=None, max_features=None, max_leaf_nodes=None,\n                       min_impurity_decrease=0.0, min_samples_leaf=1,\n                       min_samples_split=2, min_weight_fraction_leaf=0.0,\n                       random_state=None, splitter='best')",
-                "tooltip": "Object, default='DecisionTreeClassifier'. The base estimator from which the boosted ensemble is built. Support for sample weighting is required, as well as proper classes_ and n_classes_ attributes. If None, then the base estimator is DecisionTreeClassifier initialized with max_depth=1."
-            },
             "n_estimators": {
                 "type": "int",
                 "default_val": 100,
                 "tooltip": "int, default=100. The maximum number of estimators at which boosting is terminated. In case of perfect fit, the learning procedure is stopped early. Values must be in the range [1, inf)."
-            },
-            "estimator_params": {
-                "type": "tuple",
-                "default_val": "('criterion', 'max_depth', 'min_samples_split', 'min_samples_leaf', 'min_weight_fraction_leaf', 'max_features', 'max_leaf_nodes', 'min_impurity_decrease', 'random_state', 'ccp_alpha')",
-                "tooltip": "tuple, default_val=('criterion', 'max_depth', 'min_samples_split', 'min_samples_leaf', 'min_weight_fraction_leaf', 'max_features', 'max_leaf_nodes', 'min_impurity_decrease', 'random_state', 'ccp_alpha')"
-            },
-            "base_estimator": {
-                "type": "string",
-                "default_val": "deprecated",
-                "tooltip": "String, default='deprecated'. The base estimator from which the ensemble is grown."
             },
             "bootstrap": {
                 "type": "bool",
@@ -655,9 +640,10 @@ const classificationModelSettings = {
                 "tooltip": "bool, default=False. When set to True, reuse the solution of the previous call to fit as initialization, otherwise, just erase the previous solution."
             },
             "class_weight": {
-                "type": "NoneType",
+                "type": "string",
                 "default_val": "None",
-                "tooltip": "NoneType, default=None. Set the parameter C of class i to class_weight[i]*C for SVC. If not given, all classes are supposed to have weight one. The “balanced” mode uses the values of y to automatically adjust weights inversely proportional to class frequencies in the input data as n_samples / (n_classes * np.bincount(y))."
+                "choices": ["None", "balanced", "balanced_subsample"],
+                "tooltip": "class_weight ∈ {'balanced','balanced_subsample'}, default=None. 'balanced' uses class frequencies (n_samples / (n_classes * np.bincount(y))) to set weights. 'balanced_subsample' is the same but computed on each tree's bootstrap sample. If sample_weight is passed to fit(), it is multiplied with class_weight. Use None to disable class weighting."
             },
             "max_samples": {
                 "type": "NoneType",
