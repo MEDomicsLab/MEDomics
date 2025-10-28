@@ -45,7 +45,7 @@ const DatasetNode = ({ id, data }) => {
         }
       }
     })
-  }, [])
+  }, [data])
 
   // update the node internal data when the selection changes
   useEffect(() => {
@@ -218,8 +218,27 @@ const DatasetNode = ({ id, data }) => {
    * This function is used to update the node internal data when the tags input changes.
    */
   const onMultipleTagsChange = async (inputUpdate) => {
-    if (inputUpdate.value.length === 0) return
+    if (inputUpdate.value.length === 0 && data.internal.settings.tags.length === 0) return
     data.internal.settings.tags= inputUpdate.value
+    updateNode({
+      id: id,
+      updatedData: data.internal
+    })
+  }
+
+  /**
+   *
+   * @param {Object} inputUpdate The input update
+   *
+   * @description
+   * This function is used to update the node internal data when the variables input changes.
+   */
+  const onMultipleVariablesChange = async (inputUpdate) => {
+    if (!data.internal.settings.variables){
+      data.internal.settings.variables = []
+    }
+    if (inputUpdate.value.length === 0 && data.internal.settings.variables.length === 0) return
+    data.internal.settings.variables = inputUpdate.value
     updateNode({
       id: id,
       updatedData: data.internal
@@ -350,7 +369,7 @@ const DatasetNode = ({ id, data }) => {
                             selectedTags: data.internal.settings.tags
                           }}
                           currentValue={data.internal.settings.variables || []}
-                          onInputChange={onMultipleTagsChange}
+                          onInputChange={onMultipleVariablesChange}
                           setHasWarning={handleWarning}
                         />
 
