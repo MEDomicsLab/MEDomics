@@ -27,6 +27,14 @@ const createOption = (label) => ({
   value: label
 })
 
+const normalizeStringForBackend = (settingInfos, raw) => {
+  const v = (raw ?? "").trim()
+  const hasChoices = Array.isArray(settingInfos?.choices)
+  // If this "string" field has "None" among choices, map "None" → null for backend
+  if (hasChoices && settingInfos.choices.includes("None") && v === "None") return null
+  return v
+}
+
 /**
  *
  * @param {string} name name of the setting
@@ -112,27 +120,33 @@ const Input = ({ name, settingInfos, currentValue, onInputChange, disabled = fal
    */
   const getCorrectInputType = (settingInfos) => {
     switch (settingInfos.type) {
-      // for normal string input
       case "string":
+      // If choices are provided
+      // render a dropdown and convert "None" -> null on change.
+      if (Array.isArray(settingInfos?.choices) && settingInfos.choices.length > 0) {
         return (
           <>
             <FloatingLabel id={name} controlId={name} label={name} className=" input-hov">
-              <Form.Control
+              <Form.Select
                 disabled={disabled}
-                type="text"
-                defaultValue={currentValue}
+                defaultValue={currentValue ?? "None"}
                 onChange={(e) =>
                   setInputUpdate({
-                    name: name,
-                    value: e.target.value,
+                    name,
+                    value: normalizeStringForBackend(settingInfos, e.target.value),
                     type: settingInfos.type
                   })
                 }
-              />
+              >
+                {settingInfos.choices.map((c) => (
+                  <option key={String(c)} value={String(c)}>{String(c)}</option>
+                ))}
+              </Form.Select>
             </FloatingLabel>
             {createTooltip(settingInfos.tooltip, name)}
           </>
         )
+      }
       // for integer input
       case "int":
         return (
