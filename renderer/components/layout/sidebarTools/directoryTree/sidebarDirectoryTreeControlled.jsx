@@ -260,10 +260,10 @@ const SidebarDirectoryTreeControlled = ({ setExternalSelectedItems, setExternalD
               // eslint-disable-next-line no-undef
               require("electron").shell.showItemInFolder(globalData[props.index].path)
             } else {
-              toast.error("Error: No path found. The item is not saved locally")
+              toast.error("No path found. The item is not saved locally")
             }
           } else {
-            toast.error("Error: No item selected")
+            toast.error("No item selected")
           }
           break
         default:
