@@ -146,6 +146,26 @@ const Input = ({ name, settingInfos, currentValue, onInputChange, disabled = fal
             {createTooltip(settingInfos.tooltip, name)}
           </>
         )
+      } else {
+        return (
+          <>
+            <FloatingLabel id={name} controlId={name} label={name} className=" input-hov">
+              <Form.Control
+                disabled={disabled}
+                type="text"
+                defaultValue={currentValue}
+                onChange={(e) =>
+                  setInputUpdate({
+                    name: name,
+                    value: e.target.value,
+                    type: settingInfos.type
+                  })
+                }
+              />
+            </FloatingLabel>
+            {createTooltip(settingInfos.tooltip, name)}
+          </>
+        )
       }
       // for integer input
       case "int":
