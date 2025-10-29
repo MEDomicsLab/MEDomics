@@ -651,9 +651,10 @@ const classificationModelSettings = {
                 "tooltip": "NoneType, default=None. The number of samples to draw from X to train each base estimator "
             },
             "criterion": {
-                "type": "string",
+                "type": "list",
                 "default_val": "gini",
-                "tooltip": "String, default=”gini”. The function to measure the quality of a split. Supported criteria are “gini” for the Gini impurity and “log_loss” and “entropy” both for the Shannon information gain"
+                "choices": ["gini", "entropy", "log_loss"],
+                "tooltip": "Split quality function. Choose among 'gini', 'entropy', or 'log_loss'."
             },
             "max_depth": {
                 "type": "NoneType",
@@ -784,9 +785,10 @@ const classificationModelSettings = {
                 "tooltip": "String, default=’log_loss’. The loss function to be used. ‘Hinge’ gives a linear SVM. ‘Log_loss’ gives logistic regression, a probabilistic classifier. ‘Modified_huber’ is another smooth loss that brings tolerance to outliers as well as probability estimates. ‘Squared_hinge’ is like hinge but is quadratically penalized. ‘Perceptron’ is the linear loss used by the perceptron algorithm. The other losses, ‘Squared_error’, ‘Huber’, ‘Epsilon_insensitive’ and ‘Squared_epsilon_insensitive’ are designed for regression but can be useful in classification as well"
             },
             "criterion": {
-                "type": "string",
+                "type": "list",
                 "default_val": "friedman_mse",
-                "tooltip": "String, default=”friedman_mse”. The function to measure the quality of a split. Supported criteria are “gini” for the Gini impurity and “log_loss” and “entropy” both for the Shannon information gain"
+                "choices": ["friedman_mse"],
+                "tooltip": "Split quality criterion for the internal regression trees used by Gradient Boosting. For classification, 'friedman_mse' is used."
             },
             "min_samples_split": {
                 "type": "int",
