@@ -37,6 +37,9 @@ class ModelHandler(Node):
             self.calibrateEnabled = self.config_json['data']['internal'].get('calibrateEnabled', False)
             if self.calibrateEnabled:
                 self.settingsCalibrate = self.config_json['data']['internal'].get('settingsCalibration', {})
+            self.optimize_threshold = self.config_json['data']['internal'].get('optimizeThreshold', False)
+            if self.optimize_threshold:
+                self.threshold_optimization_metric = self.config_json['data']['internal'].get('threshOptimizationMetric', 'Accuracy')
             self.model_id = self.config_json['associated_id']
             model_obj = self.global_config_json['nodes'][self.model_id]
             self.model_name_id = model_obj['data']['internal'].get('nameID', None)
@@ -132,6 +135,20 @@ class ModelHandler(Node):
                     model = pycaret_exp.tune_model(model, **self.settingsTuning)
             except Exception as e:
                 raise ValueError(f"Failed to tune model on fold {fold_num}. Error: {e}")
+            
+            # Model Ensembling
+            try:
+                if self.ensembleEnabled:
+                    model = pycaret_exp.ensemble_model(model, **self.settingsEnsemble)
+            except Exception as e:
+                raise ValueError(f"Failed to ensemble model on fold {fold_num}. Error: {e}")
+            
+            # Model Calibration
+            try:
+                if self.calibrateEnabled:
+                    model = pycaret_exp.calibrate_model(model, **self.settingsCalibrate)
+            except Exception as e:
+                raise ValueError(f"Failed to calibrate model on fold {fold_num}. Error: {e}")
 
             # Testing on the test set for this fold
             try:
@@ -202,6 +219,10 @@ class ModelHandler(Node):
                 # Final fit on the entire dataset
                 best_model.fit(X_processed, y_processed)
 
+                # Optimize model's threshold if enabled
+                if self.optimize_threshold:
+                    best_model = pycaret_exp.optimize_threshold(best_model, optimize=self.threshold_optimization_metric)
+
                 # Update code handler with final fit
                 self.CodeHandler.add_line("code", f"best_model.fit(X_processed, y_processed)")
                 if self.isTuningEnabled:
@@ -213,6 +234,9 @@ class ModelHandler(Node):
                 if self.calibrateEnabled:
                     self.CodeHandler.add_line("code", f"# Calibrating model", indent=0)
                     self.CodeHandler.add_line("code", f"best_model = pycaret_exp.calibrate_model(best_model, {self.CodeHandler.convert_dict_to_params(self.settingsCalibrate)})", indent=0)
+                if self.optimize_threshold:
+                    self.CodeHandler.add_line("code", f"# Optimizing model threshold based on {self.threshold_optimization_metric}", indent=0)
+                    self.CodeHandler.add_line("code", f"best_model = pycaret_exp.optimize_threshold(best_model, metric='{self.threshold_optimization_metric}')", indent=0)
 
                 # Finalize the model
                 if finalize:
@@ -222,7 +246,6 @@ class ModelHandler(Node):
                 
                 # Store the final model
                 self.CodeHandler.add_line("code", f"trained_models = [best_model]")
-                
                 return best_model
             except Exception as e:
                 raise ValueError(f"Failed to fit the best model on the entire dataset. Error: {e}")
@@ -286,6 +309,21 @@ class ModelHandler(Node):
                     self.settingsTuning['custom_grid'] = self.config_json['data']['internal'][self.model_id]['custom_grid']
                 trained_model = pycaret_exp.tune_model(trained_model, **self.settingsTuning)
                 self.CodeHandler.add_line("code", f"trained_models = [pycaret_exp.tune_model(trained_models[0], {self.CodeHandler.convert_dict_to_params(self.settingsTuning)})]")
+
+            # Ensemble model if enabled
+            if self.ensembleEnabled:
+                trained_model = pycaret_exp.ensemble_model(trained_model, **self.settingsEnsemble)
+                self.CodeHandler.add_line("code", f"trained_models = [pycaret_exp.ensemble_model(trained_models[0], {self.CodeHandler.convert_dict_to_params(self.settingsEnsemble)})]")
+
+            # Calibrate model if enabled
+            if self.calibrateEnabled:
+                trained_model = pycaret_exp.calibrate_model(trained_model, **self.settingsCalibrate)
+                self.CodeHandler.add_line("code", f"trained_models = [pycaret_exp.calibrate_model(trained_models[0], {self.CodeHandler.convert_dict_to_params(self.settingsCalibrate)})]")
+
+            # Optimize model's threshold if enabled
+            if self.optimize_threshold:
+                trained_model = pycaret_exp.optimize_threshold(trained_model, optimize=self.threshold_optimization_metric)
+                self.CodeHandler.add_line("code", f"trained_models = [pycaret_exp.optimize_threshold(trained_models[0], metric='{self.threshold_optimization_metric}')]")
 
             if finalize:
                 self.CodeHandler.add_line("md", "##### *Finalizing models*")
@@ -367,6 +405,10 @@ class ModelHandler(Node):
             if self.calibrateEnabled:
                 trained_models = [experiment['pycaret_exp'].calibrate_model(trained_models[0], **self.settingsCalibrate)]
                 self.CodeHandler.add_line("code", f"trained_models = [pycaret_exp.calibrate_model(trained_models[0], {self.CodeHandler.convert_dict_to_params(self.settingsCalibrate)})]")
+
+            if self.optimize_threshold:
+                trained_models = [experiment['pycaret_exp'].optimize_threshold(trained_models[0], optimize=self.threshold_optimization_metric)]
+                self.CodeHandler.add_line("code", f"trained_models = [pycaret_exp.optimize_threshold(trained_models[0], metric='{self.threshold_optimization_metric}')]")
 
             if finalize:
                 self.CodeHandler.add_line("md", "##### *Finalizing models*")

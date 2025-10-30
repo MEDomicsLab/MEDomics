@@ -230,6 +230,7 @@ const Workflow = forwardRef(({ setWorkflowType, workflowType, isExperiment }, re
             node.data.setupParam.possibleSettingsTuning = deepCopy(staticNodesParams["optimize"]["tune_model"]["possibleSettings"][MLType])
             node.data.internal.checkedOptionsTuning = []
             node.data.internal.settingsTuning = {}
+            node.data.internal.threshOptimizationMetric = "Accuracy"
             node.data.internal.settingsCalibration = {}
             node.data.internal.settingsEnsembling = {}
           }
@@ -1105,6 +1106,7 @@ const Workflow = forwardRef(({ setWorkflowType, workflowType, isExperiment }, re
         setupParams.possibleSettingsTuning = setupParamsTuning["possibleSettings"][MLType]
         newNode.data.internal.checkedOptionsTuning = []
         newNode.data.internal.settingsTuning = {}
+        newNode.data.internal.threshOptimizationMetric = "Accuracy"
         newNode.data.internal.settingsCalibration = {}
         newNode.data.internal.settingsEnsembling = {}
       }
