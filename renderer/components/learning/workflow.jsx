@@ -4,7 +4,7 @@ import { toast } from "react-toastify"
 import Form from "react-bootstrap/Form"
 import { useNodesState, useEdgesState, useReactFlow, addEdge } from "reactflow"
 import WorkflowBase from "../flow/workflowBase"
-import { loadJsonSync } from "../../utilities/fileManagementUtils"
+import { downloadFile, loadJsonSync } from "../../utilities/fileManagementUtils"
 import { requestBackend } from "../../utilities/requests"
 import EditableLabel from "react-simple-editlabel"
 import BtnDiv from "../flow/btnDiv"
@@ -986,6 +986,26 @@ const Workflow = forwardRef(({ setWorkflowType, workflowType, isExperiment }, re
   }, [setNodes, setViewport, nodes])
 
   /**
+   * this function exports the current workflow to a json file
+   * it is called when the user clicks on the export button
+   */
+  const onExport = useCallback(() => {
+    try {
+      if (reactFlowInstance) {
+        const flow = deepCopy(reactFlowInstance.toObject())
+        flow.MLType = MLType
+        flow.intersections = intersections
+        flow.isExperiment = isExperiment
+        downloadFile(flow, `${sceneName ? sceneName + '_ML_Scene' : "workflow"}.json`)
+      }
+    } catch (error) {
+      console.error("Error exporting workflow:", error)
+      toast.error("An error occurred while exporting the workflow. Check console for more details.")
+    }
+  }, [MLType, reactFlowInstance, intersections, isExperiment])
+
+
+  /**
    *
    * @param {Object} newScene new scene to update the workflow
    *
@@ -1615,7 +1635,8 @@ const Workflow = forwardRef(({ setWorkflowType, workflowType, isExperiment }, re
                     { type: "run", onClick: onRun, disabled: !canRun },
                     { type: "clear", onClick: onClear },
                     { type: "save", onClick: onSave },
-                    { type: "load", onClick: onLoad }
+                    { type: "load", onClick: onLoad },
+                    { type: "export", onClick: onExport }
                   ]}
                 />
               </div>
