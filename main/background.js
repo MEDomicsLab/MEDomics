@@ -793,16 +793,9 @@ ipcMain.handle("request", async (_, axios_request) => {
 })
 
 // General backend request handler used by the renderer via preload
-ipcMain.handle('backend-request', async (_event, req) => {
-  // Basic validation
+ipcMain.handle('express-request', async (_event, req) => {
   if (!req || typeof req.path !== 'string' || !req.path.startsWith('/')) {
     throw { code: 'BAD_REQUEST', message: 'Invalid request shape' }
-  }
-
-  // Optional whitelist - adjust as needed
-  const allowedPrefixes = ['/run-go-server', '/set-working-directory', '/get-working-dir-tree', '/get-bundled-python-environment', '/get-installed-python-packages', '/start-mongo', '/stop-mongo', '/get-mongo-path', '/check-jupyter-status', '/start-jupyter-server', '/stop-jupyter-server', '/install-mongo', '/install-bundled-python', '/install-required-python-packages', '/check-requirements', '/check-python-requirements']
-  if (!allowedPrefixes.some(p => req.path.startsWith(p))) {
-    throw { code: 'NOT_ALLOWED', message: 'Requested path not allowed' }
   }
 
   const host = req.host || '127.0.0.1'
@@ -831,7 +824,7 @@ ipcMain.handle("getInstalledPythonPackages", async (event, pythonPath) => {
   const tunnel = getTunnelState()
   if (activeTunnel && tunnel) {
     let pythonPackages = null
-    await axios.get(`http://${tunnel.host}:3000/get-installed-python-packages`, { params: { pythonPath: pythonPath } })
+    await axios.get(`http://${tunnel.host}:${expressPort}/get-installed-python-packages`, { params: { pythonPath: pythonPath } })
           .then((response) => {
             if (response.data.success && response.data.packages) {
               pythonPackages = response.data.packages

@@ -3,16 +3,17 @@ const { setAppPath } = serverPathUtils
 import express from "express"
 import bodyParser from "body-parser"
 import * as serverWorkspace from "./utils/serverWorkspace.js"
-const { createServerMedomicsDirectory, createServerWorkingDirectory } = serverWorkspace
+const { createServerMedomicsDirectory, createServerWorkingDirectory, getServerWorkingDirectory } = serverWorkspace
 import * as mongoDBServer from "./utils/mongoDBServer.js"
 const { startMongoDB, stopMongoDB, getMongoDBPath } = mongoDBServer
 import cors from "cors"
 import dirTree from "directory-tree"
 import { exec, execSync } from "child_process"
 import * as pythonEnv from "./utils/pythonEnv.js"
-const { getBundledPythonEnvironment, installBundledPythonExecutable, installRequiredPythonPackages, checkPythonRequirements, getInstalledPythonPackages } = pythonEnv
+const { getBundledPythonEnvironment, installBundledPythonExecutable, installRequiredPythonPackages, checkPythonRequirements } = pythonEnv
 import * as jupyterServer from "./utils/jupyterServer.js"
 const { startJupyterServer, stopJupyterServer, checkJupyterIsRunning } = jupyterServer
+import MEDconfig from "./utils/medomics.server.dev.js"
 import * as serverInstallation  from "./utils/serverInstallation.js"
 const { checkRequirements } = serverInstallation
 import { runServer, findAvailablePort } from "./utils/server.mjs"
@@ -30,8 +31,17 @@ expressApp.use(function(req, res, next) {
 const EXPRESS_PORT_START = 3000
 const EXPRESS_PORT_END = 8000
 
+// Service state snapshot to report via /status and to keep idempotent ensures
+const serviceState = {
+	expressPort: null,
+	go: { running: false, port: null },
+	mongo: { running: false, port: null },
+	jupyter: { running: false, port: null }
+}
+
 let isProd = process.env.NODE_ENV && process.env.NODE_ENV === "production"
-let serverProcess = null
+let goServerProcess = null
+let goServerState = { serverIsRunning: false }
 
 export async function startExpressServer() {
 	try {
@@ -39,6 +49,7 @@ export async function startExpressServer() {
 		expressApp.listen(expressPort, () => {
 			console.log(`Express server listening on port ${expressPort}`)
 		})
+		serviceState.expressPort = expressPort
 		// Notify the Electron main process about the port
 		if (process.send) {
 			process.send({ type: "EXPRESS_PORT", expressPort })
@@ -61,11 +72,26 @@ function normalizePathForPlatform(p) {
 	return normalized
 }
 
+async function startGoServer(preferredPort = null) {
+	// Kick the Go server using existing helper; capture process handle and update state
+	try {
+		const { process: proc, port } = await runServer(isProd, preferredPort, goServerProcess, goServerState, null)
+		goServerProcess = proc
+		serviceState.go.running = true
+		serviceState.go.port = port
+		return { running: true, port }
+	} catch (err) {
+		serviceState.go.running = false
+		serviceState.go.port = null
+		throw err
+	}
+}
+
 expressApp.post("/run-go-server", async (req, res) => {
   try {
     console.log("Received request to run Go server")
-    if (serverProcess) {
-      serverProcess.kill()
+		if (goServerProcess) {
+			goServerProcess.kill()
       console.log("Previous Go server process killed")
     }
 
@@ -74,16 +100,18 @@ expressApp.post("/run-go-server", async (req, res) => {
       throw new Error("Bundled Python environment not found")
     }
 
-    runServer()
+		await startGoServer()
 
   } catch (err) {
     console.error("Error running Go server: ", err)
     res.status(500).json({ success: false, error: err.message })
+		return
   }
+	res.json({ success: true, running: true, port: serviceState.go.port })
 })
 
 
-expressApp.post("/set-working-directory", async (req, res, next) =>{
+expressApp.post("/set-working-directory", async (req, res) =>{
 	let workspacePath = normalizePathForPlatform(req.body.workspacePath)
 	console.log("Received request to set workspace directory from remote: ", workspacePath)
 	try {
@@ -99,6 +127,110 @@ expressApp.post("/set-working-directory", async (req, res, next) =>{
 	} catch (err) {
 		console.log('Error setting workspace directory from remote : ', err)
 		res.status(500).json({ success: false, error: err.message })
+	}
+})
+
+// Status: single source of truth snapshot for all services this backend manages
+expressApp.get("/status", async (req, res) => {
+		try {
+			// Optionally refresh Jupyter runtime status on demand
+			try {
+				const jStatus = await checkJupyterIsRunning()
+				serviceState.jupyter.running = !!(jStatus && jStatus.running)
+				// Port not tracked dynamically here; defaults are managed in module
+			} catch (e) {
+				// ignore status refresh failures
+			}
+		res.json({
+			success: true,
+			expressPort: serviceState.expressPort,
+			go: { running: serviceState.go.running, port: serviceState.go.port },
+			mongo: { running: serviceState.mongo.running, port: serviceState.mongo.port },
+			jupyter: { running: serviceState.jupyter.running, port: serviceState.jupyter.port }
+		})
+	} catch (err) {
+		res.status(500).json({ success: false, error: err.message })
+	}
+})
+
+// Ensure GO: idempotent start; returns current/active port
+expressApp.post("/ensure-go", async (req, res) => {
+	try {
+		if (serviceState.go.running) {
+			return res.json({ success: true, running: true, port: serviceState.go.port })
+		}
+		const preferredPort = req?.body?.preferredPort || null
+		await startGoServer(preferredPort)
+		return res.json({ success: true, running: true, port: serviceState.go.port })
+	} catch (err) {
+		console.error("ensure-go error:", err)
+		res.status(500).json({ success: false, running: false, error: err.message })
+	}
+})
+
+// Ensure MongoDB: idempotently start mongod using the workspace's .medomics/mongod.conf
+// Body optional: { workspacePath?: string }
+expressApp.post("/ensure-mongo", async (req, res) => {
+	try {
+		// Determine workspace path: prefer body.workspacePath, else current sessionData
+		let workspacePath = req?.body?.workspacePath || getServerWorkingDirectory()
+		workspacePath = normalizePathForPlatform(workspacePath)
+		// Ensure .medomics config and data directories exist
+		createServerMedomicsDirectory(workspacePath)
+
+		// If already running, return current state
+		if (serviceState.mongo.running) {
+			return res.json({ success: true, running: true, port: serviceState.mongo.port || MEDconfig.mongoPort })
+		}
+
+		// Start MongoDB and record default port from config
+		startMongoDB(workspacePath)
+		serviceState.mongo.running = true
+		serviceState.mongo.port = MEDconfig.mongoPort
+		return res.json({ success: true, running: true, port: serviceState.mongo.port })
+	} catch (err) {
+		console.error("ensure-mongo error:", err)
+		return res.status(500).json({ success: false, running: false, error: err.message })
+	}
+})
+
+// Ensure Jupyter: idempotent start, returns running and port
+// Body optional: { workspacePath?: string, preferredPort?: number }
+expressApp.post("/ensure-jupyter", async (req, res) => {
+	try {
+		const preferredPort = req?.body?.preferredPort || 8900
+		let workspacePath = req?.body?.workspacePath || getServerWorkingDirectory()
+		workspacePath = normalizePathForPlatform(workspacePath)
+
+		// Check current runtime state
+		try {
+			const jStatus = await checkJupyterIsRunning()
+			serviceState.jupyter.running = !!(jStatus && jStatus.running)
+		} catch (_) {
+			// ignore transient status errors
+		}
+
+		if (serviceState.jupyter.running) {
+			// If running but we have no port stored, assume preferredPort or default
+			if (!serviceState.jupyter.port) serviceState.jupyter.port = preferredPort
+			return res.json({ success: true, running: true, port: serviceState.jupyter.port })
+		}
+
+		// Not running: start it
+		const result = await startJupyterServer(workspacePath, preferredPort)
+		if (!result || result.running !== true) {
+			const errMsg = (result && result.error) ? result.error : "Failed to start Jupyter"
+			serviceState.jupyter.running = false
+			serviceState.jupyter.port = null
+			return res.status(500).json({ success: false, running: false, error: errMsg })
+		}
+
+		serviceState.jupyter.running = true
+		serviceState.jupyter.port = preferredPort
+		return res.json({ success: true, running: true, port: serviceState.jupyter.port })
+	} catch (err) {
+		console.error("ensure-jupyter error:", err)
+		return res.status(500).json({ success: false, running: false, error: err.message })
 	}
 })
 

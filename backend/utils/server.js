@@ -131,6 +131,8 @@ export async function runServer(isProd, serverPort, serverProcess, serverState, 
     console.log("env.PATH: " + env.PATH)
   }
 
+  let chosenPort = null
+
   if (!isProd) {
     //**** DEVELOPMENT ****//
     let args = [serverPort, "dev", process.cwd()]
@@ -144,6 +146,9 @@ export async function runServer(isProd, serverPort, serverProcess, serverState, 
     await findAvailablePort(MEDconfig.defaultPort)
       .then((port) => {
         serverPort = port
+        chosenPort = port
+        // ensure the spawned process receives the actual chosen port as first argument
+        if (Array.isArray(args) && args.length > 0) args[0] = serverPort
         serverState.serverIsRunning = true
         serverProcess = execFile(`${process.platform == "win32" ? "main.exe" : "./main"}`, args, {
           windowsHide: false,
@@ -184,8 +189,11 @@ export async function runServer(isProd, serverPort, serverProcess, serverState, 
     await findAvailablePort(MEDconfig.defaultPort)
       .then((port) => {
         serverPort = port
+        chosenPort = port
         console.log("_dirname: ", __dirname)
         console.log("process.resourcesPath: ", process.resourcesPath)
+        // ensure the spawned process receives the actual chosen port as first argument
+        if (Array.isArray(args) && args.length > 0) args[0] = serverPort
 
         if (process.platform == "win32") {
           serverProcess = execFile(path.join(process.resourcesPath, "go_executables\\server_go_win32.exe"), args, {
@@ -222,5 +230,6 @@ export async function runServer(isProd, serverPort, serverProcess, serverState, 
         console.error(err)
       })
   }
-  return serverProcess
+  // Return both the spawned process handle and the actual bound port
+  return { process: serverProcess, port: chosenPort }
 }
