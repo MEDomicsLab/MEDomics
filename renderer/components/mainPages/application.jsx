@@ -434,8 +434,8 @@ const ApplicationPage = ({ pageId }) => {
             {mode === "unique" && predictedTarget && predictionScore ? (
               <Card className="prediction-result-card" style={{display: "flex", justifyContent: "center", alignItems: "center"}}>
                 <div className="flex align-items-center">
+                  <Badge value={`Prediction Score: ${predictionScore}`} severity="info" size={"large"} style={{marginRight: "1rem"}} />
                   <Badge value={`Predicted Target Value: ${predictedTarget}`} severity="success" size={"large"} />
-                  <Badge value={`Prediction Score: ${predictionScore}`} severity="info" size={"large"} style={{marginLeft: "1rem"}} />
                 </div>
             </Card>) : (
               <>{mode === "table" && predictions && predictions.collection_id && <DataTableFromDB data={{ id: predictions.collection_id }} isReadOnly={true} />}</>

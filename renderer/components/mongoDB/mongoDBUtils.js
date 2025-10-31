@@ -624,6 +624,18 @@ export async function downloadCollectionToFile(collectionId, filePath, type) {
     const imageBuffer = Buffer.from(imageDocument.data.buffer)
     fs.writeFileSync(filePath, imageBuffer)
     console.log(`Collection ${collectionId} has been downloaded as PNG to ${filePath}`)
+  } else if (type === "pkl") {
+    // Check if documents have the 'model' field
+    let buffer = null
+    if (Object.keys(documents[0]).length > 0 && documents[0].model) {
+      buffer = Buffer.from(documents[0].model.buffer)
+    } else {
+      buffer = Buffer.from(documents[0].base64, 'base64')
+    }
+    
+    // Convert base64 to buffer
+    const pklBuffer = Buffer.from(buffer)
+    fs.writeFileSync(filePath, pklBuffer)
   } else {
     throw new Error("Unsupported file type")
   }

@@ -322,6 +322,7 @@ const WorkflowBase = ({ isGoodConnection, groupNodeHandlingDefault, onDeleteNode
 
       // check if sourceNode's outputs is compatible with targetNode's inputs
       let isValidConnection = false
+      if (!sourceNode.data) return
       sourceNode.data.setupParam.output.map((output) => {
         if (targetNode.data.setupParam.input.includes(output)) {
           isValidConnection = true
