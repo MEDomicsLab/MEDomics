@@ -412,7 +412,7 @@ const ConvertCategoricalColumnIntoNumericDB = ({ currentCollection }) => {
       {/* Warning for target encoding */}
       <Message
         severity="warn"
-        text="If you see your target among the displayed columns, we recommend that you don't convert it here. Target encoding is done automatically in the Learning module using PyCaret's setup() function. You can check the documentation for more info."
+        text="If your target appears among the columns, don’t encode it here. It will be encoded automatically (using one-hot encoding) in the Learning module via PyCaret’s setup(). See the documentation for details."
         style={{
           marginBottom: "12px",
           background: "#FEF3C7",
