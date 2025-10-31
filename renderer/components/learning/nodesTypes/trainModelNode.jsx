@@ -278,49 +278,6 @@ const TrainModelNode = ({ id, data }) => {
             )}
             </div>
 
-            {/* THRESHOLD OPTIMIZATION SECTION */}
-            <div className="p-2 mb-1" style={{ border: "1px solid #ccc", borderRadius: "8px" }}>
-              <div className="mb-1 d-flex align-items-center justify-content-between">
-                <div className="d-flex align-items-center">
-                  <label className="me-2">Optimize Threshold</label>
-                  <AiOutlineInfoCircle
-                    className="btn-info-node"
-                    onClick={() => {
-                      shell.openExternal("https://pycaret.readthedocs.io/en/stable/api/classification.html#pycaret.classification.optimize_threshold")
-                  }}
-                  />
-                </div>
-                <InputSwitch
-                  checked={optimizeThresh}
-                  onChange={(e) => {
-                    const newState = e.value
-                    setOptimizeThresh(newState)
-                    data.internal.optimizeThreshold = newState
-                    updateNode({ id, updatedData: data.internal })
-                  }}
-                />
-              </div>
-
-              {/* Optimize Threshold Options */}
-              {optimizeThresh && (
-                <div>
-                  {/* optimization metric */}
-                  <Input
-                    key={"optimization_metric"}
-                    name="optimization_metric"
-                    settingInfos={{
-                      type: "string",
-                      tooltip: "<p>Metric to be used for selecting best model's threshold.</p>",
-                      default_val: "Accuracy"
-                    }}
-                    currentValue={data.internal.threshOptimizationMetric || "Accuracy"}
-                    onInputChange={onInputChangeThreshold}
-                    setHasWarning={handleWarning}
-                  />
-                </div>
-              )}
-            </div>
-            
             {/* === INTEGRATE TUNING SECTION === */}
             <div style={{ border: "1px solid #ccc", borderRadius: "8px" }}>
               <div className="p-2 mb-1 d-flex justify-content-between align-items-center">
@@ -550,6 +507,49 @@ const TrainModelNode = ({ id, data }) => {
                   />
                 ) : null
               })}
+            </div>
+
+            {/* THRESHOLD OPTIMIZATION SECTION */}
+            <div className="p-2 mb-1" style={{ border: "1px solid #ccc", borderRadius: "8px" }}>
+              <div className="mb-1 d-flex align-items-center justify-content-between">
+                <div className="d-flex align-items-center">
+                  <label className="me-2">Optimize Threshold</label>
+                  <AiOutlineInfoCircle
+                    className="btn-info-node"
+                    onClick={() => {
+                      shell.openExternal("https://pycaret.readthedocs.io/en/stable/api/classification.html#pycaret.classification.optimize_threshold")
+                  }}
+                  />
+                </div>
+                <InputSwitch
+                  checked={optimizeThresh}
+                  onChange={(e) => {
+                    const newState = e.value
+                    setOptimizeThresh(newState)
+                    data.internal.optimizeThreshold = newState
+                    updateNode({ id, updatedData: data.internal })
+                  }}
+                />
+              </div>
+
+              {/* Optimize Threshold Options */}
+              {optimizeThresh && (
+                <div>
+                  {/* optimization metric */}
+                  <Input
+                    key={"optimization_metric"}
+                    name="optimization_metric"
+                    settingInfos={{
+                      type: "string",
+                      tooltip: "<p>Metric to be used for selecting best model's threshold.</p>",
+                      default_val: "Accuracy"
+                    }}
+                    currentValue={data.internal.threshOptimizationMetric || "Accuracy"}
+                    onInputChange={onInputChangeThreshold}
+                    setHasWarning={handleWarning}
+                  />
+                </div>
+              )}
             </div>
 
             {/* the modal component*/}
