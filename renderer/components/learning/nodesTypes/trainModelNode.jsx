@@ -306,11 +306,12 @@ const TrainModelNode = ({ id, data }) => {
                 <div>
                   {/* optimization metric */}
                   <Input
-                    key={"string"}
-                    name="Optimization Metric"
+                    key={"optimization_metric"}
+                    name="optimization_metric"
                     settingInfos={{
                       type: "string",
-                      tooltip: "<span>Metric to be used for selecting best model.</span>",
+                      tooltip: "<p>Metric to be used for selecting best model's threshold.</p>",
+                      default_val: "Accuracy"
                     }}
                     currentValue={data.internal.threshOptimizationMetric || "Accuracy"}
                     onInputChange={onInputChangeThreshold}
