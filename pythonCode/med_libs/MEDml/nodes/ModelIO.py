@@ -70,6 +70,13 @@ class ModelIO(Node):
                 model = pycaret_exp.save_model(model, model_name)
                 serialized_model = pickle.dumps(model[0])
 
+                # Model's threshold
+                model_threshold = None
+                if hasattr(model[0], 'steps'):
+                    classifier = model[0].steps[-1][1]
+                    if hasattr(classifier, 'probability_threshold'):
+                        model_threshold = classifier.probability_threshold
+
                 # Remove model save locally
                 os.remove(model[1])
 
@@ -148,6 +155,8 @@ class ModelIO(Node):
                     to_write['selectedTags'] = self.global_config_json['selectedTags']
                 if 'selectedVariables' in self.global_config_json:
                     to_write['selectedVariables'] = self.global_config_json['selectedVariables']
+                if model_threshold is not None:
+                    to_write['model_threshold'] = model_threshold
 
                 metadata_model_id = insert_med_data_object_if_not_exists(metadata_med_object, [to_write])
                 if metadata_model_id != metadata_med_object.id:

@@ -434,8 +434,9 @@ const ApplicationPage = ({ pageId }) => {
             {mode === "unique" && predictedTarget && predictionScore ? (
               <Card className="prediction-result-card" style={{display: "flex", justifyContent: "center", alignItems: "center"}}>
                 <div className="flex align-items-center">
+                  {modelMetadata.model_threshold && <Badge value={`Model's Threshold: ${modelMetadata.model_threshold.toFixed(2)}`} severity="warning" size={"large"} style={{marginRight: "1rem"}} />}
                   <Badge value={`Prediction Score: ${predictionScore}`} severity="info" size={"large"} style={{marginRight: "1rem"}} />
-                  <Badge value={`Predicted Target Value: ${predictedTarget}`} severity="success" size={"large"} />
+                  <Badge value={`Predicted Target Value: ${predictedTarget}`} severity="success" size={"large"}  />
                 </div>
             </Card>) : (
               <>{mode === "table" && predictions && predictions.collection_id && <DataTableFromDB data={{ id: predictions.collection_id }} isReadOnly={true} />}</>
