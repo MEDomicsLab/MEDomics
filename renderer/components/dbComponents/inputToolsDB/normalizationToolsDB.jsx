@@ -14,7 +14,8 @@ import { ServerConnectionContext } from "../../serverConnection/connectionContex
 import { DataContext } from "../../workspace/dataContext"
 import { MEDDataObject } from "../../workspace/NewMedDataObject"
 import { randomUUID } from "crypto" 
-import { Tooltip } from 'primereact/tooltip';
+import { Tooltip } from 'primereact/tooltip'
+import { InputSwitch } from "primereact/inputswitch";
         
 
 const NormalizeToolsDB = ({ currentCollection }) => {
@@ -26,6 +27,7 @@ const NormalizeToolsDB = ({ currentCollection }) => {
   const [normalizationMethod, setNormalizationMethod] = useState("minmax")
   const [newDatasetName, setNewDatasetName] = useState("")
   const [loading, setLoading] = useState(false)
+  const [keepTags, setKeepTags] = useState(true) // clone tags onto new normalized datasets
 
   const op = useRef(null)
 
@@ -81,7 +83,9 @@ const NormalizeToolsDB = ({ currentCollection }) => {
       columns: selectedColumns,
       method: normalizationMethod,
       newDatasetName: id,
-      overwrite: overwrite
+      overwrite: overwrite,
+      keepTags,                            
+      tagsCollectionName: "column_tags"   
     }
 
     if (!exists || !overwrite) {
@@ -172,6 +176,15 @@ const NormalizeToolsDB = ({ currentCollection }) => {
           placeholder="Select normalization method"
           style={{ width: "250px", marginRight: "5px" }}
         />
+         <span style={{ display: "flex", alignItems: "center", margin: "10px" }}>
+              <InputSwitch
+                checked={keepTags}
+                onChange={(e) => setKeepTags(e.value)}
+                 tooltip="Clone column tags from the source dataset onto the new normalized collection."
+                tooltipOptions={{ position: "top" }}
+              />
+              <label style={{ marginLeft: 8 }}>Keep tags</label>
+            </span>
         <Button
           icon="pi pi-plus"
           style={{ margin: "5px", fontSize: "1rem", width: "150px", height: "50px" }}
