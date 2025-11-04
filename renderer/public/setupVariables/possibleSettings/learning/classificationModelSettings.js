@@ -88,11 +88,6 @@ const classificationModelSettings = {
                 "default_val": 5,
                 "tooltip": "int, default=5. Number of neighboring samples to use for imputation."
             },
-            "radius": {
-                "type": "NoneType",
-                "default_val": "None",
-                "tooltip": "NoneType, default=None. Limiting distance of neighbors to return. If radius is a float, then n_neighbors must be set to None."
-            },
             "algorithm": {
                 "type": "string",
                 "default_val": "auto",
@@ -124,9 +119,10 @@ const classificationModelSettings = {
                 "tooltip": "int, default=-1. Number of CPU cores used when parallelizing over classes if multi_class=’ovr’”. This parameter is ignored when the solver is set to ‘liblinear’ regardless of whether ‘multi_class’ is specified or not."
             },
             "weights": {
-                "type": "string",
+                "type": "list",
                 "default_val": "uniform",
-                "tooltip": "String, default=’uniform’. Weight function used in prediction. Possible values: ‘uniform’ : Uniform weights. All points in each neighborhood are weighted equally. ‘Distance’ : weight points by the inverse of their distance. in this case, closer neighbors of a query point will have a greater influence than neighbors which are further away. Callable : a user-defined function which accepts an array of distances, and returns an array of the same shape containing the weights."
+                "choices":["uniform", "distance"],
+                "tooltip": "Default=’uniform’. Weight function used in prediction. Possible values: ‘uniform’ : Uniform weights. All points in each neighborhood are weighted equally. ‘Distance’ : weight points by the inverse of their distance. In this case, closer neighbors of a query point will have a greater influence than neighbors which are further away. Callable : a user-defined function which accepts an array of distances, and returns an array of the same shape containing the weights."
             }
         },
         "code": "knn",
@@ -201,9 +197,10 @@ const classificationModelSettings = {
                 "tooltip": "float, default=0.0. A node will be split if this split induces a decrease of the impurity greater than or equal to this value."
             },
             "class_weight": {
-                "type": "NoneType",
+                "type": "string",
                 "default_val": "None",
-                "tooltip": "NoneType, default=None. Set the parameter C of class i to class_weight[i]*C for SVC. If not given, all classes are supposed to have weight one. The “balanced” mode uses the values of y to automatically adjust weights inversely proportional to class frequencies in the input data as n_samples / (n_classes * np.bincount(y))."
+                "choices": ["None", "balanced"],
+                "tooltip": "class_weight ∈ {'None',balanced'}, default=None. The “balanced” mode uses the values of y to automatically adjust weights inversely proportional to class frequencies in the input data as n_samples / (n_classes * np.bincount(y)Note that these weights will be multiplied with sample_weight (passed through the fit method) if sample_weight is specified.)"
             },
             "ccp_alpha": {
                 "type": "float",
@@ -214,7 +211,7 @@ const classificationModelSettings = {
         "code": "dt",
         "label": "Decision Tree"
     },
-    "svm": {
+    "linear_svm_sgd": {
         "options": {
             "loss": {
                 "type": "string",
@@ -374,16 +371,6 @@ const classificationModelSettings = {
                 "default_val": "1.0",
                 "tooltip": "float, default=1.0. Regularization parameter. The strength of the regularization is inversely proportional to C. Must be strictly positive."
             },
-            "nu": {
-                "type": "float",
-                "default_val": "0.0",
-				"tooltip": "float, default=0.0. An upper bound on the fraction of margin errors and a lower bound of the fraction of support vectors."
-            },
-            "epsilon": {
-                "type": "float",
-                "default_val": "0.0",
-                "tooltip": "float, default=0.0. Epsilon in the epsilon-insensitive loss functions; only if loss is ‘huber’, ‘epsilon_insensitive’, or ‘squared_epsilon_insensitive’. For ‘huber’, determines the threshold at which it becomes less important to get the prediction exactly right. For epsilon-insensitive, any differences between the current prediction and the correct label are ignored if they are less than this threshold. Values must be in the range [0.0, inf)"
-            },
             "shrinking": {
                 "type": "bool",
                 "default_val": "True",
@@ -413,12 +400,7 @@ const classificationModelSettings = {
                 "type": "int",
                 "default_val": -1,
                 "tooltip": "int, default=-1. The maximum number of iterations to be run."
-            },
-            "random_state": {
-                "type": "int",
-                "default_val": 1334,
-                "tooltip": "int, default=1334. Controls the pseudo random number generation for shuffling the data for probability estimates."
-                        }
+            }
         },
         "code": "rbfsvm",
         "label": "RBF Kernel-SVM"
@@ -452,8 +434,8 @@ const classificationModelSettings = {
             },
             "copy_X_train": {
                 "type": "bool",
-                "default_val": false,
-                "tooltip": "bool, default=False. If True, a persistent copy of the training data is stored in the object. Otherwise, just a reference to the training data is stored, which might cause predictions to change if the data is modified externally."
+                "default_val": true,
+                "tooltip": "bool, default=True. If True, a persistent copy of the training data is stored in the object. Otherwise, just a reference to the training data is stored, which might cause predictions to change if the data is modified externally."
             },
             "random_state": {
                 "type": "int",
@@ -515,11 +497,6 @@ const classificationModelSettings = {
                 "type": "int",
                 "default_val": 500,
                 "tooltip": "int, default=500. The maximum number of iterations to be run."
-            },
-            "loss": {
-                "type": "string",
-                "default_val": "log_loss",
-                "tooltip": "String, default=’log_loss’. The loss function to be used. ‘Hinge’ gives a linear SVM. ‘Log_loss’ gives logistic regression, a probabilistic classifier. ‘Modified_huber’ is another smooth loss that brings tolerance to outliers as well as probability estimates. ‘Squared_hinge’ is like hinge but is quadratically penalized. ‘Perceptron’ is the linear loss used by the perceptron algorithm. The other losses, ‘Squared_error’, ‘Huber’, ‘Epsilon_insensitive’ and ‘Squared_epsilon_insensitive’ are designed for regression but can be useful in classification as well"
             },
             "hidden_layer_sizes": {
                 "type": "tuple",
@@ -840,11 +817,6 @@ const classificationModelSettings = {
                 "default_val": 1334,
                 "tooltip": "int, default=1334. Controls the random seed given to each Tree estimator at each boosting iteration. "           
              },
-            "alpha": {
-                "type": "float",
-                "default_val": "0.9",
-                "tooltip": "float, default=0.9. Constant that multiplies the penalty terms."
-            },
             "verbose": {
                 "type": "int",
                 "default_val": 0,
@@ -1020,25 +992,10 @@ const classificationModelSettings = {
     },
     "et": {
         "options": {
-            "estimator": {
-                "type": "ExtraTreeClassifier",
-                "default_val": "ExtraTreeClassifier(ccp_alpha=0.0, class_weight=None, criterion='gini',\n                    max_depth=None, max_features='sqrt', max_leaf_nodes=None,\n                    min_impurity_decrease=0.0, min_samples_leaf=1,\n                    min_samples_split=2, min_weight_fraction_leaf=0.0,\n                    random_state=None, splitter='random')",
-                "tooltip": "Object, default='ExtraTreeClassifier'. The base estimator from which the boosted ensemble is built. Support for sample weighting is required, as well as proper classes_ and n_classes_ attributes. If None, then the base estimator is DecisionTreeClassifier initialized with max_depth=1."
-            },
             "n_estimators": {
                 "type": "int",
                 "default_val": 100,
                 "tooltip": "int, default=100. The maximum number of estimators at which boosting is terminated. In case of perfect fit, the learning procedure is stopped early. Values must be in the range [1, inf)."
-            },
-            "estimator_params": {
-                "type": "tuple",
-                "default_val": "('criterion', 'max_depth', 'min_samples_split', 'min_samples_leaf', 'min_weight_fraction_leaf', 'max_features', 'max_leaf_nodes', 'min_impurity_decrease', 'random_state', 'ccp_alpha')",
-                "tooltip": "tuple, default=('criterion', 'max_depth', 'min_samples_split', 'min_samples_leaf', 'min_weight_fraction_leaf', 'max_features', 'max_leaf_nodes', 'min_impurity_decrease', 'random_state', 'ccp_alpha')"
-            },
-            "base_estimator": {
-                "type": "string",
-                "default_val": "deprecated",
-                "tooltip": "String, default='deprecated'. The base estimator from which the ensemble is grown."
             },
             "bootstrap": {
                 "type": "bool",
@@ -1071,9 +1028,10 @@ const classificationModelSettings = {
                 "tooltip": "bool, default=False. When set to True, reuse the solution of the previous call to fit as initialization, otherwise, just erase the previous solution."
             },
             "class_weight": {
-                "type": "NoneType",
+                "type": "string",
                 "default_val": "None",
-                "tooltip": "NoneType, default=None. Set the parameter C of class i to class_weight[i]*C for SVC. If not given, all classes are supposed to have weight one. The “balanced” mode uses the values of y to automatically adjust weights inversely proportional to class frequencies in the input data as n_samples / (n_classes * np.bincount(y))."
+                "choices": ["None", "balanced", "balanced_subsample"],
+                "tooltip": "class_weight ∈ {'balanced','balanced_subsample'}, default=None. 'balanced' uses class frequencies (n_samples / (n_classes * np.bincount(y))) to set weights. 'balanced_subsample' is the same but computed on each tree's bootstrap sample. If sample_weight is passed to fit(), it is multiplied with class_weight. Use None to disable class weighting."
             },
             "max_samples": {
                 "type": "NoneType",
