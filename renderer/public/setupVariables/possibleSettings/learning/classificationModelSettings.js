@@ -326,8 +326,8 @@ const classificationModelSettings = {
                 "tooltip": "int, default=-1. Number of CPU cores used when parallelizing over classes if multi_class=’ovr’”. This parameter is ignored when the solver is set to ‘liblinear’ regardless of whether ‘multi_class’ is specified or not."
             }
         },
-        "code": "svm",
-        "label": "Support Vector Machine"
+        "code": "linear_svm_sgd",
+        "label": "Stochastic Gradient Descent"
     },
     "rbfsvm": {
         "options": {
