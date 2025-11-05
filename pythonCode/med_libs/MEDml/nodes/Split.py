@@ -245,7 +245,7 @@ class Split(Node):
             ]
             filtered_settings = { k: v for k, v in cleaning_settings.items() if k not in excluded }
 
-            setup_kwargs_cv, stratify_columns = self._build_setup_kwargs(
+            setup_kwargs, stratify_columns = self._build_setup_kwargs(
                 base_kwargs=kwargs["setup_settings"],
                 stratify_columns=stratify_columns,
                 ignore_features=ignore_features,
@@ -253,9 +253,9 @@ class Split(Node):
                 medml_logger=medml_logger,
                 cleaning_settings=filtered_settings,
             )
-            setup_kwargs_cv["fold"] = cv_folds
-            pycaret_exp.setup(data=experiment.get("df", dataset), **setup_kwargs_cv)
-            code_handler_kwargs = deepcopy(setup_kwargs_cv)
+            setup_kwargs["fold"] = cv_folds
+            pycaret_exp.setup(data=experiment.get("df", dataset), **setup_kwargs)
+            code_handler_kwargs = deepcopy(setup_kwargs)
             del code_handler_kwargs['log_experiment']
             self.CodeHandler.add_line("code", f"pycaret_exp.setup(data=pycaret_exp.get_config('data'), {self.CodeHandler.convert_dict_to_params(code_handler_kwargs)})")
 
@@ -414,7 +414,7 @@ class Split(Node):
             raise ValueError(f"Invalid split type: {split_type}")
 
         # Payload for next node
-        self._info_for_next_node = {
+        self._info_for_next_node = { 
             "splitted": True,
             "random_state": random_state,
             "setup_settings": kwargs["setup_settings"],
@@ -422,6 +422,7 @@ class Split(Node):
             "table": "dataset",
             "paths": ["path"],
             "stratify_columns": stratify_columns,
+            "final_setup_kwargs": setup_kwargs,
         }
 
         return {

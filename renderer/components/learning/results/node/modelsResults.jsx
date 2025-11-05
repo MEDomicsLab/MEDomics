@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from "react"
+import { useState, useEffect } from "react"
 import Parameters from "../utilities/parameters"
 import DataTable from "../../../dataTypeVisualisation/dataTableWrapper"
 import { Column } from "primereact/column"
+import ExtraMetrics from "../utilities/extraMetrics"
 
 /**
  *
@@ -36,6 +37,7 @@ const ModelsResults = ({ selectedResults }) => {
       models.forEach((model) => {
         let modifiedRow = model.metrics
         modifiedRow["Parameters"] = model.params
+        modifiedRow["OverallMetrics"] = selectedResults?.data?.overall_metrics
         modifiedRow = Object.assign({ Name: model.name }, modifiedRow)
         allModelsData.push(modifiedRow)
       })
@@ -45,16 +47,31 @@ const ModelsResults = ({ selectedResults }) => {
 
   const rowExpansionTemplate = (rowData) => {
     return (
-      <>
-        <Parameters
-          params={rowData.Parameters}
-          tableProps={{
-            size: "small",
-            style: { width: "100%" }
-          }}
-          columnNames={["Parameter", "Value"]}
-        />
-      </>
+      <div className="container">
+        {rowData.OverallMetrics && 
+        <div style={{alignContent: "center", marginBottom: "1rem", fontWeight: "bold" }}>
+          <h6>Extra Statistics:</h6>
+          <ExtraMetrics 
+            metrics={rowData.OverallMetrics}
+            tableProps={{
+              size: "small",
+              style: { width: "100%" }
+            }}
+          />
+        </div>
+        }
+        <div style={{alignContent: "center", marginBottom: "1rem", fontWeight: "bold" }}>
+          <h6>Model Parameters:</h6>
+          <Parameters
+            params={rowData.Parameters}
+            tableProps={{
+              size: "small",
+              style: { width: "100%" }
+            }}
+            columnNames={["Parameter", "Value"]}
+          />
+        </div>
+      </div>
     )
   }
 
@@ -66,7 +83,7 @@ const ModelsResults = ({ selectedResults }) => {
     if (data.length > 0) {
       let toReturn = [<Column key="first key" expander={true} style={{ width: "5rem" }} />]
       Object.keys(data[0]).map((key) => {
-        if (key != "Parameters") {
+        if (key != "Parameters" && key != "OverallMetrics") {
           let sortableOpt = key != "Name" ? { sortable: true } : {}
           toReturn.push(<Column key={key} field={key} header={key} {...sortableOpt} />)
         }
