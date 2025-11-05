@@ -5,7 +5,7 @@ import bodyParser from "body-parser"
 import * as serverWorkspace from "./utils/serverWorkspace.js"
 const { createServerMedomicsDirectory, createServerWorkingDirectory, getServerWorkingDirectory } = serverWorkspace
 import * as mongoDBServer from "./utils/mongoDBServer.js"
-const { startMongoDB, stopMongoDB, getMongoDBPath } = mongoDBServer
+const { startMongoDB, stopMongoDB, getMongoDBPath, checkMongoIsRunning } = mongoDBServer
 import cors from "cors"
 import dirTree from "directory-tree"
 import { exec, execSync } from "child_process"
@@ -141,6 +141,14 @@ expressApp.get("/status", async (req, res) => {
 			} catch (e) {
 				// ignore status refresh failures
 			}
+			// Refresh Mongo runtime state based on listening port
+			try {
+				const mongoUp = await checkMongoIsRunning(MEDconfig.mongoPort)
+				serviceState.mongo.running = !!mongoUp
+				if (mongoUp && !serviceState.mongo.port) serviceState.mongo.port = MEDconfig.mongoPort
+			} catch (e) {
+				// ignore detection failure
+			}
 		res.json({
 			success: true,
 			expressPort: serviceState.expressPort,
@@ -179,7 +187,10 @@ expressApp.post("/ensure-mongo", async (req, res) => {
 		createServerMedomicsDirectory(workspacePath)
 
 		// If already running, return current state
-		if (serviceState.mongo.running) {
+		const mongoUp = await checkMongoIsRunning(MEDconfig.mongoPort)
+		if (serviceState.mongo.running || mongoUp) {
+			serviceState.mongo.running = true
+			if (!serviceState.mongo.port) serviceState.mongo.port = MEDconfig.mongoPort
 			return res.json({ success: true, running: true, port: serviceState.mongo.port || MEDconfig.mongoPort })
 		}
 

@@ -12,7 +12,7 @@ import { ServerConnectionContext } from "../serverConnection/connectionContext"
 import { useTunnel } from "../tunnel/TunnelContext"
 import { getTunnelState } from "../../utilities/tunnelState"
 import { Button } from "@blueprintjs/core"
-import { GoFile, GoFileDirectoryFill, GoChevronDown, GoChevronUp } from "react-icons/go"
+import { GoFile, GoFileDirectoryFill, GoChevronDown, GoChevronUp, GoChevronLeft, GoChevronRight } from "react-icons/go"
 import { FaFolderPlus } from "react-icons/fa"
 import { WorkspaceContext } from "../workspace/workspaceContext"
 import { IoMdClose, IoIosRefresh } from "react-icons/io"
@@ -21,8 +21,12 @@ import { IoMdClose, IoIosRefresh } from "react-icons/io"
  *
  * @returns {JSX.Element} The connection modal used for establishing a connection to a remote server
  */
+import { Steps } from 'primereact/steps'
+import { ProgressBar } from 'primereact/progressbar'
+
 const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
   const [showAdvanced, setShowAdvanced] = useState(false)
+  const [activeStep, setActiveStep] = useState(0) // 0=SSH, 1=Server Setup, 2=Workspace
 
   // Connection info form fields
   const [host, setHost] = useState("")
@@ -62,6 +66,16 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
   // GO tunnel verification state
   const [goVerifyStatus, setGoVerifyStatus] = useState('idle') // idle | checking | ok | fail
   const [goVerifyLoading, setGoVerifyLoading] = useState(false)
+
+  // Step 2: Remote server setup state
+  const [remoteInstalled, setRemoteInstalled] = useState(false)
+  const [installingRemote, setInstallingRemote] = useState(false)
+  const [remoteInstallText, setRemoteInstallText] = useState('')
+  const [remoteStartPort, setRemoteStartPort] = useState('3000')
+  const [remoteServerRunning, setRemoteServerRunning] = useState(false)
+  const [requirementsChecking, setRequirementsChecking] = useState(false)
+  const [requirementsMetRemote, setRequirementsMetRemote] = useState(false)
+  const [requirementsInstalling, setRequirementsInstalling] = useState(false)
 
   // Validation state
   const [inputErrors, setInputErrors] = useState({})
@@ -129,7 +143,7 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
       setTunnelStatus(`Reconnecting... (attempt ${reconnectAttempts} of ${maxReconnectAttempts})`)
       toast.warn(`Attempt ${reconnectAttempts} of ${maxReconnectAttempts} to reconnect SSH tunnel.`)
       const timer = setTimeout(() => {
-        handleConnectBackend(connectionInfo, true)
+  handleConnectSSH(connectionInfo, true)
       }, reconnectDelay)
       return () => clearTimeout(timer)
     }
@@ -141,9 +155,17 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
     }
   }, [tunnelActive, reconnectAttempts, connectionInfo])
 
-  // On modal open, check for existing tunnel and sync state
+  // On modal open, check for existing tunnel and sync state, and reset wizard
   useEffect(() => {
     if (visible) {
+      setActiveStep(0)
+      setRemoteInstalled(false)
+      setInstallingRemote(false)
+      setRemoteInstallText('')
+      setRemoteServerRunning(false)
+      setRequirementsMetRemote(false)
+      setRequirementsChecking(false)
+      setRequirementsInstalling(false)
       const tunnel = getTunnelState()
       if (tunnel.tunnelActive) {
         setTunnelActive(true)
@@ -159,6 +181,7 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
         setLocalJupyterPort(tunnel.localJupyterPort || "8890")
         setRemoteJupyterPort(tunnel.remoteJupyterPort || "8900")
         setTunnelStatus("SSH tunnel is already established.")
+        setActiveStep(1)
         tunnelContext.setTunnelInfo(tunnel) // Sync React context
       } else {
         setTunnelActive(false)
@@ -167,8 +190,8 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
     }
   }, [visible])
 
-  // Updated connect handler with error handling and auto-reconnect
-  const handleConnectBackend = async (info, isReconnect = false) => {
+  // Step 1: Only establish SSH tunnel/auth to remote host
+  const handleConnectSSH = async (info, isReconnect = false) => {
     setConnectionProcessing(true)
     setTunnelStatus(isReconnect ? "Reconnecting..." : "Connecting...")
     toast.info(isReconnect ? "Reconnecting SSH tunnel..." : "Establishing SSH tunnel...")
@@ -249,46 +272,8 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
         if (onConnect) onConnect()
         toast.success("SSH tunnel established.")
         setConnectionProcessing(false)
-
-        // Ensure remote backend server is present and running
-        try {
-          setRemoteBackendStatus('Checking remote server...')
-          const ensure = await ipcRenderer.invoke('ensureRemoteBackend', { port: Number(connInfo.remoteExpressPort) })
-          if (ensure && ensure.success && ensure.status === 'running') {
-            setRemoteBackendStatus(`Remote server running on port ${connInfo.remoteExpressPort}`)
-            ensure.path && setRemoteBackendPath(ensure.path)
-          } else if (ensure && ensure.status === 'not-found') {
-            setRemoteBackendStatus('Remote server not found. Install or locate it.')
-          } else {
-            setRemoteBackendStatus(`Remote server not running (${ensure?.status || 'unknown'}). You can install or locate it.`)
-          }
-        } catch (e) {
-          setRemoteBackendStatus('Failed to check/start remote server: ' + (e?.message || String(e)))
-        }
-
-        // Fetch home directory contents via IPC and update directoryContents and remoteDirPath
-        try {
-          setNavigationProcessing(true)
-          const res = await ipcRenderer.invoke('listRemoteDirectory', { path: '~' })
-          // res: { path, contents }
-          if (res && typeof res === 'object') {
-            if (typeof res.path === 'string') setRemoteDirPath(res.path)
-            if (Array.isArray(res.contents)) {
-              setDirectoryContents(res.contents.map(item => ({
-                name: item.name,
-                type: item.type === 'directory' || item.type === 'dir' ? 'dir' : 'file'
-              })))
-            } else {
-              setDirectoryContents([])
-            }
-          } else {
-            setDirectoryContents([])
-          }
-        } catch (err) {
-          setDirectoryContents([])
-        } finally {
-          setNavigationProcessing(false)
-        }
+        // Move to step 2 (Server Setup)
+        setActiveStep(1)
       } else if (result && result.error) {
         setTunnelStatus("Failed to establish SSH tunnel: " + result.error)
         setTunnelActive(false)
@@ -334,6 +319,10 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
           workingDirectory: "",
           isRemote: false
         })
+        setActiveStep(0)
+        setRemoteInstalled(false)
+        setRemoteServerRunning(false)
+        setRequirementsMetRemote(false)
       } else {
         setTunnelStatus("Failed to disconnect tunnel: " + (result?.error || 'Unknown error'))
         toast.error("Disconnect Failed: " + result?.error || 'Unknown error')
@@ -341,6 +330,163 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
     } catch (err) {
       setTunnelStatus("Failed to disconnect tunnel: " + (err.message || err))
       toast.error("Disconnect Failed: ", err.message || String(err))
+    } finally {
+      setConnectionProcessing(false)
+    }
+  }
+
+  // Step 2 helpers
+  const checkRemoteServer = async () => {
+    if (!tunnelActive) {
+      toast.error('SSH tunnel is not active. Connect first.')
+      return
+    }
+    try {
+      setRemoteBackendStatus('Checking remote server...')
+      const ensure = await ipcRenderer.invoke('ensureRemoteBackend', { port: Number(remoteExpressPort), checkOnly: true })
+      if (ensure && ensure.success && ensure.status === 'running') {
+        setRemoteBackendStatus(`Remote server running on port ${remoteExpressPort}`)
+        ensure.path && setRemoteBackendPath(ensure.path)
+        setRemoteInstalled(true)
+        setRemoteServerRunning(true)
+      } else if (ensure && ensure.status === 'not-found') {
+        setRemoteBackendStatus('Remote server not found. Install or locate it.')
+        setRemoteInstalled(false)
+        setRemoteServerRunning(false)
+      } else {
+        setRemoteBackendStatus(`Remote server not running (${ensure?.status || 'unknown'}). You can install or locate it.`)
+        setRemoteInstalled(true)
+        setRemoteServerRunning(false)
+      }
+    } catch (e) {
+      setRemoteBackendStatus('Failed to check remote server: ' + (e?.message || String(e)))
+    }
+  }
+
+  const installRemoteServer = async () => {
+    if (!tunnelActive) {
+      toast.error('SSH tunnel is not active. Connect first.')
+      return
+    }
+    try {
+      setInstallingRemote(true)
+      setRemoteInstallText('Installing remote server...')
+      const res = await ipcRenderer.invoke('installRemoteBackend')
+      if (res && res.success) {
+        setRemoteBackendPath(res.path)
+        toast.success('Remote server installed.')
+        setRemoteInstalled(true)
+      } else {
+        toast.error('Failed to install remote server: ' + (res?.error || 'unknown error'))
+        setRemoteInstalled(false)
+      }
+    } catch (e) {
+      toast.error('Install failed: ' + (e?.message || String(e)))
+      setRemoteInstalled(false)
+    } finally {
+      setInstallingRemote(false)
+      setRemoteInstallText('')
+    }
+  }
+
+  const startRemoteServer = async () => {
+    if (!tunnelActive) {
+      toast.error('SSH tunnel is not active. Connect first.')
+      return
+    }
+    try {
+      setRemoteBackendStatus('Starting remote server...')
+      // Prefer explicit start if path is known, else ensure
+      let started
+      if (remoteBackendPath) {
+        started = await ipcRenderer.invoke('startRemoteBackendUsingPath', { path: remoteBackendPath, port: Number(remoteStartPort)})
+      } else {
+        started = await ipcRenderer.invoke('ensureRemoteBackend', { port: Number(remoteStartPort) })
+      }
+      if (started && started.success) {
+        setRemoteBackendStatus(`Remote server running on port ${remoteStartPort}`)
+        setRemoteServerRunning(true)
+        // Sync selected express port with running one
+        setRemoteExpressPort(String(remoteStartPort))
+        // Optionally verify by hitting /status
+        await window.backend.requestExpress({ method: 'get', path: '/status', host, port: Number(localExpressPort) })
+      } else {
+        setRemoteBackendStatus('Failed to start remote server: ' + (started?.error || 'unknown error'))
+        setRemoteServerRunning(false)
+      }
+    } catch (e) {
+      setRemoteBackendStatus('Failed to start remote server: ' + (e?.message || String(e)))
+      setRemoteServerRunning(false)
+    }
+  }
+
+  const checkRequirementsRemote = async () => {
+    if (!tunnelActive || !remoteServerRunning) return
+    try {
+      setRequirementsChecking(true)
+      const resp = await window.backend.requestExpress({ method: 'get', path: '/check-requirements', host, port: Number(localExpressPort) })
+      const ok = !!(resp?.data?.success && resp?.data?.result && resp.data.result.pythonInstalled && resp.data.result.mongoDBInstalled)
+      setRequirementsMetRemote(ok)
+      if (!ok) {
+        toast.warn('Some requirements are missing on remote.')
+      }
+    } catch (e) {
+      setRequirementsMetRemote(false)
+    } finally {
+      setRequirementsChecking(false)
+    }
+  }
+
+  const installRequirementsRemote = async () => {
+    if (!tunnelActive || !remoteServerRunning) return
+    try {
+      setRequirementsInstalling(true)
+      // Try installing Python first
+      try {
+        await window.backend.requestExpress({ method: 'post', path: '/install-bundled-python', host, port: Number(localExpressPort) })
+      } catch (e) {
+        // ignore installation error; we'll re-check requirements after
+      }
+      // Then MongoDB
+      try {
+        await window.backend.requestExpress({ method: 'post', path: '/install-mongo', host, port: Number(localExpressPort) })
+      } catch (e) {
+        // ignore installation error; we'll re-check requirements after
+      }
+      // Re-check
+      await checkRequirementsRemote()
+    } finally {
+      setRequirementsInstalling(false)
+    }
+  }
+
+  // Step 3: Connect workspace (ensure services and set workspace)
+  const connectWorkspace = async () => {
+    if (!tunnelActive || !remoteServerRunning) {
+      toast.error('Server not ready. Complete previous steps first.')
+      return
+    }
+    if (!remoteDirPath) {
+      toast.error('Select a workspace directory first.')
+      return
+    }
+    try {
+      setConnectionProcessing(true)
+      // Ensure GO and Mongo on remote
+      await window.backend.requestExpress({ method: 'post', path: '/ensure-go', host, port: Number(localExpressPort), body: {} })
+      await window.backend.requestExpress({ method: 'post', path: '/ensure-mongo', host, port: Number(localExpressPort), body: { workspacePath: remoteDirPath } })
+      // Set workspace
+      const resp = await window.backend.requestExpress({ method: 'post', path: '/set-working-directory', host, port: Number(localExpressPort), body: { workspacePath: remoteDirPath } })
+      if (resp?.data?.success) {
+        toast.success('Workspace set on remote app.')
+        if (resp.data.workspace !== workspace) setWorkspace(resp.data.workspace)
+        // Close modal and disable editing
+        if (typeof onClose === 'function') onClose()
+      } else {
+        toast.error('Failed to set workspace on remote app: ' + (resp?.data?.error || 'Unknown error'))
+      }
+    } catch (e) {
+      toast.error('Failed to connect workspace: ' + (e?.message || String(e)))
     } finally {
       setConnectionProcessing(false)
     }
@@ -544,27 +690,86 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
     }
   }
 
+  const steps = [
+    { label: 'SSH Connection' },
+    { label: 'Server Setup' },
+    { label: 'Workspace' }
+  ]
+
+  // Pager visibility/disabled states
+  const prevDisabled = connectionProcessing || activeStep === 0
+  const nextDisabled = connectionProcessing ||
+    (activeStep === 0 && !tunnelActive) ||
+    (activeStep === 1 && (!remoteServerRunning || !requirementsMetRemote))
+
   return (
-    <Dialog className="modal" visible={visible} style={{ width: "50vw" }} closable={closable} onHide={onClose}>
+    <Dialog className="modal" visible={visible} style={{ width: "60vw" }} closable={closable} onHide={onClose}>
       <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
         <div className="title-header" > 
-          <h2>SSH Tunnel Connection</h2>
+          <h2>Connect to a remote workspace</h2>
           <Button style={{ padding: "0px", background: 'transparent' }} onClick={onClose}><IoMdClose style={{ fontSize: "18pt", color: 'var(--text-secondary)' }} /></Button>
         </div>
-        <label>
-          Remote Host:
-          <InputText disabled={tunnelActive || connectionProcessing} value={host} onChange={e => setHost(e.target.value)} placeholder="e.g. example.com" style={{ marginLeft: "5px" }} />
-          {inputErrors.host && <div style={{ color: 'var(--danger)', fontSize: 13 }}>{inputErrors.host}</div>}
-        </label>
-        <label>
-          Username: 
-          <InputText disabled={tunnelActive || connectionProcessing} value={username} onChange={e => setUsername(e.target.value)} placeholder="SSH username" style={{ marginLeft: "5px" }} />
-          {inputErrors.username && <div style={{ color: 'var(--danger)', fontSize: 13 }}>{inputErrors.username}</div>}
-        </label>
-        <label>
-          Password: 
-          <Password disabled={tunnelActive || connectionProcessing} value={password} onChange={e => setPassword(e.target.value)} placeholder="SSH password" style={{ marginLeft: "5px" }} feedback={false} toggleMask />
-        </label>
+        <Steps model={steps} activeIndex={activeStep} readOnly={true} />
+
+        {/* STEP 1: SSH CONNECTION */}
+        {activeStep === 0 && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <label>
+              Remote Host:
+              <InputText disabled={tunnelActive || connectionProcessing} value={host} onChange={e => setHost(e.target.value)} placeholder="e.g. example.com" style={{ marginLeft: "5px" }} />
+              {inputErrors.host && <div style={{ color: 'var(--danger)', fontSize: 13 }}>{inputErrors.host}</div>}
+            </label>
+            <label>
+              Username: 
+              <InputText disabled={tunnelActive || connectionProcessing} value={username} onChange={e => setUsername(e.target.value)} placeholder="SSH username" style={{ marginLeft: "5px" }} />
+              {inputErrors.username && <div style={{ color: 'var(--danger)', fontSize: 13 }}>{inputErrors.username}</div>}
+            </label>
+            <label>
+              Password: 
+              <Password disabled={tunnelActive || connectionProcessing} value={password} onChange={e => setPassword(e.target.value)} placeholder="SSH password" style={{ marginLeft: "5px" }} feedback={false} toggleMask />
+            </label>
+          </div>
+        )}
+
+        {/* STEP 2: REMOTE SERVER SETUP */}
+        {activeStep === 1 && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <h3 style={{ margin: 0, fontSize: '1rem' }}>Remote Express Server</h3>
+              <div style={{ fontSize: 13, color: remoteBackendStatus.includes('running') ? 'var(--success)' : remoteBackendStatus ? 'var(--warning)' : 'var(--text-muted)' }}>
+                {remoteBackendStatus || 'Unknown'}
+              </div>
+            </div>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+              <Button onClick={checkRemoteServer} disabled={!tunnelActive || connectionProcessing} style={{ background: 'var(--button-bg)', color: 'var(--button-text)' }}>Check</Button>
+              <Button onClick={installRemoteServer} disabled={!tunnelActive || installingRemote || remoteInstalled} style={{ background: 'var(--button-bg)', color: 'var(--button-text)' }}>Install on Remote</Button>
+              {installingRemote && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <ProgressBar mode="indeterminate" style={{ width: 200 }} />
+                  <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{remoteInstallText || 'Installing...'}</span>
+                </div>
+              )}
+            </div>
+            <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginTop: 8 }}>
+              <span>Start on port:</span>
+              <InputNumber disabled={!tunnelActive || connectionProcessing} value={remoteStartPort} onChange={e => setRemoteStartPort(e.value)} useGrouping={false} min={1} max={65535} />
+              <Button onClick={startRemoteServer} disabled={!tunnelActive || connectionProcessing} style={{ background: 'var(--button-bg)', color: 'var(--button-text)' }}>Start Server</Button>
+            </div>
+            <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--border-color)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <h4 style={{ margin: 0 }}>Remote Requirements</h4>
+                <Tag value={requirementsMetRemote ? 'OK' : 'Missing'} severity={requirementsMetRemote ? 'success' : 'warning'} rounded />
+              </div>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 8 }}>
+                <Button onClick={checkRequirementsRemote} disabled={!remoteServerRunning || requirementsChecking} style={{ background: 'var(--button-bg)', color: 'var(--button-text)' }}>Check</Button>
+                <Button onClick={installRequirementsRemote} disabled={!remoteServerRunning || requirementsInstalling || requirementsMetRemote} style={{ background: 'var(--button-bg)', color: 'var(--button-text)' }}>Install Missing</Button>
+                {(requirementsChecking || requirementsInstalling) && <ProgressBar mode="indeterminate" style={{ width: 200 }} />}
+              </div>
+            </div>
+            {/* Page navigation moved to the global footer */}
+          </div>
+        )}
+        {activeStep === 2 && (
         <div style={{ marginBottom: 8 }}>
           <button
             type="button"
@@ -602,71 +807,69 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
             {showAdvanced && <>
             <div style={{ width: '100%'}}>
               <label>
-                Remote SSH Port:
-                <InputNumber disabled={tunnelActive || connectionProcessing} value={remotePort} onChange={e => setRemotePort(e.value)} placeholder="22" useGrouping={false} min={1} max={65535} />
-                {inputErrors.remotePort && <div style={{ color: 'var(--danger)', fontSize: 13 }}>{inputErrors.remotePort}</div>}
-              </label>
-              <label>
                 Local Express Port:
                 <InputNumber disabled={tunnelActive || connectionProcessing} value={localExpressPort} onChange={e => setlocalExpressPort(e.value)} placeholder="54280" useGrouping={false} min={1} max={65535} />
                 {inputErrors.localExpressPort && <div style={{ color: 'red', fontSize: 13 }}>{inputErrors.localExpressPort}</div>}
                 {localPortWarning && <div style={{ color: 'var(--warning)', fontSize: 13, marginTop: 2 }}>{localPortWarning}</div>}
               </label>
               <label>
-                Remote Express Port:
-                <InputNumber disabled={tunnelActive || connectionProcessing} value={remoteExpressPort} onChange={e => setRemoteExpressPort(e.value)} placeholder="54288" useGrouping={false} min={1} max={65535} />
-                {inputErrors.remoteExpressPort && <div style={{ color: 'var(--danger)', fontSize: 13 }}>{inputErrors.remoteExpressPort}</div>}
+                Local GO Port:
+                <InputNumber disabled={tunnelActive || connectionProcessing} value={localGoPort} onChange={e => setLocalGoPort(e.value)} placeholder="54380" useGrouping={false} min={1} max={65535} />
               </label>
-            </div>
-            <div style={{ width: '100%'}}>
               <label>
                 Local MongoDB Port:
                 <InputNumber disabled={tunnelActive || connectionProcessing} value={localDBPort} onChange={e => setLocalDBPort(e.value)} placeholder="54020" useGrouping={false} min={1} max={65535} />
               </label>
+            </div>
+            <div style={{ width: '100%'}}>
               <label>
-                Remote MongoDB Port:
-                <InputNumber disabled={tunnelActive || connectionProcessing} value={remoteDBPort} onChange={e => setRemoteDBPort(e.value)} placeholder="54017" useGrouping={false} min={1} max={65535} />
-              </label>
-              <label>
-                SSH Key Comment:
-                <InputText disabled={tunnelActive || connectionProcessing} className="ssh-key-command" value={keyComment} onChange={e => setKeyComment(e.target.value)} placeholder="medomicslab-app" />
-              </label>
-              <div style={{ marginTop: 8, fontWeight: 600 }}>GO Server (optional direct tunnel)</div>
-              <label>
-                Local GO Port:
-                <InputNumber disabled={tunnelActive || connectionProcessing} value={localGoPort} onChange={e => setLocalGoPort(e.value)} placeholder="54380" useGrouping={false} min={1} max={65535} />
+                Remote Express Port:
+                <InputNumber disabled={tunnelActive || connectionProcessing} value={remoteExpressPort} onChange={e => setRemoteExpressPort(e.value)} placeholder="54288" useGrouping={false} min={1} max={65535} />
+                {inputErrors.remoteExpressPort && <div style={{ color: 'var(--danger)', fontSize: 13 }}>{inputErrors.remoteExpressPort}</div>}
               </label>
               <label>
                 Remote GO Port:
                 <InputNumber disabled={tunnelActive || connectionProcessing} value={remoteGoPort} onChange={e => setRemoteGoPort(e.value)} placeholder="54388" useGrouping={false} min={1} max={65535} />
               </label>
+              <label>
+                Remote MongoDB Port:
+                <InputNumber disabled={tunnelActive || connectionProcessing} value={remoteDBPort} onChange={e => setRemoteDBPort(e.value)} placeholder="54017" useGrouping={false} min={1} max={65535} />
+              </label>
+              {/* <label>
+                SSH Key Comment:
+                <InputText disabled={tunnelActive || connectionProcessing} className="ssh-key-command" value={keyComment} onChange={e => setKeyComment(e.target.value)} placeholder="medomicslab-app" />
+              </label> */}
+              <label>
+                Remote SSH Port:
+                <InputNumber disabled={tunnelActive || connectionProcessing} value={remotePort} onChange={e => setRemotePort(e.value)} placeholder="22" useGrouping={false} min={1} max={65535} />
+                {inputErrors.remotePort && <div style={{ color: 'var(--danger)', fontSize: 13 }}>{inputErrors.remotePort}</div>}
+              </label>
             </div>
             </>}
           </div>
         </div>
+        )}
+        {activeStep === 0 && (
         <Button onClick={handleGenerateKey} disabled={keyGenerated || tunnelActive || connectionProcessing} style={{ background: 'var(--button-bg)', color: 'var(--button-text)', opacity: keyGenerated ? 0.4 : 1 }}>
           {keyGenerated ? 'Key Generated' : 'Generate SSH Key'}
         </Button>
+        )}
         {inputErrors.key && <div style={{ color: 'red', fontSize: 13, marginTop: 4 }}>{inputErrors.key}</div>}
-        {keyGenerated && (
+        {activeStep === 0 && keyGenerated && (
           <div>
             <strong>Public Key:</strong>
             <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-all', background: 'var(--bg-tertiary)', marginTop: '10px', padding: '0.5em' }}>{publicKey}</pre>
             {registerStatus && <div style={{ marginTop: '0.5em', color: registerStatus.includes('success') ? 'var(--success)' : 'var(--danger)' }}>{registerStatus}</div>}
           </div>
         )}
-        <div style={{ display: "flex", gap: "1rem", justifyContent: "flex-end" }}>
-          <Button className="connect-btn" onClick={() => handleConnectBackend()} style={{ background: 'var(--button-bg)', color: 'var(--button-text)' }} disabled={!inputValid || tunnelActive || connectionProcessing}>Connect</Button>
-          <Button className="disconnect-btn" onClick={handleDisconnect} disabled={!tunnelActive || connectionProcessing} style={{ background: "var(--danger)", color: "var(--button-text)" }}>Disconnect</Button>
-        </div>
-        {tunnelStatus && (
-          <div>
-            <div style={{ marginTop: '0.5em', color: tunnelStatus.includes('established') ? 'var(--success)' : tunnelStatus.includes('onnecting') ? 'var(--warning)' : 'var(--danger)' }}>
-              { connectionProcessing && (<ProgressSpinner style={{width: '14px', height: '14px'}} strokeWidth="4" />)} {tunnelStatus}
-            </div>
+        {activeStep === 0 && (
+          <div style={{ display: "flex", gap: "1rem", justifyContent: "flex-end" }}>
+            <Button className="connect-btn" onClick={() => handleConnectSSH()} style={{ background: 'var(--button-bg)', color: 'var(--button-text)' }} disabled={!inputValid || tunnelActive || connectionProcessing}>Connect</Button>
+            <Button className="disconnect-btn" onClick={handleDisconnect} disabled={!tunnelActive || connectionProcessing} style={{ background: "var(--danger)", color: "var(--button-text)" }}>Disconnect</Button>
           </div>
         )}
-        {/* Remote server (GO backend) status and actions */}
+        {/* Remote server (GO backend) status and actions (kept for reference, used in Step 2)
+        {activeStep === 2 && (
         <div style={{ border: '1px solid var(--border-color)', borderRadius: 4, padding: 12, background: 'var(--bg-secondary)' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <h3 style={{ margin: 0, fontSize: '1rem' }}>Remote Server</h3>
@@ -769,6 +972,8 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
             <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 6 }}>Path: <span style={{ fontFamily: 'monospace' }}>{remoteBackendPath}</span></div>
           )}
         </div>
+        )} */}
+        {activeStep === 2 && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <Button onClick={verifyGoTunnel} disabled={!tunnelActive || goVerifyLoading} style={{ background: 'var(--button-bg)', color: 'var(--button-text)' }}>
             {goVerifyLoading ? 'Checking…' : 'Verify GO tunnel'}
@@ -785,7 +990,9 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
             />
           )}
         </div>
-        {/* Directory Browser Section */}
+        )}
+        {/* Directory Browser Section - Step 3 */}
+        {activeStep === 2 && (
         <div style={{ marginTop: '2rem', borderTop: '1px solid #eee', paddingTop: '1rem' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
             <h3 style={{ fontSize: '1.1rem', margin: 0 }}>Remote Directory Browser</h3>
@@ -864,6 +1071,36 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
             >
               Set as Workspace
             </Button>
+            <Button
+              className="connect-workspace-btn"
+              onClick={connectWorkspace}
+              title="Establish services and connect to this workspace"
+              disabled={!tunnelActive || !remoteDirPath || connectionProcessing || !remoteServerRunning || !requirementsMetRemote}
+              style={{ background: 'var(--button-bg)', color: 'var(--button-text)' }}
+            >
+              Connect Workspace
+            </Button>
+            <Button
+              className="leave-workspace-btn"
+              onClick={async () => {
+                try {
+                  setConnectionProcessing(true)
+                  // Stop Mongo if possible
+                  await window.backend.requestExpress({ method: 'post', path: '/stop-mongo', host, port: Number(localExpressPort) })
+                } catch (e) {
+                  // ignore stop failures
+                }
+                finally {
+                  setConnectionProcessing(false)
+                }
+                handleDisconnect()
+              }}
+              title="Disconnect and stop servers"
+              disabled={!tunnelActive || connectionProcessing}
+              style={{ background: 'var(--danger)', color: 'var(--button-text)' }}
+            >
+              Leave workspace
+            </Button>
           </div>
           <div style={{ color: 'var(--text-muted)', fontSize: 13, marginBottom: 8, marginLeft: 2 }}>
             Path: <span style={{ fontFamily: 'monospace' }}>{remoteDirPath}</span>
@@ -910,6 +1147,45 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
           }
           navigationProcessing={navigationProcessing}
           />
+        </div>
+        )}
+        {/* Global wizard footer navigation */}
+        {tunnelStatus && (
+          <div>
+            <div style={{ marginTop: '0.5em', color: tunnelStatus.includes('established') ? 'var(--success)' : tunnelStatus.includes('onnecting') ? 'var(--warning)' : 'var(--danger)' }}>
+              { connectionProcessing && (<ProgressSpinner style={{width: '14px', height: '14px'}} strokeWidth="4" />)} {tunnelStatus}
+            </div>
+          </div>
+        )}
+        <div className="wizard-footer">
+          <Button
+            className="pager-btn pager-prev"
+            onClick={() => setActiveStep((s) => Math.max(0, s - 1))}
+            disabled={prevDisabled}
+            style={{ visibility: prevDisabled ? 'hidden' : 'visible' }}
+            title="Previous step"
+          >
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+              <GoChevronLeft size={18} />
+              Previous
+            </span>
+          </Button>
+          <Button
+            className="pager-btn pager-next"
+            onClick={() => {
+              if (activeStep === 0) return setActiveStep(1)
+              if (activeStep === 1) return setActiveStep(2)
+              if (activeStep === 2) return typeof onClose === 'function' ? onClose() : null
+            }}
+            disabled={nextDisabled}
+            style={{ visibility: nextDisabled ? 'hidden' : 'visible' }}
+            title={activeStep === 2 ? 'Finish' : 'Next step'}
+          >
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+              {activeStep === 2 ? 'Finish' : 'Next'}
+              <GoChevronRight size={18} />
+            </span>
+          </Button>
         </div>
       </div>
       {/* New Folder Modal */}
@@ -990,9 +1266,48 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
       )}
       <style>
           {`
+            /* Generic disabled state for PrimeReact buttons */
+            .p-button:disabled, .p-button.p-disabled {
+              opacity: 0.5 !important;
+              filter: grayscale(0.3) brightness(0.95);
+              cursor: not-allowed !important;
+            }
+
+            /* Ensure BlueprintJS buttons also show a clear disabled state */
+            .bp5-button:disabled,
+            .bp5-button.bp5-disabled,
+            .bp5-button[aria-disabled="true"] {
+              opacity: 0.5 !important;
+              filter: grayscale(0.3) brightness(0.95);
+              cursor: not-allowed !important;
+            }
+
+            /* Wizard footer navigation */
+            .wizard-footer {
+              display: flex;
+              align-items: center;
+              justify-content: space-between;
+              margin-top: 16px;
+              padding-top: 12px;
+              border-top: 1px solid var(--border-color);
+            }
+            .pager-btn {
+              background: var(--bg-secondary) !important;
+              color: var(--text-secondary) !important;
+              border: 1px solid var(--border-color) !important;
+            }
+            .pager-prev {
+              /* left variant */
+            }
+            .pager-next {
+              background: var(--button-bg) !important;
+              color: var(--button-text) !important;
+              border-color: var(--button-bg) !important;
+            }
+
             .refresh-btn {
-              marginLeft: 8px;
-              fontSize: 16px;
+              margin-left: 8px;
+              font-size: 16px;
               padding: 2px 4px;
               background: var(--bg-secondary) !important;
               color: var(--text-secondary) !important 
@@ -1004,8 +1319,8 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
             }
 
             .new-folder-btn {
-              marginLeft: 8px;
-              fontSize: 16px;
+              margin-left: 8px;
+              font-size: 16px;
               padding: 2px 4px;
               background: var(--bg-secondary) !important;
               color: var(--text-secondary) !important 
@@ -1017,8 +1332,8 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
             }
 
             #set-workspace-btn {
-              marginLeft: 8px;
-              fontSize: 16px;
+              margin-left: 8px;
+              font-size: 16px;
               padding: 2px 8px;
               background: var(--button-bg) !important;
               color: var(--button-text) !important;
@@ -1038,6 +1353,11 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
             .disconnect-btn:disabled {
               opacity: 0.5;
               cursor: default
+            }
+
+            .connect-workspace-btn:disabled, .leave-workspace-btn:disabled {
+              opacity: 0.5;
+              cursor: default;
             }
 
             .dir-browser-list {

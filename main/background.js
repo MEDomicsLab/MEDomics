@@ -210,6 +210,17 @@ ipcMain.handle("get-express-port", async () => {
 
 function getBackendServerExecutable() {
   const platform = process.platform
+  // Prefer user-configured path from settings if available and exists
+  try {
+    const userDataPath = app.getPath("userData")
+    const settingsFilePath = path.join(userDataPath, "settings.json")
+    if (fs.existsSync(settingsFilePath)) {
+      const settings = JSON.parse(fs.readFileSync(settingsFilePath, "utf8"))
+      if (settings && settings.localBackendPath && fs.existsSync(settings.localBackendPath)) {
+        return settings.localBackendPath
+      }
+    }
+  } catch {}
   if (app.isPackaged) {
     // In release, use packaged binaries
     if (platform === "win32") return path.join(process.resourcesPath, "backend", "server_win.exe")
@@ -257,6 +268,75 @@ function startBackendServer() {
   serverProcess.unref()
   return serverProcess
 }
+
+// ---- Local backend presence/install stubs ----
+function checkLocalBackendPresence() {
+  // Development always considered present (runs node script)
+  if (!app.isPackaged) {
+    return { installed: true, source: 'dev-script', path: path.join(__dirname, "../backend/expressServer.mjs") }
+  }
+  // Check user settings override
+  try {
+    const userDataPath = app.getPath("userData")
+    const settingsFilePath = path.join(userDataPath, "settings.json")
+    if (fs.existsSync(settingsFilePath)) {
+      const settings = JSON.parse(fs.readFileSync(settingsFilePath, "utf8"))
+      if (settings && settings.localBackendPath && fs.existsSync(settings.localBackendPath)) {
+        return { installed: true, source: 'user', path: settings.localBackendPath }
+      }
+    }
+  } catch {}
+  // Check packaged locations
+  const candidates = [
+    path.join(process.resourcesPath, 'backend', process.platform === 'win32' ? 'server_win.exe' : (process.platform === 'darwin' ? 'server_mac' : 'server_linux'))
+  ]
+  const found = candidates.find(p => {
+    try { return fs.existsSync(p) } catch { return false }
+  })
+  if (found) return { installed: true, source: 'packaged', path: found }
+  return { installed: false, source: 'missing' }
+}
+
+ipcMain.handle('checkLocalBackend', async () => {
+  return checkLocalBackendPresence()
+})
+
+ipcMain.handle('setLocalBackendPath', async (_event, exePath) => {
+  try {
+    if (!exePath) return { success: false, error: 'no-path' }
+    if (!fs.existsSync(exePath)) return { success: false, error: 'not-found' }
+    const userDataPath = app.getPath('userData')
+    const settingsFilePath = path.join(userDataPath, 'settings.json')
+    let settings = {}
+    if (fs.existsSync(settingsFilePath)) {
+      try { settings = JSON.parse(fs.readFileSync(settingsFilePath, 'utf8')) || {} } catch {}
+    }
+    settings.localBackendPath = exePath
+    fs.writeFileSync(settingsFilePath, JSON.stringify(settings, null, 2))
+    return { success: true, path: exePath }
+  } catch (e) {
+    return { success: false, error: e.message }
+  }
+})
+
+ipcMain.handle('installLocalBackendFromURL', async (_event, { version, manifestUrl } = {}) => {
+  // Stub: not implemented yet. This will fetch a release manifest, download, verify, and place into user dir.
+  // For now, just return an explicit not-implemented response the UI can handle.
+  return { success: false, status: 'not-implemented', error: 'Download-and-install not implemented yet' }
+})
+
+ipcMain.handle('open-dialog-backend-exe', async () => {
+  const filters = process.platform === 'win32'
+    ? [{ name: 'Executable', extensions: ['exe'] }]
+    : [{ name: 'Executable', extensions: ['*'] }]
+  const { filePaths, canceled } = await dialog.showOpenDialog({
+    title: 'Select the server executable',
+    properties: ['openFile'],
+    filters
+  })
+  if (canceled || !filePaths || !filePaths[0]) return { success: false, error: 'canceled' }
+  return { success: true, path: filePaths[0] }
+})
 
 //**** AUTO-UPDATER ****//
 

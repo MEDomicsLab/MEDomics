@@ -1,4 +1,4 @@
-import React, { useContext, useEffect, useState } from "react"
+import React, { useContext, useEffect, useRef, useState } from "react"
 import Image from "next/image"
 import myimage from "../../../resources/medomics_transparent_bg.png"
 import { Button, Stack } from "react-bootstrap"
@@ -27,6 +27,20 @@ const HomePage = () => {
 
 
   const [requirementsMet, setRequirementsMet] = useState(true)
+  // Local backend presence (Express/GO orchestration) check
+  const [localBackend, setLocalBackend] = useState({ checking: true, installed: true, detail: null })
+  const localBackendPollRef = useRef(null)
+
+  const checkLocalBackendNow = async () => {
+    try {
+      const res = await ipcRenderer.invoke('checkLocalBackend')
+      setLocalBackend({ checking: false, installed: !!(res && res.installed), detail: res })
+    } catch {
+      // If the check fails, don't flip UI into a blocked state indefinitely; assume installed=true to avoid hard lock
+      toast.error('Error checking local server installation status')
+      setLocalBackend(prev => ({ ...prev, checking: false }))
+    }
+  }
 
   async function handleWorkspaceChange() {
     ipcRenderer.send("messageFromNext", "requestDialogFolder")
@@ -80,6 +94,9 @@ const HomePage = () => {
 
   // Check if the requirements are met
   useEffect(() => {
+    // Initial local backend presence check (stub-aware)
+    checkLocalBackendNow()
+
     ipcRenderer.invoke("checkRequirements").then((data) => {
       console.log("Requirements: ", data)
       if (data && data.result && data.result.pythonInstalled && data.result.mongoDBInstalled) {
@@ -92,6 +109,37 @@ const HomePage = () => {
       setAppVersion(data)
     })
   }, [])
+
+  // Auto-refresh local install status: poll until installed, and refresh on window focus
+  useEffect(() => {
+    // Always clear any existing poller first
+    if (localBackendPollRef.current) {
+      clearInterval(localBackendPollRef.current)
+      localBackendPollRef.current = null
+    }
+
+    const onFocus = () => {
+      // On focus, do a quick re-check (useful if user completed install outside the app)
+      checkLocalBackendNow()
+    }
+
+    window.addEventListener('focus', onFocus)
+
+    if (!localBackend.installed) {
+      // Poll every 5s until installed; lightweight IPC call
+      localBackendPollRef.current = setInterval(() => {
+        checkLocalBackendNow()
+      }, 5000)
+    }
+
+    return () => {
+      window.removeEventListener('focus', onFocus)
+      if (localBackendPollRef.current) {
+        clearInterval(localBackendPollRef.current)
+        localBackendPollRef.current = null
+      }
+    }
+  }, [localBackend.installed])
 
   // We set the workspace hasBeenSet state
   useEffect(() => {
@@ -138,6 +186,37 @@ const HomePage = () => {
     toast.success("Connected to remote workspace!");
   };
 
+  const handleInstallLocalBackend = async () => {
+    try {
+      const res = await ipcRenderer.invoke('installLocalBackendFromURL', { version: null })
+      if (res && res.success) {
+        toast.success('Local server installed.')
+      } else {
+        toast.info(res?.error || 'Installer not available yet')
+      }
+    } catch (e) {
+      toast.error(e?.message || String(e))
+    } finally {
+      const chk = await ipcRenderer.invoke('checkLocalBackend')
+      setLocalBackend({ checking: false, installed: !!(chk && chk.installed), detail: chk })
+    }
+  }
+
+  const handleLocateLocalBackend = async () => {
+    try {
+      const pick = await ipcRenderer.invoke('open-dialog-backend-exe')
+      if (pick && pick.success && pick.path) {
+        const setRes = await ipcRenderer.invoke('setLocalBackendPath', pick.path)
+        if (setRes && setRes.success) toast.success('Server path saved.')
+      }
+    } catch (e) {
+      toast.error(e?.message || String(e))
+    } finally {
+      const chk = await ipcRenderer.invoke('checkLocalBackend')
+      setLocalBackend({ checking: false, installed: !!(chk && chk.installed), detail: chk })
+    }
+  }
+
   return (
     <>
       <div 
@@ -159,18 +238,40 @@ const HomePage = () => {
           </Stack>
           {hasBeenSet ? (
             <>
+              {/* Local backend install/locate prompt (blocks local workspace until resolved) */}
+              {!localBackend.checking && !localBackend.installed && (
+                <div style={{
+                  width: '100%',
+                  background: '#fff3cd',
+                  border: '1px solid #ffeeba',
+                  borderLeft: '4px solid #ffc107',
+                  borderRadius: 6,
+                  padding: '12px 14px',
+                  margin: '8px 0 12px 0'
+                }}>
+                  <div style={{ fontWeight: 600, marginBottom: 6 }}>Local server not found</div>
+                  <div style={{ fontSize: 14, color: '#5c5c5c', marginBottom: 10 }}>
+                    To work with a local workspace, MEDomicsLab needs its local server. Install it now or locate an existing executable.
+                  </div>
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                    <Button onClick={handleInstallLocalBackend} variant="warning">Install (Download)</Button>
+                    <Button onClick={handleLocateLocalBackend} variant="secondary">Locate Executable…</Button>
+                  </div>
+                </div>
+              )}
               <h5>Set up your workspace to get started</h5>
-              <Button onClick={handleWorkspaceChange} style={{ margin: "1rem" }}>
+              <Button onClick={handleWorkspaceChange} style={{ margin: "1rem", opacity: (!localBackend.checking && !localBackend.installed) ? 0.5 : 1 }} disabled={!localBackend.checking && !localBackend.installed}>
                 Set Workspace
               </Button>
               <h5>Or open a recent workspace</h5>
-              <Stack direction="vertical" gap={0} style={{ padding: "0 0 0 0", alignContent: "center", flex: "0 1 auto", marginBottom: "3rem" }}>
+              <Stack direction="vertical" gap={0} style={{ padding: "0 0 0 0", alignContent: "center", flex: "0 1 auto", marginBottom: "3rem", opacity: (!localBackend.checking && !localBackend.installed) ? 0.5 : 1 }}>
                 {recentWorkspaces.map((workspace, index) => {
                   if (index > 4) return
                   return (
                     <a
                       key={index}
                       onClick={() => {
+                        if (!localBackend.checking && !localBackend.installed) return
                         ipcRenderer.invoke("setWorkingDirectory", workspace.path).then((data) => {
                           if (workspace !== data) {
                             let workspaceToSet = { ...data }
@@ -178,7 +279,7 @@ const HomePage = () => {
                           }
                         })
                       }}
-                      style={{ margin: "0rem", color: "var(--blue-600)" }}
+                      style={{ margin: "0rem", color: "var(--blue-600)", pointerEvents: (!localBackend.checking && !localBackend.installed) ? 'none' : 'auto' }}
                     >
                       <h6>{workspace.path}</h6>
                     </a>

@@ -142,3 +142,32 @@ function getMongoDBPath() {
 }
 
 export { startMongoDB, stopMongoDB, getMongoDBPath }
+
+// Cross-platform check to see if a given TCP port is in use (LISTENING)
+async function checkMongoIsRunning(port) {
+  if (!port) return false
+  const platform = process.platform
+  const cmd = platform === "win32"
+    ? `netstat -ano | findstr :${port}`
+    : `lsof -i:${port} -sTCP:LISTEN -n -P || true`
+
+  try {
+    const { stdout } = await new Promise((resolve) => {
+      exec(cmd, (err, stdout, stderr) => {
+        // Treat any exec error as "not running" but resolve to simplify control flow
+        resolve({ stdout: stdout || "", stderr: stderr || "" })
+      })
+    })
+    if (!stdout) return false
+    if (platform === "win32") {
+      // netstat output contains LISTENING lines for open ports
+      return /LISTENING/i.test(stdout)
+    }
+    // On Unix, any lsof output indicates a process is listening on this port
+    return stdout.trim().length > 0
+  } catch (_) {
+    return false
+  }
+}
+
+export { checkMongoIsRunning }
