@@ -7,7 +7,7 @@ import numpy as np
 import pandas as pd
 from bson import ObjectId
 from mongodb_utils import connect_to_mongo
-from utils.data_split_utils import (get_cv_stratification_details,
+from utils.data_split_utils import (get_bootstrapping_details, get_cv_stratification_details,
                                     get_subsampling_details)
 
 from .NodeObj import *
@@ -393,6 +393,16 @@ class Split(Node):
             
             iteration_result = {"type": "bootstrapping", "folds": folds}
 
+            # Get stratification details
+            try:
+                if use_stratification:
+                    y = dataset[stratify_columns].values
+                else:
+                    y = None
+                stats_df = get_bootstrapping_details(n_samples, strat_classes_name, folds, y)
+            except Exception as e:
+                print(f"Warning: Could not compute bootstrapping stratification details: {e}")
+                stats_df = None
 
         # OUTER: USER-DEFINED
         elif split_type.lower() == "user_defined":
