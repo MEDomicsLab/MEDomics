@@ -17,7 +17,7 @@ const ExtractionTextPage = ({ pageId }) => {
                     📖 Learn more about this process in our
                     <u
                       onClick={() => shell.openExternal("https://medomics-udes.gitbook.io/medomicslab-docs/tutorials/design/extraction-modules/text-extraction-page")}
-                      style={{ color: "#0056b3", textDecoration: "none", cursor: "pointer" }}
+                      style={{ color: "#4991dfff", textDecoration: "none", cursor: "pointer" }}
                     > documentation. 🔗
                     </u>
           </p>

@@ -378,7 +378,7 @@ const ApplicationPageWithModulePage = ({ pageId = "application-456" }) => {
                 📖 Learn more about this tool in our{' '}
                 <u
                   onClick={() => shell.openExternal("https://medomics-udes.gitbook.io/medomicslab-docs/tutorials/deployment/application-module")}
-                  style={{ color: "#0056b3", textDecoration: "none", cursor: "pointer" }}
+                  style={{ color: "#4991dfff", textDecoration: "none", cursor: "pointer" }}
                 >
                   documentation. 🔗
                 </u>

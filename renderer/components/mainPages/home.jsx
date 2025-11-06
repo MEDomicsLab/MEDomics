@@ -196,14 +196,13 @@ const HomePage = () => {
           style={{
             marginTop: "2rem",
             padding: "2rem",
-            backgroundColor: "#f8f9fa",
             borderRadius: "8px",
-            boxShadow: "0px 2px 5px rgba(0,0,0,0.1)",
+            boxShadow: "0px 2px 5px rgba(128, 117, 117, 0.1)",
             textAlign: "left",
             width: "100%",
           }}
         >
-          <h3 style={{ marginBottom: "1rem", color: "#0056b3" }}>
+          <h3 style={{ marginBottom: "1rem", color: "#4991dfff" }}>
             Getting Started 🚀
           </h3>
           
@@ -217,21 +216,21 @@ const HomePage = () => {
           <ul style={{ paddingLeft: "1.5rem", listStyleType: "none" }}>
             <li>📖 Documentation:  
               <a href="https://medomics-udes.gitbook.io/medomicslab-docs/medomicslab-docs-v0/tutorials" 
-                 target="_blank" rel="noopener noreferrer" style={{ color: "#0056b3", textDecoration: "none", marginLeft: "5px" }}>
+                 target="_blank" rel="noopener noreferrer" style={{ color: "#4991dfff", textDecoration: "none", marginLeft: "5px" }}>
                 MEDomicsLab Documentation
               </a>
             </li>
 
             <li>🎥 Module Tutorials:  
               <a href="https://www.youtube.com/playlist?list=PLEPy2VhC4-D6B7o0MuNNEz2DeHDR8NICj" 
-                 target="_blank" rel="noopener noreferrer" style={{ color: "#0056b3", textDecoration: "none", marginLeft: "5px" }}>
+                 target="_blank" rel="noopener noreferrer" style={{ color: "#4991dfff", textDecoration: "none", marginLeft: "5px" }}>
                 YouTube Module Guides
               </a>
             </li>
 
             <li>🎥 Testing Phase Tutorials:  
               <a href="https://www.youtube.com/playlist?list=PLEPy2VhC4-D4vuJO3X7fHboLv1k_HbGsW" 
-                 target="_blank" rel="noopener noreferrer" style={{ color: "#0056b3", textDecoration: "none", marginLeft: "5px" }}>
+                 target="_blank" rel="noopener noreferrer" style={{ color: "#4991dfff", textDecoration: "none", marginLeft: "5px" }}>
                 YouTube Playlist
               </a>
             </li>
@@ -243,7 +242,7 @@ const HomePage = () => {
           style={{
             marginTop: "1rem",
             padding: "1rem",
-            backgroundColor: "#ffeeba",
+            backgroundColor: "#97781bff",
             borderLeft: "4px solid #ffc107",
             borderRadius: "5px"
           }}

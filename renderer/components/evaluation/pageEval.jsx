@@ -214,7 +214,7 @@ const PageEval = ({ run, pageId, config, updateWarnings, setChosenModel, updateC
               className="smooth-transition evaluation-header-parent"
             >
               <div className="evaluation-header">
-                <PiFlaskFill style={{ height: "4rem", width: "4rem", color: "rgb(0, 50, 200, 0.8)" }} />
+                <PiFlaskFill style={{ height: "4rem", width: "4rem", color: "#4991dfff" }} />
                 <div style={{ width: "20rem" }}>
                   {modelHasWarning.state && (
                     <>
