@@ -1,0 +1,20 @@
+[Unit]
+Description=MEDomics Server (Express + Go + Mongo/Jupyter manager)
+After=network.target
+StartLimitIntervalSec=400
+StartLimitBurst=3
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/medomics-server
+ExecStart=/opt/medomics-server/bin/medomics-server start
+Restart=on-failure
+RestartSec=5
+User=medomics
+Group=medomics
+Environment=NODE_ENV=production
+StandardOutput=append:/var/log/medomics-server.log
+StandardError=append:/var/log/medomics-server.err.log
+
+[Install]
+WantedBy=multi-user.target

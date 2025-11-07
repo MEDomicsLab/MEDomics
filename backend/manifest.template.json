@@ -1,0 +1,38 @@
+{
+  "name": "MEDomics Server",
+  "version": "0.0.0-template",
+  "releaseDate": "2025-11-06T00:00:00Z",
+  "minAppVersion": "1.5.0",
+  "notes": "Template manifest – replace fields during release automation.",
+  "assets": [
+    {
+      "os": "windows",
+      "arch": "x64",
+      "url": "https://example.org/medomics-server/0.0.0/medomics-server-v0.0.0-win-x64.zip",
+      "sha256": "REPLACE_SHA256",
+      "sig": "REPLACE_SIGNATURE",
+      "format": "zip"
+    },
+    {
+      "os": "linux",
+      "arch": "x64",
+      "url": "https://example.org/medomics-server/0.0.0/medomics-server-v0.0.0-linux-x64.tar.gz",
+      "sha256": "REPLACE_SHA256",
+      "sig": "REPLACE_SIGNATURE",
+      "format": "tar.gz"
+    },
+    {
+      "os": "darwin",
+      "arch": "arm64",
+      "url": "https://example.org/medomics-server/0.0.0/medomics-server-v0.0.0-macos-arm64.tar.gz",
+      "sha256": "REPLACE_SHA256",
+      "sig": "REPLACE_SIGNATURE",
+      "format": "tar.gz"
+    }
+  ],
+  "signatureFormat": "minisign", 
+  "upgradePolicy": {
+    "allowDowngrade": false,
+    "requireSignature": true
+  }
+}
