@@ -26,7 +26,7 @@ function FlowInfosProvider({ children }) {
     // set canRun to true if no Node has a warning at data.internal.hasWarning
     let canRun = true
     newInfo.nodes.forEach((node) => {
-      if (node.data.internal.hasWarning.state) {
+      if (node.data.internal?.hasWarning?.state) {
         canRun = false
       }
     })

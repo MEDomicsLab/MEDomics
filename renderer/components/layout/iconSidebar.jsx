@@ -112,7 +112,6 @@ const IconSidebar = ({ onSidebarItemSelect }) => {
         <Tooltip target=".resultsNav" {...delayOptions} className="tooltip-icon-sidebar" />
         <Tooltip target=".evaluationNav" {...delayOptions} className="tooltip-icon-sidebar" />
         <Tooltip target=".applicationNav" {...delayOptions} className="tooltip-icon-sidebar" />
-        <Tooltip target=".ext-MEDimg-btn" {...delayOptions} className="tooltip-icon-sidebar" />
         <Tooltip target=".ext-text-btn" {...delayOptions} className="tooltip-icon-sidebar" />
         <Tooltip target=".ext-ts-btn" {...delayOptions} className="tooltip-icon-sidebar" />
         <Tooltip target=".ext-img-btn" {...delayOptions} className="tooltip-icon-sidebar" />
@@ -194,22 +193,6 @@ const IconSidebar = ({ onSidebarItemSelect }) => {
               >
                 {extractionBtnstate ? <VscChromeClose style={{ height: "1.7rem", width: "auto" }} /> : <TbFileExport style={{ height: "1.7rem", width: "auto" }} />}
                 <div className={`btn-group-ext ${extractionBtnstate ? "clicked" : ""}`}>
-                  <Button
-                    className="ext-MEDimg-btn"
-                    icon="pi pi-image"
-                    data-pr-at="right center"
-                    data-pr-my="left center"
-                    data-pr-tooltip="MEDimage"
-                    data-is-ext-btn
-                    onClick={(event) => {
-                      event.stopPropagation()
-                      event.preventDefault()
-                      handleDoubleClick(event, "ExtractionMEDimage")
-                      // handleClick(event, "extractionMEDimage")
-                      setExtractionBtnstate(!extractionBtnstate)
-                    }}
-                    onDoubleClick={(event) => handleDoubleClick(event, "ExtractionMEDimage")}
-                  />
                   <Button
                     className="ext-text-btn"
                     icon="pi pi-align-left"
