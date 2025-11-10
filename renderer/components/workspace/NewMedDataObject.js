@@ -450,6 +450,12 @@ export class MEDDataObject {
       return
     }
 
+    // Check if the object is already in workspace
+    if (medDataObject.inWorkspace && fs.existsSync(this.getFullPath(dict, id, workspacePath))) {
+      console.log(`MEDDataObject with id ${id} is already in workspace`)
+      return
+    }
+
     // Check if this object has already been synced to avoid infinite loops
     if (syncedObjects.has(id)) {
       return
@@ -488,7 +494,7 @@ export class MEDDataObject {
 
       // Update inWorkspace property to true after successful download
       if (!medDataObject.inWorkspace) {
-        const updateData = { inWorkspace: true }
+        const updateData = filePath ? { inWorkspace: true, path: filePath } : { inWorkspace: true }
         const updateSuccess = await overwriteMEDDataObjectProperties(id, updateData)
 
         if (updateSuccess) {
