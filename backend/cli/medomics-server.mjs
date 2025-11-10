@@ -151,8 +151,127 @@ async function ensureCommand(flags) {
 }
 
 async function installCommand(flags) {
-  // Placeholder: Would perform dependency installations (Mongo/Python) using existing endpoints.
-  process.stdout.write(JSON.stringify({ success: true, message: 'Install stub – implement dependency bootstrap.' }, null, flags.json?0:2)+'\n')
+  // Option 1 implementation: drive existing Express endpoints
+  // 1) Ensure Express is running (start if no state)
+  let state = readState()
+  if (!state?.expressPort) {
+    log('Express not started (no state found). Starting...')
+    await startCommand({ ...flags })
+    // re-read state after start
+    state = readState()
+  }
+  if (!state?.expressPort) {
+    console.error('Failed to obtain Express port after start.')
+    process.exit(1)
+  }
+  const port = state.expressPort
+
+  const summary = { actions: [], initial: null, final: null }
+
+  // 2) Check current requirements
+  try {
+    const check = await httpGet(port, '/check-requirements')
+    summary.initial = check
+  } catch (e) {
+    console.error('check-requirements failed:', e.message)
+    process.exit(1)
+  }
+
+  const init = summary.initial?.result || summary.initial
+
+  // Helpers to detect missing components tolerant to schema differences
+  const needsMongo = () => {
+    if (!init) return true
+    const candidates = [
+      init.mongo?.installed,
+      init.mongo?.ok,
+      init.mongoInstalled,
+      init.mongo_ok,
+      init.mongo
+    ]
+    for (const v of candidates) {
+      if (v === true) return false
+      if (v === false) return true
+    }
+    return true
+  }
+
+  const needsPythonEnv = () => {
+    if (!init) return true
+    const candidates = [
+      init.python?.installed,
+      init.python?.ok,
+      init.pythonEnv?.installed,
+      init.pythonInstalled,
+      init.python_ok,
+      init.python
+    ]
+    for (const v of candidates) {
+      if (v === true) return false
+      if (v === false) return true
+    }
+    return true
+  }
+
+  const needsPythonPackages = () => {
+    if (!init) return true
+    const candidates = [
+      init.python?.packagesOk,
+      init.pythonPackages?.ok,
+      init.pythonPackagesOk,
+    ]
+    for (const v of candidates) {
+      if (v === true) return false
+      if (v === false) return true
+    }
+    return true
+  }
+
+  // 3) Install MongoDB if needed
+  try {
+    if (needsMongo()) {
+      if (!flags.json) console.log('Installing MongoDB...')
+      const r = await httpPost(port, '/install-mongo', {})
+      summary.actions.push({ step: 'install-mongo', response: r })
+    }
+  } catch (e) {
+    console.error('install-mongo failed:', e.message)
+    process.exit(1)
+  }
+
+  // 4) Install Python env and packages if needed
+  try {
+    if (needsPythonEnv()) {
+      if (!flags.json) console.log('Installing bundled Python environment...')
+      const r = await httpPost(port, '/install-bundled-python', {})
+      summary.actions.push({ step: 'install-bundled-python', response: r })
+    }
+  } catch (e) {
+    console.error('install-bundled-python failed:', e.message)
+    process.exit(1)
+  }
+
+  try {
+    if (needsPythonPackages()) {
+      if (!flags.json) console.log('Installing required Python packages...')
+      const r = await httpPost(port, '/install-required-python-packages', {})
+      summary.actions.push({ step: 'install-required-python-packages', response: r })
+    }
+  } catch (e) {
+    console.error('install-required-python-packages failed:', e.message)
+    process.exit(1)
+  }
+
+  // 5) Re-check requirements and print summary
+  try {
+    const final = await httpGet(port, '/check-requirements')
+    summary.final = final
+  } catch (e) {
+    console.error('final check-requirements failed:', e.message)
+    process.exit(1)
+  }
+
+  process.stdout.write(JSON.stringify({ success: true, install: summary }, null, flags.json?0:2)+'\n')
 }
 
 async function upgradeCommand(flags) {
@@ -168,6 +287,7 @@ Usage: medomics-server <command> [flags]
 
 Commands:
   start                 Start Express backend
+  stop                  Stop the running backend
   status                Show JSON status snapshot
   ensure [--go --mongo --jupyter --workspace PATH]
   install               Install dependencies (stub)
@@ -188,10 +308,58 @@ Flags:
     case 'ensure': return ensureCommand(flags)
     case 'install': return installCommand(flags)
     case 'upgrade': return upgradeCommand(flags)
+    case 'stop': return stopCommand(flags)
     default:
       console.error('Unknown command:', command)
       process.exit(1)
   }
+}
+
+function pidIsAlive(pid) {
+  try { process.kill(pid, 0); return true } catch { return false }
+}
+
+async function stopCommand(flags) {
+  const state = readState()
+  if (!state?.pid) {
+    console.error('No running state (nothing to stop).')
+    process.exit(1)
+  }
+  const pid = state.pid
+  const alive = pidIsAlive(pid)
+  if (!alive) {
+    // Stale state file
+    fs.unlinkSync(STATE_FILE)
+    if (flags.json) {
+      process.stdout.write(JSON.stringify({ success: true, message: 'State file removed (process already dead).' })+'\n')
+    } else {
+      console.log('Process already stopped; state file cleaned.')
+    }
+    return
+  }
+  if (!flags.json) console.log('Stopping MEDomics server process PID', pid)
+  try {
+    process.kill(pid, 'SIGTERM')
+  } catch (e) {
+    console.error('Failed to send SIGTERM:', e.message)
+  }
+  const deadline = Date.now() + 5000
+  const interval = setInterval(() => {
+    if (!pidIsAlive(pid)) {
+      clearInterval(interval)
+  try { fs.unlinkSync(STATE_FILE) } catch (e) { /* ignore */ }
+      const result = { success: true, stopped: true }
+      process.stdout.write(JSON.stringify(result)+'\n')
+    } else if (Date.now() > deadline) {
+      clearInterval(interval)
+      // Force kill
+  try { process.kill(pid, 'SIGKILL') } catch (e) { /* ignore */ }
+      const forced = !pidIsAlive(pid)
+  try { fs.unlinkSync(STATE_FILE) } catch (e) { /* ignore */ }
+      const result = { success: forced, forced }
+      process.stdout.write(JSON.stringify(result)+'\n')
+    }
+  }, 250)
 }
 
 main()

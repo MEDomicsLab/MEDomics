@@ -11,6 +11,8 @@ import serve from "electron-serve"
 import { createWindow, TerminalManager } from "./helpers"
 import { installExtension, REACT_DEVELOPER_TOOLS } from "electron-extension-installer"
 import MEDconfig from "../medomics.dev"
+const crypto = require("crypto")
+const decompress = require("decompress")
 // Backend access is done over HTTP requests to the backend Express server.
 // This avoids importing backend modules into the Electron main process.
 // We expose small wrapper functions below that call the backend endpoints.
@@ -210,63 +212,220 @@ ipcMain.handle("get-express-port", async () => {
 
 function getBackendServerExecutable() {
   const platform = process.platform
-  // Prefer user-configured path from settings if available and exists
+  // Prefer user-configured path (CLI) from settings if available and exists
   try {
     const userDataPath = app.getPath("userData")
     const settingsFilePath = path.join(userDataPath, "settings.json")
     if (fs.existsSync(settingsFilePath)) {
       const settings = JSON.parse(fs.readFileSync(settingsFilePath, "utf8"))
       if (settings && settings.localBackendPath && fs.existsSync(settings.localBackendPath)) {
-        return settings.localBackendPath
+        return settings.localBackendPath // CLI executable path
       }
     }
   } catch {}
   if (app.isPackaged) {
-    // In release, use packaged binaries
+    // In packaged builds, fallback to a bundled CLI if present
+    const cliCandidates = [
+      path.join(process.resourcesPath, "backend", platform === "win32" ? "medomics-server.exe" : "medomics-server"),
+      path.join(process.resourcesPath, "backend", "bin", platform === "win32" ? "medomics-server.exe" : "medomics-server")
+    ]
+    for (const pth of cliCandidates) {
+      try { if (fs.existsSync(pth)) return pth } catch {}
+    }
+    // Legacy fallback: original server binaries (kept for backward compatibility)
     if (platform === "win32") return path.join(process.resourcesPath, "backend", "server_win.exe")
     if (platform === "darwin") return path.join(process.resourcesPath, "backend", "server_mac")
     if (platform === "linux") return path.join(process.resourcesPath, "backend", "server_linux")
   } else {
-    // In development, use Node.js script
-    return ["node", path.join(__dirname, "../backend/expressServer.mjs")]
+    // In development, run the CLI via node
+    return ["node", path.join(__dirname, "../backend/cli/medomics-server.mjs")]
+  }
+}
+
+// ---- Helpers for backend installation ----
+function saveLocalBackendPath(exePath) {
+  return new Promise((resolve, reject) => {
+    try {
+      const userDataPath = app.getPath('userData')
+      const settingsFilePath = path.join(userDataPath, 'settings.json')
+      let settings = {}
+      if (fs.existsSync(settingsFilePath)) {
+        try { settings = JSON.parse(fs.readFileSync(settingsFilePath, 'utf8')) || {} } catch {}
+      }
+      settings.localBackendPath = exePath
+      fs.writeFileSync(settingsFilePath, JSON.stringify(settings, null, 2))
+      resolve(true)
+    } catch (e) { reject(e) }
+  })
+}
+
+function findInstalledExecutable(versionDir) {
+  try {
+    if (!fs.existsSync(versionDir)) return null
+    const binDir = path.join(versionDir, 'bin')
+    if (fs.existsSync(binDir)) {
+      const entries = fs.readdirSync(binDir)
+      const exeCandidates = entries.map(e => path.join(binDir, e)).filter(p => {
+        const lower = p.toLowerCase()
+        if (process.platform === 'win32') return lower.endsWith('.exe') && lower.includes('medomics')
+        return lower.includes('medomics') && fs.statSync(p).isFile()
+      })
+      return exeCandidates[0] || null
+    }
+    // Fallback scan entire versionDir
+    const walk = (dir) => {
+      const items = fs.readdirSync(dir)
+      for (const item of items) {
+        const full = path.join(dir, item)
+        try {
+          const st = fs.statSync(full)
+          if (st.isDirectory()) {
+            const found = walk(full)
+            if (found) return found
+          } else if (st.isFile()) {
+            const lower = full.toLowerCase()
+            if (process.platform === 'win32') {
+              if (lower.endsWith('.exe') && lower.includes('medomics')) return full
+            } else if (lower.includes('medomics')) {
+              return full
+            }
+          }
+        } catch {}
+      }
+      return null
+    }
+    return walk(versionDir)
+  } catch { return null }
+}
+
+function sha256File(filePath) {
+  return new Promise((resolve, reject) => {
+    try {
+      const hash = crypto.createHash('sha256')
+      const stream = fs.createReadStream(filePath)
+      stream.on('data', d => hash.update(d))
+      stream.on('end', () => resolve(hash.digest('hex')))
+      stream.on('error', reject)
+    } catch (e) { reject(e) }
+  })
+}
+
+function downloadWithProgress(url, destPath, onProgress) {
+  return new Promise(async (resolve, reject) => {
+    try {
+      const writer = fs.createWriteStream(destPath)
+      const response = await axios.get(url, { responseType: 'stream' })
+      const total = Number(response.headers['content-length']) || 0
+      let downloaded = 0
+      const start = Date.now()
+      response.data.on('data', chunk => {
+        downloaded += chunk.length
+        const percent = total ? (downloaded / total) * 100 : null
+        const elapsed = (Date.now() - start) / 1000
+        const speed = elapsed > 0 ? (downloaded / elapsed) : 0
+        onProgress && onProgress({ downloaded, total, percent, speed })
+      })
+      response.data.pipe(writer)
+      writer.on('finish', () => resolve(destPath))
+      writer.on('error', reject)
+    } catch (e) { reject(e) }
+  })
+}
+
+async function cleanupOldVersions(versionsDir, currentExePath, keep = 3) {
+  try {
+    if (!fs.existsSync(versionsDir)) return
+    const entries = fs.readdirSync(versionsDir).map(v => ({ name: v, path: path.join(versionsDir, v) }))
+    // Filter only directories
+    const dirs = entries.filter(e => { try { return fs.statSync(e.path).isDirectory() } catch { return false } })
+    // Sort by mtime descending (newest first)
+    dirs.sort((a,b) => {
+      const ma = fs.statSync(a.path).mtimeMs
+      const mb = fs.statSync(b.path).mtimeMs
+      return mb - ma
+    })
+    // Determine which to keep: newest keep entries + the one containing currentExePath
+    const keepSet = new Set()
+    for (let i=0; i<dirs.length && i<keep; i++) keepSet.add(dirs[i].name)
+    // Ensure current exe version directory kept
+    const currentVersionDir = dirs.find(d => currentExePath.startsWith(d.path))
+    if (currentVersionDir) keepSet.add(currentVersionDir.name)
+    const removeTargets = dirs.filter(d => !keepSet.has(d.name))
+    for (const rem of removeTargets) {
+      try {
+        fs.rmSync(rem.path, { recursive: true, force: true })
+      } catch {}
+    }
+  } catch (e) {
+    console.warn('cleanupOldVersions error:', e.message)
   }
 }
 
 function startBackendServer() {
-  let serverProcess
+  let child
   const execPath = getBackendServerExecutable()
   const isDev = Array.isArray(execPath)
+  let cmd, args
 
   if (isDev) {
-    // Development: run node script
-    // Development: use fork so IPC is set up correctly and ESM loader works
-    try {
-      serverProcess = fork(execPath[1], { silent: false })
-    } catch (e) {
-      // Fallback to spawn with explicit ipc if fork fails for any reason
-      serverProcess = spawn(execPath[0], [execPath[1]], { stdio: ['ignore', 'pipe', 'pipe', 'ipc'], detached: true })
-    }
+    // node backend/cli/medomics-server.mjs start --json
+    cmd = execPath[0]
+    args = [execPath[1], 'start', '--json']
   } else {
-    // Packaged: run native binary
-    serverProcess = spawn(execPath, [], { stdio: "ignore", detached: true })
+    // <installed>/medomics-server start --json
+    cmd = execPath
+    args = ['start', '--json']
   }
 
-  // Listen for messages from the child process (the backend). The backend sends
-  // { type: 'EXPRESS_PORT', expressPort } when it has bound to a port.
-  serverProcess.on("message", (message) => {
+  child = spawn(cmd, args, { stdio: ['ignore', 'pipe', 'pipe'] })
+
+  // Parse JSON lines from stdout to capture expressPort
+  let buffer = ''
+  child.stdout.on('data', (chunk) => {
     try {
-      if (message && message.type === "EXPRESS_PORT") {
-        const port = message.expressPort || message.port
-        console.log(`Local Express server started on port: ${port}`)
-        expressPort = port
+      buffer += chunk.toString()
+      let idx
+      while ((idx = buffer.indexOf('\n')) !== -1) {
+        const line = buffer.slice(0, idx).trim()
+        buffer = buffer.slice(idx + 1)
+        if (!line) continue
+        try {
+          const obj = JSON.parse(line)
+          if (obj && obj.success && (obj.state?.expressPort || obj.expressPort)) {
+            const port = obj.state?.expressPort || obj.expressPort
+            console.log(`Local Express server started on port: ${port}`)
+            expressPort = port
+          }
+        } catch (_) {
+          // Non-JSON line; ignore
+        }
       }
     } catch (err) {
-      console.warn('Error handling message from backend process:', err)
+      console.warn('Error parsing backend stdout:', err)
     }
   })
 
-  serverProcess.unref()
-  return serverProcess
+  child.stderr.on('data', (chunk) => {
+    try { console.warn('[backend]', chunk.toString().trim()) } catch {}
+  })
+
+  // Keep legacy IPC handling in case CLI forwards messages in the future
+  if (child.on) {
+    child.on("message", (message) => {
+      try {
+        if (message && message.type === "EXPRESS_PORT") {
+          const port = message.expressPort || message.port
+          console.log(`Local Express server started on port: ${port}`)
+          expressPort = port
+        }
+      } catch (err) {
+        console.warn('Error handling message from backend process:', err)
+      }
+    })
+  }
+
+  child.unref()
+  return child
 }
 
 // ---- Local backend presence/install stubs ----
@@ -320,9 +479,93 @@ ipcMain.handle('setLocalBackendPath', async (_event, exePath) => {
 })
 
 ipcMain.handle('installLocalBackendFromURL', async (_event, { version, manifestUrl } = {}) => {
-  // Stub: not implemented yet. This will fetch a release manifest, download, verify, and place into user dir.
-  // For now, just return an explicit not-implemented response the UI can handle.
-  return { success: false, status: 'not-implemented', error: 'Download-and-install not implemented yet' }
+  // Download and install the backend using a release manifest.
+  // Steps: fetch manifest -> pick asset -> download -> verify sha256 -> extract -> set settings.localBackendPath -> cleanup old versions.
+  const progress = (payload) => {
+    try { _event?.sender?.send('localBackendInstallProgress', payload) } catch {}
+  }
+  try {
+    if (!manifestUrl) return { success: false, error: 'missing-manifest-url' }
+    progress({ phase: 'fetch-manifest', manifestUrl })
+    const { data: manifest } = await axios.get(manifestUrl, { timeout: 30000 })
+    const manifestVersion = version || manifest?.version
+    if (!manifestVersion) return { success: false, error: 'no-version-in-manifest' }
+
+    // Pick asset for current platform/arch
+    const platform = process.platform // 'win32' | 'linux' | 'darwin'
+    const arch = process.arch // 'x64' | 'arm64' | ...
+    const osKeys = [platform, platform === 'win32' ? 'windows' : (platform === 'darwin' ? 'darwin' : 'linux')]
+    const candidates = (manifest?.assets || []).filter(a => {
+      const osMatch = osKeys.includes((a.os||'').toLowerCase())
+      if (!osMatch) return false
+      if (!a.arch) return true
+      return (a.arch||'').toLowerCase() === arch
+    })
+    if (!candidates.length) return { success: false, error: 'no-asset-for-platform', details: { platform, arch } }
+    const asset = candidates[0]
+    const url = asset.url
+    const expectedSha = (asset.sha256||'').trim().toLowerCase()
+    const format = (asset.format||'').toLowerCase() || (url.endsWith('.zip') ? 'zip' : (url.endsWith('.tar.gz') ? 'tar.gz' : ''))
+    if (!url) return { success: false, error: 'asset-has-no-url' }
+
+    // Prepare directories
+    const userDataPath = app.getPath('userData')
+    const baseDir = path.join(userDataPath, 'medomics-server')
+    const versionsDir = path.join(baseDir, 'versions')
+    const versionDir = path.join(versionsDir, manifestVersion)
+    const downloadsDir = path.join(baseDir, 'downloads')
+    try { if (!fs.existsSync(baseDir)) fs.mkdirSync(baseDir, { recursive: true }) } catch {}
+    try { if (!fs.existsSync(versionsDir)) fs.mkdirSync(versionsDir, { recursive: true }) } catch {}
+    try { if (!fs.existsSync(downloadsDir)) fs.mkdirSync(downloadsDir, { recursive: true }) } catch {}
+
+    // If already installed, just point settings and return
+    const existingExe = findInstalledExecutable(versionDir)
+    if (existingExe) {
+      await saveLocalBackendPath(existingExe)
+      progress({ phase: 'already-installed', version: manifestVersion, path: existingExe })
+      return { success: true, version: manifestVersion, path: existingExe, reused: true }
+    }
+
+    // Download asset
+    const fileName = path.basename(url).split('?')[0]
+    const downloadPath = path.join(downloadsDir, fileName)
+    progress({ phase: 'download-start', url, downloadPath })
+    await downloadWithProgress(url, downloadPath, (d) => progress({ phase: 'download-progress', ...d }))
+    progress({ phase: 'download-complete', downloadPath })
+
+    // Verify SHA256
+    if (expectedSha) {
+      progress({ phase: 'verify-start' })
+      const actualSha = await sha256File(downloadPath)
+      const ok = (actualSha||'').toLowerCase() === expectedSha
+      if (!ok) return { success: false, error: 'checksum-mismatch', expectedSha, actualSha }
+      progress({ phase: 'verify-ok', sha256: actualSha })
+    } else {
+      progress({ phase: 'verify-skip', reason: 'no-sha256-in-manifest' })
+    }
+
+    // Extract
+    progress({ phase: 'extract-start', to: versionDir, format })
+    await decompress(downloadPath, versionDir)
+    progress({ phase: 'extract-complete', to: versionDir })
+
+    // Locate executable inside extracted tree
+    const exePath = findInstalledExecutable(versionDir)
+    if (!exePath) return { success: false, error: 'executable-not-found-in-extracted', versionDir }
+    // Ensure exec perms on posix
+    try { if (process.platform !== 'win32') fs.chmodSync(exePath, 0o755) } catch {}
+
+    // Save settings
+    await saveLocalBackendPath(exePath)
+
+    // Cleanup old versions (keep latest 3 including this one and currently referenced)
+    try { await cleanupOldVersions(versionsDir, exePath, 3) } catch {}
+
+    progress({ phase: 'done', version: manifestVersion, path: exePath })
+    return { success: true, version: manifestVersion, path: exePath }
+  } catch (e) {
+    return { success: false, error: e.message || String(e) }
+  }
 })
 
 ipcMain.handle('open-dialog-backend-exe', async () => {
