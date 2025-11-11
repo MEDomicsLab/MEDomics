@@ -235,7 +235,7 @@ const CodeEditor = ({id, path, updateSavedCode}) => {
     {(loading || !content) ? (
       <div>Loading...</div> ) : (
         <>
-          <div className="flex-container justify-between items-center w-full mb-3 mt-2 p-2" style={{ backgroundColor: '#e5e7eb' }}>
+          <div className="flex-container justify-between items-center w-full mb-3 mt-2 p-2">
             <div className="flex-container items-center gap-3 p-2">
               <h6 className="mt-2">Theme:</h6>
               <Dropdown 
