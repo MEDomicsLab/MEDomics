@@ -1,5 +1,5 @@
 appId: com.medomicslab.medapp
-productName: MEDomicsLab # Changed from MEDapp to MEDomicsLab to match package.json
+productName: MEDomics # Changed from MEDomicsLab to MEDomics
 artifactName: "${productName}-${version}-${os}.${ext}" # Added from package.json
 copyright: Copyright © 2023 MEDomicsLab Team
 # Fix for building on Windows when node-gyp is throwing errors on mongodb-client-encryption module
@@ -68,6 +68,6 @@ afterPack: "build/afterPack.js" # Added from package.json
 # afterAllArtifactBuild: "build/afterAllArtifactBuild.js" # Added from package.json
 publish:
   provider: github
-  owner: "MEDomics-UdeS"
-  repo: "MEDomicsLab"
+  owner: "MEDomicsLab"
+  repo: "MEDomics"
   releaseType: "draft"

@@ -62,7 +62,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: windows-built
-          path: ./build/dist/MEDomicsLab-${{ env.VERSION }}-win.exe
+          path: ./build/dist/MEDomics-${{ env.VERSION }}-win.exe
           compression-level: 0
         env:
           VERSION: ${{ steps.get-tag.outputs.VERSION }}
@@ -71,7 +71,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: windows-built-blockmap
-          path: ./build/dist/MEDomicsLab-${{ env.VERSION }}-win.exe.blockmap
+          path: ./build/dist/MEDomics-${{ env.VERSION }}-win.exe.blockmap
           compression-level: 0
         env:
           VERSION: ${{ steps.get-tag.outputs.VERSION }}
@@ -123,7 +123,7 @@ jobs:
           ls -R
 
       - name: zip Windows
-        run: zip -r MEDomicsLab-PythonEnv-win.zip ./requirements.txt ./create_conda_env_win.bat
+        run: zip -r MEDomics-PythonEnv-win.zip ./requirements.txt ./create_conda_env_win.bat
 
       - name: Get tag name
         id: get-tag
@@ -135,14 +135,14 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           files: |
-            ./MEDomicsLab-${{ env.VERSION }}-win.exe
-            ./MEDomicsLab-${{ env.VERSION }}-win.exe.blockmap
+            ./MEDomics-${{ env.VERSION }}-win.exe
+            ./MEDomics-${{ env.VERSION }}-win.exe.blockmap
             ./latest.yml
-            ./MEDomicsLab-PythonEnv-win.zip
-          name: MEDomicsLab-${{ env.VERSION }}
+            ./MEDomics-PythonEnv-win.zip
+          name: MEDomics-${{ env.VERSION }}
           body: |
-            MEDomicsLab-${{ env.VERSION }}
-            This is a full release of MEDomicsLab. This release includes the MEDomicsLab application and the Python environment.
+            MEDomics-${{ env.VERSION }}
+            This is a full release of MEDomics. This release includes the MEDomics platform and the Python environment.
             Refer to the [Documentation](https://medomics-udes.gitbook.io/medomicslab-docs/)
             ${{ github.ref }}
           draft: true

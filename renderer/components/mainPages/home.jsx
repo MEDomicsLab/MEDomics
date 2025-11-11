@@ -145,7 +145,7 @@ const HomePage = () => {
         <Stack direction="vertical" gap={1} style={{ alignContent: "center", flexGrow: 1 }}>
           <h2>Home page</h2>
           <Stack direction="horizontal" gap={0} style={{ alignContent: "center" }}>
-            <h1 style={{ fontSize: "5rem" }}>MEDomicsLab </h1>
+            <h1 style={{ fontSize: "5rem" }}>MEDomics</h1>
             <h2 style={{ fontSize: "2rem", marginTop: "1.5rem" }}>v{appVersion}</h2>
             <Image src={myimage} alt="" style={{ height: "175px", width: "175px" }} />
           </Stack>
@@ -207,7 +207,7 @@ const HomePage = () => {
           </h3>
           
           <p>
-          To effectively navigate MEDomicsLab and its functionalities, we recommend consulting the official documentation and tutorial resources.
+          To effectively navigate MEDomics and its functionalities, we recommend consulting the official documentation and tutorial resources.
           These materials will help you understand how to manage datasets, perform analyses, and evaluate machine learning models within the platform.
           </p>
 
@@ -217,7 +217,7 @@ const HomePage = () => {
             <li>📖 Documentation:  
               <a href="https://medomics-udes.gitbook.io/medomicslab-docs/medomicslab-docs-v0/tutorials" 
                  target="_blank" rel="noopener noreferrer" style={{ color: "#4991dfff", textDecoration: "none", marginLeft: "5px" }}>
-                MEDomicsLab Documentation
+                MEDomics Documentation
               </a>
             </li>
 
@@ -247,7 +247,7 @@ const HomePage = () => {
             borderRadius: "5px"
           }}
         >
-          ⚠️ <strong>Note:</strong> The Testing Phase offers the first official tutorials of MEDomicsLab, based on the pre-released version launched in January 2024. Despite subsequent improvements, these tutorials are still a valuable starting point for new users.
+          ⚠️ <strong>Note:</strong> The Testing Phase offers the first official tutorials of MEDomics, based on the pre-released version launched in January 2024. Despite subsequent improvements, these tutorials are still a valuable starting point for new users.
         </div>
 
         </div>

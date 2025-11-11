@@ -59,7 +59,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: linux-built-ubuntu
-          path: ./build/dist/MEDomicsLab-${{ env.VERSION }}-linux.deb
+          path: ./build/dist/MEDomics-${{ env.VERSION }}-linux.deb
           compression-level: 0
         env:
           VERSION: ${{ steps.get-tag.outputs.VERSION }}
@@ -92,7 +92,7 @@ jobs:
           ls -R
 
       - name: zip Linux
-        run: zip -r MEDomicsLab-PythonEnv-linux.zip ./requirements.txt ./create_conda_env_linux.sh
+        run: zip -r MEDomics-PythonEnv-linux.zip ./requirements.txt ./create_conda_env_linux.sh
 
       - name: Get tag name
         id: get-tag
@@ -104,12 +104,12 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           files: |
-            ./MEDomicsLab-${{ env.VERSION }}-linux.deb
-            ./MEDomicsLab-PythonEnv-linux.zip
-          name: MEDomicsLab-${{ env.VERSION }}
+            ./MEDomics-${{ env.VERSION }}-linux.deb
+            ./MEDomics-PythonEnv-linux.zip
+          name: MEDomics-${{ env.VERSION }}
           body: |
-            MEDomicsLab-${{ env.VERSION }}
-            This is a full release of MEDomicsLab. This release includes the MEDomicsLab application and the Python environment.
+            MEDomics-${{ env.VERSION }}
+            This is a full release of MEDomics. This release includes the MEDomics platform and the Python environment.
             Refer to the [Documentation](https://medomics-udes.gitbook.io/medomicslab-docs/)
             ${{ github.ref }}
           draft: true
