@@ -213,6 +213,43 @@ async function startRemoteBackend(conn, remoteOS, exePath, remotePort) {
 
 function sleep(ms){ return new Promise(r=>setTimeout(r, ms)) }
 
+async function detectRemoteArch(conn, remoteOS) {
+  try {
+    if (remoteOS === 'win32') {
+      const r = await execRemote(conn, 'powershell -NoProfile -Command "$env:PROCESSOR_ARCHITECTURE"')
+      const a = (r.stdout || '').trim().toLowerCase()
+      if (a.includes('arm64') || a.includes('aarch64')) return 'arm64'
+      return 'x64'
+    } else {
+      const r = await execRemote(conn, 'uname -m || true')
+      const a = (r.stdout || '').trim().toLowerCase()
+      if (a.includes('arm64') || a.includes('aarch64')) return 'arm64'
+      if (a.includes('x86_64') || a.includes('amd64')) return 'x64'
+      return 'x64'
+    }
+  } catch {
+    return 'x64'
+  }
+}
+
+function mapOsKey(remoteOS) {
+  // Map Node-like OS ids to manifest os keys
+  if (remoteOS === 'win32') return ['windows', 'win32']
+  if (remoteOS === 'darwin') return ['darwin', 'macos', 'osx']
+  return ['linux']
+}
+
+function selectAssetForRemote(manifest, remoteOS, remoteArch) {
+  const assets = (manifest && manifest.assets) || []
+  const osKeys = mapOsKey(remoteOS)
+  const first = assets.find(a => osKeys.includes(String(a.os||'').toLowerCase()) && (!a.arch || String(a.arch).toLowerCase() === remoteArch))
+  return first || null
+}
+
+function sendInstallProgress(payload) {
+  try { mainWindow && mainWindow.webContents && mainWindow.webContents.send('remoteBackendInstallProgress', payload) } catch {}
+}
+
 ipcMain.handle('ensureRemoteBackend', async (_event, { port } = {}) => {
   const conn = getActiveTunnel()
   if (!conn) return { success: false, status: 'tunnel-inactive', error: 'No active SSH tunnel' }
@@ -327,6 +364,142 @@ ipcMain.handle('startRemoteBackendUsingPath', async (_event, { path: exePath, po
   const remoteOS = await detectRemoteOS()
   const res = await startRemoteBackend(conn, remoteOS, exePath, port || (getTunnelState().remoteExpressPort))
   return res
+})
+
+ipcMain.handle('installRemoteBackendFromURL', async (_event, { manifestUrl, version } = {}) => {
+  const conn = getActiveTunnel()
+  if (!conn) return { success: false, error: 'No active SSH tunnel' }
+  try {
+    if (!manifestUrl) return { success: false, error: 'missing-manifest-url' }
+    sendInstallProgress({ phase: 'fetch-manifest', manifestUrl })
+    const { data: manifest } = await axios.get(manifestUrl, { timeout: 30000 })
+    const manifestVersion = version || manifest?.version
+    if (!manifestVersion) return { success: false, error: 'no-version-in-manifest' }
+
+    const remoteOS = await detectRemoteOS()
+    const remoteArch = await detectRemoteArch(conn, remoteOS)
+    const asset = selectAssetForRemote(manifest, remoteOS, remoteArch)
+    if (!asset) return { success: false, error: 'no-asset-for-remote', details: { remoteOS, remoteArch } }
+    const url = asset.url
+    const expectedSha = (asset.sha256||'').trim().toLowerCase()
+    if (!url) return { success: false, error: 'asset-has-no-url' }
+
+    const home = await getRemoteHome(conn, remoteOS)
+    const baseDir = remoteOS === 'win32' ? `${home}\\.medomics\\medomics-server` : `${home}/.medomics/medomics-server`
+    const versionsDir = remoteOS === 'win32' ? `${baseDir}\\versions` : `${baseDir}/versions`
+    const versionDir = remoteOS === 'win32' ? `${versionsDir}\\${manifestVersion}` : `${versionsDir}/${manifestVersion}`
+    const downloadsDir = remoteOS === 'win32' ? `${baseDir}\\downloads` : `${baseDir}/downloads`
+
+    // Ensure dirs exist
+    sendInstallProgress({ phase: 'prepare-dirs', baseDir, versionDir })
+    if (remoteOS === 'win32') {
+      await execRemote(conn, `powershell -NoProfile -Command "New-Item -ItemType Directory -Force -Path '${baseDir.replace(/'/g, "''")}' | Out-Null; New-Item -ItemType Directory -Force -Path '${versionsDir.replace(/'/g, "''")}' | Out-Null; New-Item -ItemType Directory -Force -Path '${versionDir.replace(/'/g, "''")}' | Out-Null; New-Item -ItemType Directory -Force -Path '${downloadsDir.replace(/'/g, "''")}' | Out-Null"`)
+    } else {
+      await execRemote(conn, `bash -lc "mkdir -p '${baseDir.replace(/'/g, "'\\''")}' '${versionsDir.replace(/'/g, "'\\''")}' '${versionDir.replace(/'/g, "'\\''")}' '${downloadsDir.replace(/'/g, "'\\''")}'"`)
+    }
+
+    // If already installed, try to reuse
+    const candidateExeWin = `${versionDir}\\bin\\medomics-server.exe`
+    const candidateExePosix = `${versionDir}/bin/medomics-server`
+    if (remoteOS === 'win32') {
+      const r = await execRemote(conn, `powershell -NoProfile -Command "If (Test-Path '${candidateExeWin.replace(/'/g, "''")}') { Write-Output 'FOUND' }"`)
+      if ((r.stdout||'').trim() === 'FOUND') {
+        setRemoteBackendExecutablePath(candidateExeWin)
+        sendInstallProgress({ phase: 'already-installed', version: manifestVersion, path: candidateExeWin })
+        return { success: true, version: manifestVersion, path: candidateExeWin, reused: true }
+      }
+    } else {
+      const r = await execRemote(conn, `bash -lc "[ -x '${candidateExePosix.replace(/'/g, "'\\''")}'] && echo FOUND || true"`)
+      if ((r.stdout||'').trim() === 'FOUND') {
+        setRemoteBackendExecutablePath(candidateExePosix)
+        sendInstallProgress({ phase: 'already-installed', version: manifestVersion, path: candidateExePosix })
+        return { success: true, version: manifestVersion, path: candidateExePosix, reused: true }
+      }
+    }
+
+    // Download
+    const fileName = url.split('/').pop().split('?')[0]
+    const remoteDownloadPath = remoteOS === 'win32' ? `${downloadsDir}\\${fileName}` : `${downloadsDir}/${fileName}`
+    sendInstallProgress({ phase: 'download-start', url, remoteDownloadPath })
+    if (remoteOS === 'win32') {
+      const ps = `powershell -NoProfile -Command "Invoke-WebRequest -Uri '${url.replace(/'/g, "''")}' -OutFile '${remoteDownloadPath.replace(/'/g, "''")}' -UseBasicParsing"`
+      const r = await execRemote(conn, ps)
+      if (r.code !== 0 && r.stderr) return { success: false, error: 'download-failed', details: r.stderr }
+    } else {
+      const sh = `bash -lc "curl -L --fail -o '${remoteDownloadPath.replace(/'/g, "'\\''")}' '${url.replace(/'/g, "'\\''")}'"`
+      const r = await execRemote(conn, sh)
+      if (r.code !== 0 && r.stderr) return { success: false, error: 'download-failed', details: r.stderr }
+    }
+    sendInstallProgress({ phase: 'download-complete', remoteDownloadPath })
+
+    // Verify SHA256
+    if (expectedSha) {
+      sendInstallProgress({ phase: 'verify-start' })
+      if (remoteOS === 'win32') {
+        const r = await execRemote(conn, `powershell -NoProfile -Command "(Get-FileHash -Algorithm SHA256 '${remoteDownloadPath.replace(/'/g, "''")}').Hash"`)
+        const actual = (r.stdout||'').trim().toLowerCase()
+        if (!actual || actual !== expectedSha) return { success: false, error: 'checksum-mismatch', expectedSha, actual }
+      } else {
+        // Prefer sha256sum, fallback to shasum
+        const r = await execRemote(conn, `bash -lc "if command -v sha256sum >/dev/null 2>&1; then sha256sum '${remoteDownloadPath.replace(/'/g, "'\\''")}' | awk '{print $1}'; else shasum -a 256 '${remoteDownloadPath.replace(/'/g, "'\\''")}' | awk '{print $1}'; fi"`)
+        const actual = (r.stdout||'').trim().toLowerCase()
+        if (!actual || actual !== expectedSha) return { success: false, error: 'checksum-mismatch', expectedSha, actual }
+      }
+      sendInstallProgress({ phase: 'verify-ok' })
+    } else {
+      sendInstallProgress({ phase: 'verify-skip', reason: 'no-sha256-in-manifest' })
+    }
+
+    // Extract
+    sendInstallProgress({ phase: 'extract-start', to: versionDir })
+    if (remoteOS === 'win32') {
+      if (fileName.toLowerCase().endsWith('.zip')) {
+        const r = await execRemote(conn, `powershell -NoProfile -Command "Expand-Archive -Path '${remoteDownloadPath.replace(/'/g, "''")}' -DestinationPath '${versionDir.replace(/'/g, "''")}' -Force"`)
+        if (r.code !== 0 && r.stderr) return { success: false, error: 'extract-failed', details: r.stderr }
+      } else {
+        // Attempt tar if available (Windows 10+)
+        const r = await execRemote(conn, `tar -xf "${remoteDownloadPath}" -C "${versionDir}" 2>&1 || powershell -NoProfile -Command "throw 'Unsupported archive format'"`)
+        if (r.code !== 0 && r.stderr) return { success: false, error: 'extract-failed', details: r.stderr }
+      }
+    } else {
+      if (fileName.toLowerCase().endsWith('.tar.gz') || fileName.toLowerCase().endsWith('.tgz')) {
+        const r = await execRemote(conn, `bash -lc "tar -xzf '${remoteDownloadPath.replace(/'/g, "'\\''")}' -C '${versionDir.replace(/'/g, "'\\''")}'"`)
+        if (r.code !== 0 && r.stderr) return { success: false, error: 'extract-failed', details: r.stderr }
+      } else if (fileName.toLowerCase().endsWith('.zip')) {
+        const r = await execRemote(conn, `bash -lc "unzip -o '${remoteDownloadPath.replace(/'/g, "'\\''")}' -d '${versionDir.replace(/'/g, "'\\''")}'"`)
+        if (r.code !== 0 && r.stderr) return { success: false, error: 'extract-failed', details: r.stderr }
+      } else {
+        return { success: false, error: 'unsupported-archive-format' }
+      }
+    }
+    sendInstallProgress({ phase: 'extract-complete' })
+
+    // Locate executable
+    let exePath
+    if (remoteOS === 'win32') {
+      const findExe = await execRemote(conn, `powershell -NoProfile -Command "Get-ChildItem -Path '${versionDir.replace(/'/g, "''")}' -Recurse -Filter medomics-server.exe | Select-Object -First 1 -ExpandProperty FullName"`)
+      exePath = (findExe.stdout || '').trim()
+    } else {
+      const findExe = await execRemote(conn, `bash -lc "( [ -x '${candidateExePosix.replace(/'/g, "'\\''")}' ] && echo '${candidateExePosix.replace(/'/g, "'\\''")}' ) || find '${versionDir.replace(/'/g, "'\\''")}' -type f -name 'medomics-server' -perm +111 -print -quit || true"`)
+      exePath = (findExe.stdout || '').trim()
+    }
+    if (!exePath) return { success: false, error: 'executable-not-found' }
+    if (remoteOS !== 'win32') {
+      await execRemote(conn, `bash -lc "chmod +x '${exePath.replace(/'/g, "'\\''")}'"`)
+    }
+
+    // Optional: create 'current' symlink on posix
+    if (remoteOS !== 'win32') {
+      const currentLink = `${baseDir}/current`
+      await execRemote(conn, `bash -lc "ln -sfn '${versionDir.replace(/'/g, "'\\''")}' '${currentLink.replace(/'/g, "'\\''")}'"`)
+    }
+
+    setRemoteBackendExecutablePath(exePath)
+    sendInstallProgress({ phase: 'done', version: manifestVersion, path: exePath })
+    return { success: true, version: manifestVersion, path: exePath }
+  } catch (e) {
+    return { success: false, error: e && e.message ? e.message : String(e) }
+  }
 })
 
 

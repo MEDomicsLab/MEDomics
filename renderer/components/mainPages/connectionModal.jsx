@@ -68,7 +68,7 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
   const [goVerifyLoading, setGoVerifyLoading] = useState(false)
 
   // Step 2: Remote server setup state
-  const [remoteInstalled, setRemoteInstalled] = useState(false)
+  const [, setRemoteInstalled] = useState(false)
   const [installingRemote, setInstallingRemote] = useState(false)
   const [remoteInstallText, setRemoteInstallText] = useState('')
   const [remoteStartPort, setRemoteStartPort] = useState('3000')
@@ -76,6 +76,12 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
   const [requirementsChecking, setRequirementsChecking] = useState(false)
   const [requirementsMetRemote, setRequirementsMetRemote] = useState(false)
   const [requirementsInstalling, setRequirementsInstalling] = useState(false)
+  const [requirementsDetailsRemote, setRequirementsDetailsRemote] = useState({ pythonEnv: false, pythonPackages: false, mongoInstalled: false })
+  // Remote install progress
+  const [remoteInstallPhase, setRemoteInstallPhase] = useState('')
+  const [remoteDownloadPercent, setRemoteDownloadPercent] = useState(null)
+  const [remoteDownloadSpeed, setRemoteDownloadSpeed] = useState(null)
+  const [remoteInstallEvents, setRemoteInstallEvents] = useState([])
 
   // Validation state
   const [inputErrors, setInputErrors] = useState({})
@@ -166,6 +172,10 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
       setRequirementsMetRemote(false)
       setRequirementsChecking(false)
       setRequirementsInstalling(false)
+  setRemoteInstallPhase('')
+  setRemoteDownloadPercent(null)
+  setRemoteDownloadSpeed(null)
+  setRemoteInstallEvents([])
       const tunnel = getTunnelState()
       if (tunnel.tunnelActive) {
         setTunnelActive(true)
@@ -189,6 +199,28 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
       }
     }
   }, [visible])
+
+  // Subscribe to remote install progress events
+  useEffect(() => {
+    const handler = (_event, payload) => {
+      try {
+        if (!payload || typeof payload !== 'object') return
+        if (payload.phase) setRemoteInstallPhase(payload.phase)
+        if (typeof payload.percent === 'number') setRemoteDownloadPercent(payload.percent)
+        if (typeof payload.speed === 'number') setRemoteDownloadSpeed(payload.speed)
+        setRemoteInstallEvents(prev => [...prev.slice(-50), payload])
+        if (payload.phase === 'done') {
+          // Reset spinners once installation finishes
+          setInstallingRemote(false)
+          setRemoteInstallText('')
+        }
+      } catch (e) { /* ignore */ }
+    }
+    ipcRenderer.on('remoteBackendInstallProgress', handler)
+    return () => {
+      try { ipcRenderer.removeListener('remoteBackendInstallProgress', handler) } catch (e) { /* ignore */ }
+    }
+  }, [])
 
   // Step 1: Only establish SSH tunnel/auth to remote host
   const handleConnectSSH = async (info, isReconnect = false) => {
@@ -343,26 +375,37 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
     }
     try {
       setRemoteBackendStatus('Checking remote server...')
-      const ensure = await ipcRenderer.invoke('ensureRemoteBackend', { port: Number(remoteExpressPort), checkOnly: true })
-      if (ensure && ensure.success && ensure.status === 'running') {
-        setRemoteBackendStatus(`Remote server running on port ${remoteExpressPort}`)
-        ensure.path && setRemoteBackendPath(ensure.path)
-        setRemoteInstalled(true)
-        setRemoteServerRunning(true)
-      } else if (ensure && ensure.status === 'not-found') {
-        setRemoteBackendStatus('Remote server not found. Install or locate it.')
-        setRemoteInstalled(false)
-        setRemoteServerRunning(false)
+      const status = await ipcRenderer.invoke('backendStatus', { target: 'remote' })
+      // status may be raw backend /status response or CLI JSON
+      if (status && status.success) {
+        const expressPort = status.expressPort || status.state?.expressPort || status.expressPort
+        if (expressPort) {
+          setRemoteExpressPort(String(expressPort))
+        }
+        // Determine running condition heuristically
+        const running = (status.go && status.go.running) || (status.mongo && status.mongo.running) || (status.jupyter && status.jupyter.running) || !!expressPort
+        if (running) {
+          setRemoteBackendStatus(`Remote server reachable${expressPort ? ' on port ' + expressPort : ''}`)
+          setRemoteServerRunning(true)
+          setRemoteInstalled(true)
+        } else {
+          setRemoteBackendStatus('Remote server not running. Install or start it.')
+          setRemoteServerRunning(false)
+        }
       } else {
-        setRemoteBackendStatus(`Remote server not running (${ensure?.status || 'unknown'}). You can install or locate it.`)
-        setRemoteInstalled(true)
+        setRemoteBackendStatus('Remote server not found. Install or locate it.')
         setRemoteServerRunning(false)
+        setRemoteInstalled(false)
       }
     } catch (e) {
       setRemoteBackendStatus('Failed to check remote server: ' + (e?.message || String(e)))
     }
   }
 
+  // TODO: Replace with the GitHub Releases manifest asset URL for MEDomics Server, e.g.
+  // https://github.com/MEDomicsLab/MEDomics/releases/latest/download/manifest.json
+  // or pin to a specific version: https://github.com/MEDomicsLab/MEDomics/releases/download/vX.Y.Z/manifest.json
+  const DEFAULT_REMOTE_MANIFEST = 'https://github.com/OWNER/REPO/releases/latest/download/manifest.json'
   const installRemoteServer = async () => {
     if (!tunnelActive) {
       toast.error('SSH tunnel is not active. Connect first.')
@@ -371,11 +414,13 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
     try {
       setInstallingRemote(true)
       setRemoteInstallText('Installing remote server...')
-      const res = await ipcRenderer.invoke('installRemoteBackend')
+      const res = await ipcRenderer.invoke('installRemoteBackendFromURL', { manifestUrl: DEFAULT_REMOTE_MANIFEST })
       if (res && res.success) {
         setRemoteBackendPath(res.path)
         toast.success('Remote server installed.')
         setRemoteInstalled(true)
+        // After install, run a status check
+        await checkRemoteServer()
       } else {
         toast.error('Failed to install remote server: ' + (res?.error || 'unknown error'))
         setRemoteInstalled(false)
@@ -410,6 +455,8 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
         setRemoteExpressPort(String(remoteStartPort))
         // Optionally verify by hitting /status
         await window.backend.requestExpress({ method: 'get', path: '/status', host, port: Number(localExpressPort) })
+        // After server starts, immediately check requirements to update UI
+        await checkRequirementsRemote()
       } else {
         setRemoteBackendStatus('Failed to start remote server: ' + (started?.error || 'unknown error'))
         setRemoteServerRunning(false)
@@ -425,13 +472,21 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
     try {
       setRequirementsChecking(true)
       const resp = await window.backend.requestExpress({ method: 'get', path: '/check-requirements', host, port: Number(localExpressPort) })
-      const ok = !!(resp?.data?.success && resp?.data?.result && resp.data.result.pythonInstalled && resp.data.result.mongoDBInstalled)
+      const result = resp?.data?.result || {}
+      // Normalize shapes: support both legacy and consolidated formats
+      const pythonEnv = result?.python ? !!result.python.env : (typeof result?.pythonInstalled === 'boolean' ? !!result.pythonInstalled : false)
+      const pythonPackages = result?.python ? (
+        typeof result.python.packagesOk === 'boolean' ? !!result.python.packagesOk : (Array.isArray(result.python.missingPackages) ? result.python.missingPackages.length === 0 : false)
+      ) : (typeof result?.pythonPackagesOk === 'boolean' ? !!result.pythonPackagesOk : false)
+      const mongoInstalled = result?.mongo ? !!result.mongo.installed : (typeof result?.mongoDBInstalled === 'boolean' ? !!result.mongoDBInstalled : false)
+
+      const ok = pythonEnv && pythonPackages && mongoInstalled
+      setRequirementsDetailsRemote({ pythonEnv, pythonPackages, mongoInstalled })
       setRequirementsMetRemote(ok)
-      if (!ok) {
-        toast.warn('Some requirements are missing on remote.')
-      }
+      if (!ok) toast.warn('Some requirements are missing on remote.')
     } catch (e) {
       setRequirementsMetRemote(false)
+      setRequirementsDetailsRemote({ pythonEnv: false, pythonPackages: false, mongoInstalled: false })
     } finally {
       setRequirementsChecking(false)
     }
@@ -741,12 +796,27 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
               </div>
             </div>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-              <Button onClick={checkRemoteServer} disabled={!tunnelActive || connectionProcessing} style={{ background: 'var(--button-bg)', color: 'var(--button-text)' }}>Check</Button>
-              <Button onClick={installRemoteServer} disabled={!tunnelActive || installingRemote || remoteInstalled} style={{ background: 'var(--button-bg)', color: 'var(--button-text)' }}>Install on Remote</Button>
-              {installingRemote && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <ProgressBar mode="indeterminate" style={{ width: 200 }} />
-                  <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{remoteInstallText || 'Installing...'}</span>
+                  <Button onClick={checkRemoteServer} disabled={!tunnelActive || connectionProcessing} style={{ background: 'var(--button-bg)', color: 'var(--button-text)' }}>Check</Button>
+                  <Button onClick={installRemoteServer} disabled={!tunnelActive || installingRemote} style={{ background: 'var(--button-bg)', color: 'var(--button-text)' }}>Install / Update</Button>
+              {(installingRemote || remoteInstallPhase) && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                  {typeof remoteDownloadPercent === 'number' ? (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <ProgressBar value={Math.max(0, Math.min(100, remoteDownloadPercent))} style={{ width: 240 }} />
+                      <span style={{ fontSize: 12, color: 'var(--text-secondary)', minWidth: 60, textAlign: 'right' }}>
+                        {remoteDownloadPercent.toFixed(0)}%
+                      </span>
+                    </div>
+                  ) : (
+                    <ProgressBar mode="indeterminate" style={{ width: 240 }} />
+                  )}
+                  <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+                    {remoteInstallText ||
+                      (remoteInstallPhase
+                        ? `Phase: ${remoteInstallPhase}`
+                        : 'Installing...')}
+                    {typeof remoteDownloadSpeed === 'number' && ` · ${(remoteDownloadSpeed / (1024*1024)).toFixed(2)} MB/s`}
+                  </span>
                 </div>
               )}
             </div>
@@ -759,6 +829,9 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <h4 style={{ margin: 0 }}>Remote Requirements</h4>
                 <Tag value={requirementsMetRemote ? 'OK' : 'Missing'} severity={requirementsMetRemote ? 'success' : 'warning'} rounded />
+              </div>
+              <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4 }}>
+                Python Env: <strong style={{ color: requirementsDetailsRemote.pythonEnv ? 'var(--success)' : 'var(--danger)' }}>{requirementsDetailsRemote.pythonEnv ? 'Yes' : 'No'}</strong> · Packages: <strong style={{ color: requirementsDetailsRemote.pythonPackages ? 'var(--success)' : 'var(--danger)' }}>{requirementsDetailsRemote.pythonPackages ? 'OK' : 'Missing'}</strong> · MongoDB: <strong style={{ color: requirementsDetailsRemote.mongoInstalled ? 'var(--success)' : 'var(--danger)' }}>{requirementsDetailsRemote.mongoInstalled ? 'Installed' : 'Missing'}</strong>
               </div>
               <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 8 }}>
                 <Button onClick={checkRequirementsRemote} disabled={!remoteServerRunning || requirementsChecking} style={{ background: 'var(--button-bg)', color: 'var(--button-text)' }}>Check</Button>

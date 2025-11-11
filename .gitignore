@@ -168,3 +168,4 @@ package-lock.json
 pythonCode/local_dir/*
 
 !*.gitkeep
+medomics-server-state.json

@@ -9,19 +9,24 @@ import { fork } from 'child_process'
 import http from 'http'
 // no __filename/__dirname needed in this scaffold
 // Removed __dirname and unused port range constants in scaffold to satisfy lint
-const STATE_FILE = path.resolve(process.cwd(), 'medomics-server-state.json')
+function getStateFile(flags) {
+  const f = flags['state-file'] || flags['stateFile']
+  const p = f ? path.resolve(f) : path.resolve(process.cwd(), 'medomics-server-state.json')
+  return p
+}
 
 function log(msg) {
   if (!process.env.JSON) console.log(msg)
 }
 
-function writeState(state) {
-  fs.writeFileSync(STATE_FILE, JSON.stringify(state, null, 2))
+function writeStateAt(stateFile, state) {
+  try { fs.mkdirSync(path.dirname(stateFile), { recursive: true }) } catch (e) { /* ignore */ }
+  fs.writeFileSync(stateFile, JSON.stringify(state, null, 2))
 }
 
-function readState() {
-  if (!fs.existsSync(STATE_FILE)) return null
-  try { return JSON.parse(fs.readFileSync(STATE_FILE, 'utf-8')) } catch { return null }
+function readStateAt(stateFile) {
+  if (!fs.existsSync(stateFile)) return null
+  try { return JSON.parse(fs.readFileSync(stateFile, 'utf-8')) } catch { return null }
 }
 
 function parseArgs(argv) {
@@ -73,7 +78,8 @@ async function httpPost(port, pathName, body) {
 }
 
 async function startCommand(flags) {
-  if (readState()?.running) {
+  const stateFile = getStateFile(flags)
+  if (readStateAt(stateFile)?.running) {
     console.error('Server already running (state file present). Use status or stop (not yet implemented).')
     process.exit(1)
   }
@@ -91,10 +97,10 @@ async function startCommand(flags) {
     if (msg && msg.type === 'EXPRESS_PORT') {
       settled = true
       const state = { running: true, pid: child.pid, expressPort: msg.expressPort, started: new Date().toISOString() }
-      writeState(state)
-      if (flags.json) {
-        process.stdout.write(JSON.stringify({ success: true, state })+'\n')
-      } else {
+      writeStateAt(stateFile, state)
+      // Always emit a JSON line that background.js can parse
+      process.stdout.write(JSON.stringify({ success: true, state, expressPort: state.expressPort })+'\n')
+      if (!flags.json) {
         log('Express started on port ' + msg.expressPort)
       }
     }
@@ -116,7 +122,8 @@ async function startCommand(flags) {
 }
 
 async function statusCommand(flags) {
-  const state = readState()
+  const stateFile = getStateFile(flags)
+  const state = readStateAt(stateFile)
   if (!state?.expressPort) {
     console.error('No running state found (start not invoked or state file missing).')
     process.exit(1)
@@ -132,7 +139,8 @@ async function statusCommand(flags) {
 }
 
 async function ensureCommand(flags) {
-  const state = readState()
+  const stateFile = getStateFile(flags)
+  const state = readStateAt(stateFile)
   if (!state?.expressPort) {
     console.error('Cannot ensure services: server not started.')
     process.exit(1)
@@ -153,12 +161,13 @@ async function ensureCommand(flags) {
 async function installCommand(flags) {
   // Option 1 implementation: drive existing Express endpoints
   // 1) Ensure Express is running (start if no state)
-  let state = readState()
+  const stateFile = getStateFile(flags)
+  let state = readStateAt(stateFile)
   if (!state?.expressPort) {
     log('Express not started (no state found). Starting...')
     await startCommand({ ...flags })
     // re-read state after start
-    state = readState()
+    state = readStateAt(stateFile)
   }
   if (!state?.expressPort) {
     console.error('Failed to obtain Express port after start.')
@@ -320,7 +329,8 @@ function pidIsAlive(pid) {
 }
 
 async function stopCommand(flags) {
-  const state = readState()
+  const stateFile = getStateFile(flags)
+  const state = readStateAt(stateFile)
   if (!state?.pid) {
     console.error('No running state (nothing to stop).')
     process.exit(1)
@@ -329,7 +339,7 @@ async function stopCommand(flags) {
   const alive = pidIsAlive(pid)
   if (!alive) {
     // Stale state file
-    fs.unlinkSync(STATE_FILE)
+    fs.unlinkSync(stateFile)
     if (flags.json) {
       process.stdout.write(JSON.stringify({ success: true, message: 'State file removed (process already dead).' })+'\n')
     } else {
@@ -347,7 +357,7 @@ async function stopCommand(flags) {
   const interval = setInterval(() => {
     if (!pidIsAlive(pid)) {
       clearInterval(interval)
-  try { fs.unlinkSync(STATE_FILE) } catch (e) { /* ignore */ }
+      try { fs.unlinkSync(stateFile) } catch (e) { /* ignore */ }
       const result = { success: true, stopped: true }
       process.stdout.write(JSON.stringify(result)+'\n')
     } else if (Date.now() > deadline) {
@@ -355,7 +365,7 @@ async function stopCommand(flags) {
       // Force kill
   try { process.kill(pid, 'SIGKILL') } catch (e) { /* ignore */ }
       const forced = !pidIsAlive(pid)
-  try { fs.unlinkSync(STATE_FILE) } catch (e) { /* ignore */ }
+      try { fs.unlinkSync(stateFile) } catch (e) { /* ignore */ }
       const result = { success: forced, forced }
       process.stdout.write(JSON.stringify(result)+'\n')
     }

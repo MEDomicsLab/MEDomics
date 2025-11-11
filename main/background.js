@@ -367,14 +367,19 @@ function startBackendServer() {
   const isDev = Array.isArray(execPath)
   let cmd, args
 
+  // Prepare CLI state file under userData for consistent port discovery
+  const stateDir = path.join(app.getPath('userData'), 'medomics-server')
+  try { if (!fs.existsSync(stateDir)) fs.mkdirSync(stateDir, { recursive: true }) } catch {}
+  const stateFilePath = path.join(stateDir, 'state.json')
+
   if (isDev) {
     // node backend/cli/medomics-server.mjs start --json
     cmd = execPath[0]
-    args = [execPath[1], 'start', '--json']
+    args = [execPath[1], 'start', '--json', '--state-file', stateFilePath]
   } else {
     // <installed>/medomics-server start --json
     cmd = execPath
-    args = ['start', '--json']
+    args = ['start', '--json', '--state-file', stateFilePath]
   }
 
   child = spawn(cmd, args, { stdio: ['ignore', 'pipe', 'pipe'] })
@@ -424,9 +429,143 @@ function startBackendServer() {
     })
   }
 
+  // Fallback: if we didn't get the port within timeout, probe known range
+  const fallbackTimeoutMs = 10000
+  setTimeout(async () => {
+    if (!expressPort) {
+      try {
+        const found = await findExpressPortByProbing(3000, 8000, 48, 250)
+        if (found) {
+          expressPort = found
+          console.log(`Discovered Express port via probe: ${found}`)
+        } else {
+          console.warn('Failed to discover Express port via probe within timeout')
+        }
+      } catch (e) {
+        console.warn('Error probing for Express port:', e.message)
+      }
+    }
+  }, fallbackTimeoutMs)
+
   child.unref()
   return child
 }
+
+async function findExpressPortByProbing(start = 3000, end = 8000, batchSize = 40, timeoutMs = 300) {
+  const clamp = (n, min, max) => Math.max(min, Math.min(max, n))
+  let p = start
+  while (p <= end) {
+    const to = clamp(p + batchSize - 1, p, end)
+    const ports = []
+    for (let i = p; i <= to; i++) ports.push(i)
+    const results = await Promise.allSettled(ports.map(port => axios.get(`http://127.0.0.1:${port}/status`, { timeout: timeoutMs })))
+    for (let i = 0; i < results.length; i++) {
+      const r = results[i]
+      if (r.status === 'fulfilled') {
+        const data = r.value && r.value.data ? r.value.data : r.value
+        if (data && (data.success || data.expressPort || data.go || data.mongo || data.jupyter)) {
+          return ports[i]
+        }
+      }
+    }
+    p = to + 1
+  }
+  return null
+}
+
+// ---- Unified status and ensure (local via CLI, remote via tunnel) ----
+function getCliCommandAndArgs(baseArgs = []) {
+  const execPath = getBackendServerExecutable()
+  const isDev = Array.isArray(execPath)
+  const stateDir = path.join(app.getPath('userData'), 'medomics-server')
+  try { if (!fs.existsSync(stateDir)) fs.mkdirSync(stateDir, { recursive: true }) } catch {}
+  const stateFilePath = path.join(stateDir, 'state.json')
+  if (isDev) return { cmd: execPath[0], args: [execPath[1], ...baseArgs, '--state-file', stateFilePath] }
+  return { cmd: execPath, args: [...baseArgs, '--state-file', stateFilePath] }
+}
+
+function runCliCommand(baseArgs = [], timeoutMs = 15000) {
+  return new Promise((resolve) => {
+    try {
+      const { cmd, args } = getCliCommandAndArgs(baseArgs)
+      const child = spawn(cmd, args, { stdio: ['ignore', 'pipe', 'pipe'] })
+      let buffer = ''
+      let timer = setTimeout(() => {
+        try { child.kill() } catch {}
+        resolve({ success: false, error: 'cli-timeout' })
+      }, timeoutMs)
+      child.stdout.on('data', (chunk) => {
+        buffer += chunk.toString()
+      })
+      child.stderr.on('data', (chunk) => {
+        // keep for debugging; do not reject
+      })
+      child.on('close', () => {
+        clearTimeout(timer)
+        // Try parse last JSON line
+        const lines = buffer.split(/\r?\n/).filter(Boolean)
+        for (let i = lines.length - 1; i >= 0; i--) {
+          try { return resolve(JSON.parse(lines[i])) } catch {}
+        }
+        resolve({ success: false, error: 'no-json-output' })
+      })
+    } catch (e) {
+      resolve({ success: false, error: e.message })
+    }
+  })
+}
+
+ipcMain.handle('backendStatus', async (_event, { target = 'local' } = {}) => {
+  try {
+    if (target === 'remote') {
+      const tunnel = getTunnelState()
+      const lp = tunnel && tunnel.localExpressPort
+      if (!lp) return { success: false, error: 'no-remote-port' }
+      const res = await axios.get(`http://127.0.0.1:${lp}/status`, { timeout: 3000 })
+      return res.data
+    }
+    // local
+    if (expressPort) {
+      const data = await httpGet('/status')
+      if (data) return data
+    }
+    // Fallback to CLI status
+    const out = await runCliCommand(['status'])
+    return out
+  } catch (e) {
+    return { success: false, error: e.message }
+  }
+})
+
+ipcMain.handle('backendEnsure', async (_event, { target = 'local', go = false, mongo = false, jupyter = false, workspace } = {}) => {
+  try {
+    if (target === 'remote') {
+      const tunnel = getTunnelState()
+      const lp = tunnel && tunnel.localExpressPort
+      if (!lp) return { success: false, error: 'no-remote-port' }
+      const ensured = {}
+      if (go) ensured.go = (await axios.post(`http://127.0.0.1:${lp}/ensure-go`, {}, { timeout: 10000 })).data
+      if (mongo) ensured.mongo = (await axios.post(`http://127.0.0.1:${lp}/ensure-mongo`, { workspacePath: workspace }, { timeout: 20000 })).data
+      if (jupyter) ensured.jupyter = (await axios.post(`http://127.0.0.1:${lp}/ensure-jupyter`, { workspacePath: workspace }, { timeout: 20000 })).data
+      return { success: true, ensured }
+    }
+    // local via CLI
+    const args = ['ensure']
+    if (go) args.push('--go')
+    if (mongo) args.push('--mongo')
+    if (jupyter) args.push('--jupyter')
+    if (workspace) args.push('--workspace', workspace)
+    const out = await runCliCommand(args)
+    return out
+  } catch (e) {
+    return { success: false, error: e.message }
+  }
+})
+
+// Stop backend on app quit (best-effort)
+app.on('before-quit', async () => {
+  try { await runCliCommand(['stop'], 5000) } catch {}
+})
 
 // ---- Local backend presence/install stubs ----
 function checkLocalBackendPresence() {
