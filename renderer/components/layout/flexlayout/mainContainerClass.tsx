@@ -209,7 +209,7 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
       if (stderr) throw new Error(stderr)
       
       return platform === 'win32'
-        ? stdout.trim().split(/\s+/).pop()
+        ? stdout.trim().split('\n')[0]?.split(/\s+/).filter(Boolean).pop() || null
         : stdout.trim()
     } catch (error) {
       throw new Error(`PID lookup failed: ${error.message}`)
@@ -234,17 +234,21 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
       setJupyterStatus({ running: false, error: "No workspace path found. Jupyter server cannot be started." })
       return
     }
-    if (!jupyterStatus.running) {
+
+    // Check jypyter status again
+    const isRunning = await this.checkJupyterIsRunning()
+    if (!isRunning) {
       const jupyter = spawn(pythonPath, [
         '-m', 'jupyter', 'notebook',
         `--NotebookApp.token=''`,
         `--NotebookApp.password=''`,
         '--no-browser',
         `--port=${defaultJupyterPort}`,
-        `${workspacePath}/DATA`
+        `${workspacePath}`
       ])
       this.jupyterStarting = false
       setJupyterStatus({running: true, error: null })
+      toast.success("Jupyter server started successfully.")
     }
   }
 
@@ -1306,7 +1310,7 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
       if (component === "extractionTSPage") {
         return <span style={{ marginRight: 3 }}>📈</span>
       }
-      if (component === "medflPage") {
+      if (component === "medflPage" || component === "htmlViewer") {
         return <span style={{ marginRight: 3 }}>🌐</span>
       }
       if (component === "med3paPage") {
