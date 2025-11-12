@@ -346,13 +346,14 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
         }
         
         // Get last line of configfilepath
-        const lastLine = fs.readFileSync(configFilePath, "utf8").split("\n").slice(-1)[0]
-        
-        if (!lastLine.includes("c.NotebookApp.tornado_settings") || 
-            !lastLine.includes("c.ServerApp.allow_unauthenticated_access")) {
+        const lastLine = fs.readFileSync(configFilePath, "utf8").split("\n").filter(Boolean).slice(-1)[0]
+        if (!lastLine.includes("c.NotebookApp.tornado_settings")) {
           // Add config settings
           fs.appendFileSync(configFilePath, `\nc.ServerApp.allow_unauthenticated_access = True`)
-          fs.appendFileSync(configFilePath, `\nc.NotebookApp.tornado_settings={'headers': {'Content-Security-Policy': "frame-ancestors 'self' http://localhost:8888;"}}`)
+          fs.appendFileSync(configFilePath, `\nc.ServerApp.token = ''`)
+          fs.appendFileSync(configFilePath, `\nc.ServerApp.password = '' `)
+          fs.appendFileSync(configFilePath, `\nc.ServerApp.allow_unauthenticated_access = True`)
+          fs.appendFileSync(configFilePath, `\nc.NotebookApp.tornado_settings={'headers': {'Content-Security-Policy': "frame-ancestors 'self' http://localhost:8888 http://localhost:3000 http://localhost:8080 http://localhost:8900 'unsafe-eval'"}}\n`)
         }
       }
     } catch (error) {
