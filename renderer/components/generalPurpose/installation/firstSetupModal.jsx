@@ -204,6 +204,10 @@ const FirstSetupModal = ({ visible, onHide, closable, setRequirementsMet }) => {
       setCheckIsRunning(true)
       ipcRenderer.invoke("checkRequirements").then((data) => {
         console.log("Requirements: ", data)
+        if (!data || !data.pythonInstalled || !data.mongoDBInstalled) {
+          console.log("Requirements not met yet, continuing to check...")
+          return
+        }
         setCheckIsRunning(false)
         let pythonIsFullyInstalled = false
         if (data.pythonInstalled) {

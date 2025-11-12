@@ -9,8 +9,37 @@ import { fork } from 'child_process'
 import http from 'http'
 // no __filename/__dirname needed in this scaffold
 // Removed __dirname and unused port range constants in scaffold to satisfy lint
+function resolveExpressServerPath() {
+  // Primary: cwd/backed/expressServer.mjs (original behavior)
+  const candidates = []
+  const cwdCandidate = path.resolve(process.cwd(), 'backend', 'expressServer.mjs')
+  candidates.push(cwdCandidate)
+  // Fallback: relative to this CLI file location (supports being invoked from other working dirs)
+  try {
+    const cliDirUrl = new URL('.', import.meta.url)
+    let cliDir = cliDirUrl.pathname
+    // On Windows the pathname may start with /C:/ ... strip leading slash if path like /C:/
+    if (process.platform === 'win32' && /^\/[a-zA-Z]:\//.test(cliDir)) cliDir = cliDir.slice(1)
+    const relCandidate = path.resolve(cliDir, '..', 'expressServer.mjs')
+    candidates.push(relCandidate)
+  } catch (e) { /* ignore URL resolution errors */ }
+  // Environment override: MEDOMICS_SERVER_ROOT (useful for tests)
+  if (process.env.MEDOMICS_SERVER_ROOT) {
+    candidates.push(path.resolve(process.env.MEDOMICS_SERVER_ROOT, 'backend', 'expressServer.mjs'))
+    candidates.push(path.resolve(process.env.MEDOMICS_SERVER_ROOT, 'expressServer.mjs'))
+  }
+  // Return first existing
+  for (const c of candidates) {
+    try {
+      if (fs.existsSync(c)) return c
+    } catch (e) { /* ignore fs errors */ }
+  }
+  return candidates[0] // fall back to primary even if missing (caller will error out)
+}
 function getStateFile(flags) {
-  const f = flags['state-file'] || flags['stateFile']
+  const raw = flags['state-file'] ?? flags['stateFile']
+  const hasValidString = typeof raw === 'string' && raw.trim().length > 0
+  const f = hasValidString ? raw : null
   const p = f ? path.resolve(f) : path.resolve(process.cwd(), 'medomics-server-state.json')
   return p
 }
@@ -33,13 +62,28 @@ function parseArgs(argv) {
   const args = argv.slice(2)
   const flags = {}
   let command = null
-  let positionals = []
-  for (let i=0; i<args.length; i++) {
+  const positionals = []
+  for (let i = 0; i < args.length; i++) {
     const a = args[i]
     if (!command && !a.startsWith('-')) { command = a; continue }
     if (a.startsWith('--')) {
-      const [k,v] = a.substring(2).split('=')
-      flags[k] = v === undefined ? true : v
+      const body = a.slice(2)
+      const eq = body.indexOf('=')
+      if (eq !== -1) {
+        const k = body.slice(0, eq)
+        const v = body.slice(eq + 1)
+        flags[k] = v
+      } else {
+        // Support space-delimited values: --key value
+        const k = body
+        const next = args[i + 1]
+        if (next && !next.startsWith('-')) {
+          flags[k] = next
+          i++
+        } else {
+          flags[k] = true
+        }
+      }
     } else {
       positionals.push(a)
     }
@@ -83,7 +127,7 @@ async function startCommand(flags) {
     console.error('Server already running (state file present). Use status or stop (not yet implemented).')
     process.exit(1)
   }
-  const expressServerPath = path.resolve(process.cwd(), 'backend', 'expressServer.mjs')
+  const expressServerPath = resolveExpressServerPath()
   if (!fs.existsSync(expressServerPath)) {
     console.error('expressServer.mjs not found at expected path: ' + expressServerPath)
     process.exit(1)
@@ -307,6 +351,7 @@ Flags:
   --timeout=MS          Startup timeout (default 15000)
   --json                Emit compact JSON outputs
   --production          Set NODE_ENV=production
+  --state-file=PATH     Path to state file (default ./medomics-server-state.json)
   --help                Display this help
 `)
     process.exit(0)
