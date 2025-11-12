@@ -133,6 +133,12 @@ async function startCommand(flags) {
     process.exit(1)
   }
   log('Starting MEDomics Express server...')
+  // Create placeholder state so the file exists even if startup fails early
+  try {
+    writeStateAt(stateFile, { starting: true, pid: null, expressPort: null, created: new Date().toISOString() })
+  } catch (e) {
+    // Best-effort; continue even if we can't write state yet
+  }
   const child = fork(expressServerPath, [], { stdio: ['inherit','inherit','inherit','ipc'], env: { ...process.env, NODE_ENV: flags.production ? 'production' : (process.env.NODE_ENV||'development') } })
   const timeoutMs = parseInt(flags.timeout||'15000',10)
   let settled = false
@@ -152,6 +158,10 @@ async function startCommand(flags) {
   child.on('exit', code => {
     if (!settled) {
       console.error('Express server exited prematurely with code', code)
+      try {
+        const prev = readStateAt(stateFile) || {}
+        writeStateAt(stateFile, { ...prev, running: false, failed: true, code: code||1, ended: new Date().toISOString() })
+      } catch (e) { /* ignore state write error */ }
       process.exit(code||1)
     }
   })
@@ -159,7 +169,11 @@ async function startCommand(flags) {
   setTimeout(() => {
     if (!settled) {
       console.error('Timed out waiting for Express port message')
-  try { child.kill() } catch (e) { /* ignore kill errors */ }
+      try { child.kill() } catch (e) { /* ignore kill errors */ }
+      try {
+        const prev = readStateAt(stateFile) || {}
+        writeStateAt(stateFile, { ...prev, running: false, failed: true, timeout: true, waitedMs: timeoutMs, ended: new Date().toISOString() })
+      } catch (e) { /* ignore state write error */ }
       process.exit(1)
     }
   }, timeoutMs)
