@@ -139,7 +139,39 @@ async function startCommand(flags) {
   } catch (e) {
     // Best-effort; continue even if we can't write state yet
   }
-  const child = fork(expressServerPath, [], { stdio: ['inherit','inherit','inherit','ipc'], env: { ...process.env, NODE_ENV: flags.production ? 'production' : (process.env.NODE_ENV||'development') } })
+  // Prepare log capture (tail) and file logging
+  const stateDir = path.dirname(stateFile)
+  const logFilePath = path.resolve(stateDir, 'server-child.log')
+  const appendLog = (prefix, data) => {
+    try { fs.appendFileSync(logFilePath, `[${new Date().toISOString()}] ${prefix}: ${data}`) } catch (e) { /* ignore */ }
+  }
+  const maxTail = 65536
+  let stdoutTail = ''
+  let stderrTail = ''
+  const addTail = (cur, chunk) => {
+    cur += chunk
+    if (cur.length > maxTail) cur = cur.slice(cur.length - maxTail)
+    return cur
+  }
+
+  // Use silent fork to capture stdout/stderr, then mirror to console
+  const child = fork(expressServerPath, [], { silent: true, env: { ...process.env, NODE_ENV: flags.production ? 'production' : (process.env.NODE_ENV||'development') } })
+  if (child.stdout) {
+    child.stdout.on('data', (d) => {
+      const s = d.toString()
+      stdoutTail = addTail(stdoutTail, s)
+      try { process.stdout.write(s) } catch (e) { /* ignore write error */ }
+      appendLog('stdout', s)
+    })
+  }
+  if (child.stderr) {
+    child.stderr.on('data', (d) => {
+      const s = d.toString()
+      stderrTail = addTail(stderrTail, s)
+      try { process.stderr.write(s) } catch (e) { /* ignore write error */ }
+      appendLog('stderr', s)
+    })
+  }
   const timeoutMs = parseInt(flags.timeout||'15000',10)
   let settled = false
   child.on('message', async (msg) => {
@@ -160,7 +192,7 @@ async function startCommand(flags) {
       console.error('Express server exited prematurely with code', code)
       try {
         const prev = readStateAt(stateFile) || {}
-        writeStateAt(stateFile, { ...prev, running: false, failed: true, code: code||1, ended: new Date().toISOString() })
+        writeStateAt(stateFile, { ...prev, running: false, failed: true, code: code||1, ended: new Date().toISOString(), lastStdout: stdoutTail, lastStderr: stderrTail, expressPath: expressServerPath, cwd: process.cwd(), node: process.version })
       } catch (e) { /* ignore state write error */ }
       process.exit(code||1)
     }
@@ -172,7 +204,7 @@ async function startCommand(flags) {
       try { child.kill() } catch (e) { /* ignore kill errors */ }
       try {
         const prev = readStateAt(stateFile) || {}
-        writeStateAt(stateFile, { ...prev, running: false, failed: true, timeout: true, waitedMs: timeoutMs, ended: new Date().toISOString() })
+        writeStateAt(stateFile, { ...prev, running: false, failed: true, timeout: true, waitedMs: timeoutMs, ended: new Date().toISOString(), lastStdout: stdoutTail, lastStderr: stderrTail, expressPath: expressServerPath, cwd: process.cwd(), node: process.version })
       } catch (e) { /* ignore state write error */ }
       process.exit(1)
     }
