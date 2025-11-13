@@ -1,4 +1,4 @@
-appId: com.medomicslab.medapp
+appId: com.medomics.medapp
 productName: MEDomics # Changed from MEDomicsLab to MEDomics
 artifactName: "${productName}-${version}-${os}.${ext}" # Added from package.json
 copyright: Copyright © 2023 MEDomicsLab Team
