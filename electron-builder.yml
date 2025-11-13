@@ -64,7 +64,7 @@ linux: # Added from package.json
   maintainer: "medomicslab.udes@gmail.com"
 deb: # Added from package.json
   afterInstall: "build/after-install.sh"
-# afterPack: "build/afterPack.js" # Added from package.json
+afterPack: "build/afterPack.js" # Added from package.json
 # afterAllArtifactBuild: "build/afterAllArtifactBuild.js" # Added from package.json
 publish:
   provider: github
