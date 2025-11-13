@@ -3,14 +3,13 @@ import { DataTable } from "primereact/datatable"
 import { Column } from "primereact/column"
 
 /**
- *
  * @param {Object} metrics The metrics to display in nested format
  * @param {Object} tableProps The props to pass to the DataTable component
  * @returns {JSX.Element} The ExtraMetrics component
  *
  * @description
- * This component displays metrics organized in a nested key-value structure
- * with mean, std, min, max for each metric
+ * This component displays metrics organized with statistical measures (mean, std, min, max) as rows
+ * and each metric as columns
  */
 const ExtraMetrics = ({ metrics, tableProps }) => {
   const [data, setData] = useState([])
@@ -18,45 +17,65 @@ const ExtraMetrics = ({ metrics, tableProps }) => {
 
   useEffect(() => {
     if (metrics) {
-      let dataList = []
-      Object.keys(metrics).forEach((metricName) => {
+      // Get all metric names that have statistical properties
+      const metricNames = Object.keys(metrics).filter(metricName => {
         const metricData = metrics[metricName]
-        
-        // Check if it's a nested metric object with statistics
-        if (typeof metricData === 'object' && metricData !== null && !Array.isArray(metricData) && 'mean' in metricData) {
-          dataList.push({
-            metric: metricName,
-            mean: metricData.mean,
-            std: metricData.std,
-            min: metricData.min,
-            max: metricData.max
-          })
-        }
+        return typeof metricData === 'object' && 
+               metricData !== null && 
+               !Array.isArray(metricData) && 
+               'mean' in metricData
       })
-      setData(dataList)
+      
+      // Define the statistical measures that will become rows
+      const statTypes = ['mean', 'std', 'min', 'max']
+      
+      // Transform data: each stat type becomes a row with metrics as columns
+      const transformedData = statTypes.map(stat => {
+        const row = { stat: stat }
+        metricNames.forEach(metricName => {
+          row[metricName] = metrics[metricName][stat]
+        })
+        return row
+      })
+      
+      setData(transformedData)
     } else {
       setData([])
     }
   }, [metrics])
 
+  // Get metric names for dynamic columns
+  const metricNames = metrics ? Object.keys(metrics).filter(metricName => {
+    const metricData = metrics[metricName]
+    return typeof metricData === 'object' && 
+           metricData !== null && 
+           !Array.isArray(metricData) && 
+           'mean' in metricData
+  }) : []
+
   return (
-    <>
-      <DataTable 
-        value={data} 
-        stripedRows 
-        {...tableProps} 
-        selectionMode="multiple" 
-        selection={selectedRows} 
-        onSelectionChange={(e) => setSelectedRows(e.value)}
-        dataKey="metric"
-      >
-        <Column field="metric" header="Metric" />
-        <Column field="mean" header="Mean" />
-        <Column field="std" header="Std" />
-        <Column field="min" header="Min" />
-        <Column field="max" header="Max" />
-      </DataTable>
-    </>
+    <DataTable 
+      value={data} 
+      stripedRows 
+      {...tableProps} 
+      selectionMode="multiple" 
+      selection={selectedRows} 
+      onSelectionChange={(e) => setSelectedRows(e.value)}
+      dataKey="stat"
+    >
+      <Column 
+        field="stat" 
+        header="Stat" 
+        style={{ width: '260px' }} // Custom width for the first column
+      />
+      {metricNames.map(metricName => (
+        <Column 
+          key={metricName} 
+          field={metricName} 
+          header={metricName} 
+        />
+      ))}
+    </DataTable>
   )
 }
 
