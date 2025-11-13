@@ -315,7 +315,7 @@ jobs:
           CSC_INSTALLER_LINK: ${{ secrets.CSC_INSTALLER_LINK }}
           CSC_INSTALLER_KEY_PASSWORD: ${{ secrets.CSC_INSTALLER_KEY_PASSWORD }}
         run: |
-          npm run build
+          npm run build:mac
 
       - name: notarize
         env:
@@ -324,7 +324,7 @@ jobs:
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
-          xcrun notarytool submit build/dist/MEDomics-${{ env.VERSION }}-mac-installer.pkg --keychain-profile "notarytool-password"  --wait
+          xcrun notarytool submit build/dist/MEDomics-${{ env.VERSION }}-mac.pkg --keychain-profile "notarytool-password"  --wait
 
       - name: staple
         continue-on-error: true
@@ -334,7 +334,7 @@ jobs:
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
-          xcrun stapler staple build/dist/MEDomics-${{ env.VERSION }}-mac-installer.pkg
+          xcrun stapler staple build/dist/MEDomics-${{ env.VERSION }}-mac.pkg
 
       - name: Archive latest-mac.yml
         uses: actions/upload-artifact@v4
@@ -345,21 +345,12 @@ jobs:
         env:
           VERSION: ${{ steps.get-tag.outputs.VERSION }}
 
-      - name: Archive Mac
-        uses: actions/upload-artifact@v4
-        with:
-          name: mac-built
-          path: ./build/dist/MEDomics-${{ env.VERSION }}-mac.pkg
-          compression-level: 0
-        env:
-          VERSION: ${{ steps.get-tag.outputs.VERSION }}
-
       #### PKG ####
       - name: Archive Mac PKG installer
         uses: actions/upload-artifact@v4
         with:
           name: mac-built-pkg
-          path: ./build/dist/MEDomics-${{ env.VERSION }}-mac-installer.pkg
+          path: ./build/dist/MEDomics-${{ env.VERSION }}-mac.pkg
           compression-level: 0
         env:
           VERSION: ${{ steps.get-tag.outputs.VERSION }}
@@ -472,7 +463,7 @@ jobs:
             ./MEDomics-${{ env.VERSION }}-win.exe.blockmap
             ./latest.yml
             ./MEDomics-${{ env.VERSION }}-ubuntu.deb
-            ./MEDomics-${{ env.VERSION }}-mac-installer.pkg
+            ./MEDomics-${{ env.VERSION }}-mac.pkg
             ./MEDomics-${{ env.VERSION }}-mac.dmg
             ./MEDomics-${{ env.VERSION }}-mac.zip
             ./latest-mac.yml
