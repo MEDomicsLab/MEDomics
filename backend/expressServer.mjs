@@ -45,17 +45,21 @@ let goServerState = { serverIsRunning: false }
 
 export async function startExpressServer() {
 	try {
+		console.log('[express:start] scanning ports', EXPRESS_PORT_START, '-', EXPRESS_PORT_END)
 		const expressPort = await findAvailablePort(EXPRESS_PORT_START, EXPRESS_PORT_END)
-		expressApp.listen(expressPort, () => {
+		console.log('[express:start] selected port', expressPort)
+		const server = expressApp.listen(expressPort, () => {
 			console.log(`Express server listening on port ${expressPort}`)
 		})
+		server.on('error', (err) => {
+			console.error('[express:start] server error event', err && err.stack ? err.stack : err)
+		})
 		serviceState.expressPort = expressPort
-		// Notify the Electron main process about the port
 		if (process.send) {
-			process.send({ type: "EXPRESS_PORT", expressPort })
+			process.send({ type: 'EXPRESS_PORT', expressPort })
 		}
 	} catch (err) {
-		console.error("Failed to start Express server - no available port:", err)
+		console.error('[express:start] failed to start Express server:', err && err.stack ? err.stack : err)
 		throw err
 	}
 }
@@ -512,10 +516,19 @@ export async function setWorkspaceDirectoryServer(workspacePath) {
 		}
 }
 
-if (process.argv[1] && process.argv[1].endsWith("expressServer.mjs")) {
-	// check requirements (MongoDB, Python)
-	checkRequirements()
-	// if not met, prompt to install
-	// start servers once requirements are met
-	startExpressServer()
+if (process.argv[1] && process.argv[1].endsWith('expressServer.mjs')) {
+	(async () => {
+		console.log('[bootstrap] entrypoint detected')
+		try {
+			console.log('[bootstrap] running requirements check')
+			const reqResult = await checkRequirements()
+			console.log('[bootstrap] requirements result', reqResult)
+			console.log('[bootstrap] starting express')
+			await startExpressServer()
+			console.log('[bootstrap] express started on', serviceState.expressPort)
+		} catch (e) {
+			console.error('[bootstrap] fatal startup error', e && e.stack ? e.stack : e)
+			process.exit(1)
+		}
+	})()
 }
