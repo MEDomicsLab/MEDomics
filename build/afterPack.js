@@ -19,7 +19,7 @@ exports.default = async function (context) {
     // Get current directory
     const currentPath = process.cwd()
     console.log("Current path:", currentPath)
-    const appPath = path.join(context.appOutDir, "MEDomic.app")
+    const appPath = path.join(context.appOutDir, "MEDomics.app")
     const mongodbPath = path.join(appPath, "Contents/Resources/app.asar.unpacked/node_modules/mongodb-client-encryption/prebuilds")
     const tarFile = "mongodb-client-encryption-v6.0.1-node-v127-darwin-arm64.tar.gz"
 
