@@ -46,7 +46,31 @@ let goServerState = { serverIsRunning: false }
 export async function startExpressServer() {
 	try {
 		console.log('[express:start] scanning ports', EXPRESS_PORT_START, '-', EXPRESS_PORT_END)
-		const expressPort = await findAvailablePort(EXPRESS_PORT_START, EXPRESS_PORT_END)
+		const envPort = process.env.MEDOMICS_EXPRESS_PORT && Number(process.env.MEDOMICS_EXPRESS_PORT)
+		let expressPort = null
+		if (envPort && envPort > 0 && envPort < 65536) {
+			console.log('[express:start] using MEDOMICS_EXPRESS_PORT override', envPort)
+			expressPort = envPort
+		} else {
+			// Primary legacy finder (may rely on netstat/lsof)
+			let primaryFailed = null
+			try {
+				expressPort = await Promise.race([
+					findAvailablePort(EXPRESS_PORT_START, EXPRESS_PORT_END),
+					new Promise((_, reject) => setTimeout(() => reject(new Error('legacy-port-scan-timeout')), 8000))
+				])
+			} catch (e) {
+				primaryFailed = e
+				console.warn('[express:start] legacy port finder failed:', e && e.message ? e.message : e)
+			}
+			if (!expressPort) {
+				console.log('[express:start] falling back to simple net binding scan')
+				expressPort = await simpleFindAvailablePort(EXPRESS_PORT_START, EXPRESS_PORT_END)
+			}
+			if (!expressPort) {
+				throw primaryFailed || new Error('no-port-found')
+			}
+		}
 		console.log('[express:start] selected port', expressPort)
 		const server = expressApp.listen(expressPort, () => {
 			console.log(`Express server listening on port ${expressPort}`)
@@ -62,6 +86,21 @@ export async function startExpressServer() {
 		console.error('[express:start] failed to start Express server:', err && err.stack ? err.stack : err)
 		throw err
 	}
+}
+
+// Simple fallback port finder using net module only
+import net from 'net'
+async function simpleFindAvailablePort(start, end) {
+	for (let p = start; p <= end; p++) {
+		const ok = await new Promise(resolve => {
+			const tester = net.createServer()
+			tester.once('error', () => { try { tester.close(()=>resolve(false)) } catch { resolve(false) } })
+			tester.once('listening', () => tester.close(() => resolve(true)))
+			tester.listen(p, '127.0.0.1')
+		})
+		if (ok) return p
+	}
+	return null
 }
 
 function normalizePathForPlatform(p) {
