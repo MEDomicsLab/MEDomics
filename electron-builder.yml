@@ -29,8 +29,14 @@ extraResources: # Add this section if it doesn't exist, or add the line to it
       - "!**/__pycache__/**"
       - "!**/*.pyc"
       - "!**/*.pyo"
+      - "!**/.git"
+      - "!**/.git/**"
   - from: ./pythonEnv # Source directory
     to: pythonEnv # Destination directory inside Contents/Resources
+    filter:
+      - "**/*"
+      - "!**/.git"
+      - "!**/.git/**"
 
 extends: null # Added from package.json
 mac: # Added from package.json
