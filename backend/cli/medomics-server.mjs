@@ -5,6 +5,7 @@
 
 import path from 'path'
 import fs from 'fs'
+import os from 'os'
 import { fork } from 'child_process'
 import http from 'http'
 // no __filename/__dirname needed in this scaffold
@@ -40,7 +41,8 @@ function getStateFile(flags) {
   const raw = flags['state-file'] ?? flags['stateFile']
   const hasValidString = typeof raw === 'string' && raw.trim().length > 0
   const f = hasValidString ? raw : null
-  const p = f ? path.resolve(f) : path.resolve(process.cwd(), 'medomics-server-state.json')
+  const defaultState = path.resolve(os.homedir(), '.medomics', 'medomics-server', 'state.json')
+  const p = f ? path.resolve(f) : defaultState
   return p
 }
 
@@ -123,9 +125,15 @@ async function httpPost(port, pathName, body) {
 
 async function startCommand(flags) {
   const stateFile = getStateFile(flags)
-  if (readStateAt(stateFile)?.running) {
-    console.error('Server already running (state file present). Use status or stop (not yet implemented).')
-    process.exit(1)
+  const existing = readStateAt(stateFile)
+  if (existing?.running) {
+    if (existing.pid && pidIsAlive(existing.pid)) {
+      console.error('Server already running (state file present). Use status or stop.')
+      process.exit(1)
+    } else {
+      // Stale state file; remove and proceed to start fresh
+      try { fs.unlinkSync(stateFile) } catch (e) { /* ignore unlink errors */ }
+    }
   }
   const expressServerPath = resolveExpressServerPath()
   if (!fs.existsSync(expressServerPath)) {
