@@ -824,6 +824,23 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
               <span>Start on port:</span>
               <InputNumber disabled={!tunnelActive || connectionProcessing} value={remoteStartPort} onChange={e => setRemoteStartPort(e.value)} useGrouping={false} min={1} max={65535} />
               <Button onClick={startRemoteServer} disabled={!tunnelActive || connectionProcessing} style={{ background: 'var(--button-bg)', color: 'var(--button-text)' }}>Start Server</Button>
+              <Button onClick={async () => {
+                if (!tunnelActive) return toast.error('SSH tunnel not active.')
+                try {
+                  const res = await ipcRenderer.invoke('remoteCheckPort', { port: Number(remoteStartPort) })
+                  if (res && res.success) {
+                    if (res.open) {
+                      toast.success(`Port ${remoteStartPort} is listening remotely.`)
+                    } else {
+                      toast.warn(`Port ${remoteStartPort} is not listening on remote host.`)
+                    }
+                  } else {
+                    toast.error(`Port check failed: ${res?.error || 'unknown error'}`)
+                  }
+                } catch (e) {
+                  toast.error(`Port check error: ${e.message || e}`)
+                }
+              }} disabled={!tunnelActive || connectionProcessing} style={{ background: 'var(--bg-secondary)', color: 'var(--text-secondary)' }}>Check Port</Button>
             </div>
             <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--border-color)' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>

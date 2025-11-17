@@ -367,8 +367,8 @@ function startBackendServer() {
   const isDev = Array.isArray(execPath)
   let cmd, args
 
-  // Prepare CLI state file under userData for consistent port discovery
-  const stateDir = path.join(app.getPath('userData'), 'medomics-server')
+  // Prepare CLI state file under user home for consistent port discovery across Electron and CLI
+  const stateDir = path.join(require('os').homedir(), '.medomics', 'medomics-server')
   try { if (!fs.existsSync(stateDir)) fs.mkdirSync(stateDir, { recursive: true }) } catch {}
   const stateFilePath = path.join(stateDir, 'state.json')
 
@@ -477,7 +477,7 @@ async function findExpressPortByProbing(start = 3000, end = 8000, batchSize = 40
 function getCliCommandAndArgs(baseArgs = []) {
   const execPath = getBackendServerExecutable()
   const isDev = Array.isArray(execPath)
-  const stateDir = path.join(app.getPath('userData'), 'medomics-server')
+  const stateDir = path.join(require('os').homedir(), '.medomics', 'medomics-server')
   try { if (!fs.existsSync(stateDir)) fs.mkdirSync(stateDir, { recursive: true }) } catch {}
   const stateFilePath = path.join(stateDir, 'state.json')
   if (isDev) return { cmd: execPath[0], args: [execPath[1], ...baseArgs, '--state-file', stateFilePath] }
@@ -557,6 +557,21 @@ ipcMain.handle('backendEnsure', async (_event, { target = 'local', go = false, m
     if (workspace) args.push('--workspace', workspace)
     const out = await runCliCommand(args)
     return out
+  } catch (e) {
+    return { success: false, error: e.message }
+  }
+})
+
+// Check if a remote port is open (listening) on the SSH-connected host
+ipcMain.handle('remoteCheckPort', async (_event, { port }) => {
+  try {
+    const tunnel = getTunnelState()
+    if (!tunnel || !tunnel.tunnelActive) return { success: false, error: 'no-tunnel' }
+    if (!port || isNaN(Number(port))) return { success: false, error: 'invalid-port' }
+    const conn = getActiveTunnel && getActiveTunnel()
+    if (!conn) return { success: false, error: 'no-active-ssh' }
+    const open = await checkRemotePortOpen(conn, Number(port))
+    return { success: true, port: Number(port), open: !!open }
   } catch (e) {
     return { success: false, error: e.message }
   }
