@@ -1,0 +1,50 @@
+appId: com.medomicslab.medapp
+productName: MEDomicsLab
+artifactName: "${productName}-${version}-${os}.${ext}"
+directories:
+  output: build/dist
+  buildResources: resources
+files:
+  # App sources only
+  - app/**/*
+  # Restrict resources to icons only (exclude server_go)
+  - resources/icons/**/*
+  # Keep package.json for metadata
+  - package.json
+  # Include production node_modules for runtime deps (pty, ssh2, etc.)
+  - node_modules/**/*
+  # Explicit excludes: backend and heavy backend-only assets
+  - !backend/**/*
+  - !go_executables/**/*
+  - !pythonCode/**/*
+  - !pythonEnv/**/*
+  - !resources/server_go
+  # Exclude backend-only node modules to reduce app size
+  - !**/node_modules/mongodb-client-encryption/**
+  - !**/node_modules/mongodb/**
+extends: null
+mac:
+  hardenedRuntime: true
+  gatekeeperAssess: false
+  entitlements: "build/entitlements.mac.plist"
+  entitlementsInherit: "build/entitlements.mac.plist"
+  category: "public.app-category.developer-tools"
+  target:
+    - dmg
+    - zip
+win:
+  target: nsis
+  icon: "app/assets/icon.ico"
+nsis: {}
+linux:
+  target: deb
+  icon: "resources/icons"
+  maintainer: "medomicslab.udes@gmail.com"
+deb:
+  # Client-only: no post-install system changes
+afterInstall: null
+publish:
+  provider: github
+  owner: "MEDomics-UdeS"
+  repo: "MEDomicsLab"
+  releaseType: "draft"
