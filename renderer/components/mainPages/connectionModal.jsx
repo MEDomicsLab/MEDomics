@@ -45,7 +45,9 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
   const [remoteJupyterPort, setRemoteJupyterPort] = useState("8900")
   const [privateKey, setPrivateKey] = useState("")
   const [publicKey, setPublicKey] = useState("")
-  const [keyComment, setKeyComment] = useState("medomicslab-app")
+  // Commented out to fix linting problems: unused setter setKeyComment
+  // const [keyComment, setKeyComment] = useState("medomicslab-app")
+  const [keyComment] = useState("medomicslab-app")
 
   // Connection state
   const [keyGenerated, setKeyGenerated] = useState(false)
@@ -81,7 +83,9 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
   const [remoteInstallPhase, setRemoteInstallPhase] = useState('')
   const [remoteDownloadPercent, setRemoteDownloadPercent] = useState(null)
   const [remoteDownloadSpeed, setRemoteDownloadSpeed] = useState(null)
-  const [remoteInstallEvents, setRemoteInstallEvents] = useState([])
+  // Commented out state variable to fix linting problems: remoteInstallEvents not directly used
+  // const [remoteInstallEvents, setRemoteInstallEvents] = useState([])
+  const [, setRemoteInstallEvents] = useState([])
 
   // Validation state
   const [inputErrors, setInputErrors] = useState({})

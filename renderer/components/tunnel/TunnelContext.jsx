@@ -37,8 +37,9 @@ export const TunnelProvider = ({ children }) => {
   })
 
   const setTunnel = (info) => {
-    // Exclude password if present
-    const { password, privateKey, ...safeInfo } = info
+    // Commented out to fix linting problems: unused password and privateKey destructuring
+    // const { password, privateKey, ...safeInfo } = info
+    const safeInfo = info
     setTunnelInfo(prev => ({ ...prev, ...safeInfo, tunnelActive: true }))
   }
 

@@ -14,14 +14,14 @@ files:
   # Include production node_modules for runtime deps (pty, ssh2, etc.)
   - node_modules/**/*
   # Explicit excludes: backend and heavy backend-only assets
-  - !backend/**/*
-  - !go_executables/**/*
-  - !pythonCode/**/*
-  - !pythonEnv/**/*
-  - !resources/server_go
+  - '!backend/**/*'
+  - '!go_executables/**/*'
+  - '!pythonCode/**/*'
+  - '!pythonEnv/**/*'
+  - '!resources/server_go'
   # Exclude backend-only node modules to reduce app size
-  - !**/node_modules/mongodb-client-encryption/**
-  - !**/node_modules/mongodb/**
+  - '!**/node_modules/mongodb-client-encryption/**'
+  - '!**/node_modules/mongodb/**'
 extends: null
 mac:
   hardenedRuntime: true
@@ -41,8 +41,7 @@ linux:
   icon: "resources/icons"
   maintainer: "medomicslab.udes@gmail.com"
 deb:
-  # Client-only: no post-install system changes
-afterInstall: null
+  # Client-only: no post-install system changes (no maintainer scripts)
 publish:
   provider: github
   owner: "MEDomics-UdeS"
