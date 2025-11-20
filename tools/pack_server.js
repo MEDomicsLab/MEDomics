@@ -12,6 +12,23 @@ function sh(cmd, opts = {}) {
   cp.execSync(cmd, { stdio: 'inherit', ...opts });
 }
 
+async function removeRecursiveSymlink(candidatePath) {
+  try {
+    const stats = await fsp.lstat(candidatePath);
+    if (!stats.isSymbolicLink()) {
+      return;
+    }
+  } catch (err) {
+    if (err?.code === 'ENOENT') {
+      return;
+    }
+    throw err;
+  }
+
+  // Remove the symlink target to avoid infinite recursion while zipping
+  await fsp.rm(candidatePath, { recursive: true, force: true });
+}
+
 async function cpRecursive(src, dest) {
   await fsp.cp(src, dest, { recursive: true, force: true });
 }
@@ -74,9 +91,13 @@ async function main() {
   // Install backend production dependencies into the staged backend
   console.log('Installing backend production dependencies...');
   // Ensure a clean node_modules in staging
-  try { await fsp.rm(path.join(outBase, 'backend', 'node_modules'), { recursive: true, force: true }); } catch {}
+  await fsp.rm(path.join(outBase, 'backend', 'node_modules'), { recursive: true, force: true }).catch(() => {});
   // Use npm with --prefix to install into the staged backend folder
   sh(`npm install --omit=dev --prefix "${path.join(outBase, 'backend')}"`, { shell: true });
+
+  // npm creates a self-referencing symlink (package name matches repo) which causes
+  // infinite recursion when zip-local traverses the directory. Remove it proactively.
+  await removeRecursiveSymlink(path.join(outBase, 'backend', 'node_modules', 'medomicslab-application'));
 
   const readme = `MEDomicsLab Server Bundle (v${version})\n\n` +
 `Quick start:\n` +
