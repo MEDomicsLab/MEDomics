@@ -44,6 +44,5 @@ deb:
   # Client-only: no post-install system changes (no maintainer scripts)
 publish:
   provider: github
-  owner: "MEDomics-UdeS"
-  repo: "MEDomicsLab"
-  releaseType: "draft"
+  # Use current GitHub Actions repository (no cross-repo publish)
+  releaseType: draft
