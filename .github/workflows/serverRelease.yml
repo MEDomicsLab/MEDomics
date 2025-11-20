@@ -55,7 +55,7 @@ jobs:
           path: ./build/dist/MEDomicsLab-Server-${{ steps.get-ver.outputs.VERSION }}-win32.zip
 
   build-linux:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
