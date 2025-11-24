@@ -194,7 +194,8 @@ jobs:
             ./build/dist/latest-mac.yml
 
   publish:
-    needs: [build-windows, build-linux, build-mac]
+    # Removed Mac build requirement for now since it needs a special signature, readd ", build-mac" later
+    needs: [build-windows, build-linux]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code

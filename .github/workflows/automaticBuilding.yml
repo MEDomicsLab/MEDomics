@@ -403,7 +403,8 @@ jobs:
 
   # Publish to GitHub
   publish:
-    needs: [build-windows, build-linux-ubuntu, build-mac]
+    # Removed Mac build requirement for now since it needs a special signature, readd ", build-mac" later
+    needs: [build-windows, build-linux-ubuntu]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
