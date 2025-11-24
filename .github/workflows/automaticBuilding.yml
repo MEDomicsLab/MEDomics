@@ -64,6 +64,8 @@ jobs:
           name: windows-built
           path: ./build/dist/MEDomics-${{ env.VERSION }}-win.exe
           compression-level: 0
+          if-no-files-found: error
+          overwrite: true
         env:
           VERSION: ${{ steps.get-tag.outputs.VERSION }}
 
@@ -73,6 +75,7 @@ jobs:
           name: windows-built-blockmap
           path: ./build/dist/MEDomics-${{ env.VERSION }}-win.exe.blockmap
           compression-level: 0
+          if-no-files-found: error
         env:
           VERSION: ${{ steps.get-tag.outputs.VERSION }}
 
@@ -82,6 +85,7 @@ jobs:
           name: windows-built-latest
           path: ./build/dist/latest.yml
           compression-level: 0
+          if-no-files-found: error
         env:
           VERSION: ${{ steps.get-tag.outputs.VERSION }}
 
@@ -160,6 +164,7 @@ jobs:
           name: linux-built-ubuntu
           path: ./build/dist/MEDomics-${{ env.VERSION }}-ubuntu.deb
           compression-level: 0
+          if-no-files-found: error
         env:
           VERSION: ${{ steps.get-tag.outputs.VERSION }}
 
@@ -342,6 +347,7 @@ jobs:
           name: latest-mac
           path: ./build/dist/latest-mac.yml
           compression-level: 0
+          if-no-files-found: error
         env:
           VERSION: ${{ steps.get-tag.outputs.VERSION }}
 
@@ -352,6 +358,7 @@ jobs:
           name: mac-built-pkg
           path: ./build/dist/MEDomics-${{ env.VERSION }}-mac.pkg
           compression-level: 0
+          if-no-files-found: error
         env:
           VERSION: ${{ steps.get-tag.outputs.VERSION }}
 
@@ -361,6 +368,7 @@ jobs:
           name: mac-built-dmg-blockmap
           path: ./build/dist/MEDomics-${{ env.VERSION }}-mac.dmg.blockmap
           compression-level: 0
+          if-no-files-found: error
         env:
           VERSION: ${{ steps.get-tag.outputs.VERSION }}
 
@@ -370,6 +378,7 @@ jobs:
           name: mac-built-dmg
           path: ./build/dist/MEDomics-${{ env.VERSION }}-mac.dmg
           compression-level: 0
+          if-no-files-found: error
         env:
           VERSION: ${{ steps.get-tag.outputs.VERSION }}
 
@@ -379,6 +388,7 @@ jobs:
           name: mac-built-zip-blockmap
           path: ./build/dist/MEDomics-${{ env.VERSION }}-mac.zip.blockmap
           compression-level: 0
+          if-no-files-found: error
         env:
           VERSION: ${{ steps.get-tag.outputs.VERSION }}
 
@@ -388,12 +398,13 @@ jobs:
           name: mac-built-zip
           path: ./build/dist/MEDomics-${{ env.VERSION }}-mac.zip
           compression-level: 0
+          if-no-files-found: error
         env:
           VERSION: ${{ steps.get-tag.outputs.VERSION }}
 
   # Publish to GitHub
   publish:
-    needs: [build-windows, build-linux-ubuntu, build-mac]
+    needs: [build-windows]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
