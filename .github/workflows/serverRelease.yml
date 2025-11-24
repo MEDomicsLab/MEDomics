@@ -160,9 +160,13 @@ jobs:
         with:
           name: server-linux
 
-      - uses: actions/download-artifact@v4
-        with:
-          name: server-mac
+      # Commented until keys and certificate for Mac are ready
+      # - uses: actions/download-artifact@v4
+      #   with:
+      #     name: server-mac
+
+      # Readd this to "with: files:" when Mac is included
+      # ./MEDomicsLab-Server-${{ steps.get-ver.outputs.VERSION }}-darwin.zip
 
       - name: Get version
         id: get-ver
@@ -179,7 +183,6 @@ jobs:
           files: |
             ./MEDomicsLab-Server-${{ steps.get-ver.outputs.VERSION }}-win32.zip
             ./MEDomicsLab-Server-${{ steps.get-ver.outputs.VERSION }}-linux.zip
-            ./MEDomicsLab-Server-${{ steps.get-ver.outputs.VERSION }}-darwin.zip
           name: MEDomicsLab Server-${{ steps.get-ver.outputs.VERSION }}
           body: |
             MEDomicsLab Server-${{ steps.get-ver.outputs.VERSION }}

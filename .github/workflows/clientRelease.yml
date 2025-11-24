@@ -208,11 +208,16 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           name: client-linux
+      
+      # Commented until keys and certificate for Mac are ready
+      # - uses: actions/download-artifact@v4
+      #   with:
+      #     name: client-mac
 
-      - uses: actions/download-artifact@v4
-        with:
-          name: client-mac
-
+      # Re-add these lines at the end of "with: files: [...]" once Mac is included
+      # ./MEDomicsLab-${{ steps.get-ver.outputs.VERSION }}-mac.dmg
+      # ./MEDomicsLab-${{ steps.get-ver.outputs.VERSION }}-mac.zip
+      # ./latest-mac.yml
       - name: Get version
         id: get-ver
         shell: bash
@@ -230,9 +235,6 @@ jobs:
             ./MEDomicsLab-${{ steps.get-ver.outputs.VERSION }}-win.exe.blockmap
             ./latest.yml
             ./MEDomicsLab-${{ steps.get-ver.outputs.VERSION }}-linux.deb
-            ./MEDomicsLab-${{ steps.get-ver.outputs.VERSION }}-mac.dmg
-            ./MEDomicsLab-${{ steps.get-ver.outputs.VERSION }}-mac.zip
-            ./latest-mac.yml
           name: MEDomicsLab Client-${{ steps.get-ver.outputs.VERSION }}
           body: |
             MEDomicsLab Client-${{ steps.get-ver.outputs.VERSION }}

@@ -430,36 +430,44 @@ jobs:
         with:
           name: linux-built-ubuntu
 
-      - name: Download Mac PKG
-        uses: actions/download-artifact@v4
-        with:
-          name: mac-built-pkg
+      # Temporarily commented while mac requirements are ignored for key/cert reasons
+      # - name: Download Mac PKG
+      #   uses: actions/download-artifact@v4
+      #   with:
+      #     name: mac-built-pkg
 
-      - name: Download Mac DMG
-        uses: actions/download-artifact@v4
-        with:
-          name: mac-built-dmg
+      # - name: Download Mac DMG
+      #   uses: actions/download-artifact@v4
+      #   with:
+      #     name: mac-built-dmg
 
-      - name: Download Mac ZIP
-        uses: actions/download-artifact@v4
-        with:
-          name: mac-built-zip
+      # - name: Download Mac ZIP
+      #   uses: actions/download-artifact@v4
+      #   with:
+      #     name: mac-built-zip
 
-      - name: Download latest-mac.yml
-        uses: actions/download-artifact@v4
-        with:
-          name: latest-mac
+      # - name: Download latest-mac.yml
+      #   uses: actions/download-artifact@v4
+      #   with:
+      #     name: latest-mac
 
-      - name: Download Mac DMG blockmap
-        uses: actions/download-artifact@v4
-        with:
-          name: mac-built-dmg-blockmap
+      # - name: Download Mac DMG blockmap
+      #   uses: actions/download-artifact@v4
+      #   with:
+      #     name: mac-built-dmg-blockmap
 
-      - name: Download Mac ZIP blockmap
-        uses: actions/download-artifact@v4
-        with:
-          name: mac-built-zip-blockmap
+      # - name: Download Mac ZIP blockmap
+      #   uses: actions/download-artifact@v4
+      #   with:
+      #     name: mac-built-zip-blockmap
 
+      # Readd these lines to "with: files:" when Mac release is reenabled
+            # ./MEDomicsLab-${{ env.VERSION }}-mac-installer.pkg
+            # ./MEDomicsLab-${{ env.VERSION }}-mac.dmg
+            # ./MEDomicsLab-${{ env.VERSION }}-mac.zip
+            # ./latest-mac.yml
+            # ./MEDomicsLab-${{ env.VERSION }}-mac.dmg.blockmap
+            # ./MEDomicsLab-${{ env.VERSION }}-mac.zip.blockmap
       - name: Get tag name
         id: get-tag
         run: |
@@ -474,12 +482,7 @@ jobs:
             ./MEDomicsLab-${{ env.VERSION }}-win.exe.blockmap
             ./latest.yml
             ./MEDomicsLab-${{ env.VERSION }}-ubuntu.deb
-            ./MEDomicsLab-${{ env.VERSION }}-mac-installer.pkg
-            ./MEDomicsLab-${{ env.VERSION }}-mac.dmg
-            ./MEDomicsLab-${{ env.VERSION }}-mac.zip
-            ./latest-mac.yml
-            ./MEDomicsLab-${{ env.VERSION }}-mac.dmg.blockmap
-            ./MEDomicsLab-${{ env.VERSION }}-mac.zip.blockmap
+
 
           name: MEDomicsLab-${{ env.VERSION }}
           body: |
