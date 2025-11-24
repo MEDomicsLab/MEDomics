@@ -25,7 +25,7 @@ jobs:
         shell: bash
         run: |
           VERSION=${GITHUB_REF/refs\/tags\//} # Remove "refs/tags/" from the beginning of the tag name 
-          NEW_VERSION="${VERSION#w}"
+          NEW_VERSION="${VERSION#v}"
           node -p "let pkg=require('./package.json'); pkg.version='$NEW_VERSION'; require('fs').writeFileSync('package.json', JSON.stringify(pkg, null, 2));"
 
       - name: Print package.json
@@ -56,7 +56,7 @@ jobs:
         shell: bash
         run: |
           VERSION=${GITHUB_REF/refs\/tags\//}
-          echo "VERSION=${VERSION#w}" >> "$GITHUB_OUTPUT"
+          echo "VERSION=${VERSION#v}" >> "$GITHUB_OUTPUT"
 
       - name: Archive Windows
         uses: actions/upload-artifact@v4
