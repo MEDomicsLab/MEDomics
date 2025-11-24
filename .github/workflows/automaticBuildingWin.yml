@@ -49,8 +49,7 @@ jobs:
         run: bash ./utilScripts/libmongocrypt_prebuild.sh
 
       - name: Build for Windows
-        # Prevent electron-builder from publishing here; we publish in the next job
-        run: npm run build:win -- --publish=never
+        run: npm run build:win
 
       - name: Get tag name
         id: get-tag
