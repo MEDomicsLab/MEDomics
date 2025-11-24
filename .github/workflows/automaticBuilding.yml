@@ -404,7 +404,7 @@ jobs:
 
   # Publish to GitHub
   publish:
-    needs: [build-windows]
+    needs: [build-windows, build-linux-ubuntu, build-mac]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
