@@ -10,6 +10,7 @@ from sklearn.pipeline import Pipeline
 import sys
 import os
 from pathlib import Path
+import ast
 sys.path.append(str(Path(os.path.dirname(os.path.abspath(__file__))).parent.parent))
 DATAFRAME_LIKE = Union[dict, list, tuple, np.ndarray, pd.DataFrame]
 TARGET_LIKE = Union[int, str, list, tuple, np.ndarray, pd.Series]
@@ -86,12 +87,21 @@ class Node(ABC):
         self._info_for_next_node = {}
         for setting, value in self.settings.items():
             if isinstance(value, str):
+
+                # Convert numeric strings
                 if is_float(value):
-                    if len(value.split('.')) > 1:
+                    if "." in value:
                         self.settings[setting] = float(value)
                     else:
                         self.settings[setting] = int(value)
 
+                # Convert tuple strings like "(150, 80)"
+                elif value.startswith("(") and value.endswith(")"):
+                    try:
+                        self.settings[setting] = ast.literal_eval(value)
+                    except Exception:
+                        print(f"Warning: Failed to convert tuple-like value: {setting}={value}")
+                
     def has_run(self):
         """
         Returns whether the node has been executed or not
