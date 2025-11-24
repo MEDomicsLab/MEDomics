@@ -499,7 +499,7 @@ const classificationModelSettings = {
                 "tooltip": "int, default=500. The maximum number of iterations to be run."
             },
             "hidden_layer_sizes": {
-                "type": "tuple",
+                "type": "string",
                 "default_val": "(100,)",
                 "tooltip": "tuple, default=(100,). The ith element represents the number of neurons in the ith hidden layer."
             },

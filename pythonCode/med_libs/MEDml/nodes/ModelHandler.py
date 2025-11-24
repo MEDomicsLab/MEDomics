@@ -375,6 +375,19 @@ class ModelHandler(Node):
                 raise ValueError(f"Something went wrong, the type of the node is {self.type}, but it should be 'train_model'.")
             # For train_model, we can use the model_id from the configuration
             settings.update(self.config_json['data']['estimator']['settings'])
+            
+            import ast
+
+            # Convert hidden_layer_sizes if it is a string
+            if "hidden_layer_sizes" in settings:
+                val = settings["hidden_layer_sizes"]
+                if isinstance(val, str) and val.startswith("(") and val.endswith(")"):
+                    print("Converting hidden_layer_sizes:", val)
+                    try:
+                        settings["hidden_layer_sizes"] = ast.literal_eval(val)
+                    except Exception as e:
+                        raise ValueError(f"Invalid tuple format for hidden_layer_sizes: {val}") from e
+
             settings.update({'estimator': self.config_json['data']['estimator']['type']})
             model_to_evaluate = self.config_json['data']['estimator']['type']
                 
@@ -419,9 +432,33 @@ class ModelHandler(Node):
                 self.CodeHandler.add_line("code", f"trained_models = [pycaret_exp.calibrate_model(trained_models[0], {self.CodeHandler.convert_dict_to_params(self.settingsCalibrate)})]")
 
             # Optimize model's threshold if enabled
+            # Optimize threshold only for binary, non-calibrated, non-ensemble models
             if self.optimize_threshold:
-                trained_model = pycaret_exp.optimize_threshold(trained_model, optimize=self.threshold_optimization_metric)
-                self.CodeHandler.add_line("code", f"trained_models = [pycaret_exp.optimize_threshold(trained_models[0], metric='{self.threshold_optimization_metric}')]")
+
+                # Do not optimize if data is multiclass
+                if len(pycaret_exp.get_config('y').unique()) != 2:
+                    print("Skipping threshold optimization (multiclass not supported).")
+                
+                # Do not optimize if ensemble was applied
+                elif self.ensembleEnabled:
+                    print("Skipping threshold optimization (ensemble not supported).")
+
+                # Do not optimize if calibration was applied
+                elif self.calibrateEnabled:
+                    print("Skipping threshold optimization (calibrated model not supported).")
+
+                else:
+                    trained_model = pycaret_exp.optimize_threshold(
+                        trained_model,
+                        optimize=self.threshold_optimization_metric
+                    )
+                    self.CodeHandler.add_line(
+                        "code",
+                        f"trained_models = [pycaret_exp.optimize_threshold(trained_models[0], metric='{self.threshold_optimization_metric}')]"
+                    )
+
+                #trained_model = pycaret_exp.optimize_threshold(trained_model, optimize=self.threshold_optimization_metric)
+                #self.CodeHandler.add_line("code", f"trained_models = [pycaret_exp.optimize_threshold(trained_models[0], metric='{self.threshold_optimization_metric}')]")
 
             if finalize:
                 self.CodeHandler.add_line("md", "##### *Finalizing models*")
@@ -506,6 +543,19 @@ class ModelHandler(Node):
 
         elif self.type == 'train_model':
             settings.update(self.config_json['data']['estimator']['settings'])
+            
+            import ast
+
+            # Convert hidden_layer_sizes if it is a string
+            if "hidden_layer_sizes" in settings:
+                val = settings["hidden_layer_sizes"]
+                if isinstance(val, str) and val.startswith("(") and val.endswith(")"):
+                    print("Converting hidden_layer_sizes:", val)
+                    try:
+                        settings["hidden_layer_sizes"] = ast.literal_eval(val)
+                    except Exception as e:
+                        raise ValueError(f"Invalid tuple format for hidden_layer_sizes: {val}") from e
+
             settings.update({'estimator': self.config_json['data']['estimator']['type']})
             trained_models = [experiment['pycaret_exp'].create_model(**settings)]
             self.CodeHandler.add_line("code", f"trained_models = [pycaret_exp.create_model({self.CodeHandler.convert_dict_to_params(settings)})]")
