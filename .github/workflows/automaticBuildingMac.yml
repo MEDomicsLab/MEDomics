@@ -158,7 +158,8 @@ jobs:
           CSC_INSTALLER_LINK: ${{ secrets.CSC_INSTALLER_LINK }}
           CSC_INSTALLER_KEY_PASSWORD: ${{ secrets.CSC_INSTALLER_KEY_PASSWORD }}
         run: |
-          npm run build:mac
+          # Prevent electron-builder from publishing here; we publish in the next job
+          npm run build:mac -- --publish=never
 
       - name: Notarize Mac .pkg
         id: notarize-pkg
