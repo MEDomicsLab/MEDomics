@@ -8,6 +8,8 @@ permissions:
 jobs:
   build-linux-ubuntu:
     runs-on: ubuntu-22.04
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
     steps:
       - name: Checkout code
