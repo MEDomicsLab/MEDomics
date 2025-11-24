@@ -49,7 +49,8 @@ jobs:
         run: bash ./utilScripts/libmongocrypt_prebuild.sh
 
       - name: Build for Windows
-        run: npm run build:win
+        # Prevent electron-builder from publishing here; publish occurs in the final job
+        run: npm run build:win -- --publish=never
 
       - name: Get tag name
         id: get-tag
@@ -139,7 +140,8 @@ jobs:
         run: bash ./utilScripts/libmongocrypt_prebuild.sh
 
       - name: Build for Linux
-        run: npm run build:linux
+        # Prevent electron-builder from publishing here; publish occurs in the final job
+        run: npm run build:linux -- --publish=never
 
       - name: Get tag name
         id: get-tag
@@ -313,7 +315,8 @@ jobs:
           CSC_INSTALLER_LINK: ${{ secrets.CSC_INSTALLER_LINK }}
           CSC_INSTALLER_KEY_PASSWORD: ${{ secrets.CSC_INSTALLER_KEY_PASSWORD }}
         run: |
-          npm run build
+          # Prevent electron-builder from publishing here; publish occurs in the final job
+          npm run build -- --publish=never
 
       - name: notarize
         env:
