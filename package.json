@@ -28,9 +28,9 @@
     "publish:linux": "bash ./utilScripts/build_preparation_linux.sh && nextron build --linux --publish always",
     "publish:win": ".\\utilScripts\\build_preparation_win.bat && nextron build --win --publish always",
     "publish:mac": "nextron build --mac --publish always",
-    "pack:server:win": "node ./tools/pack_server.js --platform=win32",
-    "pack:server:linux": "node ./tools/pack_server.js --platform=linux",
-    "pack:server:mac": "node ./tools/pack_server.js --platform=darwin",
+    "build:server:win": "npx nexe ./backend/cli/medomics-server.mjs -t windows-x64-18.0.0 -o build/server/medomics-server-win.exe",
+    "build:server:linux": "npx nexe ./backend/cli/medomics-server.mjs -t linux-x64-18.0.0 -o build/server/medomics-server-linux",
+    "build:server:mac": "npx nexe ./backend/cli/medomics-server.mjs -t macos-x64-18.0.0 -o build/server/medomics-server-mac",
     "pack:server": "node ./tools/pack_server.js"
   },
   "dependencies": {
@@ -129,6 +129,7 @@
     "electron-builder": "^25.1.8",
     "eslint": "^8.44.0",
     "eslint-plugin-react": "^7.32.2",
+    "nexe": "^4.0.0-rc.7",
     "next": "^13.5.3",
     "nextron": "^8.5.0",
     "prettier": "^3.4.2",

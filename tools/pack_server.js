@@ -53,6 +53,18 @@ async function main() {
   await ensureDir(outBase);
   await ensureDir(distDir);
 
+  // 0) Build Node server binary for the target platform
+  console.log('Building Node server binary with nexe for', platform);
+  const serverBinDir = path.join(root, 'build', 'server');
+  await ensureDir(serverBinDir);
+  if (platform === 'win32') {
+    sh('npm run build:server:win', { shell: true });
+  } else if (platform === 'linux') {
+    sh('npm run build:server:linux', { shell: true });
+  } else {
+    sh('npm run build:server:mac', { shell: true });
+  }
+
   // 1) Build Go server for the target platform
   console.log('Building Go server for', platform);
   const goServerDir = path.join(root, 'go_server');
@@ -87,6 +99,26 @@ async function main() {
     await fsp.copyFile(path.join(goOutDir, 'server_go'), path.join(outBase, 'go_executables', 'server_go'));
   }
 
+  // Copy Node server binary into bundle root
+  if (platform === 'win32') {
+    await fsp.copyFile(
+      path.join(serverBinDir, 'medomics-server-win.exe'),
+      path.join(outBase, 'medomics-server.exe')
+    );
+  } else if (platform === 'linux') {
+    await fsp.copyFile(
+      path.join(serverBinDir, 'medomics-server-linux'),
+      path.join(outBase, 'medomics-server')
+    );
+    await fsp.chmod(path.join(outBase, 'medomics-server'), 0o755);
+  } else {
+    await fsp.copyFile(
+      path.join(serverBinDir, 'medomics-server-mac'),
+      path.join(outBase, 'medomics-server')
+    );
+    await fsp.chmod(path.join(outBase, 'medomics-server'), 0o755);
+  }
+
   // 3) Create helper scripts
   // Install backend production dependencies into the staged backend
   console.log('Installing backend production dependencies...');
@@ -111,31 +143,31 @@ async function main() {
 `node ./backend/cli/medomics-server.mjs start --json\n`;
   await fsp.writeFile(path.join(outBase, 'README.txt'), readme, 'utf8');
 
-  if (platform === 'win32') {
+    if (platform === 'win32') {
     await fsp.writeFile(path.join(outBase, 'start.bat'), [
       '@echo off',
-      'node .\backend\cli\medomics-server.mjs ensure --json --go --mongo --jupyter',
-      'node .\backend\cli\medomics-server.mjs start --json',
+      'medomics-server.exe ensure --json --go --mongo --jupyter',
+      'medomics-server.exe start --json',
       ''
     ].join('\r\n'), 'utf8');
     await fsp.writeFile(path.join(outBase, 'stop.bat'), [
       '@echo off',
-      'node .\backend\cli\medomics-server.mjs stop --json',
+      'medomics-server.exe stop --json',
       ''
     ].join('\r\n'), 'utf8');
   } else {
     await fsp.writeFile(path.join(outBase, 'start.sh'), [
       '#!/usr/bin/env bash',
       'set -e',
-      'node ./backend/cli/medomics-server.mjs ensure --json --go --mongo --jupyter',
-      'node ./backend/cli/medomics-server.mjs start --json',
+      './medomics-server ensure --json --go --mongo --jupyter',
+      './medomics-server start --json',
       ''
     ].join('\n'), 'utf8');
     await fsp.chmod(path.join(outBase, 'start.sh'), 0o755);
     await fsp.writeFile(path.join(outBase, 'stop.sh'), [
       '#!/usr/bin/env bash',
       'set -e',
-      'node ./backend/cli/medomics-server.mjs stop --json',
+      './medomics-server stop --json',
       ''
     ].join('\n'), 'utf8');
     await fsp.chmod(path.join(outBase, 'stop.sh'), 0o755);
