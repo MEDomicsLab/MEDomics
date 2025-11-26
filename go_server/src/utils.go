@@ -170,7 +170,7 @@ func StartPythonScripts(jsonParam string, filename string, id string) (string, e
 	// 	log.Println("Error writing jsonParam to file")
 	// 	return "", err
 	// }
-	
+
 	Scripts[id] = ScriptInfo{
 		Cmd:      exec.Command(condaEnv, "-u", script, "--json-param", jsonParam, "--id", id),
 		Progress: "",
@@ -233,9 +233,6 @@ func copyOutput(r io.Reader, response *string) {
 				Progress: progress,
 			}
 			Mu.Unlock()
-		} else {
-			log.Println(lineText)
-			*response = lineText
 		}
 	}
 }
