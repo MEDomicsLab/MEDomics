@@ -143,11 +143,12 @@ class MEDexperimentLearning(MEDexperiment):
             "code", f"pycaret_exp.setup(temp_df, {node.CodeHandler.convert_dict_to_params(kwargs)})")
         node.CodeHandler.add_line(
             "code", f"dataset = pycaret_exp.get_config('X').join(pycaret_exp.get_config('y'))")
+        
+        full_data = pycaret_exp.get_config('X').join(pycaret_exp.get_config('y'))
         dataset_metaData = {
-            'dataset': pycaret_exp.get_config('X').join(pycaret_exp.get_config('y')),
+            'dataset': full_data.head(10) if len(full_data) > 10 else full_data,
             'X_test': pycaret_exp.get_config('X_test'),
             'y_test': pycaret_exp.get_config('y_test'),
-
         }
         self.global_json_config["columns"] = copy.deepcopy(list(
             temp_df.columns.values.tolist()))
