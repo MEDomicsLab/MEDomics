@@ -37,6 +37,25 @@ async function ensureDir(dir) {
   await fsp.mkdir(dir, { recursive: true });
 }
 
+// Copy a directory tree while excluding specified top-level names (e.g., node_modules)
+async function copyDirExcluding(src, dest, excludeNames = new Set()) {
+  await ensureDir(dest);
+  const entries = await fsp.readdir(src, { withFileTypes: true });
+  for (const entry of entries) {
+    if (excludeNames.has(entry.name)) continue;
+    const srcPath = path.join(src, entry.name);
+    const destPath = path.join(dest, entry.name);
+    if (entry.isDirectory()) {
+      await copyDirExcluding(srcPath, destPath, excludeNames);
+    } else if (entry.isSymbolicLink()) {
+      // Skip symlinks to avoid EPERM on Windows
+      continue;
+    } else {
+      await fsp.copyFile(srcPath, destPath);
+    }
+  }
+}
+
 async function main() {
   const args = process.argv.slice(2);
   const platformArg = args.find(a => a.startsWith('--platform='));
@@ -48,6 +67,19 @@ async function main() {
 
   const root = process.cwd();
   const version = require(path.join(root, 'package.json')).version;
+  // Preflight: ensure backend has no local file: dependencies which would create symlinks
+  const backendPkgPath = path.join(root, 'backend', 'package.json');
+  const backendPkg = JSON.parse(fs.readFileSync(backendPkgPath, 'utf8'));
+  const deps = backendPkg.dependencies || {};
+  const fileDeps = Object.entries(deps).filter(([, spec]) => typeof spec === 'string' && spec.startsWith('file:'));
+  if (fileDeps.length > 0) {
+    console.error('Error: backend/package.json contains local file: dependencies which can create symlinks during install:');
+    for (const [name, spec] of fileDeps) {
+      console.error(` - ${name}: ${spec}`);
+    }
+    console.error('Please replace these with proper registry versions or remove them before packing.');
+    process.exit(1);
+  }
   const outBase = path.join(root, 'build', 'server', platform);
   const distDir = path.join(root, 'build', 'dist');
   await ensureDir(outBase);
@@ -87,7 +119,8 @@ async function main() {
   }
 
   // Copy backend, pythonCode, pythonEnv
-  await cpRecursive(path.join(root, 'backend'), path.join(outBase, 'backend'));
+  // Copy backend excluding node_modules to avoid Windows symlink EPERM
+  await copyDirExcluding(path.join(root, 'backend'), path.join(outBase, 'backend'), new Set(['node_modules']));
   await cpRecursive(path.join(root, 'pythonCode'), path.join(outBase, 'pythonCode'));
   await cpRecursive(path.join(root, 'pythonEnv'), path.join(outBase, 'pythonEnv'));
 
@@ -125,7 +158,9 @@ async function main() {
   // Ensure a clean node_modules in staging
   await fsp.rm(path.join(outBase, 'backend', 'node_modules'), { recursive: true, force: true }).catch(() => {});
   // Use npm with --prefix to install into the staged backend folder
-  sh(`npm install --omit=dev --prefix "${path.join(outBase, 'backend')}"`, { shell: true });
+  // Add --no-bin-links to avoid symlink creation on Windows (EPERM without admin/dev-mode)
+  // Also disable lockfile to avoid reintroducing local file deps via package-lock
+  sh(`npm install --omit=dev --no-bin-links --no-package-lock --prefix "${path.join(outBase, 'backend')}"`, { shell: true });
 
   // npm creates a self-referencing symlink (package name matches repo) which causes
   // infinite recursion when zip-local traverses the directory. Remove it proactively.

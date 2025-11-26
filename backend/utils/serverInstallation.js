@@ -27,14 +27,12 @@ async function checkIsXcodeSelectInstalled() {
 
 async function installBrew(){
   let installBrewPromise = exec(`/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"`)
-  execCallbacksForChildWithNotifications(installBrewPromise.child, "Installing Homebrew", mainWindow)
   await installBrewPromise
   return true
 }
 
 async function installXcodeSelect() {
   let installXcodeSelectPromise = exec(`xcode-select --install`)
-  execCallbacksForChildWithNotifications(installXcodeSelectPromise.child, "Installing Xcode Command Line Tools", mainWindow)
   await installXcodeSelectPromise
   return true
 }
@@ -42,8 +40,8 @@ async function installXcodeSelect() {
 
 import path from "path"
 import util from "util"
-import child_process from "child_process"
-const exec = util.promisify(child_process.exec)
+import { exec as childProcessExec } from "child_process"
+const exec = util.promisify(childProcessExec)
 
 async function checkRequirements() {
   // Ensure .medomics directory exists
@@ -77,7 +75,7 @@ async function installMongoDB() {
     console.log("Running MongoDB installer...")
     await exec(`msiexec.exe /l*v mdbinstall.log /qb /i "${downloadPath}" ADDLOCAL="ServerNoService" SHOULD_INSTALL_COMPASS="0"`)
     // Remove installer
-    try { await exec(`del "${downloadPath}"`, { shell: "powershell.exe" }) } catch {}
+    try { await exec(`del "${downloadPath}"`, { shell: "powershell.exe" }) } catch (e) { console.warn("Failed to remove installer:", e) }
     return getMongoDBPath() !== null
   } else if (process.platform === "darwin") {
     console.log("Installing MongoDB via Homebrew...")
@@ -111,7 +109,7 @@ async function installMongoDB() {
     const extractCmd = `tar -xvzf "${downloadPath}" -C "${medomicsDir}" && mv "${medomicsDir}/mongodb-linux-${architecture}-ubuntu${ubuntuVersion}-7.0.15" "${medomicsDir}/mongodb"`
     console.log("Extracting and installing MongoDB...")
     await exec(extractCmd)
-    try { await exec(`rm "${downloadPath}"`) } catch {}
+    try { await exec(`rm "${downloadPath}"`) } catch (e) { console.warn("Failed to remove installer:", e) }
     return getMongoDBPath() !== null
   }
 }

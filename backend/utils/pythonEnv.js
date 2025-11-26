@@ -78,12 +78,8 @@ function getCondaPath(parentPath) {
       condaPath = checkDirectories(parentPath, possibleCondaPaths)
     }
     if (condaPath === null && process.platform !== "darwin") {
-      console.log("No conda environment found")
-      dialog.showMessageBoxSync({
-        type: "error",
-        title: "No conda environment found",
-        message: "No conda environment found. Please install anaconda or miniconda and try again."
-      })
+      // Replaced dialog usage (Electron) with console output to keep backend headless.
+      console.log("No conda environment found. Please install Anaconda or Miniconda and try again.")
     }
   }
   return condaPath

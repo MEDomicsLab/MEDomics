@@ -1,9 +1,29 @@
-import { app } from "electron"
-import { execCallbacksForChildWithNotifications } from "../utils/pythonEnv"
-import { mainWindow } from "../../main/background.js"
-import { getBundledPythonEnvironment } from "../utils/pythonEnv"
-import { getMongoDBPath } from "../utils/mongoDBServer"
+// Electron dependencies removed / made optional for headless backend usage.
+// Attempt dynamic import of electron; fall back to plain filesystem paths if unavailable.
+import { execCallbacksForChildWithNotifications } from "../utils/pythonEnv.js"
+import { getBundledPythonEnvironment } from "../utils/pythonEnv.js"
+import { getMongoDBPath } from "../utils/mongoDBServer.js"
 import fs from "fs"
+import os from "os"
+import path from "path"
+
+let app = null
+try {
+  const electronMod = await import("electron")
+  app = electronMod.app
+} catch (e) {
+  // Fallback minimal app shim
+  app = {
+    getPath(name) {
+      if (name === "home") return os.homedir()
+      if (name === "downloads") return path.join(os.homedir(), "Downloads")
+      return process.cwd()
+    }
+  }
+}
+
+// UI window not available in headless mode; use null notify target.
+const mainWindow = null
 
 export const checkIsBrewInstalled = async () => {
   let isBrewInstalled = false
@@ -28,20 +48,19 @@ export const checkIsXcodeSelectInstalled = async () => {
 
 export const installBrew = async () => {
   let installBrewPromise = exec(`/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"`)
-  execCallbacksForChildWithNotifications(installBrewPromise.child, "Installing Homebrew", mainWindow)
+  execCallbacksForChildWithNotifications(installBrewPromise.child, "Installing Homebrew", null)
   await installBrewPromise
   return true
 }
 
 export const installXcodeSelect = async () => {
   let installXcodeSelectPromise = exec(`xcode-select --install`)
-  execCallbacksForChildWithNotifications(installXcodeSelectPromise.child, "Installing Xcode Command Line Tools", mainWindow)
+  execCallbacksForChildWithNotifications(installXcodeSelectPromise.child, "Installing Xcode Command Line Tools", null)
   await installXcodeSelectPromise
   return true
 }
 
 
-var path = require("path")
 const util = require("util")
 const exec = util.promisify(require("child_process").exec)
 
@@ -65,16 +84,16 @@ export const installMongoDB = async () => {
     const downloadUrl = "https://fastdl.mongodb.org/windows/mongodb-windows-x86_64-7.0.12-signed.msi"
     const downloadPath = path.join(app.getPath("downloads"), "mongodb-windows-x86_64-7.0.12-signed.msi")
     let downloadMongoDBPromise = exec(`curl -o ${downloadPath} ${downloadUrl}`)
-    execCallbacksForChildWithNotifications(downloadMongoDBPromise.child, "Downloading MongoDB installer", mainWindow)
+    execCallbacksForChildWithNotifications(downloadMongoDBPromise.child, "Downloading MongoDB installer", null)
     await downloadMongoDBPromise
     // Install MongoDB
     // msiexec.exe /l*v mdbinstall.log /qb /i mongodb-windows-x86_64-7.0.12-signed.msi ADDLOCAL="ServerNoService" SHOULD_INSTALL_COMPASS="0"
     let installMongoDBPromise = exec(`msiexec.exe /l*v mdbinstall.log /qb /i ${downloadPath} ADDLOCAL="ServerNoService" SHOULD_INSTALL_COMPASS="0"`)
-    execCallbacksForChildWithNotifications(installMongoDBPromise.child, "Installing MongoDB", mainWindow)
+    execCallbacksForChildWithNotifications(installMongoDBPromise.child, "Installing MongoDB", null)
     await installMongoDBPromise
 
     let removeMongoDBInstallerPromise = exec(`rm ${downloadPath}`, { shell: "powershell" })
-    execCallbacksForChildWithNotifications(removeMongoDBInstallerPromise.child, "Removing MongoDB installer", mainWindow)
+    execCallbacksForChildWithNotifications(removeMongoDBInstallerPromise.child, "Removing MongoDB installer", null)
     await removeMongoDBInstallerPromise
 
     return getMongoDBPath() !== null
@@ -91,7 +110,7 @@ export const installMongoDB = async () => {
     }
 
     let installMongoDBPromise = exec(`brew tap mongodb/brew && brew install mongodb-community@7.0.12`)
-    execCallbacksForChildWithNotifications(installMongoDBPromise.child, "Installing MongoDB", mainWindow)
+    execCallbacksForChildWithNotifications(installMongoDBPromise.child, "Installing MongoDB", null)
     
 
     
@@ -130,7 +149,7 @@ export const installMongoDB = async () => {
         // Download MongoDB installer
         const downloadPath = path.join(app.getPath("downloads"), `mongodb-linux-${architecture}-ubuntu${ubuntuVersion}-7.0.15.tgz`)
         let downloadMongoDBPromise = exec(`curl -o ${downloadPath} ${downloadUrl}`)
-        execCallbacksForChildWithNotifications(downloadMongoDBPromise.child, "Downloading MongoDB installer", mainWindow)
+        execCallbacksForChildWithNotifications(downloadMongoDBPromise.child, "Downloading MongoDB installer", null)
         await downloadMongoDBPromise
         // Install MongoDB in the .medomics directory in the user's home directory
         ubuntuVersion = ubuntuVersion.replace(".", "")
@@ -138,7 +157,7 @@ export const installMongoDB = async () => {
         let installMongoDBPromise = exec(command)
 
         // let installMongoDBPromise = exec(`tar -xvzf ${downloadPath} && mv mongodb-linux-${architecture}-ubuntu${ubuntuVersion}-7.0.15 /home/${process.env.USER}/.medomics/mongodb`)
-        execCallbacksForChildWithNotifications(installMongoDBPromise.child, "Installing MongoDB", mainWindow)
+        execCallbacksForChildWithNotifications(installMongoDBPromise.child, "Installing MongoDB", null)
         await installMongoDBPromise
         
         
