@@ -53,7 +53,7 @@ export class MEDDataObject {
    */
   static getChildIDWithName(dict, parentID, name) {
     for (const childID of dict[parentID].childrenIDs) {
-      if (dict[childID].name == name) {
+      if (dict[childID] && dict[childID].name == name) {
         return childID
       }
     }
