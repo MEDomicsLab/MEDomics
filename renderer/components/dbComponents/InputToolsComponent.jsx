@@ -202,11 +202,10 @@ const InputToolsComponent = ({ exportOptions }) => {
     <p style={{ textAlign: "center" }}>Please select a dataset to continue.</p>
   ) : (
     <>
-      {/* 🔥 Si on a un outil actif : NE FAIRE AFFICHER QUE LUI */}
+      {/* only showcase the active tool */}
       {activeTool ? (
         renderActiveTool()
       ) : (
-        /* 🔥 Sinon : affichage normal de la liste des outils */
         Object.values(SECTIONS)
           .flatMap((s) => s.subsections)
           .filter((sub) => sub.key === activeSection)
