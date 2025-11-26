@@ -163,6 +163,10 @@ nodes_options = {
         "info": ['load_model'],
         "code": """"""
     },
+    'group_models': {
+        "info": [],
+        "code": """"""
+    },
 
 }
 
@@ -249,6 +253,8 @@ def convert_to_medomics_standards(settings: dict, types_conv: dict, nodes_includ
     standard_settings['create_model']['options'] = settings['create_model']['options']
     standard_settings['create_model']['code'] = nodes_include['create_model']['code']
 
+  
+
     # MODELS SETTINGS
     for model_option in options_choices['estimators'].keys():
         standard_settings['model'][model_option] = {
@@ -329,6 +335,8 @@ def specific_case(dict_settings: dict) -> dict:
         "type": "models-input",
         "tooltip": "<p>Choose a model from the MODELS folder</p>"
     }
+
+   
 
     dict_settings['dataset']['options']['use_gpu']['type'] = "list"
     dict_settings['dataset']['options']['use_gpu']['choices'] = options_choices['use_gpu']
@@ -495,6 +503,9 @@ possible_settings = convert_to_medomics_standards(
 possible_settings = specific_case(possible_settings)
 
 possible_settings = add_default(possible_settings)
+
+possible_settings['group_models']['options'] = {}
+possible_settings['group_models']['code'] = ""
 
 possible_settings = delete_keys_from_dict(
     possible_settings, ['estimator', 'model', 'estimator_list'])

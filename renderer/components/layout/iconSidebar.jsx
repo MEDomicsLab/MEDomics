@@ -1,6 +1,6 @@
 /* eslint-disable no-unused-vars */
-import React, { useState, useContext, useEffect } from "react"
-import { Files, HouseFill, Gear, Server, Search, BandaidFill, Send } from "react-bootstrap-icons"
+import { useState, useContext, useEffect } from "react"
+import { Files, HouseFill, Gear, Send } from "react-bootstrap-icons"
 import Nav from "react-bootstrap/Nav"
 import { NavDropdown } from "react-bootstrap"
 import { WorkspaceContext } from "../workspace/workspaceContext"
@@ -14,7 +14,10 @@ import { Button } from "primereact/button"
 import { TbFileExport } from "react-icons/tb"
 import { VscChromeClose } from "react-icons/vsc"
 import { PiGraphFill } from "react-icons/pi"
-import { MdOutlineGroups3 } from "react-icons/md"
+import { MdOutlineGroups3, MdSunny } from "react-icons/md"
+import { MdOutlineDarkMode } from "react-icons/md";
+import { useTheme } from "../theme/themeContext"
+
 /**
  * @description Sidebar component containing icons for each page
  * @param {function} onSidebarItemSelect - function to handle sidebar item selection
@@ -23,8 +26,9 @@ import { MdOutlineGroups3 } from "react-icons/md"
 const IconSidebar = ({ onSidebarItemSelect }) => {
   // eslint-disable-next-line no-unused-vars
   const { dispatchLayout, developerMode, setDeveloperMode } = useContext(LayoutModelContext)
+  const { isDarkMode, toggleTheme } = useTheme()
   const [activeKey, setActiveKey] = useState("home") // activeKey is the name of the page
-  const [disabledIcon, setDisabledIcon] = useState("disabled") // disabled is the state of the page
+  const [isDisabled, setIsDisabled] = useState(true) // disabled is the state of the page
   const [developerModeNav, setDeveloperModeNav] = useState(true)
   const [extractionBtnstate, setExtractionBtnstate] = useState(false)
   const [buttonClass, setButtonClass] = useState("")
@@ -65,9 +69,9 @@ const IconSidebar = ({ onSidebarItemSelect }) => {
   useEffect(() => {
     if (!workspace.hasBeenSet) {
       setActiveKey("home")
-      setDisabledIcon(true)
+      setIsDisabled(true)
     } else {
-      setDisabledIcon(false)
+      setIsDisabled(false)
     }
   }, [workspace])
 
@@ -91,6 +95,10 @@ const IconSidebar = ({ onSidebarItemSelect }) => {
     setButtonClass(buttonClass === "" ? "show" : "")
   }
 
+  function handleThemeToggleClick() {
+    toggleTheme()
+  }
+
   return (
     <>
       <div className="icon-sidebar">
@@ -104,7 +112,6 @@ const IconSidebar = ({ onSidebarItemSelect }) => {
         <Tooltip target=".resultsNav" {...delayOptions} className="tooltip-icon-sidebar" />
         <Tooltip target=".evaluationNav" {...delayOptions} className="tooltip-icon-sidebar" />
         <Tooltip target=".applicationNav" {...delayOptions} className="tooltip-icon-sidebar" />
-        <Tooltip target=".ext-MEDimg-btn" {...delayOptions} className="tooltip-icon-sidebar" />
         <Tooltip target=".ext-text-btn" {...delayOptions} className="tooltip-icon-sidebar" />
         <Tooltip target=".ext-ts-btn" {...delayOptions} className="tooltip-icon-sidebar" />
         <Tooltip target=".ext-img-btn" {...delayOptions} className="tooltip-icon-sidebar" />
@@ -154,7 +161,7 @@ const IconSidebar = ({ onSidebarItemSelect }) => {
                 data-tooltip-id="tooltip-input"
                 onDoubleClick={(event) => handleDoubleClick(event, "Input")}
                 onClick={(event) => handleClick(event, "input")}
-                disabled={disabledIcon}
+                disabled={isDisabled}
               >
                 {" "}
                 <FaDatabase style={{ height: "1.7rem", width: "auto" }} />
@@ -172,7 +179,7 @@ const IconSidebar = ({ onSidebarItemSelect }) => {
                 onClick={() => {
                   setExtractionBtnstate(!extractionBtnstate)
                 }}
-                disabled={disabledIcon}
+                disabled={isDisabled}
                 onBlur={(event) => {
                   let clickedTarget = event.relatedTarget
                   let blurAccepeted = true
@@ -186,22 +193,6 @@ const IconSidebar = ({ onSidebarItemSelect }) => {
               >
                 {extractionBtnstate ? <VscChromeClose style={{ height: "1.7rem", width: "auto" }} /> : <TbFileExport style={{ height: "1.7rem", width: "auto" }} />}
                 <div className={`btn-group-ext ${extractionBtnstate ? "clicked" : ""}`}>
-                  <Button
-                    className="ext-MEDimg-btn"
-                    icon="pi pi-image"
-                    data-pr-at="right center"
-                    data-pr-my="left center"
-                    data-pr-tooltip="MEDimage"
-                    data-is-ext-btn
-                    onClick={(event) => {
-                      event.stopPropagation()
-                      event.preventDefault()
-                      handleDoubleClick(event, "ExtractionMEDimage")
-                      // handleClick(event, "extractionMEDimage")
-                      setExtractionBtnstate(!extractionBtnstate)
-                    }}
-                    onDoubleClick={(event) => handleDoubleClick(event, "ExtractionMEDimage")}
-                  />
                   <Button
                     className="ext-text-btn"
                     icon="pi pi-align-left"
@@ -263,7 +254,7 @@ const IconSidebar = ({ onSidebarItemSelect }) => {
                 data-tooltip-id="tooltip-exploratory"
                 onDoubleClick={(event) => handleDoubleClick(event, "Exploratory")}
                 onClick={(event) => handleClick(event, "exploratory")}
-                disabled={disabledIcon}
+                disabled={isDisabled}
               >
                 {" "}
                 <FaMagnifyingGlassChart style={{ height: "1.7rem", width: "auto" }} />
@@ -283,7 +274,7 @@ const IconSidebar = ({ onSidebarItemSelect }) => {
                 eventKey="Learning"
                 data-tooltip-id="tooltip-learning"
                 onClick={(event) => handleClick(event, "learning")}
-                disabled={disabledIcon}
+                disabled={isDisabled}
               >
                 <LuNetwork style={{ height: "1.7rem", width: "auto", rotate: "-90deg" }} />
               </Nav.Link>
@@ -296,7 +287,7 @@ const IconSidebar = ({ onSidebarItemSelect }) => {
                 eventKey="MEDfl"
                 onDoubleClick={(event) => handleDoubleClick(event, "MEDfl")}
                 onClick={(event) => handleClick(event, "medfl")}
-                disabled={disabledIcon}
+                disabled={isDisabled}
               >
                 <PiGraphFill style={{ height: "2.2rem", width: "auto" }} />
               </Nav.Link>
@@ -308,7 +299,7 @@ const IconSidebar = ({ onSidebarItemSelect }) => {
                 data-pr-tooltip="Evaluation"
                 eventKey="Evaluation"
                 onClick={(event) => handleClick(event, "evaluation")}
-                disabled={disabledIcon}
+                disabled={isDisabled}
               >
                 <PiFlaskFill style={{ height: "2.2rem", width: "auto" }} />
               </Nav.Link>
@@ -321,7 +312,7 @@ const IconSidebar = ({ onSidebarItemSelect }) => {
                 eventKey="MED3pa"
                 onDoubleClick={(event) => handleDoubleClick(event, "MED3pa")}
                 onClick={(event) => handleClick(event, "med3pa")}
-                disabled={disabledIcon}
+                disabled={isDisabled}
               >
                 <MdOutlineGroups3 style={{ height: "2.2rem", width: "auto" }} />
               </Nav.Link>
@@ -340,7 +331,7 @@ const IconSidebar = ({ onSidebarItemSelect }) => {
                 eventKey="Application"
                 data-tooltip-id="tooltip-application"
                 onClick={(event) => handleClick(event, "application")}
-                disabled={disabledIcon}
+                disabled={isDisabled}
                 onDoubleClick={(event) => handleDoubleClick(event, "Application")}
               >
                 <Send size={"1.25rem"} width={"100%"} height={"100%"} style={{ scale: "0.65" }} />
@@ -350,21 +341,46 @@ const IconSidebar = ({ onSidebarItemSelect }) => {
           </div>
 
           {/* div that puts the buttons to the bottom of the sidebar*/}
-          <div className="d-flex icon-sidebar-divider" style={{ flexGrow: "1" }}></div>
+          <div className="d-flex icon-sidebar-divider" style={{ flexGrow: "0.85" }}></div>
+          {/* ------------------------------------------- DARK/LIGHT MODE BUTTON ----------------------------------------- */}
+          <div className="medomics-layer settings">
+            <div className="sidebar-icons">
+              <Nav.Link
+                className="darkModeNav btnSidebar align-center"
+                data-pr-at="right center"
+                data-pr-my="left center"
+                data-pr-tooltip="Dark/Light Mode"
+                eventKey="darkMode"
+                data-tooltip-id="tooltip-darkMode"
+                onClick={() => {
+                  handleThemeToggleClick()
+                }}
+              >
+                {isDarkMode ? (
 
-          {/* ------------------------------------------- SETTINGS BUTTON ----------------------------------------- */}
-          <Nav.Link
-            className="settingsNav btnSidebar"
-            data-pr-at="right center"
-            data-pr-my="left center"
-            data-pr-tooltip="Settings"
-            eventKey="settings"
-            data-tooltip-id="tooltip-settings"
-            onClick={() => dispatchLayout({ type: `openSettings`, payload: { pageId: "Settings" } })}
-            disabled={disabledIcon}
-          >
-            <Gear size={"1.25rem"} width={"100%"} height={"100%"} style={{ scale: "0.65" }} />
-          </Nav.Link>
+                  <MdOutlineDarkMode style={{ height: "2.2rem", width: "auto" }} />
+                ) : (
+                  <MdSunny style={{ height: "2.2rem", width: "auto" }} />
+                )}
+              </Nav.Link>
+              {/* ------------------------------------------- END DARK/LIGHT MODE BUTTON ----------------------------------------- */}
+
+              {/* ------------------------------------------- SETTINGS BUTTON ----------------------------------------- */}
+              <Nav.Link
+                className="settingsNav btnSidebar"
+                data-pr-at="right center"
+                data-pr-my="left center"
+                data-pr-tooltip="Settings"
+                eventKey="settings"
+                data-tooltip-id="tooltip-settings"
+                onClick={() => dispatchLayout({ type: `openSettings`, payload: { pageId: "Settings" } })}
+                disabled={isDisabled}
+              >
+                <Gear size={"1.25rem"} width={"100%"} height={"100%"} style={{ scale: "0.65" }} />
+              </Nav.Link>
+            </div>
+            <div className="medomics-layer-text">Settings</div>
+          </div>
         </Nav>
         {/* ------------------------------------------- END ICON NAVBAR ----------------------------------------- */}
       </div>

@@ -162,6 +162,15 @@ func StartPythonScripts(jsonParam string, filename string, id string) (string, e
 		log.Println("running script in prod: " + script)
 	}
 	log.Println("Conda env: " + condaEnv)
+
+	// UNCOMMENT TO WRITE JSON PARAM TO FILE FOR DEBUGGING
+	// jsonParamBytes := []byte(jsonParam)
+	// err = os.WriteFile("jsonParam.txt", jsonParamBytes, 0644)
+	// if err != nil {
+	// 	log.Println("Error writing jsonParam to file")
+	// 	return "", err
+	// }
+
 	Scripts[id] = ScriptInfo{
 		Cmd:      exec.Command(condaEnv, "-u", script, "--json-param", jsonParam, "--id", id),
 		Progress: "",
@@ -206,6 +215,7 @@ func copyOutput(r io.Reader, response *string) {
 		lineText = scanner.Text()
 		if strings.Contains(lineText, "response-ready*_*") {
 			path := strings.Split(lineText, "*_*")[1]
+			path = path[:len(path)-1]
 			*response = ReadFile(path)
 			//	delete this file
 			err := os.Remove(path)
@@ -215,6 +225,7 @@ func copyOutput(r io.Reader, response *string) {
 		} else if strings.Contains(lineText, "progress*_*") {
 			id := strings.Split(lineText, "*_*")[1]
 			progress := strings.Split(lineText, "*_*")[2]
+			progress = progress[:len(progress)-1]
 			log.Println("Progress: " + progress)
 			Mu.Lock()
 			Scripts[id] = ScriptInfo{
@@ -222,8 +233,6 @@ func copyOutput(r io.Reader, response *string) {
 				Progress: progress,
 			}
 			Mu.Unlock()
-		} else {
-			log.Println(lineText)
 		}
 	}
 }

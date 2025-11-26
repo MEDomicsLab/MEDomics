@@ -99,7 +99,7 @@ const NodeObject = ({ id, data, nodeSpecific, nodeBody, defaultSettings, onClick
   return (
     <>
       <div className="node">
-        {data.internal.hasWarning.state && (
+        {data.internal?.hasWarning?.state && (
           <>
             <Tag className="node-warning-tag" icon="pi pi-exclamation-triangle" severity="warning" value="" rounded data-pr-position="left" data-pr-showdelay={200} />
             <Tooltip target=".node-warning-tag">

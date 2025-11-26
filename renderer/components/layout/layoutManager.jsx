@@ -63,13 +63,44 @@ const LayoutManager = (props) => {
             (error) => {
               console.log("clearAll error:", error)
               toast.error("Go server is not connected !")
+              // Retry connection after 5 seconds
+              checkGoServerConnection(1, 5)
             }
           )
-
         }
       })
     }
   }, [port])
+
+  // Check go server connection again
+  const checkGoServerConnection = (attemptNumber, maxAttempts = 5) => {
+    if (attemptNumber > maxAttempts) {
+      console.log("Max attempts reached")
+      return
+    }
+    setTimeout(() => {
+      console.log("Attempting to connect to Go server...")
+      requestBackend(
+        port,
+        "clearAll",
+        { data: "clearAll" },
+        (data) => {
+          console.log("clearAll received data:", data)
+          toast.success("Go server is connected and ready !")
+        },
+        (error) => {
+          console.log("clearAll error:", error)
+          toast.error("Go server is not connected !")
+          ipcRenderer.invoke("getBundledPythonEnvironment").then((pythonPath) => {
+            ipcRenderer.invoke("start-server", pythonPath).then((serverProcess) => {
+              console.log("Server is running: " + serverProcess)
+              checkGoServerConnection(attemptNumber + 1, maxAttempts)
+            })
+          })
+        }
+      )
+    }, 2000) // Retry after 2 seconds
+  }
 
   // This is a callback that will be called when the user presses a key
   // It will check if the user pressed ctrl+b and if so, it will collapse or expand the sidebar

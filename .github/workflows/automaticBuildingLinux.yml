@@ -7,7 +7,7 @@ permissions:
   contents: write
 jobs:
   build-linux-ubuntu:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
 
     steps:
       - name: Checkout code
@@ -53,18 +53,14 @@ jobs:
         id: get-tag
         run: |
           VERSION=${GITHUB_REF/refs\/tags\//}
-          echo "::set-output name=VERSION::${VERSION#u}"
-
-      - name: Rename Linux
-        run: mv ./build/dist/MEDomicsLab-${{ env.VERSION }}-linux.deb ./build/dist/MEDomicsLab-${{ env.VERSION }}-ubuntu.deb
-        env:
-          VERSION: ${{ steps.get-tag.outputs.VERSION }}
+          echo "VERSION=${VERSION#v}" >> "$GITHUB_OUTPUT"
 
       - name: Archive Linux
         uses: actions/upload-artifact@v4
         with:
           name: linux-built-ubuntu
-          path: ./build/dist/MEDomicsLab-${{ env.VERSION }}-ubuntu.deb
+          path: ./build/dist/MEDomics-${{ env.VERSION }}-linux.deb
+          compression-level: 0
         env:
           VERSION: ${{ steps.get-tag.outputs.VERSION }}
 
@@ -96,28 +92,30 @@ jobs:
           ls -R
 
       - name: zip Linux
-        run: zip -r MEDomicsLab-PythonEnv-linux.zip ./requirements.txt ./create_conda_env_linux.sh
+        run: zip -r MEDomics-PythonEnv-linux.zip ./requirements.txt ./create_conda_env_linux.sh
 
       - name: Get tag name
         id: get-tag
         run: |
           VERSION=${GITHUB_REF/refs\/tags\//}
-          echo "::set-output name=VERSION::${VERSION#u}"
+          echo "VERSION=${VERSION#v}" >> "$GITHUB_OUTPUT"
 
       - name: Publish to GitHub
         uses: softprops/action-gh-release@v1
         with:
           files: |
-            ./MEDomicsLab-${{ env.VERSION }}-ubuntu.deb
-            ./MEDomicsLab-PythonEnv-linux.zip
-          name: MEDomicsLab-${{ env.VERSION }}
+            ./MEDomics-${{ env.VERSION }}-linux.deb
+            ./MEDomics-PythonEnv-linux.zip
+          name: MEDomics-${{ env.VERSION }}
           body: |
-            MEDomicsLab-${{ env.VERSION }}
-            This is a full release of MEDomicsLab. This release includes the MEDomicsLab application and the Python environment.
+            MEDomics-${{ env.VERSION }}
+            This is a full release of MEDomics. This release includes the MEDomics platform and the Python environment.
             Refer to the [Documentation](https://medomics-udes.gitbook.io/medomicslab-docs/)
             ${{ github.ref }}
           draft: true
           prerelease: false
           token: ${{ secrets.GITHUB_TOKEN }}
         env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VERSION: ${{ steps.get-tag.outputs.VERSION }}

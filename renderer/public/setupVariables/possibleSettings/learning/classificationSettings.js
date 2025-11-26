@@ -2,9 +2,13 @@
 const classificationSettings = {
     "clean": {
         "options": {
-            "imputation_type": {
-                "type": "string",
-                "tooltip": "<p>The type of imputation to use. Can be either \u2018simple\u2019 or \u2018iterative\u2019.\nIf None, no imputation of missing values is performed.</p>\n",
+           "imputation_type": {
+                "type": "list",
+                "tooltip": "<p>The type of imputation to use. Choose from:</p>\n<ul>\n<li><b>simple</b>: Basic imputation</li>\n<li><b>iterative</b>: Advanced iterative imputation</li>\n<li><b>None</b>: No imputation</li>\n</ul>\n",
+                "choices": {
+                    "simple": "Simple",
+                    "iterative": "Iterative",
+                },
                 "default_val": "simple"
             },
             "normalize": {
@@ -13,8 +17,14 @@ const classificationSettings = {
                 "default_val": "False"
             },
             "normalize_method": {
-                "type": "string",
-                "tooltip": "<p>Defines the method for scaling. By default, normalize method is set to \u2018zscore\u2019\nThe standard zscore is calculated as z = (x - u) / s. Ignored when normalize\nis not True. The other options are:</p>\n<ul >\n<li><p>minmax: scales and translates each feature individually such that it is in</p></li>\n</ul>\n<p>the range of 0 - 1.\n- maxabs: scales and translates each feature individually such that the\nmaximal absolute value of each feature will be 1.0. It does not\nshift/center the data, and thus does not destroy any sparsity.\n- robust: scales and translates each feature according to the Interquartile\nrange. When the dataset contains outliers, robust scaler often gives\nbetter results.</p>\n",
+                "type": "list",
+                "tooltip": "<p>Defines the method for scaling:</p>\n<ul>\n<li><b>zscore</b>: Standard scaling (x - mean) / std</li>\n<li><b>minmax</b>: Scales features to range [0,1]</li>\n<li><b>maxabs</b>: Scales each feature so max abs value is 1.0</li>\n<li><b>robust</b>: Uses Interquartile range for scaling</li>\n</ul>\n",
+                "choices": {
+                    "zscore": "Z-Score",
+                    "minmax": "Min-Max",
+                    "maxabs": "Max-Abs",
+                    "robust": "Robust"
+                },
                 "default_val": "zscore"
             },
             "iterative_imputation_iters": {
@@ -23,13 +33,23 @@ const classificationSettings = {
                 "default_val": "5"
             },
             "categorical_imputation": {
-                "type": "string",
-                "tooltip": "<p>Imputing strategy for categorical columns. Ignored when imputation_type= iterative. Choose from:</p>\n<blockquote>\n<div><ul >\n<li><p>\u201cdrop\u201d: Drop rows containing missing values.</p></li>\n<li><p>\u201cmode\u201d: Impute with most frequent value.</p></li>\n<li><p>str: Impute with provided string.</p></li>\n</ul>\n</div></blockquote>\n",
+                "type": "list",
+                "tooltip": "<p>Choose an imputation strategy:</p>\n<ul>\n<li><b>drop</b>: Remove missing values</li>\n<li><b>mode</b>: Use most frequent value</li>\n<li><b>str</b>: Custom string</li>\n</ul>\n",
+                "choices": {
+                    "drop": "Drop missing values",
+                    "mode": "Most frequent value",
+                    "str": "Custom string"
+                },
                 "default_val": "mode"
             },
             "categorical_iterative_imputer": {
-                "type": "string",
-                "tooltip": "<p>Regressor for iterative imputation of missing values in categorical features.\nIf None, it uses LGBClassifier. Ignored when imputation_type=simple.</p>\n",
+                "type": "list",
+                "tooltip": "<p>Regressor for iterative imputation:</p>\n<ul>\n<li><b>lightgbm</b>: Uses LightGBM classifier (default)</li>\n<li><b>xgboost</b>: Uses XGBoost classifier</li>\n<li><b>random_forest</b>: Uses Random Forest classifier</li>\n<li><b>None</b>: No iterative imputation applied</li>\n</ul>\n<p>Ignored when imputation_type=simple.</p>",
+                "choices": {
+                    "lightgbm": "LightGBM",
+                    "xgboost": "XGBoost",
+                    "random_forest": "Random Forest",
+                },
                 "default_val": "lightgbm"
             },
             "numeric_imputation": {
@@ -55,18 +75,28 @@ const classificationSettings = {
                 "default_val": "False"
             },
             "transformation_method": {
-                "type": "string",
-                "tooltip": "<p>Defines the method for transformation. By default, the transformation method is\nset to \u2018yeo-johnson\u2019. The other available option for transformation is \u2018quantile\u2019.\nIgnored when transformation is not True.</p>\n",
+                "type": "list",
+                "tooltip": "<p>Defines the method for transformation:</p>\n<ul>\n<li><b>yeo-johnson</b>: Applies Yeo-Johnson transformation (default).</li>\n<li><b>quantile</b>: Applies quantile transformation.</li>\n</ul>\n<p>Ignored when transformation is not True.</p>\n",
+                "choices": {
+                    "yeo-johnson": "Yeo-Johnson",
+                    "quantile": "Quantile"
+                },
                 "default_val": "yeo-johnson"
             },
+
             "pca": {
                 "type": "bool",
                 "tooltip": "<p>When set to True, dimensionality reduction is applied to project the data into\na lower dimensional space using the method defined in pca_method parameter.</p>\n",
                 "default_val": "False"
             },
             "pca_method": {
-                "type": "string",
-                "tooltip": "<dl >\n<dt>Method with which to apply PCA. Possible values are:</dt><dd><ul >\n<li><p>\u2018linear\u2019: Uses Singular Value  Decomposition.</p></li>\n<li><p>\u2018kernel\u2019: Dimensionality reduction through the use of RBF kernel.</p></li>\n<li><p>\u2018incremental\u2019: Similar to \u2018linear\u2019, but more efficient for large datasets.</p></li>\n</ul>\n</dd>\n</dl>\n",
+                "type": "list",
+                "tooltip": "<dl >\n<dt>Method with which to apply PCA. Possible values are:</dt><dd><ul >\n<li><p><b>linear</b>: Uses Singular Value Decomposition.</p></li>\n<li><p><b>kernel</b>: Dimensionality reduction through the use of RBF kernel.</p></li>\n<li><p><b>incremental</b>: Similar to ‘linear’, but more efficient for large datasets.</p></li>\n</ul>\n</dd>\n</dl>\n",
+                "choices": {
+                    "linear": "Linear",
+                    "kernel": "Kernel",
+                    "incremental": "Incremental"
+                },
                 "default_val": "linear"
             },
             "pca_components": {
@@ -115,8 +145,13 @@ const classificationSettings = {
                 "default_val": "lightgbm"
             },
             "feature_selection_method": {
-                "type": "string",
-                "tooltip": "<dl >\n<dt>Algorithm for feature selection. Choose from:</dt><dd><ul >\n<li><p>\u2018univariate\u2019: Uses sklearn\u2019s SelectKBest.</p></li>\n<li><p>\u2018classic\u2019: Uses sklearn\u2019s SelectFromModel.</p></li>\n<li><p>\u2018sequential\u2019: Uses sklearn\u2019s SequentialFeatureSelector.</p></li>\n</ul>\n</dd>\n</dl>\n",
+                "type": "list",
+                "tooltip": "<dl >\n<dt>Algorithm for feature selection. Choose from:</dt><dd><ul >\n<li><p><b>univariate</b>: Uses sklearn’s SelectKBest.</p></li>\n<li><p><b>classic</b>: Uses sklearn’s SelectFromModel.</p></li>\n<li><p><b>sequential</b>: Uses sklearn’s SequentialFeatureSelector.</p></li>\n</ul>\n</dd>\n</dl>\n",
+                "choices": {
+                    "univariate": "Univariate (SelectKBest)",
+                    "classic": "Classic (SelectFromModel)",
+                    "sequential": "Sequential (SequentialFeatureSelector)"
+                },
                 "default_val": "classic"
             },
             "n_features_to_select": {
@@ -275,8 +310,14 @@ const classificationSettings = {
                 "default_val": "True"
             },
             "fold_strategy": {
-                "type": "string",
-                "tooltip": "<p>Choice of cross validation strategy. Possible values are:</p>\n<ul >\n<li><p>\u2018kfold\u2019</p></li>\n<li><p>\u2018stratifiedkfold\u2019</p></li>\n<li><p>\u2018groupkfold\u2019</p></li>\n<li><p>\u2018timeseries\u2019</p></li>\n<li><p>a custom CV generator object compatible with scikit-learn.</p></li>\n</ul>\n<p>For groupkfold, column name must be passed in fold_groups parameter.\nExample: setup(fold_strategy=\"groupkfold\", fold_groups=\"COLUMN_NAME\")</p>\n",
+                "type": "list",
+                "tooltip": "<p>Choice of cross-validation strategy:</p>\n<ul>\n<li><b>kfold</b>: Standard K-Fold cross-validation</li>\n<li><b>stratifiedkfold</b>: Stratified K-Fold cross-validation</li>\n<li><b>groupkfold</b>: Grouped K-Fold cross-validation</li>\n<li><b>timeseries</b>: Time series cross-validation</li>\n</ul>\n",
+                "choices": {
+                    "kfold": "K-Fold",
+                    "stratifiedkfold": "Stratified K-Fold",
+                    "groupkfold": "Group K-Fold",
+                    "timeseries": "Time Series"
+                },
                 "default_val": "stratifiedkfold"
             },
             "fold": {
@@ -586,8 +627,31 @@ const classificationSettings = {
         "plot_model": {
             "options": {
                 "plot": {
-                    "type": "string",
-                    "tooltip": "<p>List of available plots (ID - Name):</p>\n<ul >\n<li><p>\u2018pipeline\u2019 - Schematic drawing of the preprocessing pipeline</p></li>\n<li><p>\u2018auc\u2019 - Area Under the Curve</p></li>\n<li><p>\u2018threshold\u2019 - Discrimination Threshold</p></li>\n<li><p>\u2018pr\u2019 - Precision Recall Curve</p></li>\n<li><p>\u2018confusion_matrix\u2019 - Confusion Matrix</p></li>\n<li><p>\u2018error\u2019 - Class Prediction Error</p></li>\n<li><p>\u2018class_report\u2019 - Classification Report</p></li>\n<li><p>\u2018boundary\u2019 - Decision Boundary</p></li>\n<li><p>\u2018rfe\u2019 - Recursive Feature Selection</p></li>\n<li><p>\u2018learning\u2019 - Learning Curve</p></li>\n<li><p>\u2018manifold\u2019 - Manifold Learning</p></li>\n<li><p>\u2018calibration\u2019 - Calibration Curve</p></li>\n<li><p>\u2018vc\u2019 - Validation Curve</p></li>\n<li><p>\u2018dimension\u2019 - Dimension Learning</p></li>\n<li><p>\u2018feature\u2019 - Feature Importance</p></li>\n<li><p>\u2018feature_all\u2019 - Feature Importance (All)</p></li>\n<li><p>\u2018parameter\u2019 - Model Hyperparameter</p></li>\n<li><p>\u2018lift\u2019 - Lift Curve</p></li>\n<li><p>\u2018gain\u2019 - Gain Chart</p></li>\n<li><p>\u2018tree\u2019 - Decision Tree</p></li>\n<li><p>\u2018ks\u2019 - KS Statistic Plot</p></li>\n</ul>\n",
+                    "type": "list",
+                    "tooltip": "<p>List of available plots:</p>\n<ul >\n<li><b>pipeline</b>: Schematic drawing of the preprocessing pipeline</li>\n<li><b>auc</b>: Area Under the Curve</li>\n<li><b>threshold</b>: Discrimination Threshold</li>\n<li><b>pr</b>: Precision Recall Curve</li>\n<li><b>confusion_matrix</b>: Confusion Matrix</li>\n<li><b>error</b>: Class Prediction Error</li>\n<li><b>class_report</b>: Classification Report</li>\n<li><b>boundary</b>: Decision Boundary</li>\n<li><b>rfe</b>: Recursive Feature Selection</li>\n<li><b>learning</b>: Learning Curve</li>\n<li><b>manifold</b>: Manifold Learning</li>\n<li><b>calibration</b>: Calibration Curve</li>\n<li><b>vc</b>: Validation Curve</li>\n<li><b>dimension</b>: Dimension Learning</li>\n<li><b>feature</b>: Feature Importance</li>\n<li><b>feature_all</b>: Feature Importance (All)</li>\n<li><b>parameter</b>: Model Hyperparameter</li>\n<li><b>lift</b>: Lift Curve</li>\n<li><b>gain</b>: Gain Chart</li>\n<li><b>tree</b>: Decision Tree</li>\n<li><b>ks</b>: KS Statistic Plot</li>\n</ul>\n",
+                    "choices": {
+                        "pipeline": "Pipeline",
+                        "auc": "AUC (Area Under the Curve)",
+                        "threshold": "Threshold (Discrimination Threshold)",
+                        "pr": "PR (Precision Recall Curve)",
+                        "confusion_matrix": "Confusion Matrix",
+                        "error": "Class Prediction Error",
+                        "class_report": "Classification Report",
+                        "boundary": "Decision Boundary",
+                        "rfe": "Recursive Feature Selection",
+                        "learning": "Learning Curve",
+                        "manifold": "Manifold Learning",
+                        "calibration": "Calibration Curve",
+                        "vc": "Validation Curve",
+                        "dimension": "Dimension Learning",
+                        "feature": "Feature Importance",
+                        "feature_all": "Feature Importance",
+                        "parameter": "Model Hyperparameter",
+                        "lift": "Lift Curve",
+                        "gain": "Gain Chart",
+                        "tree": "Decision Tree",
+                        "ks": "KS Statistic Plot"
+                    },
                     "default_val": "auc"
                 },
                 "scale": {
@@ -621,10 +685,13 @@ const classificationSettings = {
                     "default_val": "True"
                 },
                 "display_format": {
-                    "type": "string",
-                    "tooltip": "<p>To display plots in Streamlit (https://www.streamlit.io/), set this to \u2018streamlit\u2019.\nCurrently, not all plots are supported.</p>\n",
-                    "default_val": "None"
-                }
+                "type": "list",
+                "tooltip": "<p>Defines how plots should be displayed:</p>\n<ul>\n<li><b>None</b>: Default display method.</li>\n<li><b>streamlit</b>: Uses Streamlit for rendering (https://www.streamlit.io/).</li>\n</ul>\n<p>Currently, not all plots are supported in Streamlit.</p>\n",
+                "choices": {
+                    "streamlit": "Streamlit"
+                },
+                "default_val": "None"
+            }
             },
             "code": "plot_model()",
             "default": {}
@@ -736,8 +803,13 @@ const classificationSettings = {
     "load_model": {
         "options": {
             "platform": {
-                "type": "string",
-                "tooltip": "<p>Name of the cloud platform. Currently supported platforms:\n\u2018aws\u2019, \u2018gcp\u2019 and \u2018azure\u2019.</p>\n",
+                "type": "list",
+                "tooltip": "<p>Select the cloud platform to use:</p>\n<ul>\n<li><b>None</b>: No cloud platform selected (default).</li>\n<li><b>aws</b>: Amazon Web Services (AWS).</li>\n<li><b>gcp</b>: Google Cloud Platform (GCP).</li>\n<li><b>azure</b>: Microsoft Azure.</li>\n</ul>\n",
+                "choices": {
+                    "aws": "AWS",
+                    "gcp": "GCP",
+                    "azure": "Azure"
+                },
                 "default_val": "None"
             },
             "authentication": {
@@ -758,6 +830,10 @@ const classificationSettings = {
                 "tooltip": "<p>Choose a model from the MODELS folder</p>"
             }
         }
+    },
+    "group_models": {
+        "options": {},
+        "code": ""
     },
     "tune_model": {
         "options": {
@@ -792,20 +868,42 @@ const classificationSettings = {
                 "default_val": "None"
             },
             "search_library": {
-                "type": "string",
-                "tooltip": "<p>The search library used for tuning hyperparameters. Possible values:</p>\n<ul >\n<li><dl >\n<dt>\u2018scikit-learn\u2019 - default, requires no further installation</dt><dd><p>https://github.com/scikit-learn/scikit-learn</p>\n</dd>\n</dl>\n</li>\n<li><dl >\n<dt>\u2018scikit-optimize\u2019 - pip install scikit-optimize</dt><dd><p>https://scikit-optimize.github.io/stable/</p>\n</dd>\n</dl>\n</li>\n<li><dl >\n<dt>\u2018tune-sklearn\u2019 - pip install tune-sklearn ray[tune]</dt><dd><p>https://github.com/ray-project/tune-sklearn</p>\n</dd>\n</dl>\n</li>\n<li><dl >\n<dt>\u2018optuna\u2019 - pip install optuna</dt><dd><p>https://optuna.org/</p>\n</dd>\n</dl>\n</li>\n</ul>\n",
+                "type": "list",
+                "tooltip": "<p>The search library used for tuning hyperparameters:</p>\n<ul >\n<li><b>scikit-learn</b>: Default, requires no further installation (<a href='https://github.com/scikit-learn/scikit-learn' target='_blank'>GitHub</a>)</li>\n<li><b>scikit-optimize</b>: <code>pip install scikit-optimize</code> (<a href='https://scikit-optimize.github.io/stable/' target='_blank'>Documentation</a>)</li>\n<li><b>tune-sklearn</b>: <code>pip install tune-sklearn ray[tune]</code> (<a href='https://github.com/ray-project/tune-sklearn' target='_blank'>GitHub</a>)</li>\n<li><b>optuna</b>: <code>pip install optuna</code> (<a href='https://optuna.org/' target='_blank'>Website</a>)</li>\n</ul>\n",
+                "choices": {
+                    "scikit-learn": "Scikit-Learn",
+                    "scikit-optimize": "Scikit-Optimize",
+                    "tune-sklearn": "Tune-Sklearn",
+                    "optuna": "Optuna"
+                },
                 "default_val": "scikit-learn"
             },
             "search_algorithm": {
-                "type": "string",
-                "tooltip": "<p>The search algorithm depends on the search_library parameter.\nSome search algorithms require additional libraries to be installed.\nIf None, will use search library-specific default algorithm.</p>\n<ul >\n<li><dl >\n<dt>\u2018scikit-learn\u2019 possible values:</dt><dd><ul>\n<li><p>\u2018random\u2019 : random grid search (default)</p></li>\n<li><p>\u2018grid\u2019 : grid search</p></li>\n</ul>\n</dd>\n</dl>\n</li>\n<li><dl >\n<dt>\u2018scikit-optimize\u2019 possible values:</dt><dd><ul>\n<li><p>\u2018bayesian\u2019 : Bayesian search (default)</p></li>\n</ul>\n</dd>\n</dl>\n</li>\n<li><dl >\n<dt>\u2018tune-sklearn\u2019 possible values:</dt><dd><ul>\n<li><p>\u2018random\u2019 : random grid search (default)</p></li>\n<li><p>\u2018grid\u2019 : grid search</p></li>\n<li><p>\u2018bayesian\u2019 : pip install scikit-optimize</p></li>\n<li><p>\u2018hyperopt\u2019 : pip install hyperopt</p></li>\n<li><p>\u2018optuna\u2019 : pip install optuna</p></li>\n<li><p>\u2018bohb\u2019 : pip install hpbandster ConfigSpace</p></li>\n</ul>\n</dd>\n</dl>\n</li>\n<li><dl >\n<dt>\u2018optuna\u2019 possible values:</dt><dd><ul>\n<li><p>\u2018random\u2019 : randomized search</p></li>\n<li><p>\u2018tpe\u2019 : Tree-structured Parzen Estimator search (default)</p></li>\n</ul>\n</dd>\n</dl>\n</li>\n</ul>\n",
+                "type": "list",
+                "tooltip": "<p>The search algorithm depends on the <code>search_library</code> parameter.</p>\n<ul>\n<li><b>scikit-learn</b>: <code>random</code> (default), <code>grid</code></li>\n<li><b>scikit-optimize</b>: <code>bayesian</code> (default). Install with: <code>pip install scikit-optimize</code></li>\n<li><b>tune-sklearn</b>: <code>random</code> (default), <code>grid</code>, <code>bayesian</code>, <code>hyperopt</code>, <code>optuna</code>, <code>bohb</code>. Install with: <code>pip install tune-sklearn ray[tune] hyperopt optuna hpbandster ConfigSpace</code></li>\n<li><b>optuna</b>: <code>random</code>, <code>tpe</code> (default). Install with: <code>pip install optuna</code></li>\n</ul>\n<p>If <code>None</code>, will use the search library-specific default algorithm.</p>\n",
+                "choices": {
+                    "random": "Random Search",
+                    "grid": "Grid Search",
+                    "bayesian": "Bayesian Optimization",
+                    "hyperopt": "Hyperopt",
+                    "optuna": "Optuna",
+                    "bohb": "BOHB",
+                    "tpe": "TPE (Tree-structured Parzen Estimator)"
+                },
                 "default_val": "None"
             },
+
             "early_stopping": {
-                "type": "string",
-                "tooltip": "<p>Use early stopping to stop fitting to a hyperparameter configuration\nif it performs poorly. Ignored when search_library is scikit-learn,\nor if the estimator does not have \u2018partial_fit\u2019 attribute. If False or\nNone, early stopping will not be used. Can be either an object accepted\nby the search library or one of the following:</p>\n<ul >\n<li><p>\u2018asha\u2019 for Asynchronous Successive Halving Algorithm</p></li>\n<li><p>\u2018hyperband\u2019 for Hyperband</p></li>\n<li><p>\u2018median\u2019 for Median Stopping Rule</p></li>\n<li><p>If False or None, early stopping will not be used.</p></li>\n</ul>\n",
+                "type": "list",
+                "tooltip": "<p>Use early stopping to stop fitting if the performance is poor.</p>\n<ul >\n<li><b>asha</b>: Asynchronous Successive Halving Algorithm</li>\n<li><b>hyperband</b>: Hyperband</li>\n<li><b>median</b>: Median Stopping Rule</li>\n<li><b>False</b>: Disable early stopping</li>\n</ul>\n<p>Ignored when <code>search_library</code> is <code>scikit-learn</code>.</p>\n",
+                "choices": {
+                    "asha": "ASHA",
+                    "hyperband": "Hyperband",
+                    "median": "Median Stopping Rule"
+                },
                 "default_val": "False"
             },
+
             "early_stopping_max_iters": {
                 "type": "int",
                 "tooltip": "<p>Maximum number of epochs to run for each sampled configuration.\nIgnored if early_stopping is False or None.</p>\n",
@@ -854,8 +952,12 @@ const classificationSettings = {
     "ensemble_model": {
         "options": {
             "method": {
-                "type": "string",
-                "tooltip": "<p>Method for ensembling base estimator. It can be \u2018Bagging\u2019 or \u2018Boosting\u2019.</p>\n",
+                "type": "list",
+                "tooltip": "<p>Method for ensembling base estimator:</p>\n<ul>\n<li><b>Bagging</b>: Trains base estimators independently in parallel and combines predictions.</li>\n<li><b>Boosting</b>: Trains base estimators sequentially, where each model corrects errors of the previous one.</li>\n</ul>\n",
+                "choices": {
+                    "Bagging": "Bagging",
+                    "Boosting": "Boosting"
+                },
                 "default_val": "Bagging"
             },
             "fold": {
@@ -931,13 +1033,25 @@ const classificationSettings = {
                 "default_val": "False"
             },
             "optimize": {
-                "type": "string",
-                "tooltip": "<p>Metric to compare for model selection when choose_better is True.</p>\n",
+                "type": "list",
+                "tooltip": "<p>Metric to compare for model selection when <code>choose_better</code> is True.</p>\n<ul>\n<li><b>Accuracy</b>: Overall classification accuracy.</li>\n<li><b>AUC</b>: Area Under the Curve (ROC).</li>\n<li><b>F1</b>: Harmonic mean of precision and recall.</li>\n<li><b>Recall</b>: Proportion of actual positives correctly identified.</li>\n<li><b>Precision</b>: Proportion of predicted positives that are actual positives.</li>\n</ul>\n",
+                "choices": {
+                    "Accuracy": "Accuracy",
+                    "AUC": "AUC",
+                    "F1": "F1 Score",
+                    "Recall": "Recall",
+                    "Precision": "Precision"
+                },
                 "default_val": "Accuracy"
             },
             "method": {
-                "type": "string",
-                "tooltip": "<p>\u2018hard\u2019 uses predicted class labels for majority rule voting. \u2018soft\u2019, predicts\nthe class label based on the argmax of the sums of the predicted probabilities,\nwhich is recommended for an ensemble of well-calibrated classifiers. Default\nvalue, \u2018auto\u2019, will try to use \u2018soft\u2019 and fall back to \u2018hard\u2019 if the former is\nnot supported.</p>\n",
+                "type": "list",
+                "tooltip": "<p>Voting method for ensemble classification:</p>\n<ul>\n<li><b>auto</b>: Tries <code>soft</code> voting first, then falls back to <code>hard</code> if not supported.</li>\n<li><b>hard</b>: Uses predicted class labels for majority rule voting.</li>\n<li><b>soft</b>: Predicts based on the highest sum of predicted probabilities (recommended for well-calibrated classifiers).</li>\n</ul>\n",
+                "choices": {
+                    "auto": "Auto",
+                    "hard": "Hard",
+                    "soft": "Soft"
+                },
                 "default_val": "auto"
             },
             "weights": {
@@ -1018,10 +1132,17 @@ const classificationSettings = {
                 "default_val": "4"
             },
             "method": {
-                "type": "string",
-                "tooltip": "<p>When set to \u2018auto\u2019, it will invoke, for each estimator, \u2018predict_proba\u2019,\n\u2018decision_function\u2019 or \u2018predict\u2019 in that order. Other, manually pass one\nof the value from \u2018predict_proba\u2019, \u2018decision_function\u2019 or \u2018predict\u2019.</p>\n",
+                "type": "list",
+                "tooltip": "<p>Defines how predictions are made for each estimator:</p>\n<ul>\n<li><b>auto</b>: Automatically selects the best method in order: <code>predict_proba</code> → <code>decision_function</code> → <code>predict</code>.</li>\n<li><b>predict_proba</b>: Uses predicted probabilities (recommended for well-calibrated classifiers).</li>\n<li><b>decision_function</b>: Uses raw decision scores from models that support it.</li>\n<li><b>predict</b>: Uses the final predicted class labels.</li>\n</ul>\n",
+                "choices": {
+                    "auto": "Auto",
+                    "predict_proba": "Predict Proba",
+                    "decision_function": "Decision Function",
+                    "predict": "Predict"
+                },
                 "default_val": "auto"
             },
+
             "restack": {
                 "type": "bool",
                 "tooltip": "<p>When set to False, only the predictions of estimators will be used as\ntraining data for the meta_model.</p>\n",
@@ -1070,8 +1191,12 @@ const classificationSettings = {
     "calibrate_model": {
         "options": {
             "method": {
-                "type": "string",
-                "tooltip": "<p>The method to use for calibration. Can be \u2018sigmoid\u2019 which corresponds to\nPlatt\u2019s method or \u2018isotonic\u2019 which is a non-parametric approach.</p>\n",
+                "type": "list",
+                "tooltip": "<p>The method to use for calibration:</p>\n<ul>\n<li><b>sigmoid</b>: Uses Platt’s method (logistic regression-based calibration).</li>\n<li><b>isotonic</b>: Uses isotonic regression (non-parametric calibration, works best with large datasets).</li>\n</ul>\n",
+                "choices": {
+                    "sigmoid": "Sigmoid (Platt’s Method - Logistic Calibration)",
+                    "isotonic": "Isotonic (Non-Parametric Calibration)"
+                },
                 "default_val": "sigmoid"
             },
             "calibrate_fold": {

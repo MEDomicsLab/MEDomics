@@ -12,6 +12,7 @@ import Input from "../learning/input"
 import { WorkspaceContext } from "../workspace/workspaceContext"
 import Dashboard from "./dashboard"
 import PredictPanel from "./predictPanel"
+import { findMEDDataObjectsByName } from "../mongoDB/mongoDBUtils"
 
 /**
  *@param {Object} run Object containing the run state and the run function
@@ -82,7 +83,28 @@ const PageEval = ({ run, pageId, config, updateWarnings, setChosenModel, updateC
 
   // when the run changes, we start the evaluation processes
   useEffect(() => {
-    startCalls2Server()
+    const findStoredData = async () => {
+      var foundData = false
+
+      // Find if data is already saved in child object of current page
+      const documents = await findMEDDataObjectsByName("predictions.csv")
+      console.log("pageId: ", pageId)
+      await documents.forEach((doc) => {
+        console.log("doc: ", doc)
+        if (pageId === doc.parentID) {
+          console.log("Found predictions.csv for pageID: ", pageId, "with doc:", doc)
+          setPredictedData({"collection_id": doc.id})
+          foundData = true
+        }
+      })
+      console.log("Found data: ", foundData)
+      // If not found, create it
+      if (!foundData) {
+        startCalls2Server()
+      }
+    }
+
+    findStoredData()
   }, [run])
 
   /**
@@ -192,7 +214,7 @@ const PageEval = ({ run, pageId, config, updateWarnings, setChosenModel, updateC
               className="smooth-transition evaluation-header-parent"
             >
               <div className="evaluation-header">
-                <PiFlaskFill style={{ height: "4rem", width: "4rem", color: "rgb(0, 50, 200, 0.8)" }} />
+                <PiFlaskFill style={{ height: "4rem", width: "4rem", color: "#4991dfff" }} />
                 <div style={{ width: "20rem" }}>
                   {modelHasWarning.state && (
                     <>

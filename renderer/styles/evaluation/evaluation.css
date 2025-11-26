@@ -184,3 +184,12 @@
   margin-left: 0.25rem;
   margin-top: 0.25rem;
 }
+
+/* Centering the GitBook Link */
+.gitbook-container {
+  display: flex;
+  justify-content: center; /* Center horizontally */
+  align-items: center; /* Center vertically */
+  text-align: center; /* Ensure text is centered */
+  margin: 2rem auto; /* Add spacing */
+}

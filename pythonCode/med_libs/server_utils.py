@@ -2,7 +2,7 @@ import os
 import sys
 import traceback
 from pathlib import Path
-
+from json import dumps
 import pandas
 import pandas as pd
 import sklearn
@@ -53,7 +53,8 @@ def go_print(msg):
     This function is used to print a message to the stdout pipeline wich go is listening to
     """
     sys.stdout.flush()
-    sys.stdout.write(msg + "\n")
+    sys.stdout.write(dumps(msg, indent=2))
+    sys.stdout.write("\n")
     sys.stdout.flush()
 
 

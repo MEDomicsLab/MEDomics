@@ -3,9 +3,13 @@ const regressionSettings = {
     "clean": {
         "options": {
             "imputation_type": {
-                "type": "string",
-                "tooltip": "<p>The type of imputation to use. Can be either \u2018simple\u2019 or \u2018iterative\u2019.\nIf None, no imputation of missing values is performed.</p>\n",
-                "default_val": "simple"
+            "type": "list",
+                "default_val": "simple",
+                "tooltip": "<p>The type of imputation to use. Default = <code>simple</code>.</p>\n<p><strong>Options:</strong></p>\n<ul>\n<li><code>simple</code>: Basic strategies like mean, median, etc.</li>\n<li><code>iterative</code>: Estimates missing values iteratively using other features.</li>\n<li><code>None</code>: No imputation is performed.</li>\n</ul>",
+                "choices": {
+                    "simple": "Simple (default)",
+                    "iterative": "Iterative"
+                }
             },
             "normalize": {
                 "type": "bool",
@@ -13,9 +17,15 @@ const regressionSettings = {
                 "default_val": "False"
             },
             "normalize_method": {
-                "type": "string",
-                "tooltip": "<p>Defines the method for scaling. By default, normalize method is set to \u2018zscore\u2019\nThe standard zscore is calculated as z = (x - u) / s. Ignored when normalize\nis not True. The other options are:</p>\n<ul >\n<li><p>minmax: scales and translates each feature individually such that it is in</p></li>\n</ul>\n<p>the range of 0 - 1.\n- maxabs: scales and translates each feature individually such that the\nmaximal absolute value of each feature will be 1.0. It does not\nshift/center the data, and thus does not destroy any sparsity.\n- robust: scales and translates each feature according to the Interquartile\nrange. When the dataset contains outliers, robust scaler often gives\nbetter results.</p>\n",
-                "default_val": "zscore"
+                "type": "list",
+                "default_val": "zscore",
+                "tooltip": "<p>Defines the method used for feature scaling. Default = <code>zscore</code>.</p>\n<ul>\n<li><code>zscore</code>: Standard score, z = (x - μ) / σ</li>\n<li><code>minmax</code>: Scales features to the [0, 1] range.</li>\n<li><code>maxabs</code>: Scales by maximum absolute value (preserves sparsity).</li>\n<li><code>robust</code>: Uses interquartile range, robust to outliers.</li>\n</ul>\n<p><em>Ignored if <code>normalize</code> is not set to True.</em></p>",
+                "choices": {
+                    "zscore": "Z-Score (default)",
+                    "minmax": "Min-Max",
+                    "maxabs": "MaxAbs",
+                    "robust": "Robust"
+                }
             },
             "iterative_imputation_iters": {
                 "type": "int",
@@ -24,7 +34,7 @@ const regressionSettings = {
             },
             "categorical_imputation": {
                 "type": "string",
-                "tooltip": "<p>Imputing strategy for categorical columns. Ignored when imputation_type= iterative. Choose from:</p>\n<blockquote>\n<div><ul >\n<li><p>\u201cdrop\u201d: Drop rows containing missing values.</p></li>\n<li><p>\u201cmode\u201d: Impute with most frequent value.</p></li>\n<li><p>str: Impute with provided string.</p></li>\n</ul>\n</div></blockquote>\n",
+                "tooltip": "<p>Strategy to impute missing categorical values. Ignored if <code>imputation_type = iterative</code>.</p>\n<ul>\n<li><code>drop</code>: Drop rows with missing values.</li>\n<li><code>mode</code>: Fill with most frequent category.</li>\n<li><code>str</code>: Use a custom string value.</li>\n</ul>",
                 "default_val": "mode"
             },
             "categorical_iterative_imputer": {
@@ -34,11 +44,11 @@ const regressionSettings = {
             },
             "numeric_imputation": {
                 "type": "list",
-                "tooltip": "<p>Imputing strategy for numerical columns. Ignored when imputation_type= iterative. Choose from:</p>\n<blockquote>\n<div><ul >\n<li><p>\u201cdrop\u201d: Drop rows containing missing values.</p></li>\n<li><p>\u201cmean\u201d: Impute with mean of column.</p></li>\n<li><p>\u201cmedian\u201d: Impute with median of column.</p></li>\n<li><p>\u201cmode\u201d: Impute with most frequent value.</p></li>\n<li><p>\u201cknn\u201d: Impute using a K-Nearest Neighbors approach.</p></li>\n<li><p>int or float: Impute with provided numerical value.</p></li>\n</ul>\n</div></blockquote>\n",
                 "default_val": "mean",
+                "tooltip": "<p>Strategy to impute missing numerical values. Ignored if <code>imputation_type = iterative</code>.</p>\n<ul>\n<li><code>drop</code>: Drop rows with missing values.</li>\n<li><code>mean</code>: Impute with mean of the column.</li>\n<li><code>median</code>: Impute with median of the column.</li>\n<li><code>mode</code>: Impute with most frequent value.</li>\n<li><code>knn</code>: Impute using a K-Nearest Neighbors approach.</li>\n<li><code>int</code> or <code>float</code>: Provide a custom numerical value.</li>\n</ul>",
                 "choices": {
                     "drop": "Drop rows containing missing values",
-                    "mean": "Impute with mean of column",
+                    "mean": "Impute with mean of column (default)",
                     "median": "Impute with median of column",
                     "mode": "Impute with most frequent value",
                     "knn": "Impute using a K-Nearest Neighbors approach"
@@ -55,9 +65,13 @@ const regressionSettings = {
                 "default_val": "False"
             },
             "transformation_method": {
-                "type": "string",
-                "tooltip": "<p>Defines the method for transformation. By default, the transformation method is\nset to \u2018yeo-johnson\u2019. The other available option for transformation is \u2018quantile\u2019.\nIgnored when transformation is not True.</p>\n",
-                "default_val": "yeo-johnson"
+                "type": "list",
+                "default_val": "yeo-johnson",
+                "tooltip": "<p>Method used to transform numerical features. Default = <code>yeo-johnson</code>.</p>\n<ul>\n<li><code>yeo-johnson</code>: Applies a power transform that supports both positive and negative values.</li>\n<li><code>quantile</code>: Maps data to a normal distribution using quantiles.</li>\n</ul>\n<p><em>Ignored if <code>transformation</code> is not set to True.</em></p>",
+                "choices": {
+                    "yeo-johnson": "Yeo-Johnson (default)",
+                    "quantile": "Quantile"
+                }
             },
             "pca": {
                 "type": "bool",
@@ -65,9 +79,14 @@ const regressionSettings = {
                 "default_val": "False"
             },
             "pca_method": {
-                "type": "string",
-                "tooltip": "<dl >\n<dt>Method with which to apply PCA. Possible values are:</dt><dd><ul >\n<li><p>\u2018linear\u2019: Uses Singular Value  Decomposition.</p></li>\n<li><p>\u2018kernel\u2019: Dimensionality reduction through the use of RBF kernel.</p></li>\n<li><p>\u2018incremental\u2019: Similar to \u2018linear\u2019, but more efficient for large datasets.</p></li>\n</ul>\n</dd>\n</dl>\n",
-                "default_val": "linear"
+                "type": "list",
+                "default_val": "linear",
+                "tooltip": "<p>Method used for Principal Component Analysis (PCA). Default = <code>linear</code>.</p>\n<ul>\n<li><code>linear</code>: Standard PCA using Singular Value Decomposition (SVD).</li>\n<li><code>kernel</code>: PCA using a non-linear kernel (e.g., RBF).</li>\n<li><code>incremental</code>: Memory-efficient version of linear PCA for large datasets.</li>\n</ul>",
+                "choices": {
+                    "linear": "Linear (default)",
+                    "kernel": "Kernel",
+                    "incremental": "Incremental"
+                }
             },
             "pca_components": {
                 "type": "int-float-str",
@@ -115,9 +134,14 @@ const regressionSettings = {
                 "default_val": "lightgbm"
             },
             "feature_selection_method": {
-                "type": "string",
-                "tooltip": "<dl >\n<dt>Algorithm for feature selection. Choose from:</dt><dd><ul >\n<li><p>\u2018univariate\u2019: Uses sklearn\u2019s SelectKBest.</p></li>\n<li><p>\u2018classic\u2019: Uses sklearn\u2019s SelectFromModel.</p></li>\n<li><p>\u2018sequential\u2019: Uses sklearn\u2019s SequentialFeatureSelector.</p></li>\n</ul>\n</dd>\n</dl>\n",
-                "default_val": "classic"
+                "type": "list",
+                "default_val": "classic",
+                "tooltip": "<p>Algorithm used for feature selection. Default = <code>classic</code>.</p>\n<ul>\n<li><code>univariate</code>: Uses SelectKBest from sklearn.</li>\n<li><code>classic</code>: Uses SelectFromModel from sklearn.</li>\n<li><code>sequential</code>: Uses SequentialFeatureSelector.</li>\n</ul>",
+                "choices": {
+                    "univariate": "Univariate",
+                    "classic": "Classic (default)",
+                    "sequential": "Sequential"
+                }
             },
             "n_features_to_select": {
                 "type": "float",
@@ -240,9 +264,14 @@ const regressionSettings = {
                 "default_val": "None"
             },
             "outliers_method": {
-                "type": "string",
-                "tooltip": "<p>Method with which to remove outliers. Ignored when <cite>remove_outliers=False</cite>.\nPossible values are:</p>\n<blockquote>\n<div><ul >\n<li><p>\u2018iforest\u2019: Uses sklearn\u2019s IsolationForest.</p></li>\n<li><p>\u2018ee\u2019: Uses sklearn\u2019s EllipticEnvelope.</p></li>\n<li><p>\u2018lof\u2019: Uses sklearn\u2019s LocalOutlierFactor.</p></li>\n</ul>\n</div></blockquote>\n",
-                "default_val": "\u201ciforest\u201d"
+                "type": "list",
+                "default_val": "iforest",
+                "tooltip": "<p>Method used to detect and remove outliers. Ignored if <code>remove_outliers = False</code>.</p>\n<ul>\n<li><code>iforest</code>: Isolation Forest (sklearn).</li>\n<li><code>ee</code>: Elliptic Envelope (sklearn).</li>\n<li><code>lof</code>: Local Outlier Factor (sklearn).</li>\n</ul>",
+                "choices": {
+                    "iforest": "Isolation Forest (default)",
+                    "ee": "Elliptic Envelope",
+                    "lof": "Local Outlier Factor"
+                }
             },
             "transform_target": {
                 "type": "bool",
@@ -250,9 +279,13 @@ const regressionSettings = {
                 "default_val": "False"
             },
             "transform_target_method": {
-                "type": "string",
-                "tooltip": "<p>Defines the method for transformation. By default, the transformation method is\nset to \u2018yeo-johnson\u2019. The other available option for transformation is \u2018quantile\u2019.\nIgnored when transform_target is not True.</p>\n",
-                "default_val": "yeo-johnson"
+                "type": "list",
+                "default_val": "yeo-johnson",
+                "tooltip": "<p>Method used to transform the target variable. Default = <code>yeo-johnson</code>.</p>\n<ul>\n<li><code>yeo-johnson</code>: Supports positive and negative values.</li>\n<li><code>quantile</code>: Maps target to a normal distribution using quantiles.</li>\n</ul>\n<p><em>Ignored if <code>transform_target</code> is not set to True.</em></p>",
+                "choices": {
+                    "yeo-johnson": "Yeo-Johnson (default)",
+                    "quantile": "Quantile"
+                }
             },
             "custom_pipeline": {
                 "type": "list of (str, transformer), dict or Pipeline",
@@ -275,9 +308,14 @@ const regressionSettings = {
                 "default_val": "False"
             },
             "fold_strategy": {
-                "type": "string",
-                "tooltip": "<p>Choice of cross validation strategy. Possible values are:</p>\n<ul >\n<li><p>\u2018kfold\u2019</p></li>\n<li><p>\u2018groupkfold\u2019</p></li>\n<li><p>\u2018timeseries\u2019</p></li>\n<li><p>a custom CV generator object compatible with scikit-learn.</p></li>\n</ul>\n<p>For groupkfold, column name must be passed in fold_groups parameter.\nExample: setup(fold_strategy=\"groupkfold\", fold_groups=\"COLUMN_NAME\")</p>\n",
-                "default_val": "kfold"
+                "type": "list",
+                "default_val": "kfold",
+                "tooltip": "<p>Strategy used for cross-validation. Default = <code>kfold</code>.</p>\n<ul>\n<li><code>kfold</code>: Standard K-Fold split.</li>\n<li><code>groupkfold</code>: K-Fold with non-overlapping groups. Requires <code>fold_groups</code>.</li>\n<li><code>timeseries</code>: Preserves temporal order.</li>\n</ul>\n<p><em>You may also pass a custom CV generator compatible with scikit-learn.</em></p>",
+                "choices": {
+                    "kfold": "KFold (default)",
+                    "groupkfold": "GroupKFold",
+                    "timeseries": "TimeSeriesSplit"
+                }
             },
             "fold": {
                 "type": "int",
@@ -555,9 +593,24 @@ const regressionSettings = {
         "plot_model": {
             "options": {
                 "plot": {
-                    "type": "string",
-                    "tooltip": "<p>List of available plots (ID - Name):</p>\n<ul >\n<li><p>\u2018pipeline\u2019 - Schematic drawing of the preprocessing pipeline</p></li>\n<li><p>\u2018residuals_interactive\u2019 - Interactive Residual plots</p></li>\n<li><p>\u2018residuals\u2019 - Residuals Plot</p></li>\n<li><p>\u2018error\u2019 - Prediction Error Plot</p></li>\n<li><p>\u2018cooks\u2019 - Cooks Distance Plot</p></li>\n<li><p>\u2018rfe\u2019 - Recursive Feat. Selection</p></li>\n<li><p>\u2018learning\u2019 - Learning Curve</p></li>\n<li><p>\u2018vc\u2019 - Validation Curve</p></li>\n<li><p>\u2018manifold\u2019 - Manifold Learning</p></li>\n<li><p>\u2018feature\u2019 - Feature Importance</p></li>\n<li><p>\u2018feature_all\u2019 - Feature Importance (All)</p></li>\n<li><p>\u2018parameter\u2019 - Model Hyperparameter</p></li>\n<li><p>\u2018tree\u2019 - Decision Tree</p></li>\n</ul>\n",
-                    "default_val": "residual"
+                    "type": "list",
+                    "default_val": "residual",
+                    "tooltip": "<p>Available plots for model evaluation. Default = <code>residual</code>.</p>\n<ul>\n<li><code>pipeline</code>: Schematic view of preprocessing steps</li>\n<li><code>residuals_interactive</code>: Interactive residual plots</li>\n<li><code>residuals</code>: Standard residuals plot</li>\n<li><code>error</code>: Prediction error plot</li>\n<li><code>cooks</code>: Cook's distance plot</li>\n<li><code>rfe</code>: Recursive feature elimination</li>\n<li><code>learning</code>: Learning curve</li>\n<li><code>vc</code>: Validation curve</li>\n<li><code>manifold</code>: Manifold learning projection</li>\n<li><code>feature</code>: Feature importance</li>\n<li><code>feature_all</code>: Full feature importance</li>\n<li><code>parameter</code>: Hyperparameter analysis</li>\n<li><code>tree</code>: Decision tree diagram</li>\n</ul>",
+                    "choices": {
+                        "pipeline": "Pipeline",
+                        "residuals_interactive": "Residuals (Interactive)",
+                        "residuals": "Residuals",
+                        "error": "Prediction Error",
+                        "cooks": "Cook's Distance",
+                        "rfe": "Recursive Feature Elimination",
+                        "learning": "Learning Curve",
+                        "vc": "Validation Curve",
+                        "manifold": "Manifold Learning",
+                        "feature": "Feature Importance",
+                        "feature_all": "Feature Importance (All)",
+                        "parameter": "Model Hyperparameter",
+                        "tree": "Decision Tree"
+                    }
                 },
                 "scale": {
                     "type": "float",
@@ -601,9 +654,17 @@ const regressionSettings = {
         "interpret_model": {
             "options": {
                 "plot": {
-                    "type": "string",
-                    "tooltip": "<p>Abbreviation of type of plot. The current list of plots supported\nare (Plot - Name):</p>\n<ul >\n<li><p>\u2018summary\u2019 - Summary Plot using SHAP</p></li>\n<li><p>\u2018correlation\u2019 - Dependence Plot using SHAP</p></li>\n<li><p>\u2018reason\u2019 - Force Plot using SHAP</p></li>\n<li><p>\u2018pdp\u2019 - Partial Dependence Plot</p></li>\n<li><p>\u2018msa\u2019 - Morris Sensitivity Analysis</p></li>\n<li><p>\u2018pfi\u2019 - Permutation Feature Importance</p></li>\n</ul>\n",
-                    "default_val": "summary"
+                    "type": "list",
+                    "default_val": "summary",
+                    "tooltip": "<p>Type of plot for model interpretation. Default = <code>summary</code>.</p>\n<ul>\n<li><code>summary</code>: Summary Plot using SHAP</li>\n<li><code>correlation</code>: Dependence Plot using SHAP</li>\n<li><code>reason</code>: Force Plot using SHAP</li>\n<li><code>pdp</code>: Partial Dependence Plot</li>\n<li><code>msa</code>: Morris Sensitivity Analysis</li>\n<li><code>pfi</code>: Permutation Feature Importance</li>\n</ul>",
+                    "choices": {
+                        "summary": "SHAP - Summary (default)",
+                        "correlation": "SHAP - Dependence",
+                        "reason": "SHAP - Force",
+                        "pdp": "Partial Dependence Plot (PDP)",
+                        "msa": "Morris Sensitivity Analysis (MSA)",
+                        "pfi": "Permutation Feature Importance (PFI)"
+                    }
                 },
                 "feature": {
                     "type": "string",
@@ -706,9 +767,14 @@ const regressionSettings = {
     "load_model": {
         "options": {
             "platform": {
-                "type": "string",
-                "tooltip": "<p>Name of the cloud platform. Currently supported platforms:\n\u2018aws\u2019, \u2018gcp\u2019 and \u2018azure\u2019.</p>\n",
-                "default_val": "None"
+                "type": "list",
+                "default_val": "None",
+                "tooltip": "<p>Name of the cloud platform. Default = <code>None</code>.</p>\n<ul>\n<li><code>aws</code>: Amazon Web Services</li>\n<li><code>gcp</code>: Google Cloud Platform</li>\n<li><code>azure</code>: Microsoft Azure</li>\n<li><code>None</code>: No cloud platform used</li>\n</ul>",
+                "choices": {
+                    "aws": "Amazon Web Services (AWS)",
+                    "gcp": "Google Cloud Platform (GCP)",
+                    "azure": "Microsoft Azure"
+                }
             },
             "authentication": {
                 "type": "dict",

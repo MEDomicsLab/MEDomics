@@ -194,12 +194,12 @@ export async function runServer(isProd, serverPort, serverProcess, serverState, 
           })
           serverState.serverIsRunning = true
         } else if (process.platform == "linux") {
-          serverProcess = execFile(path.join(process.resourcesPath, "go_executables/server_go_linux"), args, {
+          serverProcess = execFile(path.join(process.resourcesPath, "go_executables/server_go"), args, {
             windowsHide: false
           })
           serverState.serverIsRunning = true
         } else if (process.platform == "darwin") {
-          serverProcess = execFile(path.join(process.resourcesPath, "go_executables/server_go_mac"), args, {
+          serverProcess = execFile(path.join(process.resourcesPath, "go_executables/server_go"), args, {
             windowsHide: false
           })
           serverState.serverIsRunning = true

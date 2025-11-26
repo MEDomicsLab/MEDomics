@@ -8,6 +8,8 @@ permissions:
 jobs:
   build-windows:
     runs-on: windows-latest
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
     steps:
       - name: Checkout code
@@ -54,13 +56,32 @@ jobs:
         shell: bash
         run: |
           VERSION=${GITHUB_REF/refs\/tags\//}
-          echo "::set-output name=VERSION::${VERSION#w}"
+          echo "VERSION=${VERSION#w}" >> "$GITHUB_OUTPUT"
 
       - name: Archive Windows
         uses: actions/upload-artifact@v4
         with:
           name: windows-built
-          path: ./build/dist/MEDomicsLab-${{ env.VERSION }}-win.exe
+          path: ./build/dist/MEDomics-${{ env.VERSION }}-win.exe
+          compression-level: 0
+        env:
+          VERSION: ${{ steps.get-tag.outputs.VERSION }}
+
+      - name: Archive Windows blockmap
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-built-blockmap
+          path: ./build/dist/MEDomics-${{ env.VERSION }}-win.exe.blockmap
+          compression-level: 0
+        env:
+          VERSION: ${{ steps.get-tag.outputs.VERSION }}
+
+      - name: Archive Windows latest.yml file
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-built-latest
+          path: ./build/dist/latest.yml
+          compression-level: 0
         env:
           VERSION: ${{ steps.get-tag.outputs.VERSION }}
 
@@ -77,6 +98,16 @@ jobs:
         with:
           name: windows-built
 
+      - name: Download Windows blockmap
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-built-blockmap
+
+      - name: Download Windows latest.yml file
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-built-latest
+
       - name: Install zip
         run: sudo apt-get install zip
 
@@ -92,28 +123,32 @@ jobs:
           ls -R
 
       - name: zip Windows
-        run: zip -r MEDomicsLab-PythonEnv-win.zip ./requirements.txt ./create_conda_env_win.bat
+        run: zip -r MEDomics-PythonEnv-win.zip ./requirements.txt ./create_conda_env_win.bat
 
       - name: Get tag name
         id: get-tag
         run: |
           VERSION=${GITHUB_REF/refs\/tags\//}
-          echo "::set-output name=VERSION::${VERSION#w}"
+          echo "VERSION=${VERSION#w}" >> "$GITHUB_OUTPUT"
 
       - name: Publish to GitHub
         uses: softprops/action-gh-release@v1
         with:
           files: |
-            ./MEDomicsLab-${{ env.VERSION }}-win.exe
-            ./MEDomicsLab-PythonEnv-win.zip
-          name: MEDomicsLab-${{ env.VERSION }}
+            ./MEDomics-${{ env.VERSION }}-win.exe
+            ./MEDomics-${{ env.VERSION }}-win.exe.blockmap
+            ./latest.yml
+            ./MEDomics-PythonEnv-win.zip
+          name: MEDomics-${{ env.VERSION }}
           body: |
-            MEDomicsLab-${{ env.VERSION }}
-            This is a full release of MEDomicsLab. This release includes the MEDomicsLab application and the Python environment.
+            MEDomics-${{ env.VERSION }}
+            This is a full release of MEDomics. This release includes the MEDomics platform and the Python environment.
             Refer to the [Documentation](https://medomics-udes.gitbook.io/medomicslab-docs/)
             ${{ github.ref }}
           draft: true
           prerelease: false
           token: ${{ secrets.GITHUB_TOKEN }}
         env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VERSION: ${{ steps.get-tag.outputs.VERSION }}

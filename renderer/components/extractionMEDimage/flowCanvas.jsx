@@ -235,6 +235,7 @@ const FlowCanvas = ({ workflowType, setWorkflowType }) => {
     newNode.data.internal.settings = newNode.type === "featuresNode" ? featuresNodeDefaultSettings : newNode.data.setupParam.possibleSettings.defaultSettings
 
     newNode.data.internal.subflowId = !associatedNode ? groupNodeId.id : associatedNode
+    newNode.data.internal.hasWarning = { state : false }
 
     // Used to enable the view button of a node (if it exists)
     newNode.data.internal.enableView = false

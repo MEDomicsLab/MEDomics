@@ -283,9 +283,11 @@ const Workflow = ({ setWorkflowType, workflowType }) => {
     const createTreeFromNodesRec = (node) => {
       let children = {}
 
+      // for each edge, we check if the source node is the current node
       edges.forEach((edge) => {
         if (edge.source == node.id) {
-          let targetNode = deepCopy(nodes.find((node) => node.id === edge.target))
+          // we find the target node associated with the edge
+          let targetNode = deepCopy(nodes.find((_node) => _node.id === edge.target))
           if (targetNode.type != "groupNode") {
             let subIdText = ""
             let subflowId = targetNode.data.internal.subflowId
@@ -312,7 +314,6 @@ const Workflow = ({ setWorkflowType, workflowType }) => {
         }
       }
     })
-
     return treeMenuData
   }
 
@@ -483,6 +484,13 @@ const Workflow = ({ setWorkflowType, workflowType }) => {
     newNode.data.internal.checkedOptions = []
     newNode.data.internal.subflowId = !associatedNode ? groupNodeId.id : associatedNode
     newNode.data.internal.hasWarning = { state: false }
+
+    setTimeout(() => {
+      if (nodes.length === 0 && reactFlowInstance) {
+        setViewport({ x: 200, y: 300, zoom: 0.9 }); // reduce the zoom when drag and droping first nodes
+      }
+    }, 0);
+    
 
     return newNode
   }
@@ -693,6 +701,7 @@ const Workflow = ({ setWorkflowType, workflowType }) => {
             edgesCopy = edgesCopy.reduce((acc, edge) => {
               if (edge.target == currentNode.id) {
                 let sourceNode = nodes.find((node) => node.id == edge.source)
+                console.log("----------sourceNode", sourceNode)
                 if (sourceNode.data.internal.type == "model") {
                   acc.push(edge)
                 }
@@ -709,14 +718,13 @@ const Workflow = ({ setWorkflowType, workflowType }) => {
           if (node[key].nodes != {}) {
             // if this is a create model node, we need to add n pipelines
             if (hasModels) {
-              edgesCopy.forEach((edge) => {
-                let id = key + "*" + edge.source
-                if (key != up2Id) {
-                  children[id] = cleanTreeDataRec(node[key].nodes)
-                } else {
-                  children[id] = {}
-                }
-              })
+              let allEdgesSourceIds = edgesCopy.map((edge) => edge.source).join(".")
+              let id = key + "*" + allEdgesSourceIds
+              if (key != up2Id) {
+                children[id] = cleanTreeDataRec(node[key].nodes)
+              } else {
+                children[id] = {}
+              }
               // if this is not a create model node, we continue normally
             } else {
               if (key != up2Id) {
@@ -784,12 +792,31 @@ const Workflow = ({ setWorkflowType, workflowType }) => {
       flow.intersections = intersections
       let success = await overwriteMEDDataObjectContent(metadataFileID, [flow])
       if (success) {
-        toast.success("Scene has been saved successfully")
+        toast.success("Scene " + sceneName + " has been saved successfully")
       } else {
-        toast.error("Error while saving scene")
+        toast.error("Error while saving scene: " + sceneName)
       }
     }
   }, [reactFlowInstance, MLType, intersections])
+
+  /**
+   * Add CTRL+S event listener (fired in main container) to save changes
+   */
+  useEffect(() => {
+    const handleSaveEvent = (event) => {
+      if (globalData[pageId]?.id === event.detail?.tabId ) {
+        onSave()
+      }
+    }
+    document.body.addEventListener('saveFileEvent', handleSaveEvent)
+    
+    // Cleanup function to remove event listener when component unmounts
+    return () => {
+      document.body.removeEventListener('saveFileEvent', handleSaveEvent)
+    }
+  }, [onSave])
+
+
 
   /**
    * Clear the canvas if the user confirms

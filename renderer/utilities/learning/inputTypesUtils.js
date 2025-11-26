@@ -109,7 +109,8 @@ const implementedTypesDescription = [
     type: "int-float-str",
     description: "int-float-str",
     default: ""
-  }
+  },
+  
 
 ]
 

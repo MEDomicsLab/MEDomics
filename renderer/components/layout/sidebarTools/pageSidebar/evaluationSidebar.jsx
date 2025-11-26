@@ -29,6 +29,7 @@ const EvaluationSidebar = () => {
   // We use the useEffect hook to update the experiment list state when the workspace changes
   useEffect(() => {
     let localExperimentList = []
+    if (!globalData["EXPERIMENTS"]) return
     for (const experimentId of globalData["EXPERIMENTS"].childrenIDs) {
       localExperimentList.push(globalData[experimentId].name)
     }

@@ -526,6 +526,8 @@ const Input = ({ name, settingInfos, currentValue, onInputChange, disabled = fal
           </>
         )
 
+      
+
       // for all the other types of input (basically a string input for now)
       default:
         return (

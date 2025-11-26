@@ -74,6 +74,9 @@ class MEDexperimentLearning(MEDexperiment):
         elif node_type == "finalize":
             from med_libs.MEDml.nodes.Finalize import Finalize
             return Finalize(node_config['id'], self.global_json_config)
+        elif node_type == "group_models":
+            from med_libs.MEDml.nodes.GroupModels import GroupModels
+            return GroupModels(node_config['id'], self.global_json_config)
 
     def setup_dataset(self, node: Node):
         """Sets up the dataset for the experiment.\n
@@ -140,11 +143,12 @@ class MEDexperimentLearning(MEDexperiment):
             "code", f"pycaret_exp.setup(temp_df, {node.CodeHandler.convert_dict_to_params(kwargs)})")
         node.CodeHandler.add_line(
             "code", f"dataset = pycaret_exp.get_config('X').join(pycaret_exp.get_config('y'))")
+        
+        full_data = pycaret_exp.get_config('X').join(pycaret_exp.get_config('y'))
         dataset_metaData = {
-            'dataset': pycaret_exp.get_config('X').join(pycaret_exp.get_config('y')),
+            'dataset': full_data.head(10) if len(full_data) > 10 else full_data,
             'X_test': pycaret_exp.get_config('X_test'),
             'y_test': pycaret_exp.get_config('y_test'),
-
         }
         self.global_json_config["columns"] = copy.deepcopy(list(
             temp_df.columns.values.tolist()))
