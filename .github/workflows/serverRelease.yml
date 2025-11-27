@@ -155,10 +155,12 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           name: server-windows
+          path: .
 
       - uses: actions/download-artifact@v4
         with:
           name: server-linux
+          path: .
 
       # Commented until keys and certificate for Mac are ready
       # - uses: actions/download-artifact@v4
@@ -181,8 +183,8 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           files: |
-            ./MEDomicsLab-Server-${{ steps.get-ver.outputs.VERSION }}-win32.zip
-            ./MEDomicsLab-Server-${{ steps.get-ver.outputs.VERSION }}-linux.zip
+            MEDomicsLab-Server-${{ steps.get-ver.outputs.VERSION }}-win32.zip
+            MEDomicsLab-Server-${{ steps.get-ver.outputs.VERSION }}-linux.zip
           name: MEDomicsLab Server-${{ steps.get-ver.outputs.VERSION }}
           body: |
             MEDomicsLab Server-${{ steps.get-ver.outputs.VERSION }}

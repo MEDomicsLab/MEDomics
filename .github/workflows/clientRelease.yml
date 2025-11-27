@@ -204,10 +204,12 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           name: client-windows
+          path: .
 
       - uses: actions/download-artifact@v4
         with:
           name: client-linux
+          path: .
       
       # Commented until keys and certificate for Mac are ready
       # - uses: actions/download-artifact@v4
@@ -231,10 +233,10 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           files: |
-            ./MEDomicsLab-${{ steps.get-ver.outputs.VERSION }}-win.exe
-            ./MEDomicsLab-${{ steps.get-ver.outputs.VERSION }}-win.exe.blockmap
-            ./latest.yml
-            ./MEDomicsLab-${{ steps.get-ver.outputs.VERSION }}-linux.deb
+            MEDomicsLab-${{ steps.get-ver.outputs.VERSION }}-win.exe
+            MEDomicsLab-${{ steps.get-ver.outputs.VERSION }}-win.exe.blockmap
+            latest.yml
+            MEDomicsLab-${{ steps.get-ver.outputs.VERSION }}-linux.deb
           name: MEDomicsLab Client-${{ steps.get-ver.outputs.VERSION }}
           body: |
             MEDomicsLab Client-${{ steps.get-ver.outputs.VERSION }}

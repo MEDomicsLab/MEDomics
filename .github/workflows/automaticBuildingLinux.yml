@@ -79,6 +79,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: linux-built-ubuntu
+          path: .
 
       - name: Install zip
         run: sudo apt-get install zip
