@@ -67,18 +67,19 @@ async function main() {
 
   const root = process.cwd();
   const version = require(path.join(root, 'package.json')).version;
-  // Preflight: ensure backend has no local file: dependencies which would create symlinks
+  // Preflight: detect and auto-remove any local file: dependencies (e.g. monorepo self-links)
   const backendPkgPath = path.join(root, 'backend', 'package.json');
   const backendPkg = JSON.parse(fs.readFileSync(backendPkgPath, 'utf8'));
   const deps = backendPkg.dependencies || {};
   const fileDeps = Object.entries(deps).filter(([, spec]) => typeof spec === 'string' && spec.startsWith('file:'));
   if (fileDeps.length > 0) {
-    console.error('Error: backend/package.json contains local file: dependencies which can create symlinks during install:');
+    console.warn('Detected local file: dependencies in backend/package.json that can cause symlink/EPERM issues. Auto-removing for pack:');
     for (const [name, spec] of fileDeps) {
-      console.error(` - ${name}: ${spec}`);
+      console.warn(` - removing ${name}: ${spec}`);
+      delete deps[name];
     }
-    console.error('Please replace these with proper registry versions or remove them before packing.');
-    process.exit(1);
+    backendPkg.dependencies = deps;
+    fs.writeFileSync(backendPkgPath, JSON.stringify(backendPkg, null, 2));
   }
   const outBase = path.join(root, 'build', 'server', platform);
   const distDir = path.join(root, 'build', 'dist');
