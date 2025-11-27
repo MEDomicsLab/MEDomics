@@ -101,97 +101,97 @@ jobs:
           path: |
             ./build/dist/MEDomicsLab-${{ steps.get-ver.outputs.VERSION }}-linux.deb
 
-  build-mac:
-    runs-on: macos-latest
-    env:
-      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          submodules: recursive
-          fetch-depth: 0
+  # build-mac:
+  #   runs-on: macos-latest
+  #   env:
+  #     GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  #   steps:
+  #     - name: Checkout code
+  #       uses: actions/checkout@v4
+  #       with:
+  #         submodules: recursive
+  #         fetch-depth: 0
 
-      - name: Keys and certificates
-        env:
-          APPLE_CERT_DATA: ${{ secrets.CSC_INSTALLER_LINK }}
-          APPLE_CERT_PASSWORD: ${{ secrets.CSC_INSTALLER_KEY_PASSWORD }}
-          DEVELOPER_APP_CER: ${{ secrets.CSC_LINK }}
-          DEVELOPER_APP_KEY: ${{ secrets.CSC_KEY_PASSWORD }}
-        run: |
-          echo -n "$APPLE_CERT_DATA" | base64 --decode -o certificate_installer.p12
-          echo -n "$DEVELOPER_APP_CER" | base64 --decode -o certificate_application.p12
-          KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
-          security create-keychain -p "${{ secrets.CSC_KEY_PASSWORD }}" $KEYCHAIN_PATH
-          security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
-          security unlock-keychain -p "${{ secrets.CSC_KEY_PASSWORD }}" $KEYCHAIN_PATH
-          security import certificate_installer.p12 -P "${{ secrets.CSC_KEY_PASSWORD }}" -A -t cert -f pkcs12 -k $KEYCHAIN_PATH
-          security import certificate_application.p12 -P "${{ secrets.CSC_KEY_PASSWORD }}" -A -t cert -f pkcs12 -k $KEYCHAIN_PATH
-          security list-keychain -d user -s $KEYCHAIN_PATH
+  #     - name: Keys and certificates
+  #       env:
+  #         APPLE_CERT_DATA: ${{ secrets.CSC_INSTALLER_LINK }}
+  #         APPLE_CERT_PASSWORD: ${{ secrets.CSC_INSTALLER_KEY_PASSWORD }}
+  #         DEVELOPER_APP_CER: ${{ secrets.CSC_LINK }}
+  #         DEVELOPER_APP_KEY: ${{ secrets.CSC_KEY_PASSWORD }}
+  #       run: |
+  #         echo -n "$APPLE_CERT_DATA" | base64 --decode -o certificate_installer.p12
+  #         echo -n "$DEVELOPER_APP_CER" | base64 --decode -o certificate_application.p12
+  #         KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
+  #         security create-keychain -p "${{ secrets.CSC_KEY_PASSWORD }}" $KEYCHAIN_PATH
+  #         security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
+  #         security unlock-keychain -p "${{ secrets.CSC_KEY_PASSWORD }}" $KEYCHAIN_PATH
+  #         security import certificate_installer.p12 -P "${{ secrets.CSC_KEY_PASSWORD }}" -A -t cert -f pkcs12 -k $KEYCHAIN_PATH
+  #         security import certificate_application.p12 -P "${{ secrets.CSC_KEY_PASSWORD }}" -A -t cert -f pkcs12 -k $KEYCHAIN_PATH
+  #         security list-keychain -d user -s $KEYCHAIN_PATH
 
-      - name: Notary profile
-        env:
-          APPLE_NOTARY_USER: ${{ secrets.APPLE_ID }}
-          APPLE_NOTARY_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-        run: |
-          xcrun notarytool store-credentials "notarytool-password" --apple-id "$APPLE_NOTARY_USER" --team-id "$APPLE_TEAM_ID" --password "$APPLE_NOTARY_PASSWORD"
+  #     - name: Notary profile
+  #       env:
+  #         APPLE_NOTARY_USER: ${{ secrets.APPLE_ID }}
+  #         APPLE_NOTARY_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
+  #         APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+  #       run: |
+  #         xcrun notarytool store-credentials "notarytool-password" --apple-id "$APPLE_NOTARY_USER" --team-id "$APPLE_TEAM_ID" --password "$APPLE_NOTARY_PASSWORD"
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 18.13
+  #     - name: Set up Node.js
+  #       uses: actions/setup-node@v4
+  #       with:
+  #         node-version: 18.13
 
-      - name: Set version from tag
-        run: |
-          TAG=${GITHUB_REF/refs\/tags\//}
-          CLEAN=${TAG#client-}
-          CLEAN=${CLEAN#v}
-          node -p "let p=require('./package.json'); p.version='${CLEAN}'; require('fs').writeFileSync('package.json', JSON.stringify(p,null,2));"
+  #     - name: Set version from tag
+  #       run: |
+  #         TAG=${GITHUB_REF/refs\/tags\//}
+  #         CLEAN=${TAG#client-}
+  #         CLEAN=${CLEAN#v}
+  #         node -p "let p=require('./package.json'); p.version='${CLEAN}'; require('fs').writeFileSync('package.json', JSON.stringify(p,null,2));"
 
-      - name: Install dependencies
-        run: npm install
+  #     - name: Install dependencies
+  #       run: npm install
 
-      # Skipping libmongocrypt prebuild for client-only
+  #     # Skipping libmongocrypt prebuild for client-only
 
-      - name: Build Client for Mac
-        env:
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          CSC_LINK: ${{ secrets.CSC_LINK }}
-          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
-          CSC_INSTALLER_LINK: ${{ secrets.CSC_INSTALLER_LINK }}
-          CSC_INSTALLER_KEY_PASSWORD: ${{ secrets.CSC_INSTALLER_KEY_PASSWORD }}
-        run: |
-          # Prevent electron-builder from publishing; publish happens in the final job
-          npx nextron build --mac --config electron-builder.client.yml --publish=never
+  #     - name: Build Client for Mac
+  #       env:
+  #         APPLE_ID: ${{ secrets.APPLE_ID }}
+  #         APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
+  #         APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+  #         CSC_LINK: ${{ secrets.CSC_LINK }}
+  #         CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+  #         CSC_INSTALLER_LINK: ${{ secrets.CSC_INSTALLER_LINK }}
+  #         CSC_INSTALLER_KEY_PASSWORD: ${{ secrets.CSC_INSTALLER_KEY_PASSWORD }}
+  #       run: |
+  #         # Prevent electron-builder from publishing; publish happens in the final job
+  #         npx nextron build --mac --config electron-builder.client.yml --publish=never
 
-      - name: Get version
-        id: get-ver
-        run: |
-          TAG=${GITHUB_REF/refs\/tags\//}
-          CLEAN=${TAG#client-}
-          CLEAN=${CLEAN#v}
-          echo "VERSION=${CLEAN}" >> "$GITHUB_OUTPUT"
+  #     - name: Get version
+  #       id: get-ver
+  #       run: |
+  #         TAG=${GITHUB_REF/refs\/tags\//}
+  #         CLEAN=${TAG#client-}
+  #         CLEAN=${CLEAN#v}
+  #         echo "VERSION=${CLEAN}" >> "$GITHUB_OUTPUT"
 
-      - name: Notarize DMG (if present)
-        continue-on-error: true
-        env:
-          VERSION: ${{ steps.get-ver.outputs.VERSION }}
-        run: |
-          if [ -f build/dist/MEDomicsLab-${VERSION}-mac.dmg ]; then
-            xcrun notarytool submit build/dist/MEDomicsLab-${VERSION}-mac.dmg --keychain-profile "notarytool-password" --wait
-          fi
+  #     - name: Notarize DMG (if present)
+  #       continue-on-error: true
+  #       env:
+  #         VERSION: ${{ steps.get-ver.outputs.VERSION }}
+  #       run: |
+  #         if [ -f build/dist/MEDomicsLab-${VERSION}-mac.dmg ]; then
+  #           xcrun notarytool submit build/dist/MEDomicsLab-${VERSION}-mac.dmg --keychain-profile "notarytool-password" --wait
+  #         fi
 
-      - name: Upload Mac artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: client-mac
-          path: |
-            ./build/dist/MEDomicsLab-${{ steps.get-ver.outputs.VERSION }}-mac.dmg
-            ./build/dist/MEDomicsLab-${{ steps.get-ver.outputs.VERSION }}-mac.zip
-            ./build/dist/latest-mac.yml
+  #     - name: Upload Mac artifacts
+  #       uses: actions/upload-artifact@v4
+  #       with:
+  #         name: client-mac
+  #         path: |
+  #           ./build/dist/MEDomicsLab-${{ steps.get-ver.outputs.VERSION }}-mac.dmg
+  #           ./build/dist/MEDomicsLab-${{ steps.get-ver.outputs.VERSION }}-mac.zip
+  #           ./build/dist/latest-mac.yml
 
   publish:
     # Removed Mac build requirement for now since it needs a special signature, readd ", build-mac" later
