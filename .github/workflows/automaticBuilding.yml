@@ -415,32 +415,24 @@ jobs:
         with:
           name: windows-built
           path: .
-        with:
-          name: windows-built
 
       - name: Download Windows blockmap
         uses: actions/download-artifact@v4
         with:
           name: windows-built-blockmap
           path: .
-        with:
-          name: windows-built-blockmap
 
       - name: Download Windows latest.yml file
         uses: actions/download-artifact@v4
         with:
           name: windows-built-latest
           path: .
-        with:
-          name: windows-built-latest
 
       - name: Download Linux Ubuntu
         uses: actions/download-artifact@v4
         with:
           name: linux-built-ubuntu
           path: .
-        with:
-          name: linux-built-ubuntu
 
       # Temporarily commented while mac requirements are ignored for key/cert reasons
       # - name: Download Mac PKG
