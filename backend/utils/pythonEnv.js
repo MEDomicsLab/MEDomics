@@ -2,8 +2,8 @@ import { getAppPath } from "./serverPathUtils.js"
 import path from "path"
 import util from "util"
 import fs from "fs"
-import { execSync } from "child_process"
-const exec = util.promisify((await import('child_process')).exec)
+import { execSync, exec as execCb } from "child_process"
+const exec = util.promisify(execCb)
 
 function getPythonEnvironment(medCondaEnv = "med_conda_env") {
   let pythonEnvironment = process.env.MED_ENV
