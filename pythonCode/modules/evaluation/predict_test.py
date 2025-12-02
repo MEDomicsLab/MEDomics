@@ -77,9 +77,8 @@ class GoExecScriptPredictTest(GoExecutionScript):
             raise ValueError("The model could not be loaded from the database.")
 
         
+        # Get the feature names from the model
         columns_to_keep = None
-        # if model.__class__.__name__ != 'LGBMClassifier':
-            # Get the feature names from the model
         if dir(model).__contains__('feature_names_in_'):
             columns_to_keep = model.__getattribute__('feature_names_in_')
         

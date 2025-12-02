@@ -241,7 +241,6 @@ class ModelHandler(Node):
 
             # Calculate all metrics manually
             fold_metric_results = self.__calculate_all_metrics(y_test_fold, y_pred, y_proba)
-            pycaret_metrics = fold_exp.pull().to_dict(orient='records')
             
             # Store metrics for this fold
             all_fold_metrics[fold_num] = fold_metric_results
@@ -255,6 +254,7 @@ class ModelHandler(Node):
             fold_performances.append({
                 'fold': fold_num,
                 'model': model,
+                'experiment': fold_exp,
                 'score': fold_score,
                 'test_indices': test_indices
             })
@@ -298,6 +298,7 @@ class ModelHandler(Node):
         if fold_performances:
             # Sort by score (higher is better) and select the best model
             best_model = sorted(fold_performances, key=lambda x: x['score'], reverse=True)[0]['model']
+            best_exp = sorted(fold_performances, key=lambda x: x['score'], reverse=True)[0]['experiment']
 
             # Update code handler with best model selection
             self.CodeHandler.add_line("code", "\n# Selecting the best model based on performance")
@@ -317,7 +318,7 @@ class ModelHandler(Node):
 
                 # Optimize model's threshold if enabled
                 if self.optimize_threshold:
-                    best_model = pycaret_exp.optimize_threshold(best_model, optimize=self.threshold_optimization_metric)
+                    best_model = best_exp.optimize_threshold(best_model, optimize=self.threshold_optimization_metric)
 
                 # Update code handler with final fit
                 self.CodeHandler.add_line("code", f"best_model.fit(X_processed, y_processed)")
@@ -336,9 +337,9 @@ class ModelHandler(Node):
 
                 # Finalize the model
                 if finalize:
-                    best_model = pycaret_exp.finalize_model(best_model)
+                    best_model = best_exp.finalize_model(best_model)
                     self.CodeHandler.add_line("code", "\n# Finalizing model")
-                    self.CodeHandler.add_line("code", f"best_model = pycaret_exp.finalize_model(best_model)")
+                    self.CodeHandler.add_line("code", f"best_model = best_exp.finalize_model(best_model)")
                 
                 # Store the final model
                 self.CodeHandler.add_line("code", f"trained_models = [best_model]")

@@ -54,7 +54,17 @@ class ModelIO(Node):
         if self.type == 'save_model':
             self.CodeHandler.add_line("code", f"for model in trained_models:")
             for model in kwargs['models']:
+                # Get model's features
+                if dir(model).__contains__('feature_names_in_'):
+                    model_features = model.__getattribute__('feature_names_in_')
+                elif dir(model).__contains__('feature_name_') and model_features is None:
+                    model_features = model.__getattribute__('feature_name_')
+                else:
+                    model_features = self.global_config_json["columns"]
+
+                # Retrieve fitted model
                 model = format_model(model)
+
                 # Model's name
                 if 'model_name' in settings.keys() and settings['model_name']:
                     model_name = settings['model_name']
@@ -146,7 +156,7 @@ class ModelIO(Node):
                     inWorkspace = False
                 )
                 to_write = {
-                    "columns": self.global_config_json["columns"],
+                    "columns": model_features,
                     "target": self.global_config_json["target_column"],
                     "steps": self.global_config_json["steps"],
                     "ml_type": self.global_config_json["MLType"]

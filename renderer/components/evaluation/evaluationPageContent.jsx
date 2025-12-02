@@ -132,7 +132,7 @@ const EvaluationPageContent = () => {
           !selectedDatasetsTx.includes(datasetTx) && selectedDatasetsTx.push(datasetTx)
         })
 
-        isValidDatasetsSelected = modelDatasetsTx.sort().join(",") == selectedDatasetsTx.sort().join(",")
+        isValidDatasetsSelected = modelDatasetsTx.some(element => selectedDatasetsTx.includes(element))
       } else {
         let columnsArray = await getCollectionColumns(datasetData.id)
         let cleanDatasetCols = stripIdCols(columnsArray)
@@ -141,10 +141,9 @@ const EvaluationPageContent = () => {
         columnsArray_ = cleanDatasetCols
         modelCols     = cleanModelCols
 
-        const datasetColsString = JSON.stringify(cleanDatasetCols.sort())
-        const modelColsString   = JSON.stringify(cleanModelCols.sort())
+        const includes = cleanModelCols.every(col => cleanDatasetCols.includes(col))
         isValid = (cleanModelCols && cleanDatasetCols)
-          ? (datasetColsString === modelColsString)
+          ? includes
           : true
       }
       setLoader(false)
