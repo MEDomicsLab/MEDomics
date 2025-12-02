@@ -35,14 +35,15 @@ const ModelsResults = ({ selectedResults }) => {
     let allModelsData = []
     if (models.length > 0) {
       models.forEach((model) => {
-        let modifiedRow = model.metrics
+        if (!model.metrics) return
+        let modifiedRow = { ...model.metrics }
         modifiedRow["Parameters"] = model.params
         modifiedRow["OverallMetrics"] = selectedResults?.data?.overall_metrics
         modifiedRow = Object.assign({ Name: model.name }, modifiedRow)
         allModelsData.push(modifiedRow)
       })
     }
-    setAllModelsData(allModelsData)
+    allModelsData.length > 0 && setAllModelsData(allModelsData)
   }, [models])
 
   const rowExpansionTemplate = (rowData) => {
