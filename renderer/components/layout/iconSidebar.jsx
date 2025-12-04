@@ -182,7 +182,7 @@ const IconSidebar = ({ onSidebarItemSelect }) => {
                 data-tooltip-id="tooltip-extraction"
                 onDoubleClick={(event) => handleDoubleClickLanding(event, "extraction")}
                 onClick={() => {
-                  setExtractionBtnstate(!extractionBtnstate)
+                  //setExtractionBtnstate(!extractionBtnstate)
                 }}
                 disabled={disabledIcon}
                 onBlur={(event) => {
@@ -196,7 +196,7 @@ const IconSidebar = ({ onSidebarItemSelect }) => {
                   blurAccepeted && setExtractionBtnstate(false)
                 }}
               >
-                {extractionBtnstate ? <VscChromeClose style={{ height: "1.7rem", width: "auto" }} /> : <TbFileExport style={{ height: "1.7rem", width: "auto" }} />}
+                {extractionBtnstate ? <VscChromeClose style={{ height: "1.7rem", width: "auto" }} /> : <TbFileExport style={{ height: "1.7rem", width: "auto", color: "#9e9e9e" }} />}
                 <div className={`btn-group-ext ${extractionBtnstate ? "clicked" : ""}`}>
                   <Button
                     className="ext-MEDimg-btn"
