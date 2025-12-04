@@ -90,6 +90,7 @@ const EvaluationPageContent = () => {
         },
         (error) => {
           console.log("closeDashboard received error:", error)
+          toast.error("An error occurred while closing the previous dashboard")
         }
       )
     }

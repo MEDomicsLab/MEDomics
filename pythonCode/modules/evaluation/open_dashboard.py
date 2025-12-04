@@ -189,6 +189,11 @@ class GoExecScriptOpenDashboard(GoExecutionScript):
         X_test = temp_df.drop(columns=target)
         y_test = temp_df[target]
 
+        # Handle binary classification string labels
+        if type(y_test.unique()[0]) == str:
+            mapping = {'False': 0, 'True': 1, 'false': 0, 'true': 1}
+            y_test = y_test.map(mapping)
+
         if X_test.shape[0] == 0:
             raise ValueError("Dataset has zero rows after preprocessing (nothing to explain).")
         if X_test.shape[1] == 0:
