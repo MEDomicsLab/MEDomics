@@ -1,11 +1,12 @@
-import React, { useContext, useEffect, useState } from "react"
+import { useContext, useEffect, useState } from "react"
 import { Col, Row } from "react-bootstrap"
 import { toast } from "react-toastify"
 import { requestBackend } from "../../utilities/requests"
 import { getCollectionData } from "../dbComponents/utils"
+import { ErrorRequestContext } from "../generalPurpose/errorRequestContext"
 import { LoaderContext } from "../generalPurpose/loaderContext"
 import { PageInfosContext } from "../mainPages/moduleBasics/pageInfosContext"
-import { getCollectionColumns, getCollectionRows, overwriteMEDDataObjectContent } from "../mongoDB/mongoDBUtils"
+import { getCollectionColumns, overwriteMEDDataObjectContent } from "../mongoDB/mongoDBUtils"
 import { DataContext } from "../workspace/dataContext"
 import { MEDDataObject } from "../workspace/NewMedDataObject"
 import { WorkspaceContext } from "../workspace/workspaceContext"
@@ -26,6 +27,7 @@ const EvaluationPageContent = () => {
   const { globalData } = useContext(DataContext)
   const { setLoader } = useContext(LoaderContext)
   const { port } = useContext(WorkspaceContext) // we get the port for server connexion
+  const { setError } = useContext(ErrorRequestContext)
   const [run, setRun] = useState(false)
   const stripIdCols = (cols = []) => (cols || []).filter(c => c !== '_id' && c !== 'id')
 
@@ -41,8 +43,10 @@ const EvaluationPageContent = () => {
       if (chosenModel.id && chosenModel.name && Object.keys(chosenModel).length > 0) {
         let modelMetadataID = MEDDataObject.getChildIDWithName(globalData, chosenModel.id, "metadata.json")
         let modelData = await getCollectionData(modelMetadataID)
-        if (config) {
-          config = {...config, ...configToLoad[0], ...modelData[0]}
+        if (config && config.model?.id) {
+          if (configToLoad[0] && configToLoad[0].model && configToLoad[0].model.id === config.model.id) {
+            config = {...config, ...configToLoad[0], ...modelData[0]}
+          }
         }
       } else {
           config = {...config, ...configToLoad[0]}
@@ -91,6 +95,7 @@ const EvaluationPageContent = () => {
         (error) => {
           console.log("closeDashboard received error:", error)
           toast.error("An error occurred while closing the previous dashboard")
+          setError(error)
         }
       )
     }

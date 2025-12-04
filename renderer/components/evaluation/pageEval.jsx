@@ -165,6 +165,8 @@ const PageEval = ({ run, pageId, config, updateWarnings, setChosenModel, updateC
           },
           (error) => {
             console.log("closeDashboard received error:", error)
+            setError(error)
+            setDashboardError(error)
             setIsDashboardUpdating(false)
           }
         )
