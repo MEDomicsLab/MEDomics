@@ -50,7 +50,20 @@ export async function loadMEDDataObjects() {
           fs.accessSync(medDataObject.path)
           medDataObjectsDict[medDataObject.id] = medDataObject
         } catch (error) {
-          console.error(`${medDataObject.name}: not found locally`, medDataObject)
+          console.error(`${medDataObject.name}: not found locally, path will be set to null`, medDataObject)
+          medDataObject.path = null
+          medDataObject.inWorkspace = false
+          medDataObjectsDict[medDataObject.id] = medDataObject
+
+          // Update database
+          collection.updateOne(
+            { id: medDataObject.id },
+            { $set: { path: null, inWorkspace: false } }
+          ).then(() => {
+            console.log(`Database updated for MEDDataObject with id ${medDataObject.id}: path set to null and inWorkspace set to false`)
+          }).catch((updateError) => {
+            console.error(`Failed to update MEDDataObject with id ${medDataObject.id} in database: `, updateError)
+          })
         }
       } else {
         medDataObjectsDict[medDataObject.id] = medDataObject
