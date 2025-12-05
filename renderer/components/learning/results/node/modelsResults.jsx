@@ -14,12 +14,25 @@ const ModelsResults = ({ selectedResults }) => {
   const [allModelsData, setAllModelsData] = useState([])
   const [expandedRows, setExpandedRows] = useState([])
   const [selectedRows, setSelectedRows] = useState([])
+  const metricsMapping = {
+    "Recall": "Sensitivity",
+    "Precision": "PPV",
+    "Prec.":"PPV"
+  }
 
   // When the selected results change, update the models
   useEffect(() => {
     let models = []
     if (selectedResults.logs) {
       Object.keys(selectedResults.logs).forEach((modelName) => {
+        // Map metrics names if needed
+        Object.keys(selectedResults.logs[modelName].metrics).forEach((metricKey) => {
+          if (metricsMapping[metricKey]) {
+            const mappedKey = metricsMapping[metricKey]
+            selectedResults.logs[modelName].metrics[mappedKey] = selectedResults.logs[modelName].metrics[metricKey]
+            delete selectedResults.logs[modelName].metrics[metricKey]
+          }
+        })
         models.push({
           name: modelName,
           metrics: selectedResults.logs[modelName].metrics,
@@ -83,12 +96,25 @@ const ModelsResults = ({ selectedResults }) => {
   const getColumnsFromData = (data) => {
     if (data.length > 0) {
       let toReturn = [<Column key="first key" expander={true} style={{ width: "5rem" }} />]
-      Object.keys(data[0]).map((key) => {
-        if (key != "Parameters" && key != "OverallMetrics") {
-          let sortableOpt = key != "Name" ? { sortable: true } : {}
+      const metricsOrder = ["Name", "AUC", "Sensitivity", "Specificity", "PPV", "NPV", "Accuracy", "F1", "MCC"]
+      
+      // Add columns in the defined order only
+      metricsOrder.forEach((key) => {
+        if (key in data[0]) {
+          let sortableOpt = key !== "Name" ? { sortable: true } : {}
           toReturn.push(<Column key={key} field={key} header={key} {...sortableOpt} />)
         }
       })
+      
+      // Add remaining columns not in the metricsOrder
+      /*Object.keys(data[0]).forEach((key) => {
+        if (key !== "Parameters" && 
+            key !== "OverallMetrics" && 
+            !metricsOrder.includes(key)) {
+          let sortableOpt = key !== "Name" ? { sortable: true } : {}
+          toReturn.push(<Column key={key} field={key} header={key} {...sortableOpt} />)
+        }
+      })*/
       return toReturn
     }
     return <></>

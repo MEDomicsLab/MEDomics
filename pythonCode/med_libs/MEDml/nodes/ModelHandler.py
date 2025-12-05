@@ -7,9 +7,9 @@ import pandas as pd
 from colorama import Fore
 from pycaret.classification import *
 from pycaret.utils.generic import check_metric
-from sklearn.metrics import (accuracy_score, cohen_kappa_score,
-                             f1_score, matthews_corrcoef,
-                             precision_score, recall_score, roc_auc_score)
+from sklearn.metrics import (accuracy_score, confusion_matrix, f1_score,
+                             matthews_corrcoef, precision_score, recall_score,
+                             roc_auc_score)
 
 from .NodeObj import Node
 
@@ -74,20 +74,22 @@ class ModelHandler(Node):
                 metrics['AUC'] = "N/A"
 
             # Basic classification metrics
+            metrics['Sensitivity'] = round(recall_score(y_true, y_pred, zero_division=0), 3)
+            metrics['Specificity'] = round(self.specificity(y_true, y_pred), 3)
+            metrics['PPV'] = round(precision_score(y_true, y_pred, zero_division=0), 3)
+            metrics['NPV'] = round(self.npv(y_true, y_pred), 3)
             metrics['Accuracy'] = round(accuracy_score(y_true, y_pred), 3)
-            metrics['Precision'] = round(precision_score(y_true, y_pred, zero_division=0), 3)
-            metrics['Recall'] = round(recall_score(y_true, y_pred, zero_division=0), 3)
             metrics['F1'] = round(f1_score(y_true, y_pred, zero_division=0), 3)
 
             # Additional metrics
-            metrics['Kappa'] = round(cohen_kappa_score(y_true, y_pred), 3)
             metrics['MCC'] = round(matthews_corrcoef(y_true, y_pred), 3)
+
         except Exception as e:
             print(f"Error calculating metrics: {e}")
             # Set default values for all metrics
-            default_metrics = ['Accuracy', 'AUC', 'Recall', 'Precision', 'F1', 'Kappa', 'MCC']
+            default_metrics = ["AUC", "Sensitivity", "Specificity", "PPV", "NPV", "Accuracy", "F1", "MCC"]
             for metric in default_metrics:
-                metrics[metric] = 0
+                metrics[metric] = "N/A"
         
         return metrics
 
@@ -105,7 +107,7 @@ class ModelHandler(Node):
         for metric_name in first_fold_metrics.keys():
             metric_values = []
             for _, metrics in fold_metrics.items():
-                if metric_name in metrics:
+                if metric_name in metrics and "N/A" not in metrics[metric_name]:
                     metric_values.append(metrics[metric_name])
             
             if metric_values:
@@ -510,12 +512,34 @@ class ModelHandler(Node):
             )
         return results
 
+    # Define custom metrics
+    def specificity(self, y_true, y_pred):
+        """Specificity (True Negative Rate)"""
+        cm = confusion_matrix(y_true, y_pred)
+        if cm.shape == (2, 2):
+            tn, fp, fn, tp = cm.ravel()
+            return tn / (tn + fp) if (tn + fp) > 0 else 0
+        return 0
+
+    def npv(self, y_true, y_pred):
+        """Negative Predictive Value"""
+        cm = confusion_matrix(y_true, y_pred)
+        if cm.shape == (2, 2):
+            tn, fp, fn, tp = cm.ravel()
+            return tn / (tn + fn) if (tn + fn) > 0 else 0
+        return 0
+    
     def _execute(self, experiment: dict = None, **kwargs) -> json:
         """
         This function is used to execute the node.
         """
         print(Fore.BLUE + "=== fit === " + Fore.YELLOW + f"({self.username})" + Fore.RESET)
         print(Fore.CYAN + f"Using {self.type}" + Fore.RESET)
+        
+        # Add custom metrics to PyCaret
+        experiment['pycaret_exp'].add_metric(id='specificity', name='Specificity', score_func=self.specificity)
+        experiment['pycaret_exp'].add_metric(id='npv', name='NPV', score_func=self.npv)
+        
         if self.type == "train_model" and getattr(self, "model_name_id", None) is not None:
             self.CodeHandler.add_line("md", f"##### *Model ID: {self.model_name_id}*")
         else:
