@@ -18,6 +18,7 @@ import { MdOutlineGroups3, MdSunny } from "react-icons/md"
 import { MdOutlineDarkMode } from "react-icons/md";
 import { useTheme } from "../theme/themeContext"
 
+
 /**
  * @description Sidebar component containing icons for each page
  * @param {function} onSidebarItemSelect - function to handle sidebar item selection
@@ -259,6 +260,7 @@ const IconSidebar = ({ onSidebarItemSelect }) => {
                 {" "}
                 <FaMagnifyingGlassChart style={{ height: "1.7rem", width: "auto" }} />
               </Nav.Link>
+
             </div>
             <div className="medomics-layer-text">Design</div>
           </div>

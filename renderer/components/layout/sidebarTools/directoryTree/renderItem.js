@@ -4,6 +4,7 @@ import medomicsImg from "../../../../../resources/medomics.svg"
 import * as Icon from "react-bootstrap-icons"
 import Image from "next/image"
 import { PiGraph } from "react-icons/pi"
+import { FaPython } from "react-icons/fa"
 
 const iconExtension = {
   folder: (isExpanded) => (isExpanded ? <span style={{ paddingBottom: "0.15rem" }}>📂</span> : <span style={{ paddingBottom: "0.15rem" }}>📁</span>),
@@ -79,6 +80,11 @@ const iconExtension = {
   rar: (
     <span>
       <Icon.ArchiveFill className="icon-offset" style={{ color: "#5b95ff" }} />
+    </span>
+  ),
+  py: (
+    <span>
+      <FaPython className="icon-offset" style={{ color: "#5b95ff" }} />
     </span>
   )
 
