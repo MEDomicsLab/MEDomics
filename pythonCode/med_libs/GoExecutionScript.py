@@ -18,7 +18,6 @@ def parse_arguments() -> tuple[dict, str]:
     parser.add_argument('--debug', type=bool, default=False)
     parser.add_argument('--json-param', type=str, default='.')
     parser.add_argument('--id', type=str, default='.')
-    parser.add_argument('--debug', type=bool, default=False)
     args = parser.parse_args()
     if not args.debug:
         json_params = json.loads(args.json_param)
