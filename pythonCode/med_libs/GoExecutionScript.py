@@ -18,6 +18,7 @@ def parse_arguments() -> tuple[dict, str]:
     parser.add_argument('--debug', type=bool, default=False)
     parser.add_argument('--json-param', type=str, default='.')
     parser.add_argument('--id', type=str, default='.')
+    parser.add_argument('--debug', type=bool, default=False)
     args = parser.parse_args()
     if not args.debug:
         json_params = json.loads(args.json_param)
@@ -35,7 +36,7 @@ def get_response_from_error(e=None, toast=None) -> dict:
     Args:
         e: The error
         toast: The toast message to send to the client, ignored if e is not None
-
+    
     Returns:
         The response dictionary
     """
@@ -72,6 +73,10 @@ class GoExecutionScript(ABC):
         self._progress = {"now": 0, "currentLabel": ""}
         self._id = _id
         self._debug = debug
+        if self._debug:
+            # save json_params_dict to a file
+            with open('json_params_dict.json', 'w') as f:
+                json.dump(json_params, f, indent=4)
 
     def start(self):
         """

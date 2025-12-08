@@ -49,7 +49,17 @@ class GoExecScriptPredict(GoExecutionScript):
         model_metadata_id = get_child_id_by_name(model_infos['id'], 'metadata.json')
         model_metadata = dict(db[model_metadata_id].find_one({}))
         pickle_object_id = get_child_id_by_name(model_infos['id'], "model.pkl")
+
+        # Check if pickle_object_id is None
+        if pickle_object_id is None:
+            raise ValueError("Could not find the model.pkl in the database.")
+        
+        # Load the model
         model = get_pickled_model_from_collection(pickle_object_id)
+
+        # Check if model is not None
+        if model is None:
+            raise ValueError("The model could not be loaded from the database.")
 
         # Get Dataset (if entry is dataset) and prediction
         if json_config['entry']["type"] == "table":

@@ -5,7 +5,7 @@ import { requestBackend } from "../../utilities/requests"
 import { getCollectionData } from "../dbComponents/utils"
 import { LoaderContext } from "../generalPurpose/loaderContext"
 import { PageInfosContext } from "../mainPages/moduleBasics/pageInfosContext"
-import { getCollectionColumns, overwriteMEDDataObjectContent, deleteMEDDataObject } from "../mongoDB/mongoDBUtils"
+import { getCollectionColumns, getCollectionRows, overwriteMEDDataObjectContent } from "../mongoDB/mongoDBUtils"
 import { DataContext } from "../workspace/dataContext"
 import { MEDDataObject } from "../workspace/NewMedDataObject"
 import { WorkspaceContext } from "../workspace/workspaceContext"
@@ -27,6 +27,7 @@ const EvaluationPageContent = () => {
   const { setLoader } = useContext(LoaderContext)
   const { port } = useContext(WorkspaceContext) // we get the port for server connexion
   const [run, setRun] = useState(false)
+  const stripIdCols = (cols = []) => (cols || []).filter(c => c !== '_id' && c !== 'id')
 
   useEffect(() => {
     const fetchData = async () => {
@@ -138,11 +139,18 @@ const EvaluationPageContent = () => {
 
         isValidDatasetsSelected = modelDatasetsTx.sort().join(",") == selectedDatasetsTx.sort().join(",")
       } else {
-        let columnsArray = await getCollectionColumns(datasetData.id, true)
-        columnsArray_ = columnsArray
-        let datasetColsString = JSON.stringify(columnsArray.sort())
-        let modelColsString = JSON.stringify(modelCols.sort())
-        isValid = !(datasetColsString !== modelColsString && modelCols && columnsArray)
+        let columnsArray = await getCollectionColumns(datasetData.id)
+        let cleanDatasetCols = stripIdCols(columnsArray)
+        let cleanModelCols   = stripIdCols(modelCols || [])
+
+        columnsArray_ = cleanDatasetCols
+        modelCols     = cleanModelCols
+
+        const datasetColsString = JSON.stringify(cleanDatasetCols.sort())
+        const modelColsString   = JSON.stringify(cleanModelCols.sort())
+        isValid = (cleanModelCols && cleanDatasetCols)
+          ? (datasetColsString === modelColsString)
+          : true
       }
       setLoader(false)
 

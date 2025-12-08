@@ -4,6 +4,15 @@ import sys
 import uuid
 from pathlib import Path
 
+import pandas as pd
+
+# --- Guard for pandas >= 2.0 (iteritems removed) ---
+if not hasattr(pd.Series, "iteritems"):
+    pd.Series.iteritems = pd.Series.items
+if not hasattr(pd.DataFrame, "iteritems"):
+    pd.DataFrame.iteritems = pd.DataFrame.items
+
+
 from pycaret.classification.oop import ClassificationExperiment
 from pycaret.regression.oop import RegressionExperiment
 
@@ -54,8 +63,18 @@ class GoExecScriptPredictTest(GoExecutionScript):
         ml_type = model_metadata['ml_type']
         self.set_progress(label="Loading the model", now=10)
         pickle_object_id = get_child_id_by_name(model_infos['id'], "model.pkl")
+
+        # Check if pickle_object_id is None
+        if pickle_object_id is None:
+            raise ValueError("Could not find the model.pkl in the database.")
+
+        # Load the model
         model = get_pickled_model_from_collection(pickle_object_id)
-        go_print(f"model loaded: {model}") 
+        go_print(f"model loaded: {model}")
+
+        # Check if model is not None
+        if model is None:
+            raise ValueError("The model could not be loaded from the database.")
 
         
         columns_to_keep = None

@@ -134,6 +134,11 @@ def get_pickled_model_from_collection(collection_name):
         pickled_model = model_document['model']
         model = pickle.loads(pickled_model)
         return model
+    elif 'model_path' in model_document:
+        model_path = model_document['model_path']
+        with open(model_path, 'rb') as f:
+            model = pickle.load(f)
+        return model
 
     return None
 

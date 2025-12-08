@@ -103,9 +103,10 @@ const TransformColumnToolsDB = ({ currentCollection }) => {
   return (
     <>
       <div style={{ textAlign: "center", marginBottom: "10px" }}>
+        
         <Message
           severity="info"
-          text="The Transform Columns Tools provide functionalities to alter dataset columns. This includes converting selected columns to binary, replacing empty cells with zeros, and facilitating the import and export of column lists."
+          text="The Encode Column Tools provide functionalities to alter dataset columns. This includes converting selected columns to binary, replacing empty cells with zeros, and facilitating the import and export of column lists."
         />
       </div>
       <div

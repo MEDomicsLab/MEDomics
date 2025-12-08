@@ -144,9 +144,9 @@ const HomePage = () => {
       >
         <Stack direction="vertical" gap={1} style={{ alignContent: "center", flexGrow: 1 }}>
           <h2>Home page</h2>
-          <Stack direction="horizontal" gap={0} style={{ alignContent: "center" }}>
+          <Stack direction="horizontal" gap={0} style={{ padding: "0 0 0 0", alignContent: "center" }}>
             <h1 style={{ fontSize: "5rem" }}>MEDomics</h1>
-            <h2 style={{ fontSize: "2rem", marginTop: "1.5rem" }}>v{appVersion}</h2>
+
             <Image src={myimage} alt="" style={{ height: "175px", width: "175px" }} />
           </Stack>
           {hasBeenSet ? (

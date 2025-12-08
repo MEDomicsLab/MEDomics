@@ -12,6 +12,11 @@ import json
 import dpath.util as dp
 from collections.abc import MutableMapping
 
+# EXAMPLE USAGE
+# cd pythonCode/med_libs/MEDml/utils/settings_generator
+# python settings_generator.py --ml_type classification 
+
+
 # python scripts arguments
 import argparse
 parser = argparse.ArgumentParser(description='Script so useful.')
@@ -163,7 +168,7 @@ nodes_options = {
         "info": ['load_model'],
         "code": """"""
     },
-    'group_models': {
+    'combine_models': {
         "info": [],
         "code": """"""
     },
@@ -359,6 +364,39 @@ def specific_case(dict_settings: dict) -> dict:
     del dict_settings['analyze']['plot_model']['options']['save']
     del dict_settings['analyze']['interpret_model']['options']['save']
     del dict_settings['load_model']['options']['model_name']
+
+     # NOT SUPPORTED
+    del dict_settings['dataset']['options']['data_func']
+    del dict_settings['dataset']['options']['ordinal_features']
+    del dict_settings['dataset']['options']['encoding_method']
+    del dict_settings['dataset']['options']['group_features']
+    del dict_settings['dataset']['options']['custom_pipeline']
+    del dict_settings['dataset']['options']['experiment_custom_tags']
+    del dict_settings['dataset']['options']['engine']
+    del dict_settings['dataset']['options']['memory']
+    del dict_settings['dataset']['options']['profile']
+    del dict_settings['dataset']['options']['profile_kwargs']
+    del dict_settings['compare_models']['options']['engine']
+    del dict_settings['compare_models']['options']['fit_kwargs']
+    del dict_settings['create_model']['options']['engine']
+    del dict_settings['create_model']['options']['fit_kwargs']
+    del dict_settings['create_model']['options']['experiment_custom_tags']
+    del dict_settings['analyze']['plot_model']['options']['fit_kwargs']
+    del dict_settings['analyze']['plot_model']['options']['plot_kwargs']
+    del dict_settings['analyze']['dashboard']['options']['dashboard_kwargs']
+    del dict_settings['analyze']['dashboard']['options']['run_kwargs']
+    del dict_settings['finalize']['options']['fit_kwargs']
+    del dict_settings['finalize']['options']['experiment_custom_tags']
+    del dict_settings['load_model']['options']['platform']
+    del dict_settings['load_model']['options']['authentication']
+    del dict_settings['tune_model']['options']['custom_grid']
+    del dict_settings['tune_model']['options']['custom_scorer']
+    del dict_settings['tune_model']['options']['fit_kwargs']
+    del dict_settings['ensemble_model']['options']['fit_kwargs']
+    del dict_settings['blend_models']['options']['fit_kwargs']
+    del dict_settings['stack_models']['options']['fit_kwargs']
+    if ml_type == "classification":
+        del dict_settings['calibrate_model']['options']['fit_kwargs']
 
     return dict_settings
 
