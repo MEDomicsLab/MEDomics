@@ -1,6 +1,7 @@
 import { app } from "electron"
 const fs = require("fs")
 var path = require("path")
+const { join } = require("path")
 const { readdir, stat, rm } = require("fs/promises")
 const util = require("util")
 const { execSync } = require("child_process")
