@@ -1,9 +1,58 @@
 import { app } from "electron"
 const fs = require("fs")
 var path = require("path")
+const { readdir, stat, rm } = require("fs/promises")
 const util = require("util")
 const { execSync } = require("child_process")
 const exec = util.promisify(require("child_process").exec)
+
+/**
+ * Recursively calculates the size of a directory in bytes.
+ * @param {string} dir - The directory path.
+ * @returns {Promise<number>} The total size in bytes.
+ */
+async function getDirectorySize(dir) {
+    const files = await readdir(dir, { withFileTypes: true })
+
+    const paths = files.map(async file => {
+        const path = join(dir, file.name)
+        if (file.isDirectory()) {
+            // Recurse into subdirectories
+            return await getDirectorySize(path)
+        } else if (file.isFile()) {
+            // Get size of files
+            const { size } = await stat(path)
+            return size
+        }
+        return 0
+    })
+
+    // Await all paths, flatten the array of sizes (due to recursion), and sum them up
+    const sizes = await Promise.all(paths)
+    return sizes.flat(Infinity).reduce((accumulator, size) => accumulator + size, 0)
+}
+
+/**
+ * Checks a directory's size and deletes it if it is empty.
+ * @param {string} directoryPath - The path to the directory to check and potentially delete.
+ */
+async function checkSizeAndDeleteIfZero(directoryPath) {
+    try {
+        const size = await getDirectorySize(directoryPath)
+        console.log(`Directory size is: ${size} bytes`)
+
+        if (size === 0) {
+            console.log(`Directory is empty. Deleting...`)
+            // The { recursive: true } option allows deleting a directory and its contents (even if empty)
+            await rm(directoryPath, { recursive: true, force: true }) 
+            console.log(`Directory deleted: ${directoryPath}`)
+        } else {
+            console.log(`Directory is not empty (size: ${size} bytes). Not deleting.`)
+        }
+    } catch (error) {
+        console.error(`Error processing directory ${directoryPath}:`, error.message)
+    }
+}
 
 export function getPythonEnvironment(medCondaEnv = "med_conda_env") {
   // Returns the python environment
@@ -147,9 +196,6 @@ export function getBundledPythonEnvironment() {
 
   let bundledPythonPath = null
 
-  // Check if the python path can be found in the .medomics directory
-  let medomicsDirExists = fs.existsSync(path.join(app.getPath("home"), ".medomics", "python"))
-
   if (process.env.NODE_ENV === "production") {
     // Get the user path followed by .medomics
     let userPath = getHomePath()
@@ -169,12 +215,17 @@ export function getBundledPythonEnvironment() {
 
     bundledPythonPath = path.join(userPath, ".medomics", "python")
   } else {
+    // Check if the python path can be found in the .medomics directory
+    let medomicsDirExists = fs.existsSync(path.join(app.getPath("home"), ".medomics", "python"))
     if (medomicsDirExists) {
       bundledPythonPath = path.join(getHomePath(), ".medomics", "python")
     } else {
       bundledPythonPath = path.join(process.cwd(), "python")
     }
   }
+
+  // Check if the python folder is empty, if yes, delete it
+  checkSizeAndDeleteIfZero(bundledPythonPath)
 
   pythonEnvironment = path.join(bundledPythonPath, "bin", "python")
   if (process.platform == "win32") {
@@ -337,7 +388,14 @@ export async function installBundledPythonExecutable(mainWindow) {
     }
     bundledPythonPath = pythonPath
   } else {
-    bundledPythonPath = path.join(process.cwd(), "python")
+    // Check if the python path can be found in the .medomics directory
+    let medomicsDirExists = fs.existsSync(path.join(app.getPath("home"), ".medomics", "python"))
+    if (medomicsDirExists) {
+      bundledPythonPath = path.join(getHomePath(), ".medomics", "python")
+    } else {
+      bundledPythonPath = path.join(process.cwd(), "python")
+    }
+    pythonParentFolderExtractString = "-C " + bundledPythonPath.split("python")[0]
   }
   // Check if the python executable is already installed
   let pythonExecutablePath = null

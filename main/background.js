@@ -87,7 +87,6 @@ function sendStatusToWindow(text) {
 }
 
 autoUpdater.on("checking-for-update", () => {
-  console.log("DEBUG: checking for update")
   sendStatusToWindow("Checking for update...")
 })
 
