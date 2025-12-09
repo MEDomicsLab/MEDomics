@@ -1507,7 +1507,7 @@ const Workflow = forwardRef(({ setWorkflowType, workflowType, isExperiment }, re
         toast.error("Error while saving scene: " + sceneName)
       }
       if (!success2) {
-        toast.error("Could not save results")
+        console.warn("No results saved from the scene", success2)
       }
     }
   }, [reactFlowInstance, MLType, intersections, currentResults])
