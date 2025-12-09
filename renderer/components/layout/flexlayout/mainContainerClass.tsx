@@ -39,6 +39,7 @@ import ExploratoryPage from "../../mainPages/exploratory"
 import ExtractionImagePage from "../../mainPages/extractionImage"
 import ExtractionMEDimagePage from "../../mainPages/extractionMEDimage"
 import ExtractionTextPage from "../../mainPages/extractionText"
+import ExtractionLandingPage from "../../mainPages/extractionLandingPage"
 import ExtractionTSPage from "../../mainPages/extractionTS"
 import HomePage from "../../mainPages/home"
 import HtmlViewer from "../../mainPages/htmlViewer"
@@ -1115,6 +1116,8 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
           return <ExtractionImagePage pageId={"ExtractionImagePage"} />
         }
       }
+    } else if (component === "extractionLandingPage") {
+      return <ExtractionLandingPage/>
     } else if (component === "extractionMEDimagePage") {
       if (node.getExtraData().data == null) {
         const config = node.getConfig()

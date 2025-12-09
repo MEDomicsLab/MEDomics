@@ -106,6 +106,8 @@ function LayoutModelProvider({ children, layoutModel, setLayoutModel }) {
           return openModelViewer(action)
         case "openPandasProfiling":
           return openInPandasProfiling(action)
+        case "openextractionLandingPage":
+          return openGeneric(action, "Extraction Module", "extractionLandingPage")
         /*********** OPEN *****************/
         case "openResultsModule":
           return openResults(action)
