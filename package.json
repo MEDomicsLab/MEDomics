@@ -2,7 +2,7 @@
   "private": true,
   "name": "medomics-platform",
   "description": "MEDomics platform",
-  "version": "1.6.0",
+  "version": "1.7.0",
   "author": "MEDomicsLab Team",
   "main": "app/background.js",
   "repository": "https://github.com/MEDomicsLab/MEDomics",
