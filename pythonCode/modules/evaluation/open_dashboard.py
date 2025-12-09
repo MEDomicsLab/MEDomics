@@ -9,6 +9,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 from explainerdashboard import ClassifierExplainer, ExplainerDashboard, RegressionExplainer
+from explainerdashboard.explainer_methods import guess_shap
 
 sys.path.append(str(Path(os.path.dirname(os.path.abspath(__file__))).parent.parent))
 from med_libs.GoExecutionScript import GoExecutionScript, parse_arguments
@@ -189,6 +190,10 @@ class GoExecScriptOpenDashboard(GoExecutionScript):
 
         # Build Explainer with SHAP additivity check disabled (avoids reduction errors)
         explainer = None
+        shap_kwargs = None
+        shap_type = guess_shap(self.model)
+        if shap_type == "tree":
+            shap_kwargs = {"check_additivity": False}
         if ml_type == "classification":
             # If y is non-binary but has exactly two unique values, map to {0,1}
             unique_values = y_test.squeeze().unique()
@@ -202,12 +207,12 @@ class GoExecScriptOpenDashboard(GoExecutionScript):
                 self.model,
                 X_test,
                 y_test,
-                shap_kwargs={"check_additivity": False},
+                shap_kwargs=shap_kwargs,
                 # model_output="probability",  # uncomment if you want SHAP to explain probabilities
             )
         elif ml_type == "regression":
             explainer = RegressionExplainer(
-                self.model, X_test, y_test, shap_kwargs={"check_additivity": False}
+                self.model, X_test, y_test, shap_kwargs=shap_kwargs
             )
 
         # Trigger a light SHAP computation; if it fails, fallback to a smaller sample
@@ -220,11 +225,11 @@ class GoExecScriptOpenDashboard(GoExecutionScript):
             y_small = y_test.loc[X_small.index] if y_test is not None else None
             if ml_type == "classification":
                 explainer = ClassifierExplainer(
-                    self.model, X_small, y_small, shap_kwargs={"check_additivity": False}
+                    self.model, X_small, y_small, shap_kwargs=shap_kwargs
                 )
             else:
                 explainer = RegressionExplainer(
-                    self.model, X_small, y_small, shap_kwargs={"check_additivity": False}
+                    self.model, X_small, y_small, shap_kwargs=shap_kwargs
                 )
 
         # Progress & dashboard startup
