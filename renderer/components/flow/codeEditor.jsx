@@ -1,4 +1,4 @@
-/* eslint-disable no-unused-vars */
+/* eslint-disable */
 import fs from 'fs'
 import { Button } from "primereact/button"
 import { Dropdown } from "primereact/dropdown"

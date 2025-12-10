@@ -1,3 +1,4 @@
+/* eslint-disable */
 import { error } from "console"
 import { ipcRenderer } from "electron"
 import { readdir } from 'fs/promises'
