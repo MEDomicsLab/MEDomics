@@ -34,7 +34,7 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
   const [password, setPassword] = useState("")
   const [remotePort, setRemotePort] = useState("22")
   // Express ports (local forwarded port and remote Express port)
-  const [localExpressPort, setlocalExpressPort] = useState("55080")
+  const [localExpressPort, setLocalExpressPort] = useState("55080")
   const [remoteExpressPort, setRemoteExpressPort] = useState("55088")
   // GO ports (optional direct forwarding)
   const [localGoPort, setLocalGoPort] = useState("54280")
@@ -75,10 +75,13 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
   const [remoteInstallText, setRemoteInstallText] = useState('')
   const [remoteStartPort, setRemoteStartPort] = useState('3000')
   const [remoteServerRunning, setRemoteServerRunning] = useState(false)
+  const [shouldRecheck, setShouldRecheck] = useState(false)
   const [requirementsChecking, setRequirementsChecking] = useState(false)
   const [requirementsMetRemote, setRequirementsMetRemote] = useState(false)
   const [requirementsInstalling, setRequirementsInstalling] = useState(false)
   const [requirementsDetailsRemote, setRequirementsDetailsRemote] = useState({ pythonEnv: false, pythonPackages: false, mongoInstalled: false })
+  // Debug: last start attempt details
+  const [lastStartDetails, setLastStartDetails] = useState('')
   // Remote install progress
   const [remoteInstallPhase, setRemoteInstallPhase] = useState('')
   const [remoteDownloadPercent, setRemoteDownloadPercent] = useState(null)
@@ -176,20 +179,20 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
       setRequirementsMetRemote(false)
       setRequirementsChecking(false)
       setRequirementsInstalling(false)
-  setRemoteInstallPhase('')
-  setRemoteDownloadPercent(null)
-  setRemoteDownloadSpeed(null)
-  setRemoteInstallEvents([])
+      setRemoteInstallPhase('')
+      setRemoteDownloadPercent(null)
+      setRemoteDownloadSpeed(null)
+      setRemoteInstallEvents([])
       const tunnel = getTunnelState()
       if (tunnel.tunnelActive) {
         setTunnelActive(true)
         setHost(tunnel.host || "")
         setUsername(tunnel.username || "")
         setRemotePort(tunnel.remotePort || "22")
-  setlocalExpressPort(tunnel.localExpressPort || "55080")
-  setRemoteExpressPort(tunnel.remoteExpressPort || "55088")
-  setLocalGoPort(tunnel.localGoPort || "54280")
-  setRemoteGoPort(tunnel.remoteGoPort || "54288")
+        setLocalExpressPort(tunnel.localExpressPort || "55080")
+        setRemoteExpressPort(tunnel.remoteExpressPort || "55088")
+        setLocalGoPort(tunnel.localGoPort || "54280")
+        setRemoteGoPort(tunnel.remoteGoPort || "54288")
         setLocalDBPort(tunnel.localDBPort || "54020")
         setRemoteDBPort(tunnel.remoteDBPort || "54017")
         setLocalJupyterPort(tunnel.localJupyterPort || "8890")
@@ -209,20 +212,85 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
     const handler = (_event, payload) => {
       try {
         if (!payload || typeof payload !== 'object') return
-        if (payload.phase) setRemoteInstallPhase(payload.phase)
+        if (payload.phase) {
+          setRemoteInstallPhase(payload.phase)
+          // Provide user-friendly, contextual text for each phase
+          switch (payload.phase) {
+            case 'github-fetch-releases':
+              setRemoteInstallText('Fetching releases from GitHub…')
+              break
+            case 'github-pick-release':
+              setRemoteInstallText(`Picking release ${payload.tag || payload.name || ''}…`)
+              break
+            case 'github-select-asset':
+              // Surface the selected asset name for clarity
+              setRemoteInstallText(`Selected asset: ${payload.asset || 'unknown'} (preparing download)`) 
+              break
+            case 'prepare-dirs':
+              setRemoteInstallText('Preparing directories on remote…')
+              break
+            case 'download-start':
+              setRemoteInstallText('Downloading server asset…')
+              break
+            case 'download-progress':
+              setRemoteInstallText('Downloading…')
+              break
+            case 'download-complete':
+              setRemoteInstallText('Download complete. Verifying…')
+              break
+            case 'verify-start':
+              setRemoteInstallText('Verifying checksum…')
+              break
+            case 'verify-complete':
+              setRemoteInstallText('Verification complete. Extracting…')
+              break
+            case 'extract-start':
+              setRemoteInstallText('Extracting files…')
+              break
+            case 'extract-complete':
+              setRemoteInstallText('Extraction complete. Locating executable…')
+              break
+            case 'locate-exe':
+              setRemoteInstallText('Locating backend executable…')
+              break
+            case 'done':
+              setRemoteInstallText('Installation completed successfully.')
+              break
+            case 'error':
+              setRemoteInstallText('Install failed')
+              break
+            default:
+              // Generic fallback
+              setRemoteInstallText(`Phase: ${payload.phase}`)
+          }
+        }
         if (typeof payload.percent === 'number') setRemoteDownloadPercent(payload.percent)
         if (typeof payload.speed === 'number') setRemoteDownloadSpeed(payload.speed)
         setRemoteInstallEvents(prev => [...prev.slice(-50), payload])
         if (payload.phase === 'done') {
           // Reset spinners once installation finishes
           setInstallingRemote(false)
-          setRemoteInstallText('')
+          setRemoteInstallText('Installation completed successfully.')
+          setRemoteInstallPhase('')
+          setRemoteDownloadPercent(null)
+          setRemoteDownloadSpeed(null)
+        } else if (payload.phase === 'error') {
+          // Clear progress state on any error
+          setInstallingRemote(false)
+          setRemoteInstallText('Install failed')
+          setRemoteInstallPhase('')
+          setRemoteDownloadPercent(null)
+          setRemoteDownloadSpeed(null)
+          toast.error(`Remote install error${payload.step ? ` at ${payload.step}` : ''}: ${payload.details || ''}`)
         }
       } catch (e) { /* ignore */ }
     }
     ipcRenderer.on('remoteBackendInstallProgress', handler)
     return () => {
-      try { ipcRenderer.removeListener('remoteBackendInstallProgress', handler) } catch (e) { /* ignore */ }
+      try { 
+        ipcRenderer.removeListener('remoteBackendInstallProgress', handler)
+        console.log('Removed remoteBackendInstallProgress listener')
+       } catch (e) { /* ignore */ }
     }
   }, [])
 
@@ -379,27 +447,40 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
     }
     try {
       setRemoteBackendStatus('Checking remote server...')
+      // First, check installation presence on remote
+      const presence = await ipcRenderer.invoke('backendPresence', { target: 'remote' })
+      let installed = !!(presence && presence.success && presence.installed)
+      // Fallback: explicitly check default install directory via SFTP listing
+      if (!installed) {
+        try {
+          // Use relative path to home; remoteFunctions normalizePath defaults '.' to HOME
+          const listRes = await ipcRenderer.invoke('navigateRemoteDirectory', { action: 'list', path: '.medomics/medomics-server/versions' })
+          if (listRes && Array.isArray(listRes.contents) && listRes.contents.length > 0) {
+            installed = true
+          }
+        } catch(e) { console.log('Fallback remote presence check failed:', e) }
+      }
+      setRemoteInstalled(installed)
+
+      // Then, check runtime status via /status
       const status = await ipcRenderer.invoke('backendStatus', { target: 'remote' })
-      // status may be raw backend /status response or CLI JSON
       if (status && status.success) {
         const expressPort = status.expressPort || status.state?.expressPort || status.expressPort
-        if (expressPort) {
-          setRemoteExpressPort(String(expressPort))
-        }
-        // Determine running condition heuristically
+        if (expressPort) setRemoteExpressPort(String(expressPort))
         const running = (status.go && status.go.running) || (status.mongo && status.mongo.running) || (status.jupyter && status.jupyter.running) || !!expressPort
         if (running) {
           setRemoteBackendStatus(`Remote server reachable${expressPort ? ' on port ' + expressPort : ''}`)
           setRemoteServerRunning(true)
-          setRemoteInstalled(true)
+          setShouldRecheck(true)
         } else {
-          setRemoteBackendStatus('Remote server not running. Install or start it.')
+          setRemoteBackendStatus(installed ? 'Remote server installed but not running.' : 'Remote server not running. Install or start it.')
           setRemoteServerRunning(false)
+          setShouldRecheck(false)
         }
       } else {
-        setRemoteBackendStatus('Remote server not found. Install or locate it.')
+        setRemoteBackendStatus(installed ? 'Remote server installed but unreachable.' : 'Remote server not found. Install or locate it.')
         setRemoteServerRunning(false)
-        setRemoteInstalled(false)
+        setShouldRecheck(true)
       }
     } catch (e) {
       setRemoteBackendStatus('Failed to check remote server: ' + (e?.message || String(e)))
@@ -409,7 +490,8 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
   // TODO: Replace with the GitHub Releases manifest asset URL for MEDomics Server, e.g.
   // https://github.com/MEDomicsLab/MEDomics/releases/latest/download/manifest.json
   // or pin to a specific version: https://github.com/MEDomicsLab/MEDomics/releases/download/vX.Y.Z/manifest.json
-  const DEFAULT_REMOTE_MANIFEST = 'https://github.com/OWNER/REPO/releases/latest/download/manifest.json'
+  // Manifest is optional now; remote installer can use GitHub Releases when no manifest is provided.
+  const DEFAULT_REMOTE_MANIFEST = ''
   const installRemoteServer = async () => {
     if (!tunnelActive) {
       toast.error('SSH tunnel is not active. Connect first.')
@@ -418,11 +500,15 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
     try {
       setInstallingRemote(true)
       setRemoteInstallText('Installing remote server...')
-      const res = await ipcRenderer.invoke('installRemoteBackendFromURL', { manifestUrl: DEFAULT_REMOTE_MANIFEST })
+      const payload = {}
+      if (DEFAULT_REMOTE_MANIFEST) payload.manifestUrl = DEFAULT_REMOTE_MANIFEST
+      const res = await ipcRenderer.invoke('installRemoteBackendFromURL', payload)
       if (res && res.success) {
         setRemoteBackendPath(res.path)
         toast.success('Remote server installed.')
         setRemoteInstalled(true)
+        // Hint the UI to recheck status right after a successful install
+        setShouldRecheck(true)
         // After install, run a status check
         await checkRemoteServer()
       } else {
@@ -432,6 +518,10 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
     } catch (e) {
       toast.error('Install failed: ' + (e?.message || String(e)))
       setRemoteInstalled(false)
+      // Ensure progress visuals are cleared on thrown errors
+      setRemoteInstallPhase('')
+      setRemoteDownloadPercent(null)
+      setRemoteDownloadSpeed(null)
     } finally {
       setInstallingRemote(false)
       setRemoteInstallText('')
@@ -455,19 +545,50 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
       if (started && started.success) {
         setRemoteBackendStatus(`Remote server running on port ${remoteStartPort}`)
         setRemoteServerRunning(true)
+        setLastStartDetails('Start OK')
         // Sync selected express port with running one
         setRemoteExpressPort(String(remoteStartPort))
-        // Optionally verify by hitting /status
-        await window.backend.requestExpress({ method: 'get', path: '/status', host, port: Number(localExpressPort) })
+        // Optionally verify by hitting /status (guard if API not available)
+        try {
+          if (window && window.backend && typeof window.backend.requestExpress === 'function') {
+            await window.backend.requestExpress({ method: 'get', path: '/status', host, port: Number(localExpressPort) })
+          }
+        } catch (verifyErr) {
+          // Non-fatal: log and continue; status UI will be updated by checkRemoteServer
+          console.warn('Status verify failed:', verifyErr && verifyErr.message ? verifyErr.message : verifyErr)
+        }
         // After server starts, immediately check requirements to update UI
         await checkRequirementsRemote()
       } else {
-        setRemoteBackendStatus('Failed to start remote server: ' + (started?.error || 'unknown error'))
+        const msg = started?.error || 'unknown error'
+        setRemoteBackendStatus('Failed to start remote server: ' + msg)
+        setLastStartDetails(`Status: ${started?.status || 'n/a'} · ${msg}`)
         setRemoteServerRunning(false)
       }
     } catch (e) {
-      setRemoteBackendStatus('Failed to start remote server: ' + (e?.message || String(e)))
+      const msg = e?.message || String(e)
+      setRemoteBackendStatus('Failed to start remote server: ' + msg)
+      setLastStartDetails(`Exception: ${msg}`)
       setRemoteServerRunning(false)
+    }
+  }
+
+  const locateRemoteServerExecutable = async () => {
+    if (!tunnelActive) {
+      toast.error('SSH tunnel is not active. Connect first.')
+      return
+    }
+    try {
+      const res = await ipcRenderer.invoke('locateRemoteBackendExecutable')
+      if (res && res.success && res.path) {
+        setRemoteBackendPath(res.path)
+        toast.success('Located remote backend: ' + res.path)
+        setShouldRecheck(true)
+      } else {
+        toast.warn('Could not locate remote backend executable' + (res?.error ? `: ${res.error}` : ''))
+      }
+    } catch (e) {
+      toast.error('Locate failed: ' + (e?.message || String(e)))
     }
   }
 
@@ -800,8 +921,9 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
               </div>
             </div>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-                  <Button onClick={checkRemoteServer} disabled={!tunnelActive || connectionProcessing} style={{ background: 'var(--button-bg)', color: 'var(--button-text)' }}>Check</Button>
+              <Button onClick={checkRemoteServer} disabled={!tunnelActive || connectionProcessing} style={{ background: 'var(--button-bg)', color: 'var(--button-text)' }}>{shouldRecheck ? 'Recheck status' : 'Check'}</Button>
                   <Button onClick={installRemoteServer} disabled={!tunnelActive || installingRemote} style={{ background: 'var(--button-bg)', color: 'var(--button-text)' }}>Install / Update</Button>
+              <Button onClick={locateRemoteServerExecutable} disabled={!tunnelActive || connectionProcessing} style={{ background: 'var(--bg-secondary)', color: 'var(--text-secondary)' }}>Locate Executable</Button>
               {(installingRemote || remoteInstallPhase) && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
                   {typeof remoteDownloadPercent === 'number' ? (
@@ -824,6 +946,11 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
                 </div>
               )}
             </div>
+            {lastStartDetails && (
+              <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4 }}>
+                {lastStartDetails}
+              </div>
+            )}
             <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginTop: 8 }}>
               <span>Start on port:</span>
               <InputNumber disabled={!tunnelActive || connectionProcessing} value={remoteStartPort} onChange={e => setRemoteStartPort(e.value)} useGrouping={false} min={1} max={65535} />
@@ -902,7 +1029,7 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
             <div style={{ width: '100%'}}>
               <label>
                 Local Express Port:
-                <InputNumber disabled={tunnelActive || connectionProcessing} value={localExpressPort} onChange={e => setlocalExpressPort(e.value)} placeholder="54280" useGrouping={false} min={1} max={65535} />
+                <InputNumber disabled={tunnelActive || connectionProcessing} value={localExpressPort} onChange={e => setLocalExpressPort(e.value)} placeholder="54280" useGrouping={false} min={1} max={65535} />
                 {inputErrors.localExpressPort && <div style={{ color: 'red', fontSize: 13 }}>{inputErrors.localExpressPort}</div>}
                 {localPortWarning && <div style={{ color: 'var(--warning)', fontSize: 13, marginTop: 2 }}>{localPortWarning}</div>}
               </label>

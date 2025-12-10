@@ -367,6 +367,25 @@ function startBackendServer() {
   const isDev = Array.isArray(execPath)
   let cmd, args
 
+  // Validate that the executable/script exists before attempting to spawn
+  try {
+    if (isDev) {
+      const scriptPath = execPath[1]
+      if (!scriptPath || !fs.existsSync(scriptPath)) {
+        console.warn('Backend dev script not found; skipping backend start:', scriptPath)
+        return null
+      }
+    } else {
+      if (!execPath || typeof execPath !== 'string' || !fs.existsSync(execPath)) {
+        console.warn('Backend executable not found; skipping backend start:', execPath)
+        return null
+      }
+    }
+  } catch (e) {
+    console.warn('Error while checking backend executable; skipping backend start:', e && e.message)
+    return null
+  }
+
   // Prepare CLI state file under user home for consistent port discovery across Electron and CLI
   const stateDir = path.join(require('os').homedir(), '.medomics', 'medomics-server')
   try { if (!fs.existsSync(stateDir)) fs.mkdirSync(stateDir, { recursive: true }) } catch {}
@@ -382,7 +401,16 @@ function startBackendServer() {
     args = ['start', '--json', '--state-file', stateFilePath]
   }
 
-  child = spawn(cmd, args, { stdio: ['ignore', 'pipe', 'pipe'] })
+  try {
+    child = spawn(cmd, args, { stdio: ['ignore', 'pipe', 'pipe'] })
+  } catch (e) {
+    console.warn('Failed to spawn backend process:', e && e.message)
+    return null
+  }
+
+  child.on('error', (err) => {
+    try { console.warn('Backend process error:', err && err.message) } catch {}
+  })
 
   // Parse JSON lines from stdout to capture expressPort
   let buffer = ''
@@ -488,26 +516,59 @@ function runCliCommand(baseArgs = [], timeoutMs = 15000) {
   return new Promise((resolve) => {
     try {
       const { cmd, args } = getCliCommandAndArgs(baseArgs)
-      const child = spawn(cmd, args, { stdio: ['ignore', 'pipe', 'pipe'] })
+
+      // Guard: ensure the CLI executable or dev script exists
+      try {
+        const isDevCmd = cmd === 'node' && Array.isArray(args) && args.length > 0
+        if (isDevCmd) {
+          const scriptPath = args[0]
+          if (!scriptPath || !fs.existsSync(scriptPath)) {
+            return resolve({ success: false, error: 'cli-not-found', details: { mode: 'dev', scriptPath } })
+          }
+        } else {
+          if (!cmd || typeof cmd !== 'string' || !fs.existsSync(cmd)) {
+            return resolve({ success: false, error: 'cli-not-found', details: { mode: 'prod', execPath: cmd } })
+          }
+        }
+      } catch (chkErr) {
+        return resolve({ success: false, error: 'cli-check-failed', details: chkErr && chkErr.message })
+      }
+
       let buffer = ''
+      let settled = false
+      const safeResolve = (obj) => { if (!settled) { settled = true; resolve(obj) } }
+
+      let child
+      try {
+        child = spawn(cmd, args, { stdio: ['ignore', 'pipe', 'pipe'] })
+      } catch (spawnErr) {
+        return safeResolve({ success: false, error: 'spawn-failed', details: spawnErr && spawnErr.message })
+      }
+
       let timer = setTimeout(() => {
         try { child.kill() } catch {}
-        resolve({ success: false, error: 'cli-timeout' })
+        safeResolve({ success: false, error: 'cli-timeout' })
       }, timeoutMs)
+
       child.stdout.on('data', (chunk) => {
         buffer += chunk.toString()
       })
       child.stderr.on('data', (chunk) => {
         // keep for debugging; do not reject
       })
+      child.on('error', (err) => {
+        clearTimeout(timer)
+        safeResolve({ success: false, error: 'cli-error', details: err && err.message })
+      })
       child.on('close', () => {
         clearTimeout(timer)
+        if (settled) return
         // Try parse last JSON line
         const lines = buffer.split(/\r?\n/).filter(Boolean)
         for (let i = lines.length - 1; i >= 0; i--) {
-          try { return resolve(JSON.parse(lines[i])) } catch {}
+          try { return safeResolve(JSON.parse(lines[i])) } catch {}
         }
-        resolve({ success: false, error: 'no-json-output' })
+        safeResolve({ success: false, error: 'no-json-output' })
       })
     } catch (e) {
       resolve({ success: false, error: e.message })
@@ -614,6 +675,48 @@ ipcMain.handle('checkLocalBackend', async () => {
   return checkLocalBackendPresence()
 })
 
+// Unified presence check (local or remote) for whether the backend is installed/available on disk.
+// - local: uses filesystem-based checkLocalBackendPresence()
+// - remote: uses the SSH tunnel's forwarded Express port to call a remote endpoint
+//   Preferred endpoint: /check-local-backend (should return { installed, path?, source? })
+//   Fallback: /status (if reachable, we infer installed=true because the server is running)
+ipcMain.handle('backendPresence', async (_event, { target = 'local' } = {}) => {
+  try {
+    if (target === 'remote') {
+      const tunnel = getTunnelState()
+      const lp = tunnel && tunnel.localExpressPort
+      if (!lp) {
+        return { success: false, target: 'remote', installed: false, error: 'no-remote-port' }
+      }
+      // Try explicit remote presence endpoint first
+      try {
+        const pres = await axios.get(`http://127.0.0.1:${lp}/check-local-backend`, { timeout: 5000 })
+        if (pres && pres.data) {
+          // Normalize shape
+          const d = pres.data
+          const installed = !!(d.installed || d.success)
+          return { success: true, target: 'remote', installed, details: d }
+        }
+      } catch {}
+      // Fallback: if /status works, the server is clearly installed and running
+      try {
+        const res = await axios.get(`http://127.0.0.1:${lp}/status`, { timeout: 5000 })
+        if (res && res.data) {
+          return { success: true, target: 'remote', installed: true, details: res.data }
+        }
+      } catch (e) {
+        return { success: false, target: 'remote', installed: false, error: e && e.message }
+      }
+      return { success: false, target: 'remote', installed: false, error: 'unknown' }
+    }
+    // local
+    const local = checkLocalBackendPresence()
+    return { success: true, target: 'local', installed: !!local.installed, details: local }
+  } catch (e) {
+    return { success: false, target, installed: false, error: e && e.message }
+  }
+})
+
 ipcMain.handle('setLocalBackendPath', async (_event, exePath) => {
   try {
     if (!exePath) return { success: false, error: 'no-path' }
@@ -633,90 +736,164 @@ ipcMain.handle('setLocalBackendPath', async (_event, exePath) => {
 })
 
 ipcMain.handle('installLocalBackendFromURL', async (_event, { version, manifestUrl } = {}) => {
-  // Download and install the backend using a release manifest.
-  // Steps: fetch manifest -> pick asset -> download -> verify sha256 -> extract -> set settings.localBackendPath -> cleanup old versions.
+  // Download and install the backend using either a manifest or latest GitHub release tagged for server.
+  // Manifest path (legacy): fetch manifest -> pick asset -> download -> verify sha256 -> extract -> set settings.localBackendPath -> cleanup.
+  // GitHub path (new): fetch releases -> pick latest with tag containing 'server' -> select OS/arch asset -> download -> extract -> save path -> cleanup.
   const progress = (payload) => {
     try { _event?.sender?.send('localBackendInstallProgress', payload) } catch {}
   }
   try {
-    if (!manifestUrl) return { success: false, error: 'missing-manifest-url' }
-    progress({ phase: 'fetch-manifest', manifestUrl })
-    const { data: manifest } = await axios.get(manifestUrl, { timeout: 30000 })
-    const manifestVersion = version || manifest?.version
-    if (!manifestVersion) return { success: false, error: 'no-version-in-manifest' }
-
-    // Pick asset for current platform/arch
     const platform = process.platform // 'win32' | 'linux' | 'darwin'
     const arch = process.arch // 'x64' | 'arm64' | ...
-    const osKeys = [platform, platform === 'win32' ? 'windows' : (platform === 'darwin' ? 'darwin' : 'linux')]
-    const candidates = (manifest?.assets || []).filter(a => {
-      const osMatch = osKeys.includes((a.os||'').toLowerCase())
-      if (!osMatch) return false
-      if (!a.arch) return true
-      return (a.arch||'').toLowerCase() === arch
-    })
-    if (!candidates.length) return { success: false, error: 'no-asset-for-platform', details: { platform, arch } }
-    const asset = candidates[0]
-    const url = asset.url
-    const expectedSha = (asset.sha256||'').trim().toLowerCase()
-    const format = (asset.format||'').toLowerCase() || (url.endsWith('.zip') ? 'zip' : (url.endsWith('.tar.gz') ? 'tar.gz' : ''))
-    if (!url) return { success: false, error: 'asset-has-no-url' }
 
     // Prepare directories
     const userDataPath = app.getPath('userData')
     const baseDir = path.join(userDataPath, 'medomics-server')
     const versionsDir = path.join(baseDir, 'versions')
-    const versionDir = path.join(versionsDir, manifestVersion)
     const downloadsDir = path.join(baseDir, 'downloads')
     try { if (!fs.existsSync(baseDir)) fs.mkdirSync(baseDir, { recursive: true }) } catch {}
     try { if (!fs.existsSync(versionsDir)) fs.mkdirSync(versionsDir, { recursive: true }) } catch {}
     try { if (!fs.existsSync(downloadsDir)) fs.mkdirSync(downloadsDir, { recursive: true }) } catch {}
 
-    // If already installed, just point settings and return
+    const selectOsArchAsset = (assets) => {
+      const nameHas = (s, keys) => keys.some(k => (s||'').toLowerCase().includes(k))
+      const osKeys = platform === 'win32' ? ['windows', 'win32', 'win'] : (platform === 'darwin' ? ['darwin', 'macos', 'mac'] : ['linux'])
+      const archKeys = arch === 'arm64' ? ['arm64', 'aarch64'] : ['x64', 'amd64']
+      const extKeys = ['.zip', '.tar.gz', '.tgz']
+      // First pass: by name
+      let candidate = assets.find(a => nameHas(a.name, osKeys) && nameHas(a.name, archKeys) && nameHas(a.name, extKeys))
+      if (!candidate) {
+        // Second pass: by browser_download_url
+        candidate = assets.find(a => nameHas(a.browser_download_url||'', osKeys) && nameHas(a.browser_download_url||'', archKeys))
+      }
+      // Prefer zip
+      const zips = assets.filter(a => (a.name||'').toLowerCase().endsWith('.zip') && nameHas(a.name, osKeys) && nameHas(a.name, archKeys))
+      if (zips.length) candidate = zips[0]
+      return candidate || null
+    }
+
+    if (manifestUrl) {
+      // Legacy manifest-based install
+      progress({ phase: 'fetch-manifest', manifestUrl })
+      const { data: manifest } = await axios.get(manifestUrl, { timeout: 30000 })
+      const manifestVersion = version || manifest?.version || 'unknown'
+      const osKeys = [platform, platform === 'win32' ? 'windows' : (platform === 'darwin' ? 'darwin' : 'linux')]
+      const candidates = (manifest?.assets || []).filter(a => {
+        const osMatch = osKeys.includes((a.os||'').toLowerCase())
+        if (!osMatch) return false
+        if (!a.arch) return true
+        return (a.arch||'').toLowerCase() === arch
+      })
+      if (!candidates.length) return { success: false, error: 'no-asset-for-platform', details: { platform, arch } }
+      const asset = candidates[0]
+      const url = asset.url
+      const expectedSha = (asset.sha256||'').trim().toLowerCase()
+      const format = (asset.format||'').toLowerCase() || (url.endsWith('.zip') ? 'zip' : (url.endsWith('.tar.gz') ? 'tar.gz' : ''))
+      if (!url) return { success: false, error: 'asset-has-no-url' }
+
+      const versionDir = path.join(versionsDir, manifestVersion)
+      const existingExe = findInstalledExecutable(versionDir)
+      if (existingExe) {
+        await saveLocalBackendPath(existingExe)
+        progress({ phase: 'already-installed', version: manifestVersion, path: existingExe })
+        return { success: true, version: manifestVersion, path: existingExe, reused: true }
+      }
+
+      const fileName = path.basename(url).split('?')[0]
+      const downloadPath = path.join(downloadsDir, fileName)
+      progress({ phase: 'download-start', url, downloadPath })
+      await downloadWithProgress(url, downloadPath, (d) => progress({ phase: 'download-progress', ...d }))
+      progress({ phase: 'download-complete', downloadPath })
+
+      if (expectedSha) {
+        progress({ phase: 'verify-start' })
+        const actualSha = await sha256File(downloadPath)
+        const ok = (actualSha||'').toLowerCase() === expectedSha
+        if (!ok) return { success: false, error: 'checksum-mismatch', expectedSha, actualSha }
+        progress({ phase: 'verify-ok', sha256: actualSha })
+      } else {
+        progress({ phase: 'verify-skip', reason: 'no-sha256-in-manifest' })
+      }
+
+      progress({ phase: 'extract-start', to: versionDir, format })
+      await decompress(downloadPath, versionDir)
+      progress({ phase: 'extract-complete', to: versionDir })
+
+      const exePath = findInstalledExecutable(versionDir)
+      if (!exePath) return { success: false, error: 'executable-not-found-in-extracted', versionDir }
+      try { if (process.platform !== 'win32') fs.chmodSync(exePath, 0o755) } catch {}
+
+      await saveLocalBackendPath(exePath)
+      try { await cleanupOldVersions(versionsDir, exePath, 3) } catch {}
+      progress({ phase: 'done', version: manifestVersion, path: exePath })
+      return { success: true, version: manifestVersion, path: exePath }
+    }
+
+    // New GitHub releases-based install
+    const defaultOwner = 'm-alexparent'
+    const defaultRepo = 'MEDomics-NodeServerDeploymentTests'
+    progress({ phase: 'github-fetch-releases', owner: defaultOwner, repo: defaultRepo })
+    const { data: releases } = await axios.get(`https://api.github.com/repos/${defaultOwner}/${defaultRepo}/releases`, {
+      headers: { 'Accept': 'application/vnd.github+json', 'User-Agent': 'medomicslab-installer' },
+      timeout: 30000
+    })
+    if (!Array.isArray(releases) || releases.length === 0) {
+      return { success: false, error: 'no-releases-found' }
+    }
+
+    // Pick latest release with a tag indicating server (e.g., contains 'server')
+    const serverReleases = releases.filter(r => {
+      const tag = (r.tag_name||'').toLowerCase()
+      const name = (r.name||'').toLowerCase()
+      return tag.includes('server') || name.includes('server')
+    })
+    const sorted = (serverReleases.length ? serverReleases : releases).sort((a,b) => {
+      const pa = new Date(a.published_at||a.created_at||0).getTime()
+      const pb = new Date(b.published_at||b.created_at||0).getTime()
+      return pb - pa
+    })
+    const chosen = sorted[0]
+    if (!chosen) return { success: false, error: 'no-suitable-release' }
+    progress({ phase: 'github-pick-release', tag: chosen.tag_name, name: chosen.name })
+
+    // Select asset for OS/arch
+    const asset = selectOsArchAsset(chosen.assets||[])
+    if (!asset) return { success: false, error: 'no-asset-for-platform', details: { platform, arch } }
+    const url = asset.browser_download_url
+    if (!url) return { success: false, error: 'asset-missing-download-url' }
+    progress({ phase: 'github-select-asset', asset: asset.name, url })
+
+    const ver = chosen.tag_name || chosen.name || 'latest'
+    const versionDir = path.join(versionsDir, ver)
     const existingExe = findInstalledExecutable(versionDir)
     if (existingExe) {
       await saveLocalBackendPath(existingExe)
-      progress({ phase: 'already-installed', version: manifestVersion, path: existingExe })
-      return { success: true, version: manifestVersion, path: existingExe, reused: true }
+      progress({ phase: 'already-installed', version: ver, path: existingExe })
+      return { success: true, version: ver, path: existingExe, reused: true }
     }
 
-    // Download asset
     const fileName = path.basename(url).split('?')[0]
     const downloadPath = path.join(downloadsDir, fileName)
     progress({ phase: 'download-start', url, downloadPath })
     await downloadWithProgress(url, downloadPath, (d) => progress({ phase: 'download-progress', ...d }))
     progress({ phase: 'download-complete', downloadPath })
 
-    // Verify SHA256
-    if (expectedSha) {
-      progress({ phase: 'verify-start' })
-      const actualSha = await sha256File(downloadPath)
-      const ok = (actualSha||'').toLowerCase() === expectedSha
-      if (!ok) return { success: false, error: 'checksum-mismatch', expectedSha, actualSha }
-      progress({ phase: 'verify-ok', sha256: actualSha })
-    } else {
-      progress({ phase: 'verify-skip', reason: 'no-sha256-in-manifest' })
-    }
-
-    // Extract
+    // Extract archive
+    const lower = fileName.toLowerCase()
+    const format = lower.endsWith('.zip') ? 'zip' : (lower.endsWith('.tar.gz') || lower.endsWith('.tgz') ? 'tar.gz' : 'unknown')
     progress({ phase: 'extract-start', to: versionDir, format })
     await decompress(downloadPath, versionDir)
     progress({ phase: 'extract-complete', to: versionDir })
 
-    // Locate executable inside extracted tree
+    // Locate executable
     const exePath = findInstalledExecutable(versionDir)
     if (!exePath) return { success: false, error: 'executable-not-found-in-extracted', versionDir }
-    // Ensure exec perms on posix
     try { if (process.platform !== 'win32') fs.chmodSync(exePath, 0o755) } catch {}
 
-    // Save settings
     await saveLocalBackendPath(exePath)
-
-    // Cleanup old versions (keep latest 3 including this one and currently referenced)
     try { await cleanupOldVersions(versionsDir, exePath, 3) } catch {}
-
-    progress({ phase: 'done', version: manifestVersion, path: exePath })
-    return { success: true, version: manifestVersion, path: exePath }
+    progress({ phase: 'done', version: ver, path: exePath })
+    return { success: true, version: ver, path: exePath }
   } catch (e) {
     return { success: false, error: e.message || String(e) }
   }
