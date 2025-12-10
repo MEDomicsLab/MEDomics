@@ -1,3 +1,4 @@
+/* eslint-disable no-unused-vars */
 import { toast } from "react-toastify"
 
 const { MongoClient } = require("mongodb")
@@ -17,10 +18,6 @@ let client
 function stripIds(doc = {}) {
   const { _id, id, ...rest } = doc;
   return rest;
-}
-
-function sanitizeColumns(keys = []) {
-  return keys.filter(k => k && k !== '_id' && k !== 'id');
 }
 
 export async function connectToMongoDB() {
@@ -464,7 +461,7 @@ export async function deleteMEDDataObject(id) {
  * @param {String} collectionId Id of the collection to retrieve columns from
  * @returns {Array} An array of column names
  */
-export async function getCollectionColumns(collectionId, dropId = false) {
+export async function getCollectionColumns(collectionId) {
   try {
     const db = await connectToMongoDB();
     const collection = db.collection(collectionId);

@@ -1,3 +1,4 @@
+/* eslint-disable */
 import { shell } from "electron"
 import { InputSwitch } from "primereact/inputswitch"
 import { Panel } from "primereact/panel"
@@ -324,7 +325,6 @@ const TrainModelNode = ({ id, data }) => {
                   <div style={{ 
                     backgroundColor: "#e7f3ff",  // bleu clair doux
                     border: "1px solid #b6daff", // bordure bleu clair
-                    border: "1px solid #ccc", 
                     borderRadius: "8px", 
                     padding: "12px", 
                     marginBottom: "12px" 

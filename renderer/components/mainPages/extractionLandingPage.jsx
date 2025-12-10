@@ -10,7 +10,7 @@ import { FaImage } from "react-icons/fa6"
 import { Message } from "primereact/message"
 
 
-export default function ExtractionLandingPage({}) {
+export default function ExtractionLandingPage() {
   const { dispatchLayout } = useContext(LayoutModelContext)
 
   function choosePage(event, name) {

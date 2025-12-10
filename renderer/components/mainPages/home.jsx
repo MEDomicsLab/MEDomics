@@ -20,7 +20,6 @@ import { FaRegQuestionCircle } from "react-icons/fa"
 const HomePage = () => {
   const { workspace, setWorkspace, recentWorkspaces } = useContext(WorkspaceContext)
   const [hasBeenSet, setHasBeenSet] = useState(workspace.hasBeenSet)
-  const [appVersion, setAppVersion] = useState("")
   const [sampleGenerated, setSampleGenerated] = useState(false)
   const { port } = useContext(ServerConnectionContext)
   const [requirementsMet, setRequirementsMet] = useState(true)
@@ -86,9 +85,6 @@ const HomePage = () => {
       } else {
         setRequirementsMet(false)
       }
-    })
-    ipcRenderer.invoke("getAppVersion").then((data) => {
-      setAppVersion(data)
     })
   }, [])
 

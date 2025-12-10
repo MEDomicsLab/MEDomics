@@ -212,25 +212,6 @@ const PipelineResult = ({ index, pipeline, selectionMode, flowContent, highlight
   }, [pipeline, selectedId])
 
   /**
-   * @description this function checks if the results dictionary contains a specific id and returns the results if it does.
-   * @param {*} obj results dictionary
-   * @param {*} id id to check in the results dictionary
-   * @returns 
-   */
-  const checkIfObjectContainsId = (obj, id) => {
-    let res = false
-    if (!obj) {
-      return res
-    }
-    Object.keys(obj).forEach((key) => {
-      if (key.includes(id)) {
-        res = obj[key]
-      }
-    })
-    return res
-  }
-
-  /**
    * @returns {JSX.Element} The body of the accordion tab
    *
    * @description
@@ -356,7 +337,7 @@ const PipelinesResults = ({ pipelines, fullPipelines, selectionMode, flowContent
       const getName = (id, pipeline = null) => {
         let node = flowContent.nodes.find((node) => node.id == id)
         if (pipeline) {
-          let nextNode = pipeline.indexOf(id) + 1 < pipeline.length ? flowContent.nodes.find((node) => node.id == pipeline[pipeline.indexOf(id) + 1]) : null
+          // let nextNode = pipeline.indexOf(id) + 1 < pipeline.length ? flowContent.nodes.find((node) => node.id == pipeline[pipeline.indexOf(id) + 1]) : null
           // if (nextNode && nextNode.data.internal.type == "group_models") {
           //   let prevEdges = flowContent.edges.filter((edge) => edge.target == nextNode.id)
           //   let prevIds = prevEdges.map((edge) => edge.source)

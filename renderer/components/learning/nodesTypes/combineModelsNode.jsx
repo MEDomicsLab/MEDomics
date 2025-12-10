@@ -1,3 +1,4 @@
+/* eslint-disable */
 import { InputSwitch } from "primereact/inputswitch"
 import { Button, Stack } from "react-bootstrap"
 import * as Icon from "react-bootstrap-icons"

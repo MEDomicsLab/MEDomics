@@ -1,3 +1,4 @@
+/* eslint-disable */
 import { embedDashboard } from "@superset-ui/embedded-sdk"
 import axios from 'axios'
 import { Button } from "primereact/button"

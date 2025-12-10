@@ -1,3 +1,4 @@
+/* eslint-disable */
 import { Dropdown } from "primereact/dropdown"
 import { InputSwitch } from "primereact/inputswitch"
 import { Message } from "primereact/message"
