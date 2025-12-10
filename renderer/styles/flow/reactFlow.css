@@ -215,7 +215,7 @@
 }
 
 .node .p-card {
-  background: #f3f3f3;
+  background: #f8f9fa;
   color: #495057;
   box-shadow:
     5px 5px 6px -1px rgb(0 0 0 / 20%),
@@ -223,6 +223,12 @@
     0px 0px 3px 2px rgb(0 0 0 / 12%);
   border-radius: 6px;
   outline: 0.1rem solid #00000015;
+}
+
+[data-theme="dark"] .node .p-card {
+  background: #2b2b2b;
+  color: #d4d4d4;
+  outline: 0.1rem solid #ffffff15;
 }
 
 .react-flow__node:hover .node .p-card {

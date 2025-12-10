@@ -73,6 +73,7 @@ const util = require("util")
 const exec = util.promisify(require("child_process").exec)
 const { spawn } = require('child_process')
 import { SiApachesuperset  } from "react-icons/si"
+import { PiGraph } from "react-icons/pi"
 
 var fields = ["Name", "Field1", "Field2", "Field3", "Field4", "Field5"]
 
@@ -1323,6 +1324,9 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
       if (component === "learningPage") {
         return <span style={{ marginRight: 3 }}>📖</span>
       }
+      if (component === "extractionLandingPage") {
+        return <span style={{ marginRight: 3 }}>❯❯❯❯</span>
+      }
       if (component === "extractionTextPage") {
         return <span style={{ marginRight: 3 }}>📄</span>
       }
@@ -1368,6 +1372,9 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
       }
       if (component === "SupersetFramePage") {
         return <SiApachesuperset style={{ marginRight: 3 }} />
+      }
+      if (component === "modelViewer") {
+        return <span><PiGraph className="icon-offset" style={{ color: "#97edfb" }} /></span>
       }
     }
   }

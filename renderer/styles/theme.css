@@ -71,7 +71,7 @@ body {
 }
 /* Label styles */
 label {
-  color: var(--text-primary) !important;
+  color: var(--text-primary);
   font-weight: 500;
 }
 
@@ -98,14 +98,14 @@ label {
 .card,
 .panel,
 .p-card {
-  background-color: var(--card-bg) !important;
+  background-color: var(--card-bg);
   border-color: var(--card-border) !important;
   color: var(--text-primary) !important;
 }
 
 .card-header,
 .p-card-header {
-  background-color: var(--bg-secondary) !important;
+  background-color: var(--card-bg) !important;
   border-bottom-color: var(--border-color) !important;
   color: var(--text-primary) !important;
 }

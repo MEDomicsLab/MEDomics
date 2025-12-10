@@ -82,6 +82,7 @@ const AnalysisBoxNode = ({ data, selected }) => {
 
         {/* Content panel */}
         <div
+          className="card"
           style={{
             flex: 1,
             padding: "0.75rem",

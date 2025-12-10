@@ -100,7 +100,9 @@ const PageEval = ({ run, pageId, config, updateWarnings, setChosenModel, updateC
       console.log("Found data: ", foundData)
       // If not found, create it
       if (!foundData) {
-        startCalls2Server()
+        startCalls2Server(false)
+      } else {
+        startCalls2Server(true)
       }
     }
 
@@ -112,32 +114,33 @@ const PageEval = ({ run, pageId, config, updateWarnings, setChosenModel, updateC
    * @param {Object} modelObjCopies Object containing the paths of the copies of the model
    * @description - This function is used to start the evaluation processes
    */
-  const startCalls2Server = useCallback(
-    (/* modelObjCopies */) => {
-      // start predict
-      setIsPredictUpdating(true)
-      requestBackend(
-        port,
-        "evaluation/predict_test/predict/" + pageId,
-        { pageId: pageId, ...config, useMedStandard: useMedStandard },
-        (data) => {
-          setIsPredictUpdating(false)
-          if (data.error) {
-            if (typeof data.error == "string") {
-              data.error = JSON.parse(data.error)
+  const startCalls2Server = useCallback((dashboardOnly=false) => {
+      // start 
+      if (!dashboardOnly) {
+        setIsPredictUpdating(true)
+        requestBackend(
+          port,
+          "evaluation/predict_test/predict/" + pageId,
+          { pageId: pageId, ...config, useMedStandard: useMedStandard },
+          (data) => {
+            setIsPredictUpdating(false)
+            if (data.error) {
+              if (typeof data.error == "string") {
+                data.error = JSON.parse(data.error)
+              }
+              setError(data.error)
+            } else {
+              setPredictedData(data)
+              toast.success("Predicted data is ready")
             }
-            setError(data.error)
-          } else {
-            setPredictedData(data)
-            toast.success("Predicted data is ready")
+            console.log("predict_test received data:", data)
+          },
+          (error) => {
+            console.error(error)
+            setIsPredictUpdating(false)
           }
-          console.log("predict_test received data:", data)
-        },
-        (error) => {
-          console.error(error)
-          setIsPredictUpdating(false)
-        }
-      )
+        )
+      }
 
       // start dashboard
       requestBackend(
@@ -263,7 +266,7 @@ const PageEval = ({ run, pageId, config, updateWarnings, setChosenModel, updateC
           </>
         )}
         {/* Panel is used to create the results pane, used to be able to resize it on drag */}
-        <Panel id={`eval-body-${pageId}`} minSize={30} order={2} collapsible={true} collapsibleSize={10} className="eval-body">
+        <div className="eval-body">
           {!useMedStandard && (
             <Button className={`btn-show-header ${showHeader ? "opened" : "closed"}`} onClick={() => setShowHeader(!showHeader)}>
               <hr />
@@ -282,7 +285,7 @@ const PageEval = ({ run, pageId, config, updateWarnings, setChosenModel, updateC
               </TabPanel>
             </TabView>
           </div>
-        </Panel>
+        </div>
       </PanelGroup>
     </div>
   )
