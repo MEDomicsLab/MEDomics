@@ -836,14 +836,7 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
         }
       }
     } else if (component === "extractionLandingPage") {
-      if (node.getExtraData().data == null) {
-        const config = node.getConfig()
-        if (config.path !== null) {
-          return <ExtractionLandingPage pageId={config.uuid} />
-        } else {
-          return <ExtractionLandingPage pageId={"ExtractionLandingPage"} />
-        }
-      }
+        return <ExtractionLandingPage />
     } else if (component === "extractionImagePage") {
       if (node.getExtraData().data == null) {
         const config = node.getConfig()
