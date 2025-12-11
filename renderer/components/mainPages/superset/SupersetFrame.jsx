@@ -84,12 +84,15 @@ const SupersetDashboard = () => {
   async function launchSuperset() {
     let freePort = 8080 // in the future maybe we'll use getPort() from get-port package
     let pythonPath = await ipcRenderer.invoke("getBundledPythonEnvironment")
+    let appDataPath = await ipcRenderer.invoke("appGetPath", "userData")
 
     // Send the request to the backend
     let jsonToSend = {
       "port": freePort,
       "pythonPath": pythonPath,
+      "appDataPath": appDataPath,
     }
+    console.log("Launching superset with python path:", pythonPath)
     setLoading(true)
     requestBackend(
       port,
@@ -136,10 +139,12 @@ const SupersetDashboard = () => {
   async function createUser() {
     // get Python path
     let pythonPath = await ipcRenderer.invoke("getBundledPythonEnvironment")
+    let appDataPath = await ipcRenderer.invoke("appGetPath", "userData")
 
     // Send the request to the backend
     let jsonToSend = {
       "pythonPath": pythonPath,
+      "appDataPath": appDataPath,
       "username": newUserUsername,
       "password": newUserPassword,
       "firstname": newFirstName,
@@ -309,9 +314,20 @@ const SupersetDashboard = () => {
     return
   }
 
-  const getEnvPath = (pythonPath) => {
+  const getEnvPath = (pythonPath, appDataPath) => {
     if (!pythonPath) return ''
     
+    // If appDataPath is provided, use it to construct the path
+    if (appDataPath) {
+      const isWindows = os.platform() === "win32"
+      if (isWindows) {
+        return `${appDataPath}\\superset_env\\Scripts\\python.exe`
+      } else {
+        return `${appDataPath}/superset_env/bin/python`
+      }
+    }
+
+    // Fallback to old logic if appDataPath is not available (should not happen with new logic)
     const isWindows = os.platform() === "win32"
     if (isWindows) {
       const pathParts = pythonPath.split(/[\\/]/)
@@ -323,7 +339,8 @@ const SupersetDashboard = () => {
   }
 
   const getSupersetConfigPath = async (pythonPath) => {
-    const envPath = getEnvPath(pythonPath)
+    let appDataPath = await ipcRenderer.invoke("appGetPath", "userData")
+    const envPath = getEnvPath(pythonPath, appDataPath)
     if (!envPath) return ''
     
     const isWindows = os.platform() === "win32"

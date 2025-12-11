@@ -34,6 +34,17 @@ class GoExecScriptPredict(GoExecutionScript):
 
         # Map settings
         python_path = json_config["pythonPath"]
+        app_data_path = json_config.get("appDataPath")
+        
+        if not app_data_path:
+            # Fallback to default locations if not provided (for backward compatibility or testing)
+            if sys.platform == "win32":
+                app_data_path = str(Path(os.getenv('APPDATA')) / "medomics-platform")
+            elif sys.platform == "darwin":
+                app_data_path = str(Path.home() / "Library/Application Support/medomics-platform")
+            else:
+                app_data_path = str(Path.home() / ".config/medomics-platform")
+
         username = json_config["username"]
         firstname = json_config["firstname"]
         lastname = json_config["lastname"]
@@ -41,7 +52,7 @@ class GoExecScriptPredict(GoExecutionScript):
         password = json_config["password"]
 
         # Set up Superset
-        output = self.create_user(python_path, username, firstname, lastname, email, password)
+        output = self.create_user(python_path, app_data_path, username, firstname, lastname, email, password)
 
         return output
 
@@ -59,12 +70,13 @@ class GoExecScriptPredict(GoExecutionScript):
 
         return {}
 
-    def create_user(self, python_path: str, username: str, firstname: str, lastname: str, email: str, password: str):
+    def create_user(self, python_path: str, app_data_path: str, username: str, firstname: str, lastname: str, email: str, password: str):
         """
         Creates a new Superset user.
 
         Args:
             python_path: The path to the Python installation.
+            app_data_path: The path to the application data directory.
             username: The username of the new user.
             firstname: The first name of the new user.
             lastname: The last name of the new user.
@@ -76,7 +88,7 @@ class GoExecScriptPredict(GoExecutionScript):
         """
         # Prepare environment variables
         env = os.environ.copy()
-        manager = SupersetEnvManager(python_path)
+        manager = SupersetEnvManager(python_path, app_data_path)
         path_superset = manager.get_superset_path()
         env["FLASK_APP"] = "superset"
 
@@ -90,7 +102,7 @@ class GoExecScriptPredict(GoExecutionScript):
             "password": password,
         }
         output = self.run_command(
-            f"{path_superset} fab create-admin "
+            f'"{path_superset}" fab create-admin '
             f"--username {admin_user['username']} "
             f"--firstname {admin_user['firstname']} "
             f"--lastname {admin_user['lastname']} "

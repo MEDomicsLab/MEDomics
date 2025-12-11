@@ -1,8 +1,10 @@
 import json
 import subprocess
 import sys
+import os
 import time
 from pathlib import Path
+import venv
 
 SUPERSET_PACKAGES = [
     "apache-superset==4.1.1",
@@ -12,14 +14,18 @@ SUPERSET_PACKAGES = [
 ]
 
 class SupersetEnvManager:
-    def __init__(self, python_path):
+    def __init__(self, python_path, app_data_path):
         self.python_path = python_path
         self.env_path = None
+        
+        # Using app_data_path to define environment path (defined by userData https://www.electronjs.org/docs/latest/api/app#appgetapppath)
+        # This is a writeable path where we can create our virtual environment (Fix for macOS venv creation issues)
+        base_dir = Path(app_data_path)
         if sys.platform == "win32":
-            self.env_path = Path(python_path).parent / "superset_env/Scripts/python.exe"
+            self.env_path = base_dir / "superset_env/Scripts/python.exe"
         else:
-            self.env_path = python_path.replace("bin", "bin/superset_env/bin")
-    
+            self.env_path = base_dir / "superset_env/bin/python"
+
     def check_env_exists(self):
         """Check if the virtual environment exists"""
         if sys.platform == "win32":
@@ -34,17 +40,38 @@ class SupersetEnvManager:
             env_name = str(self.env_path)[:env_name+len("superset_env")]
         else:
             return False
+        
+        print(f"Creating virtual environment at: {env_name}")
 
-        # Create virtual environment
-        process = subprocess.Popen([
-            self.python_path, "-m", "venv", env_name
-        ], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-        process.wait()
-        if process.returncode == 0:
+        try:
+            # Create venv without pip first to avoid crash due to missing lib on macOS standalone builds
+            venv.create(env_name, with_pip=False, clear=True)
+            
+            # Fix for macOS standalone python: symlink libpython
+            if sys.platform == "darwin":
+                base_python_lib = Path(self.python_path).parent.parent / "lib"
+                venv_lib = Path(env_name) / "lib"
+                
+                # Find libpython dylib
+                lib_files = list(base_python_lib.glob("libpython*.dylib"))
+                if lib_files:
+                    target_lib = lib_files[0]
+                    link_name = venv_lib / target_lib.name
+                    if not link_name.exists():
+                        try:
+                            link_name.symlink_to(target_lib)
+                            print(f"Symlinked {target_lib} to {link_name}")
+                        except Exception as e:
+                            print(f"Failed to symlink libpython: {e}")
+
+            # Now install pip
+            print("Installing pip...")
+            subprocess.run([str(self.env_path), "-m", "ensurepip"], check=True)
+
             print(f"Environment created at: {self.env_path}")
             return True
-        else:
-            print(f"Error creating environment: {process.stderr}")
+        except Exception as e:
+            print(f"Error creating environment: {e}")
             return False
     
     def check_requirements(self):
