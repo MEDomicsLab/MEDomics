@@ -372,7 +372,7 @@ export async function installBundledPythonExecutable(mainWindow) {
     let userPath = getHomePath()
 
     medomicsPath = path.join(userPath, ".medomics")
-    pythonParentFolderExtractString = "-C " + medomicsPath
+    pythonParentFolderExtractString = medomicsPath
     let pythonPath = path.join(medomicsPath, "python")
     // Check if the .medomics directory exists
     if (fs.existsSync(medomicsPath)) {
@@ -396,7 +396,7 @@ export async function installBundledPythonExecutable(mainWindow) {
     } else {
       bundledPythonPath = path.join(process.cwd(), "python")
     }
-    pythonParentFolderExtractString = "-C " + bundledPythonPath.split("python")[0]
+    pythonParentFolderExtractString = bundledPythonPath.split("python")[0]
   }
   // Check if the python executable is already installed
   let pythonExecutablePath = null
@@ -417,7 +417,7 @@ export async function installBundledPythonExecutable(mainWindow) {
       execCallbacksForChildWithNotifications(downloadPromise.child, "Python Downloading", mainWindow)
 
       const { stdout, stderr } = await downloadPromise
-      let extractCommand = `tar -xvf ${outputFileName} ${pythonParentFolderExtractString}`
+      let extractCommand = `tar -xvf ${outputFileName} -C ${pythonParentFolderExtractString}`
       let extractionPromise = exec(extractCommand, { shell: "powershell.exe" })
       execCallbacksForChildWithNotifications(extractionPromise.child, "Python Exec. Extracting", mainWindow)
 
@@ -442,7 +442,7 @@ export async function installBundledPythonExecutable(mainWindow) {
       }
 
       let url = `https://github.com/indygreg/python-build-standalone/releases/download/20240224/${file}`
-      let extractCommand = `tar -xvf ${file} ${pythonParentFolderExtractString}`
+      let extractCommand = `tar -xvf ${file} -C ${pythonParentFolderExtractString}`
       let downloadPromise = exec(`/bin/bash -c "$(curl -fsSLO ${url})"`)
       execCallbacksForChildWithNotifications(downloadPromise.child, "Python Downloading", mainWindow)
       const { stdout, stderr } = await downloadPromise
@@ -473,18 +473,19 @@ export async function installBundledPythonExecutable(mainWindow) {
       }
 
       let url = `https://github.com/indygreg/python-build-standalone/releases/download/20240224/${file}`
-      let extractCommand = `tar -xvf ${file}  ${pythonParentFolderExtractString}`
 
-      let downloadPromise = exec(`wget ${url}`)
+      // Download the python executable
+      let downloadPromise = exec(`wget ${url} -P ${pythonParentFolderExtractString}`)
       execCallbacksForChildWithNotifications(downloadPromise.child, "Python Downloading", mainWindow)
       const { stdout: download, stderr: downlaodErr } = await downloadPromise
       // Extract the python executable
+      let extractCommand = `tar -xvf ${path.join(pythonParentFolderExtractString, file)} -C ${pythonParentFolderExtractString}`
       let extractionPromise = exec(extractCommand)
       execCallbacksForChildWithNotifications(extractionPromise.child, "Python Exec. Extracting", mainWindow)
       const { stdout: extrac, stderr: extracErr } = await extractionPromise
 
       // Remove the downloaded file
-      let removeCommand = `rm ${file}`
+      let removeCommand = `rm ${path.join(pythonParentFolderExtractString, file)}`
       let removePromise = exec(removeCommand)
       execCallbacksForChildWithNotifications(removePromise.child, "Python Exec. Removing", mainWindow)
       const { stdout: remove, stderr: removeErr } = await removePromise
