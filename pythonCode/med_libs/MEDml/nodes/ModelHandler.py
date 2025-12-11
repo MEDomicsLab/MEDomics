@@ -218,7 +218,17 @@ class ModelHandler(Node):
                     self.settingsTuning['custom_grid'] = self.config_json['data']['internal'][self.model_id]['custom_grid']
                 
                 # Tune the model
-                model = fold_exp.tune_model(model, **self.settingsTuning)
+                # CASE 1 : custom grid tuning
+                if self.useTuningGrid:
+                    model = fold_exp.tune_model(model, **self.settingsTuning)
+
+                # CASE 2 : PyCaret default search space tuning
+                else:
+                    model = fold_exp.tune_model(
+                        self.config_json['data']['estimator']['type'],
+                        optimize=self.settingsTuning.get("optimize", "Accuracy")
+                    )
+
             
             # Model Ensembling
             try:
@@ -419,7 +429,16 @@ class ModelHandler(Node):
                 if self.useTuningGrid and self.model_id in list(self.config_json['data']['internal'].keys()) and 'custom_grid' in list(self.config_json['data']['internal'][self.model_id].keys()):
                     self.settingsTuning['custom_grid'] = self.config_json['data']['internal'][self.model_id]['custom_grid']
                 trained_model = pycaret_exp.tune_model(trained_model, **self.settingsTuning)
-                self.CodeHandler.add_line("code", f"trained_models = [pycaret_exp.tune_model(trained_models[0], {self.CodeHandler.convert_dict_to_params(self.settingsTuning)})]")
+                if self.useTuningGrid:
+                    self.CodeHandler.add_line(
+                        "code",
+                        f"trained_models = [pycaret_exp.tune_model(trained_models[0], {self.CodeHandler.convert_dict_to_params(self.settingsTuning)})]"
+                    )
+                else:
+                    self.CodeHandler.add_line(
+                        "code",
+                        f"trained_models = [pycaret_exp.tune_model('{self.config_json['data']['estimator']['type']}', optimize='{self.settingsTuning.get('optimize','Accuracy')}')]"
+                    )
 
             # Ensemble model if enabled
             if self.ensembleEnabled:
@@ -563,7 +582,13 @@ class ModelHandler(Node):
                 # Check if a custom grid is provided
                 if self.useTuningGrid and self.model_id in list(self.config_json['data']['internal'].keys()) and 'custom_grid' in list(self.config_json['data']['internal'][self.model_id].keys()):
                     self.settingsTuning['custom_grid'] = self.config_json['data']['internal'][self.model_id]['custom_grid']
-                trained_models = [experiment['pycaret_exp'].tune_model(trained_models[0], **self.settingsTuning)]
+                if self.useTuningGrid:
+                    trained_models = [experiment['pycaret_exp'].tune_model(trained_models[0], **self.settingsTuning)]
+                else:
+                    trained_models = [experiment['pycaret_exp'].tune_model(
+                        self.config_json['data']['estimator']['type'],
+                        optimize=self.settingsTuning.get("optimize", "Accuracy")
+                    )]
                 self.CodeHandler.add_line("code", f"trained_models = [pycaret_exp.tune_model(trained_models[0], {self.CodeHandler.convert_dict_to_params(self.settingsTuning)})]")
 
             if self.ensembleEnabled:
