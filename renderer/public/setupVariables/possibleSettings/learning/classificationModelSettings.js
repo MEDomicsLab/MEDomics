@@ -617,11 +617,31 @@ const classificationModelSettings = {
                 "tooltip": "bool, default=False. When set to True, reuse the solution of the previous call to fit as initialization, otherwise, just erase the previous solution."
             },
             "class_weight": {
-                "type": "string",
-                "default_val": "None",
-                "choices": ["None", "balanced", "balanced_subsample"],
-                "tooltip": "class_weight ∈ {'balanced','balanced_subsample'}, default=None. 'balanced' uses class frequencies (n_samples / (n_classes * np.bincount(y))) to set weights. 'balanced_subsample' is the same but computed on each tree's bootstrap sample. If sample_weight is passed to fit(), it is multiplied with class_weight. Use None to disable class weighting."
-            },
+    "type": "multi",
+    "tooltip": "Weights associated with classes. Can be a string ('balanced', 'balanced_subsample'), a dict {class_label: weight}, or a list of such dicts for multi-output problems.",
+    "allowedTypes": {
+        "str": {
+            "label": "String",
+            mapTo: "string",
+            "choices": ["None", "balanced", "balanced_subsample"],
+            "default_val": "None",
+            "description": "String mode: automatic balancing using class frequencies."
+        },
+        "dict": {
+            "label": "Dictionary",
+            "mapTo": "string",
+            "default_val": "{}",
+            "description": "Custom weights per class. Example: {\"0\": 1, \"1\": 3}."
+        },
+        "list-dict": {
+            "label": "List of dictionaries",
+            "mapTo": "string",
+            "default_val": "[{}]",
+            "description": "Required for multi-output tasks. One dict per output column."
+        }
+    },
+    "default_val": null
+},
             "max_samples": {
                 "type": "NoneType",
                 "default_val": "None",
