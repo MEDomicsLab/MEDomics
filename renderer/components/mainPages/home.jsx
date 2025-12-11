@@ -211,7 +211,7 @@ const HomePage = () => {
 
           <ul style={{ paddingLeft: "1.5rem", listStyleType: "none" }}>
             <li>📖 Documentation:  
-              <a href="https://medomics-udes.gitbook.io/medomicslab-docs/medomicslab-docs-v0/tutorials" 
+              <a href="https://medomicslab.gitbook.io/medomics-docs/tutorials" 
                  target="_blank" rel="noopener noreferrer" style={{ color: "#4991dfff", textDecoration: "none", marginLeft: "5px" }}>
                 MEDomics Documentation
               </a>
@@ -243,7 +243,13 @@ const HomePage = () => {
             borderRadius: "5px"
           }}
         >
-          ⚠️ <strong>Note:</strong> The Testing Phase offers the first official tutorials of MEDomics, based on the pre-released version launched in January 2024. Despite subsequent improvements, these tutorials are still a valuable starting point for new users.
+          ⚠️ <strong>Note:</strong> The Testing Phase offers the first official tutorials of MEDomics, 
+          based on the pre-released version launched in January 2024. Despite subsequent improvements, 
+          these tutorials are still a valuable starting point for new users. The testing phase documentation can be found
+          in the version<a href="https://medomicslab.gitbook.io/medomics-docs/medomicslab-docs-v0/test-with-mimic" 
+          target="_blank" rel="noopener noreferrer" style={{ color: "#4991dfff", textDecoration: "none", marginLeft: "5px" }}>
+               V0
+              </a> of the docs.
         </div>
 
         </div>
