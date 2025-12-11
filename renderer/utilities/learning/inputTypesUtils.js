@@ -121,7 +121,12 @@ const implementedTypesDescription = [
     type: "dataframe",
     description: "for dataframe input",
     default: ""
-  }
+  },
+  {
+  type: "multi",
+  description: "Generic type supporting multiple possible input types",
+  default: null
+}
 ]
 
 // this object is used to get the default value and implemeted types of possible settings
