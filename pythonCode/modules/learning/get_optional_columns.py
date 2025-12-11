@@ -3,10 +3,14 @@ import os
 import sys
 from pathlib import Path
 
+from pycaret.internal.pipeline import Pipeline as PycaretPipeline
+from sklearn.calibration import CalibratedClassifierCV
+from sklearn.pipeline import Pipeline
+
 sys.path.append(
     str(Path(os.path.dirname(os.path.abspath(__file__))).parent.parent))
 from med_libs.GoExecutionScript import GoExecutionScript, parse_arguments
-from med_libs.mongodb_utils import (connect_to_mongo, get_child_id_by_name,
+from med_libs.mongodb_utils import (get_child_id_by_name,
                                     get_pickled_model_from_collection)
 from med_libs.server_utils import go_print
 
@@ -56,7 +60,14 @@ class GoExecScriptPredict(GoExecutionScript):
                     imputed_columns.extend(list(step[1].include))
 
         imputed_columns = list(set(imputed_columns))
-        return {"imputed_columns": imputed_columns}
+        results = {"imputed_columns": imputed_columns, "is_calibrated": False}
+
+        # Check if model is calibrated
+        if isinstance(model, Pipeline) or isinstance(model, PycaretPipeline):
+            final_estimator = model.steps[-1][1]
+            if isinstance(final_estimator, CalibratedClassifierCV):
+                results["is_calibrated"] = True
+        return results
     
 script = GoExecScriptPredict(json_params_dict, id_)
 script.start()

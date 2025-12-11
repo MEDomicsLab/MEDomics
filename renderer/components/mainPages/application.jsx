@@ -1,26 +1,26 @@
-import React, { useEffect, useState } from "react"
-import ModulePage from "./moduleBasics/modulePage"
-import { Col, Row, Stack } from "react-bootstrap"
-import Input from "../learning/input"
+import { randomUUID } from "crypto"
+import { Badge } from "primereact/badge"
 import { Button } from "primereact/button"
+import { Card } from "primereact/card"
+import { Panel } from "primereact/panel"
+import { ProgressSpinner } from 'primereact/progressspinner'
+import { Tag } from "primereact/tag"
+import { ToggleButton } from "primereact/togglebutton"
+import { Tooltip } from "primereact/tooltip"
+import React, { useContext, useEffect, useState } from "react"
+import { Col, Row, Stack } from "react-bootstrap"
+import { toast } from "react-toastify"
 import { requestBackend } from "../../utilities/requests"
-import { useContext } from "react"
-import { WorkspaceContext } from "../workspace/workspaceContext"
+import DataTableFromDB from "../dbComponents/dataTableFromDB"
+import { getCollectionData } from "../dbComponents/utils"
 import { ErrorRequestContext } from "../generalPurpose/errorRequestContext"
 import { LoaderContext } from "../generalPurpose/loaderContext"
-import { ToggleButton } from "primereact/togglebutton"
-import { DataContext } from "../workspace/dataContext"
-import { Tag } from "primereact/tag"
-import { Tooltip } from "primereact/tooltip"
-import { MEDDataObject } from "../workspace/NewMedDataObject"
-import { getCollectionData } from "../dbComponents/utils"
+import Input from "../learning/input"
 import { getCollectionColumns, insertMEDDataObjectIfNotExists } from "../mongoDB/mongoDBUtils"
-import DataTableFromDB from "../dbComponents/dataTableFromDB"
-import { randomUUID } from "crypto"
-import { toast } from "react-toastify"
-import { ProgressSpinner } from 'primereact/progressspinner'
-import { Card } from "primereact/card"
-import { Badge } from "primereact/badge"
+import { DataContext } from "../workspace/dataContext"
+import { MEDDataObject } from "../workspace/NewMedDataObject"
+import { WorkspaceContext } from "../workspace/workspaceContext"
+import ModulePage from "./moduleBasics/modulePage"
 
 /**
  *
@@ -185,6 +185,7 @@ const ApplicationPage = ({ pageId }) => {
   const [chosenModel, setChosenModel] = useState("")
   const [modelMetadata, setModelMetadata] = useState(null)
   const [optionalColumns, setOptionalColumns] = useState([])
+  const [isCalibrated, setIsCalibrated] = useState(false)
   const [inputsData, setInputsData] = useState({})
   const [predictions, setPredictions] = useState(null)
   const [predictedTarget, setPredictedTarget] = useState(null)
@@ -241,11 +242,13 @@ const ApplicationPage = ({ pageId }) => {
           setError(response.error)
           setPredictions(null)
           setOptionalColumns([])
+          setIsCalibrated(false)
           setPredictedTarget(null)
           setPredictionScore(null)
           toast.error('Failed to retrieve optional columns from the model.')
         } else {
           setOptionalColumns(response.imputed_columns)
+          setIsCalibrated(response.is_calibrated || false)
           let inputInit = {}
           response.imputed_columns.map((col) => {
             inputInit[col] = [undefined]
@@ -256,6 +259,7 @@ const ApplicationPage = ({ pageId }) => {
       () => {
         setPredictions(null)
         setOptionalColumns([])
+        setIsCalibrated(false)
         setLoadingModelColumns(false)
         setPredictedTarget(null)
         setPredictionScore(null)
@@ -289,6 +293,7 @@ const ApplicationPage = ({ pageId }) => {
           setError(response.error)
           setPredictions(null)
           setOptionalColumns([])
+          setIsCalibrated(false)
           setPredictedTarget(null)
           setPredictionScore(null)
         } else {
@@ -311,6 +316,7 @@ const ApplicationPage = ({ pageId }) => {
       () => {
         setPredictions(null)
         setOptionalColumns([])
+        setIsCalibrated(false)
         setPredictedTarget(null)
         setPredictionScore(null)
         setLoader(false)
@@ -417,6 +423,11 @@ const ApplicationPage = ({ pageId }) => {
         </div>
         {modelMetadata && (
           <>
+            {isCalibrated === false ? (
+              <Tag className="app-model-uncalibrated-tag" severity="warning" value="Uncalibrated Model" />
+            ) : (
+              <Tag className="app-model-calibrated-tag" severity="success" value="Calibrated Model" />
+            )}
             <Entry
               pageId={pageId}
               setRequestSettings={setRequestSettings}
@@ -432,13 +443,42 @@ const ApplicationPage = ({ pageId }) => {
             />
             <Button label="Predict" outlined severity="success" onClick={() => handlePredictClick()} disabled={!isValid2Predict} />
             {mode === "unique" && predictedTarget && predictionScore ? (
+              <>
               <Card className="prediction-result-card" style={{display: "flex", justifyContent: "center", alignItems: "center"}}>
                 <div className="flex align-items-center">
                   {modelMetadata.model_threshold && <Badge value={`Model's Threshold: ${modelMetadata.model_threshold.toFixed(2)}`} severity="warning" size={"large"} style={{marginRight: "1rem"}} />}
                   <Badge value={`Prediction Score: ${predictionScore}`} severity="info" size={"large"} style={{marginRight: "1rem"}} />
                   <Badge value={`Predicted Target Value: ${predictedTarget}`} severity="success" size={"large"}  />
                 </div>
-            </Card>) : (
+              </Card>
+                {/* Warning Section */}
+                <Panel header="Understanding the Prediction Score and Threshold" toggleable >
+                  <ul style={{ margin: 0, paddingLeft: "1.2rem" }}>
+                    <li>
+                      <strong>Prediction Score = P(Y = 1 | X)</strong>:  
+                      This is the model's estimated probability that the target equals 1 for the given input.
+                    </li>
+                    <li>
+                      <strong>Decision Threshold</strong>:  
+                      The predicted probability is compared against the model's threshold to determine the final class.  
+                      If P(Y=1|X) ≥ threshold → predicted class = 1, otherwise class = 0.
+                    </li>
+                    <li>
+                      <strong>Most machine-learning classifiers output P(Y = 1 | X)</strong>  
+                      regardless of the number of features or the modeling method.
+                    </li>
+                    <li>
+                      <strong>Probability Calibration Matters</strong>:  
+                      A probability value is meaningful only when the model has been calibrated. If calibration was not performed, 
+                      do not interpret the number literally; rely instead on the comparison to the threshold.
+                    </li>
+                    <li>
+                      <strong>The interface will indicate whether your model was calibrated.</strong>
+                    </li>
+                  </ul>
+                </Panel>
+                </>
+            ) : (
               <>{mode === "table" && predictions && predictions.collection_id && <DataTableFromDB data={{ id: predictions.collection_id }} isReadOnly={true} />}</>
             )}
             
