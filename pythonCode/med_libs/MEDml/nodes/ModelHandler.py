@@ -107,12 +107,13 @@ class ModelHandler(Node):
         for metric_name in first_fold_metrics.keys():
             metric_values = []
             for _, metrics in fold_metrics.items():
-                if metric_name in metrics and "N/A" not in metrics[metric_name]:
+                if metric_name in list(metrics.keys()) and "N/A" not in str(metrics[metric_name]):
                     metric_values.append(metrics[metric_name])
             
             if metric_values:
                 overall_metrics[metric_name] = {
                     'mean': round(float(np.mean(metric_values)), 3),
+                    'median': round(float(np.median(metric_values)), 3),
                     'std': round(float(np.std(metric_values)), 3),
                     'min': round(float(np.min(metric_values)), 3),
                     'max': round(float(np.max(metric_values)), 3),
@@ -120,18 +121,6 @@ class ModelHandler(Node):
                 log_metrics[metric_name] = overall_metrics[metric_name]['mean']
         
         return overall_metrics, log_metrics
-    
-    def __get_cv_metrics(self, cv_metrics: dict):
-        """Extract mean and std from PyCaret's cv_metrics dictionary"""
-        overall_metrics = {}
-        for metric_name, values in cv_metrics.items():
-            overall_metrics[metric_name] = {
-                'mean': round(float(values['Mean']), 3),
-                'std': round(float(values['SD']), 3),
-                'min': round(float(values['Min']), 3),
-                'max': round(float(values['Max']), 3),
-            }
-        return overall_metrics
     
     def __custom_train_and_evaluate(
             self, 
@@ -484,6 +473,7 @@ class ModelHandler(Node):
             for metric in list(overall_metrics.keys()):
                 overall_metrics[metric] = {
                     'mean': round(float(np.mean(overall_metrics[metric])), 3),
+                    'median': round(float(np.median(overall_metrics[metric])), 3),
                     'std': round(float(np.std(overall_metrics[metric])), 3),
                     'min': round(float(np.min(overall_metrics[metric])), 3),
                     'max': round(float(np.max(overall_metrics[metric])), 3),

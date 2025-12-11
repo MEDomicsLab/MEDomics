@@ -96,7 +96,7 @@ const ModelsResults = ({ selectedResults }) => {
   const getColumnsFromData = (data) => {
     if (data.length > 0) {
       let toReturn = [<Column key="first key" expander={true} style={{ width: "5rem" }} />]
-      const metricsOrder = ["Name", "AUC", "Sensitivity", "Specificity", "PPV", "NPV", "Accuracy", "F1", "MCC"]
+      const metricsOrder = ["Name", "AUC", "Sensitivity", "Specificity", "PPV", "NPV", "Accuracy", "F1"]
       
       // Add columns in the defined order only
       metricsOrder.forEach((key) => {
