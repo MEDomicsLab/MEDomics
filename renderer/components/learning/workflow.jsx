@@ -1178,6 +1178,23 @@ const Workflow = forwardRef(({ setWorkflowType, workflowType, isExperiment }, re
     return newNode
   }
 
+  const duplicateNode = (id) => {
+    const nodeToDuplicate = nodes.find((node) => node.id === id)
+    if (!nodeToDuplicate) return
+
+    const newNode = {
+      ...deepCopy(nodeToDuplicate),
+      id: `node_${uuid.v4()}`,
+      position: {
+        x: nodeToDuplicate.position.x + 40,
+        y: nodeToDuplicate.position.y + 100
+      },
+      selected: false
+    }
+
+    setNodes((nds) => [...nds, newNode])
+  }
+
   /**
    *
    * @param {function} createBaseNode function to create a base node. Useful to create automatically base nodes in the subflow
@@ -1601,6 +1618,7 @@ const Workflow = forwardRef(({ setWorkflowType, workflowType, isExperiment }, re
           reactFlowInstance: reactFlowInstance,
           setReactFlowInstance: setReactFlowInstance,
           addSpecificToNode: addSpecificToNode,
+          duplicateNode: duplicateNode,
           nodeTypes: nodeTypes,
           nodes: nodes,
           setNodes: setNodes,

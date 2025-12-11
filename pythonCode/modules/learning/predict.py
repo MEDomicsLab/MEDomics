@@ -78,7 +78,7 @@ class GoExecScriptPredict(GoExecutionScript):
             data = json_config['entry']['data']
             dataset = pd.DataFrame(data)
             y_pred = model.predict(dataset)
-            pred_score = model.predict_proba(dataset).max()
+            pred_score = model.predict_proba(dataset).max() if y_pred[0] else model.predict_proba(dataset).min()
             pred_target = str(y_pred[0])
             pred_name = str("pred_" + model_metadata['target']) + ".csv"
 

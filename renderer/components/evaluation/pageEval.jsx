@@ -165,6 +165,9 @@ const PageEval = ({ run, pageId, config, updateWarnings, setChosenModel, updateC
           },
           (error) => {
             console.log("closeDashboard received error:", error)
+            setError(error)
+            setDashboardError(error)
+            setIsDashboardUpdating(false)
           }
         )
       }
@@ -196,7 +199,6 @@ const PageEval = ({ run, pageId, config, updateWarnings, setChosenModel, updateC
     <div className="evaluation-content">
       <PanelGroup style={{ height: "100%", display: "flex", flexGrow: 1 }} direction="vertical" id={pageId}>
         {/* Panel is used to create the flow, used to be able to resize it on drag */}
-        {!useMedStandard && (
           <>
             <Panel
               order={1}
@@ -237,13 +239,31 @@ const PageEval = ({ run, pageId, config, updateWarnings, setChosenModel, updateC
                       </Tooltip>
                     </>
                   )}
-                  <Input
-                    name="Choose dataset"
-                    settingInfos={{ type: "data-input", tooltip: "" }}
-                    currentValue={config.dataset.id}
-                    onInputChange={(data) => setChosenDataset(data.value)}
-                    setHasWarning={setDatasetHasWarning}
-                  />
+                  {!useMedStandard ? (
+                    <Input
+                      name="Choose dataset"
+                      settingInfos={{ type: "data-input", tooltip: "" }}
+                      currentValue={config.dataset.id}
+                      onInputChange={(data) => setChosenDataset(data.value)}
+                      setHasWarning={setDatasetHasWarning}
+                    />
+                  ) : (
+                    <div className="med-standard-div">
+                      <Input
+                        key={"files"}
+                        name="files"
+                        settingInfos={{
+                          type: "data-input-multiple",
+                          tooltip: "<p>Specify a data file (xlsx, csv, json)</p>"
+                        }}
+                        currentValue={selectedDatasets || null}
+                        onInputChange={(e) => setSelectedDatasets(e.value)}
+                        // onInputChange={onMultipleFilesChange}
+                        setHasWarning={setDatasetHasWarning}
+                      />
+                    </div>
+                  )}
+
                 </div>
                 <Button
                   style={{ width: "15rem" }}
@@ -257,16 +277,13 @@ const PageEval = ({ run, pageId, config, updateWarnings, setChosenModel, updateC
             </Panel>
             <PanelResizeHandle />
           </>
-        )}
         {/* Panel is used to create the results pane, used to be able to resize it on drag */}
         <Panel id={`eval-body-${pageId}`} minSize={30} order={2} collapsible={true} collapsibleSize={10} className="eval-body">
-          {!useMedStandard && (
             <Button className={`btn-show-header ${showHeader ? "opened" : "closed"}`} onClick={() => setShowHeader(!showHeader)}>
               <hr />
               <i className="pi pi-chevron-down"></i>
               <hr />
             </Button>
-          )}
 
           <div className="eval-body-content">
             <TabView renderActiveOnly={false} activeIndex={activeIndex} onTabChange={(e) => setActiveIndex(e.index)}>

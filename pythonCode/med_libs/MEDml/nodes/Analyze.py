@@ -33,12 +33,14 @@ class Analyze(Node):
             global_config_json (json): The global config json.
         """
         super().__init__(id_, global_config_json)
+        self.finalize = global_config_json["finalize"]
 
     def _execute(self,  experiment: dict = None, **kwargs) -> json:
         """
         This function is used to execute the node.
         """
         self._info_for_next_node = kwargs  # Pass all kwargs to finalze and save models
+        if self.finalize: return {} # Skip analyze if finalizing models
         selection = self.config_json['data']['internal']['selection']
         if selection not in ['interpret_model', 'plot_model', 'dashboard']:
             selection = 'plot_model'  # Default to plot_model if not specified
@@ -60,7 +62,7 @@ class Analyze(Node):
         self.CodeHandler.add_line(
             "code", f"pycaret_exp.{selection}(model, {self.CodeHandler.convert_dict_to_params(print_settings)})", 1)
         for model in kwargs['models']:
-            model = format_model(model)
+            model = copy.deepcopy(format_model(model))
             # Convert plot settings to lowercase
             if 'plot' in settings and type(settings['plot']) == str:
                 settings['plot'] = settings['plot'].lower()

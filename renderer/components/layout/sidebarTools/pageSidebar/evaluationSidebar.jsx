@@ -30,7 +30,9 @@ const EvaluationSidebar = () => {
   useEffect(() => {
     let localExperimentList = []
     for (const experimentId of globalData["EXPERIMENTS"].childrenIDs) {
-      localExperimentList.push(globalData[experimentId].name)
+      if (globalData[experimentId]) {
+        localExperimentList.push(globalData[experimentId].name)
+      }
     }
     setExperimentList(localExperimentList)
   }, [workspace, globalData]) // We log the workspace when it changes

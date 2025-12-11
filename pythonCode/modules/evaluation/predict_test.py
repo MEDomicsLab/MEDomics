@@ -76,16 +76,6 @@ class GoExecScriptPredictTest(GoExecutionScript):
         if model is None:
             raise ValueError("The model could not be loaded from the database.")
 
-        
-        columns_to_keep = None
-        # if model.__class__.__name__ != 'LGBMClassifier':
-            # Get the feature names from the model
-        if dir(model).__contains__('feature_names_in_'):
-            columns_to_keep = model.__getattribute__('feature_names_in_')
-        
-        if dir(model).__contains__('feature_name_') and columns_to_keep is None:
-            columns_to_keep = model.__getattribute__('feature_name_')
-
         self.set_progress(label="Loading the dataset", now=20)
         
         if use_med_standard:
@@ -100,15 +90,6 @@ class GoExecScriptPredictTest(GoExecutionScript):
         else:
             print("Dataset has no ID and is not MEDomicsLab standard")
             raise ValueError("Dataset has no ID and is not MEDomicsLab standard")
-
-        # Remove columns with spaces in the name
-        dataset.columns = dataset.columns.str.replace(' ', '_')
-
-        if columns_to_keep is not None:
-            # Add the target to the columns to keep if it's not already there
-            if model_metadata['target'] not in columns_to_keep:
-                columns_to_keep.append(model_metadata['target'])
-            dataset = dataset[columns_to_keep]
 
         # calculate the predictions
         self.set_progress(label="Setting up the experiment", now=30)

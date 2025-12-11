@@ -318,11 +318,23 @@ const classificationSettings = {
             "<p>Classifier used to determine feature importances. Must have <cite>feature_importances_</cite> or <cite>coef_</cite> after fitting.<br>Ignored when <cite>feature_selection_method='univariate'</cite>. If None, LGBClassifier is used by default.</p>",
           default_val: "lightgbm",
           choices: {
-              lightgbm: "LGBM",
-              random_forest: "RandomForest",
-              extra_trees: "ExtraTrees",
-              catboost: "CatBoost",
-              xgboost: "XGBoost"
+              lr : "Linear regression", 
+              knn: "K-Nearest Neighbors", 
+              nb: "Naive Bayes", 
+              dt: "Decision Tree", 
+              svm: "Support Vector Machine", 
+              rbfsvm: "RBF SVM", 
+              gpc: "Gaussian Process Classifier", 
+              mlp: "Multi-layer Perceptron", 
+              ridge: "Ridge Classifier", 
+              rf: "Random Forest", 
+              qda: "Quadratic Discriminant Analysis", 
+              ada: "AdaBoost", 
+              gbc: "Gradient Boosting Classifier", 
+              lda: "Linear Discriminant Analysis", 
+              et: "Extra Trees", 
+              lightgbm: "LightGBM", 
+              dummy: "Dummy Classifier"
           }
       },
       feature_selection_method: {
@@ -348,6 +360,11 @@ const classificationSettings = {
   },
   dataset: {
     options: {
+      session_id: {
+        type: "int",
+        tooltip: "<p>Controls the randomness of experiment. It is equivalent to \u2018random_state\u2019 in\nscikit-learn. When None, a pseudo random number is generated. This can be used\nfor later reproducibility of the entire experiment.</p>\n",
+        default_val: "None"
+      },
       index: {
         type: "bool-int-str",
         tooltip:

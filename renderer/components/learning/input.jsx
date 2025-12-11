@@ -456,7 +456,7 @@ const Input = ({ name, settingInfos, currentValue, onInputChange, disabled = fal
 
       // for list input (form select of all the options, multiple selection possible)
       case "list-multiple":
-      const safeValue = Array.isArray(currentValue) ? currentValue : (currentValue ? [currentValue] : []);
+      const safeValue = Array.isArray(currentValue) ? currentValue : (currentValue ? [currentValue] : [])
 
       
 
@@ -477,7 +477,7 @@ const Input = ({ name, settingInfos, currentValue, onInputChange, disabled = fal
                 name,
                 value: e.value,
                 type: settingInfos.type,
-              });
+              })
             }}
             options={Object.entries(settingInfos?.choices || {}).map(([option, label]) => ({
               label,
@@ -490,11 +490,11 @@ const Input = ({ name, settingInfos, currentValue, onInputChange, disabled = fal
 
           {createTooltip(settingInfos.tooltip, name)}
         </>
-      );
+      )
 
       // for list input but with name not indexes (form select of all the options, multiple selection possible)
       case "list-multiple-columns":
-      const safeValue1 = Array.isArray(currentValue) ? currentValue : (currentValue ? [currentValue] : []);
+      const safeValue1 = Array.isArray(currentValue) ? currentValue : (currentValue ? [currentValue] : [])
 
       return (
         <>
@@ -513,7 +513,7 @@ const Input = ({ name, settingInfos, currentValue, onInputChange, disabled = fal
                 name,
                 value: e.value,
                 type: settingInfos.type,
-              });
+              })
             }}
             options={Object.entries(settingInfos?.choices || {}).map(([option, label]) => ({
               name: label,
@@ -526,7 +526,7 @@ const Input = ({ name, settingInfos, currentValue, onInputChange, disabled = fal
 
           {createTooltip(settingInfos.tooltip, name)}
         </>
-      );
+      )
 
       // for range input
       case "range":
@@ -642,20 +642,18 @@ const Input = ({ name, settingInfos, currentValue, onInputChange, disabled = fal
         )
 
       case "data-input-multiple": {
-        const safeName   = String(name ?? "files");
-        const safeValue  = Array.isArray(currentValue) ? currentValue : [];
-        const remountKey = `ws-multi-${safeName}-${safeValue.length}`;
+        const safeName   = String(name ?? "files")
+        const safeValue  = Array.isArray(currentValue) ? currentValue : []
+        const remountKey = `ws-multi-${safeName}-${safeValue.length}`
 
         return (
           <div data-test="data-input-multiple" key={remountKey}>
-
             <WsSelectMultiple
-
+              key={"ws-multi-" + remountKey}
               rootDir={undefined}         
               acceptFolder={true}          
               acceptedExtensions={["csv"]}      
               matchRegex={null}   
-
               whenEmpty={
                 <Message
                   severity="warn"
@@ -663,33 +661,28 @@ const Input = ({ name, settingInfos, currentValue, onInputChange, disabled = fal
                   style={{ marginTop: 8 }}
                 />
               }
-
               selectedPaths={safeValue}
               placeholder={safeName}
               disabled={!!disabled}
-
               onChange={(vals) => {
-                const value = Array.isArray(vals) ? vals : [];
+                const value = Array.isArray(vals) ? vals : []
                 if (typeof handleWarning === "function") {
                   handleWarning(
                     value.length === 0
                       ? { state: true, tooltip: <p>No file(s) selected</p> }
                       : { state: false }
-                  );
+                  )
                 }
-                setInputUpdate({ name: safeName, value, type: settingInfos.type });
+                setInputUpdate({ name: safeName, value, type: settingInfos.type })
               }}
-
               setHasWarning={(w) => {
-                if (typeof handleWarning === "function") handleWarning(w);
+                if (typeof handleWarning === "function") handleWarning(w)
               }}
-
               customProps={customProps}
             />
-
             {typeof createTooltip === "function" && createTooltip(settingInfos.tooltip, safeName)}
           </div>
-        );
+        )
       }
       
       case "tags-input-multiple":

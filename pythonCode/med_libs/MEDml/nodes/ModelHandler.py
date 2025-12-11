@@ -7,9 +7,9 @@ import pandas as pd
 from colorama import Fore
 from pycaret.classification import *
 from pycaret.utils.generic import check_metric
-from sklearn.metrics import (accuracy_score, cohen_kappa_score,
-                             f1_score, matthews_corrcoef,
-                             precision_score, recall_score, roc_auc_score)
+from sklearn.metrics import (accuracy_score, confusion_matrix, f1_score,
+                             matthews_corrcoef, precision_score, recall_score,
+                             roc_auc_score)
 
 from .NodeObj import Node
 
@@ -74,20 +74,22 @@ class ModelHandler(Node):
                 metrics['AUC'] = "N/A"
 
             # Basic classification metrics
+            metrics['Sensitivity'] = round(recall_score(y_true, y_pred, zero_division=0), 3)
+            metrics['Specificity'] = round(self.specificity(y_true, y_pred), 3)
+            metrics['PPV'] = round(precision_score(y_true, y_pred, zero_division=0), 3)
+            metrics['NPV'] = round(self.npv(y_true, y_pred), 3)
             metrics['Accuracy'] = round(accuracy_score(y_true, y_pred), 3)
-            metrics['Precision'] = round(precision_score(y_true, y_pred, zero_division=0), 3)
-            metrics['Recall'] = round(recall_score(y_true, y_pred, zero_division=0), 3)
             metrics['F1'] = round(f1_score(y_true, y_pred, zero_division=0), 3)
 
             # Additional metrics
-            metrics['Kappa'] = round(cohen_kappa_score(y_true, y_pred), 3)
             metrics['MCC'] = round(matthews_corrcoef(y_true, y_pred), 3)
+
         except Exception as e:
             print(f"Error calculating metrics: {e}")
             # Set default values for all metrics
-            default_metrics = ['Accuracy', 'AUC', 'Recall', 'Precision', 'F1', 'Kappa', 'MCC']
+            default_metrics = ["AUC", "Sensitivity", "Specificity", "PPV", "NPV", "Accuracy", "F1", "MCC"]
             for metric in default_metrics:
-                metrics[metric] = 0
+                metrics[metric] = "N/A"
         
         return metrics
 
@@ -105,12 +107,13 @@ class ModelHandler(Node):
         for metric_name in first_fold_metrics.keys():
             metric_values = []
             for _, metrics in fold_metrics.items():
-                if metric_name in metrics:
+                if metric_name in list(metrics.keys()) and "N/A" not in str(metrics[metric_name]):
                     metric_values.append(metrics[metric_name])
             
             if metric_values:
                 overall_metrics[metric_name] = {
                     'mean': round(float(np.mean(metric_values)), 3),
+                    'median': round(float(np.median(metric_values)), 3),
                     'std': round(float(np.std(metric_values)), 3),
                     'min': round(float(np.min(metric_values)), 3),
                     'max': round(float(np.max(metric_values)), 3),
@@ -118,18 +121,6 @@ class ModelHandler(Node):
                 log_metrics[metric_name] = overall_metrics[metric_name]['mean']
         
         return overall_metrics, log_metrics
-    
-    def __get_cv_metrics(self, cv_metrics: dict):
-        """Extract mean and std from PyCaret's cv_metrics dictionary"""
-        overall_metrics = {}
-        for metric_name, values in cv_metrics.items():
-            overall_metrics[metric_name] = {
-                'mean': round(float(values['Mean']), 3),
-                'std': round(float(values['SD']), 3),
-                'min': round(float(values['Min']), 3),
-                'max': round(float(values['Max']), 3),
-            }
-        return overall_metrics
     
     def __custom_train_and_evaluate(
             self, 
@@ -251,7 +242,6 @@ class ModelHandler(Node):
 
             # Calculate all metrics manually
             fold_metric_results = self.__calculate_all_metrics(y_test_fold, y_pred, y_proba)
-            pycaret_metrics = fold_exp.pull().to_dict(orient='records')
             
             # Store metrics for this fold
             all_fold_metrics[fold_num] = fold_metric_results
@@ -265,6 +255,7 @@ class ModelHandler(Node):
             fold_performances.append({
                 'fold': fold_num,
                 'model': model,
+                'experiment': fold_exp,
                 'score': fold_score,
                 'test_indices': test_indices
             })
@@ -308,6 +299,7 @@ class ModelHandler(Node):
         if fold_performances:
             # Sort by score (higher is better) and select the best model
             best_model = sorted(fold_performances, key=lambda x: x['score'], reverse=True)[0]['model']
+            best_exp = sorted(fold_performances, key=lambda x: x['score'], reverse=True)[0]['experiment']
 
             # Update code handler with best model selection
             self.CodeHandler.add_line("code", "\n# Selecting the best model based on performance")
@@ -327,7 +319,7 @@ class ModelHandler(Node):
 
                 # Optimize model's threshold if enabled
                 if self.optimize_threshold:
-                    best_model = pycaret_exp.optimize_threshold(best_model, optimize=self.threshold_optimization_metric)
+                    best_model = best_exp.optimize_threshold(best_model, optimize=self.threshold_optimization_metric)
 
                 # Update code handler with final fit
                 self.CodeHandler.add_line("code", f"best_model.fit(X_processed, y_processed)")
@@ -346,9 +338,9 @@ class ModelHandler(Node):
 
                 # Finalize the model
                 if finalize:
-                    best_model = pycaret_exp.finalize_model(best_model)
+                    best_model = best_exp.finalize_model(best_model)
                     self.CodeHandler.add_line("code", "\n# Finalizing model")
-                    self.CodeHandler.add_line("code", f"best_model = pycaret_exp.finalize_model(best_model)")
+                    self.CodeHandler.add_line("code", f"best_model = best_exp.finalize_model(best_model)")
                 
                 # Store the final model
                 self.CodeHandler.add_line("code", f"trained_models = [best_model]")
@@ -500,6 +492,7 @@ class ModelHandler(Node):
             for metric in list(overall_metrics.keys()):
                 overall_metrics[metric] = {
                     'mean': round(float(np.mean(overall_metrics[metric])), 3),
+                    'median': round(float(np.median(overall_metrics[metric])), 3),
                     'std': round(float(np.std(overall_metrics[metric])), 3),
                     'min': round(float(np.min(overall_metrics[metric])), 3),
                     'max': round(float(np.max(overall_metrics[metric])), 3),
@@ -528,12 +521,34 @@ class ModelHandler(Node):
             )
         return results
 
+    # Define custom metrics
+    def specificity(self, y_true, y_pred):
+        """Specificity (True Negative Rate)"""
+        cm = confusion_matrix(y_true, y_pred)
+        if cm.shape == (2, 2):
+            tn, fp, fn, tp = cm.ravel()
+            return tn / (tn + fp) if (tn + fp) > 0 else 0
+        return 0
+
+    def npv(self, y_true, y_pred):
+        """Negative Predictive Value"""
+        cm = confusion_matrix(y_true, y_pred)
+        if cm.shape == (2, 2):
+            tn, fp, fn, tp = cm.ravel()
+            return tn / (tn + fn) if (tn + fn) > 0 else 0
+        return 0
+    
     def _execute(self, experiment: dict = None, **kwargs) -> json:
         """
         This function is used to execute the node.
         """
         print(Fore.BLUE + "=== fit === " + Fore.YELLOW + f"({self.username})" + Fore.RESET)
         print(Fore.CYAN + f"Using {self.type}" + Fore.RESET)
+        
+        # Add custom metrics to PyCaret
+        experiment['pycaret_exp'].add_metric(id='specificity', name='Specificity', score_func=self.specificity)
+        experiment['pycaret_exp'].add_metric(id='npv', name='NPV', score_func=self.npv)
+        
         if self.type == "train_model" and getattr(self, "model_name_id", None) is not None:
             self.CodeHandler.add_line("md", f"##### *Model ID: {self.model_name_id}*")
         else:

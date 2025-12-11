@@ -48,18 +48,24 @@ class ModelIO(Node):
         print(Fore.BLUE + "=== model io === " + Fore.YELLOW + f"({self.username})" + Fore.RESET)
         print(Fore.CYAN + f"Using {self.type}" + Fore.RESET)
         settings = copy.deepcopy(self.settings)
-        pycaret_exp = experiment['pycaret_exp']
         return_val = {}
         
         if self.type == 'save_model':
             self.CodeHandler.add_line("code", f"for model in trained_models:")
             for model in kwargs['models']:
-                model = format_model(model)
+                # Retrieve fitted model
+                fitted_model = format_model(model)
+                if dir(fitted_model).__contains__('feature_names_in_'):
+                    model_features = fitted_model.__getattribute__('feature_names_in_')
+                elif dir(fitted_model).__contains__('feature_name_') and model_features is None:
+                    model_features = fitted_model.__getattribute__('feature_name_')
+                model_features = list(model_features)
+
                 # Model's name
                 if 'model_name' in settings.keys() and settings['model_name']:
                     model_name = settings['model_name']
                 else:
-                    model_name = model.__class__.__name__
+                    model_name = fitted_model.__class__.__name__
 
                 # Path save model (if too big for MongoDB)
                 if 'pathSave' in settings.keys() and settings['pathSave']:
@@ -67,18 +73,14 @@ class ModelIO(Node):
                     os.makedirs(path_save, exist_ok=True)
 
                 # Serialize model
-                model = pycaret_exp.save_model(model, model_name)
-                serialized_model = pickle.dumps(model[0])
+                serialized_model = pickle.dumps(model)
 
                 # Model's threshold
                 model_threshold = None
-                if hasattr(model[0], 'steps'):
-                    classifier = model[0].steps[-1][1]
+                if hasattr(model, 'steps'):
+                    classifier = model.steps[-1][1]
                     if hasattr(classifier, 'probability_threshold'):
                         model_threshold = classifier.probability_threshold
-
-                # Remove model save locally
-                os.remove(model[1])
 
                 # .medmodel object
                 model_med_object = MEDDataObject(
@@ -101,7 +103,6 @@ class ModelIO(Node):
 
                 settings_copy = copy.deepcopy(settings)
                 settings_copy['model_name'] = model_name
-                """ getattr(experiment['pycaret_exp'], self.type)(model, **settings_copy) """
                 self.CodeHandler.add_line(
                     "code", 
                     f"pycaret_exp.save_model(model, {self.CodeHandler.convert_dict_to_params(settings_copy)})", 
@@ -146,7 +147,7 @@ class ModelIO(Node):
                     inWorkspace = False
                 )
                 to_write = {
-                    "columns": self.global_config_json["columns"],
+                    "columns": model_features,
                     "target": self.global_config_json["target_column"],
                     "steps": self.global_config_json["steps"],
                     "ml_type": self.global_config_json["MLType"]

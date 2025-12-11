@@ -27,7 +27,7 @@ const ExtraMetrics = ({ metrics, tableProps }) => {
       })
       
       // Define the statistical measures that will become rows
-      const statTypes = ['mean', 'std', 'min', 'max']
+      const statTypes = ['mean', 'median', 'std', 'min', 'max']
       
       // Transform data: each stat type becomes a row with metrics as columns
       const transformedData = statTypes.map(stat => {
