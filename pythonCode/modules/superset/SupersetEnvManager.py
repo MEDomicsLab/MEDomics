@@ -192,11 +192,23 @@ class SupersetEnvManager:
             print(f"Failed to ensure pip: {result.stderr}")
             return False
         
+        # Upgrade pip, setuptools and wheel first
+        try:
+            subprocess.run(
+                [str(self.env_path), "-m", "pip", "install", "--upgrade", "pip", "setuptools", "wheel"],
+                check=True,
+                capture_output=True,
+                text=True
+            )
+        except subprocess.CalledProcessError as e:
+            print(f"Warning: Failed to upgrade pip/setuptools/wheel: {e.stderr}")
+        
         success = True
         for package in SUPERSET_PACKAGES:
             set_progress(label=f"Installing {package.split('==')[0]}...")
+            # Use --prefer-binary to avoid compiling from source
             result = subprocess.run([
-                str(self.env_path), "-m", "pip", "install", package
+                str(self.env_path), "-m", "pip", "install", "--prefer-binary", package
             ], check=True, capture_output=True, text=True)
 
             if result.returncode == 0:

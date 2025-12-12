@@ -107,7 +107,13 @@ class GoExecScriptPredict(GoExecutionScript):
         # Generate a private key
         print("Generating a private key...")
         self.set_progress(label="Checking the private key...")
-        private_key = subprocess.check_output("openssl rand -base64 42", shell=True, text=True).strip()
+        try:
+            import secrets
+            private_key = secrets.token_urlsafe(42)
+        except ImportError:
+            import base64
+            private_key = base64.b64encode(os.urandom(42)).decode('utf-8')
+            
         if private_key is None:
             print("Error while generating a private key.")
             return {"error": "Error while generating a private key."}
