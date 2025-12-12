@@ -132,7 +132,7 @@ class SupersetEnvManager:
         # Upgrade pip, setuptools and wheel first to ensure we can install binary wheels
         try:
             subprocess.run(
-                [str(self.env_path), "-m", "pip", "install", "--upgrade", "pip", "setuptools", "wheel"],
+                [str(self.env_path), "-m", "pip", "install", "--upgrade", "--prefer-binary", "pip", "setuptools", "wheel"],
                 check=True,
                 capture_output=True,
                 text=True
@@ -195,7 +195,7 @@ class SupersetEnvManager:
         # Upgrade pip, setuptools and wheel first
         try:
             subprocess.run(
-                [str(self.env_path), "-m", "pip", "install", "--upgrade", "pip", "setuptools", "wheel"],
+                [str(self.env_path), "-m", "pip", "install", "--upgrade", "--prefer-binary", "pip", "setuptools", "wheel"],
                 check=True,
                 capture_output=True,
                 text=True
