@@ -131,6 +131,10 @@ class GoExecScriptPredict(GoExecutionScript):
                 updated_lines.append('WTF_CSRF_ENABLED = False\n')
             elif line.startswith('GUEST_ROLE_NAME = "Public"'):
                 updated_lines.append('GUEST_ROLE_NAME = "Gamma"\n')
+            elif line.startswith('SESSION_COOKIE_SECURE = False'):
+                updated_lines.append('SESSION_COOKIE_SECURE = True\n')
+            elif line.startswith('SESSION_COOKIE_SAMESITE: Literal["None", "Lax", "Strict"] | None = "Lax"'):
+                updated_lines.append('SESSION_COOKIE_SAMESITE: Literal["None", "Lax", "Strict"] | None = "None"\n')
             else:
                 updated_lines.append(line)
         
@@ -175,15 +179,8 @@ class GoExecScriptPredict(GoExecutionScript):
 
         # Initialize Superset
         print("Initializing Superset...")
-        self.set_progress(now=self._progress["now"]+step, label="Initializing Superset...")
+        self.set_progress(now=self._progress["now"]+2*step, label="Initializing Superset...")
         result = self.run_command(f"{superset_path} init", env)
-        if "error" in result:
-            return result
-
-        # Load examples (optional)
-        print("Loading example data...")
-        self.set_progress(now=self._progress["now"]+step, label="Loading default example data...")
-        result = self.run_command(f"{superset_path} load_examples", env)
         if "error" in result:
             return result
 
