@@ -9,7 +9,7 @@ const classificationModelSettings = {
             },
             "dual": {
                 "type": "bool",
-                "default_val": "False",
+                "default_val": false,
                 "tooltip": "bool, default=”false” Select the algorithm to either solve the dual or primal optimization problem. Prefer dual=False when n_samples > n_features."
             },
             "tol": {
@@ -24,7 +24,7 @@ const classificationModelSettings = {
             },
             "fit_intercept": {
                 "type": "bool",
-                "default_val": "True",
+                "default_val": true,
                 "tooltip": "Bool. default=True. Whether to calculate the intercept for this model. If set to False, no intercept will be used in calculations (i.e. data is expected to be centered)."
             },
             "intercept_scaling": {
@@ -64,7 +64,7 @@ const classificationModelSettings = {
             },
             "warm_start": {
                 "type": "bool",
-                "default_val": "False",
+                "default_val": false,
                 "tooltip": "bool, default=False. When set to True, reuse the solution of the previous call to fit as initialization, otherwise, just erase the previous solution."
             },
             "n_jobs": {
@@ -250,12 +250,12 @@ const classificationModelSettings = {
             },
             "fit_intercept": {
                 "type": "bool",
-                "default_val": "True",
+                "default_val": true,
                 "tooltip": "Bool. default=True. Whether to calculate the intercept for this model. If set to False, no intercept will be used in calculations (i.e. data is expected to be centered)."
             },
             "shuffle": {
                 "type": "bool",
-                "default_val": "True",
+                "default_val": true,
                 "tooltip": "bool, default=True. Whether or not the training data should be shuffled after each epoch."
             },
             "random_state": {
@@ -302,7 +302,7 @@ const classificationModelSettings = {
             },
             "average": {
                 "type": "bool",
-                "default_val": "False",
+                "default_val": false,
 				"tooltip": "bool, default=False. When set to True, computes the averaged SGD weights across all updates and stores the result in the coef_ attribute."
             },
             "max_iter": {
@@ -338,7 +338,7 @@ const classificationModelSettings = {
             },
             "break_ties": {
                 "type": "bool",
-                "default_val": "False",
+                "default_val": false,
                 "tooltip": "bool, default=False. If true, decision_function_shape='ovr', and number of classes > 2, predict will break ties according to the confidence values of decision_function; otherwise the first class among the tied classes is returned. "
             },
             "kernel": {
@@ -373,12 +373,12 @@ const classificationModelSettings = {
             },
             "shrinking": {
                 "type": "bool",
-                "default_val": "True",
+                "default_val": true,
                 "tooltip": "bool, default=True. Whether to use the shrinking heuristic."
             },
             "probability": {
                 "type": "bool",
-                "default_val": "True",
+                "default_val": true,
                 "tooltip": "bool, default=True. Whether to enable probability estimates."
             },
             "cache_size": {
@@ -393,7 +393,7 @@ const classificationModelSettings = {
             },
             "verbose": {
                 "type": "bool",
-                "default_val": "False",
+                "default_val": false,
                 "tooltip": "bool, default=False. Enable verbose output."
             },
             "max_iter": {
@@ -849,7 +849,7 @@ const classificationModelSettings = {
             },
             "warm_start": {
                 "type": "bool",
-                "default_val": "False",
+                "default_val": false,
                 "tooltip": "bool, default=False. When set to True, reuse the solution of the previous call to fit as initialization, otherwise, just erase the previous solution."
             },
             "validation_fraction": {
@@ -993,7 +993,7 @@ const classificationModelSettings = {
             },
             "store_covariance": {
                 "type": "bool",
-                "default_val": "False",
+                "default_val": false,
                 "tooltip": "bool, default=False. If True, the class covariance matrices are explicitly computed and stored in the self.covariance_ attribute."
             },
             "tol": {
@@ -1019,12 +1019,12 @@ const classificationModelSettings = {
             },
             "bootstrap": {
                 "type": "bool",
-                "default_val": "False",
+                "default_val": false,
                 "tooltip": "bool, default=False. Whether samples are drawn with replacement. If False, sampling without replacement is performed."
             },
             "oob_score": {
                 "type": "bool",
-                "default_val": "False",
+                "default_val": false,
                 "tooltip": "bool, default=False. Whether to use out-of-bag samples to estimate the generalization error. Only available if bootstrap=True."
             },
             "n_jobs": {
@@ -1044,7 +1044,7 @@ const classificationModelSettings = {
             },
             "warm_start": {
                 "type": "bool",
-                "default_val": "False",
+                "default_val": false,
                 "tooltip": "bool, default=False. When set to True, reuse the solution of the previous call to fit as initialization, otherwise, just erase the previous solution."
             },
             "class_weight": {
