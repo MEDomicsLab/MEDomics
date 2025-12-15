@@ -209,17 +209,7 @@ class ModelHandler(Node):
                     self.settingsTuning['custom_grid'] = self.config_json['data']['internal'][self.model_id]['custom_grid']
                 
                 # Tune the model
-                # CASE 1 : custom grid tuning
-                if self.useTuningGrid:
-                    model = fold_exp.tune_model(model, **self.settingsTuning)
-
-                # CASE 2 : PyCaret default search space tuning
-                else:
-                    model = fold_exp.tune_model(
-                        self.config_json['data']['estimator']['type'],
-                        optimize=self.settingsTuning.get("optimize", "Accuracy")
-                    )
-
+                model = fold_exp.tune_model(model, **self.settingsTuning)
             
             # Model Ensembling
             try:

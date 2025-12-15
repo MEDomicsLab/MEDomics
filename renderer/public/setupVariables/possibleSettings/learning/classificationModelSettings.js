@@ -14,12 +14,12 @@ const classificationModelSettings = {
             },
             "tol": {
                 "type": "float",
-                "default_val": "0.0001",
+                "default_val": 0.0001,
                 "tooltip": "float, default=0.0001. Tolerance for stopping criteria."
             },
             "C": {
                 "type": "float",
-                "default_val": "1.0",
+                "default_val": 1.0,
                 "tooltip": "float, default=1.0. Regularization parameter. The strength of the regularization is inversely proportional to C. Must be strictly positive."
             },
             "fit_intercept": {
@@ -137,7 +137,7 @@ const classificationModelSettings = {
             },
             "var_smoothing": {
                 "type": "float",
-                "default_val": "1e-09",
+                "default_val": 1e-09,
                 "tooltip": "float, default=1e-09. Portion of the largest variance of all features that is added to variances for calculation stability."
             }
         },
@@ -173,7 +173,7 @@ const classificationModelSettings = {
             },
             "min_weight_fraction_leaf": {
                 "type": "float",
-                "default_val": "0.0",
+                "default_val": 0.0,
                 "tooltip": "float, default=0.0. The minimum weighted fraction of the sum total of weights (of all the input samples) required to be at a leaf node. Samples have equal weight when sample_weight is not provided."
             },
             "max_features": {
@@ -204,7 +204,7 @@ const classificationModelSettings = {
             },
             "ccp_alpha": {
                 "type": "float",
-                "default_val": "0.0",
+                "default_val": 0.0,
                 "tooltip": "float, default=0.0. Complexity parameter used for Minimal Cost-Complexity Pruning. The subtree with the largest cost complexity that is smaller than ccp_alpha will be chosen. By default, no pruning is performed."
             }
         },
@@ -230,22 +230,22 @@ const classificationModelSettings = {
             },
             "epsilon": {
                 "type": "float",
-                "default_val": "0.1",
+                "default_val": 0.1,
                 "tooltip": "float, default=0.1. Epsilon in the epsilon-insensitive loss functions; only if loss is ‘huber’, ‘epsilon_insensitive’, or ‘squared_epsilon_insensitive’. For ‘huber’, determines the threshold at which it becomes less important to get the prediction exactly right. For epsilon-insensitive, any differences between the current prediction and the correct label are ignored if they are less than this threshold. Values must be in the range [0.0, inf)"
             },
             "alpha": {
                 "type": "float",
-                "default_val": "0.0001",
+                "default_val": 0.0001,
                 "tooltip": "float, default=0.0001. Constant that multiplies the penalty terms."
             },
             "C": {
                 "type": "float",
-                "default_val": "1.0",
+                "default_val": 1.0,
                 "tooltip": "float, default=1.0. Regularization parameter. The strength of the regularization is inversely proportional to C. Must be strictly positive."
             },
             "l1_ratio": {
                 "type": "float",
-                "default_val": "0.15",
+                "default_val": 0.15,
                 "tooltip": "float, default=0.15. The ElasticNet mixing parameter, with 0 <= l1_ratio <= 1. For l1_ratio = 0 the penalty is an L2 penalty. For l1_ratio = 1 it is an L1 penalty. For 0 < l1_ratio < 1, the penalty is a combination of L1 and L2."
             },
             "fit_intercept": {
@@ -358,17 +358,17 @@ const classificationModelSettings = {
             },
             "coef0": {
                 "type": "float",
-                "default_val": "0.0",
+                "default_val": 0.0,
                 "tooltip": "float, default=0.0. Independent term in kernel function. It is only significant in ‘poly’ and ‘sigmoid’."
             },
             "tol": {
                 "type": "float",
-                "default_val": "0.001",
+                "default_val": 0.001,
                 "tooltip": "float, default=0.001. Tolerance for stopping criteria."
             },
             "C": {
                 "type": "float",
-                "default_val": "1.0",
+                "default_val": 1.0,
                 "tooltip": "float, default=1.0. Regularization parameter. The strength of the regularization is inversely proportional to C. Must be strictly positive."
             },
             "shrinking": {
@@ -470,7 +470,7 @@ const classificationModelSettings = {
             },
             "alpha": {
                 "type": "float",
-                "default_val": "0.0001",
+                "default_val": 0.0001,
                 "tooltip": "float, default=0.0001. Constant that multiplies the penalty terms."
             },
             "batch_size": {
@@ -485,12 +485,12 @@ const classificationModelSettings = {
             },
             "learning_rate_init": {
                 "type": "float",
-                "default_val": "0.001",
+                "default_val": 0.001,
                 "tooltip": "float, default=0.001. The initial learning rate used. It controls the step-size in updating the weights."
             },
             "power_t": {
                 "type": "float",
-                "default_val": "0.5",
+                "default_val": 0.5,
                 "tooltip": "float, default=0.5. The exponent for inverse scaling learning rate. Values must be in the range (-inf, inf)."
             },
             "max_iter": {
@@ -515,54 +515,54 @@ const classificationModelSettings = {
             },
             "tol": {
                 "type": "float",
-                "default_val": "0.0001",
+                "default_val": 0.0001,
                 "tooltip": "float, default=0.0001. Tolerance for stopping criteria."
             },
             "verbose": {
                 "type": "bool",
-                "default_val": "False",
+                "default_val": false,
 				"tooltip": "bool, default=False. Whether to print progress messages to stdout."
             },
             "warm_start": {
                 "type": "bool",
-                "default_val": "False",
+                "default_val": false,
                 "tooltip": "bool, default=False. When set to True, reuse the solution of the previous call to fit as initialization, otherwise, just erase the previous solution."
             },
             "momentum": {
                 "type": "float",
-                "default_val": "0.9",
+                "default_val": 0.9,
                 "tooltip": "float, default=0.9. Momentum for gradient descent update. Should be between 0 and 1."
             },
             "nesterovs_momentum": {
                 "type": "bool",
-                "default_val": "True",
+                "default_val": true,
                 "tooltip": "bool, default=True. Whether to use Nesterov’s momentum."
             },
             "early_stopping": {
                 "type": "bool",
-                "default_val": "False",
+                "default_val": false,
                 "tooltip": "bool, default='False'. Use early stopping to stop fitting to a hyperparameter configuration if it performs poorly. Ignored when search_library is scikit-learn, or if the estimator does not have ‘partial_fit’ attribute. If False or None, early stopping will not be used. "
             },
             "validation_fraction": {
                 "type": "float",
-                "default_val": "0.1",
+                "default_val": 0.1,
                 "max": "1.0",
                 "min": "0.0",
                 "tooltip": "float, default=0.1. The proportion of training data to set aside as validation set for early stopping. Must be between 0 and 1. Only used if early_stopping is True. Values must be in the range (0.0, 1.0)."
             },
             "beta_1": {
                 "type": "float",
-                "default_val": "0.9",
+                "default_val": 0.9,
                 "tooltip": "float, default=0.9. Exponential decay rate for estimates of first moment vector in adam, should be in [0, 1)."
             },
             "beta_2": {
                 "type": "float",
-                "default_val": "0.999",
+                "default_val": 0.999,
                 "tooltip": "float, default=0.999. Exponential decay rate for estimates of second moment vector in adam, should be in [0, 1)."
             },
             "epsilon": {
                 "type": "float",
-                "default_val": "1e-08",
+                "default_val": 1e-08,
                 "tooltip": "float, default=1e-08. Epsilon in the epsilon-insensitive loss functions; only if loss is ‘huber’, ‘epsilon_insensitive’, or ‘squared_epsilon_insensitive’. For ‘huber’, determines the threshold at which it becomes less important to get the prediction exactly right. For epsilon-insensitive, any differences between the current prediction and the correct label are ignored if they are less than this threshold. Values must be in the range [0.0, inf)"
             },
             "n_iter_no_change": {
@@ -588,12 +588,12 @@ const classificationModelSettings = {
             },
             "bootstrap": {
                 "type": "bool",
-                "default_val": "True",
+                "default_val": true,
                 "tooltip": "bool, default=True. Whether samples are drawn with replacement. If False, sampling without replacement is performed."
             },
             "oob_score": {
                 "type": "bool",
-                "default_val": "False",
+                "default_val": false,
                 "tooltip": "bool, default=False. Whether to use out-of-bag samples to estimate the generalization error. Only available if bootstrap=True."
             },
             "n_jobs": {
@@ -613,7 +613,7 @@ const classificationModelSettings = {
             },
             "warm_start": {
                 "type": "bool",
-                "default_val": "False",
+                "default_val": false,
                 "tooltip": "bool, default=False. When set to True, reuse the solution of the previous call to fit as initialization, otherwise, just erase the previous solution."
             },
             "class_weight": {
@@ -670,7 +670,7 @@ const classificationModelSettings = {
             },
             "min_weight_fraction_leaf": {
                 "type": "float",
-                "default_val": "0.0",
+                "default_val": 0.0,
                 "tooltip": "float, default=0.0. The minimum weighted fraction of the sum total of weights (of all the input samples) required to be at a leaf node. Samples have equal weight when sample_weight is not provided."
             },
             "max_features": {
@@ -685,12 +685,12 @@ const classificationModelSettings = {
             },
             "min_impurity_decrease": {
                 "type": "float",
-                "default_val": "0.0",
+                "default_val": 0.0,
                 "tooltip": "float, default=0.0. A node will be split if this split induces a decrease of the impurity greater than or equal to this value."
             },
             "ccp_alpha": {
                 "type": "float",
-                "default_val": "0.0",
+                "default_val": 0.0,
                 "tooltip": "float, default=0.0. Complexity parameter used for Minimal Cost-Complexity Pruning. The subtree with the largest cost complexity that is smaller than ccp_alpha will be chosen. By default, no pruning is performed."
             }
         },
@@ -706,17 +706,17 @@ const classificationModelSettings = {
             },
             "reg_param": {
                 "type": "float",
-                "default_val": "0.0",
+                "default_val": 0.0,
                 "tooltip": "float, default=0.0. Regularizes the per-class covariance estimates by transforming S2 as S2 = (1 - reg_param) * S2 + reg_param * np.eye(n_features), where S2 corresponds to the scaling_ attribute of a given class."
             },
             "store_covariance": {
                 "type": "bool",
-                "default_val": "False",
+                "default_val": false,
                 "tooltip": "bool, default=False. If True, the class covariance matrices are explicitly computed and stored in the self.covariance_ attribute."
             },
             "tol": {
                 "type": "float",
-                "default_val": "0.0001",
+                "default_val": 0.0001,
                 "tooltip": "float, default=0.0001. Tolerance for stopping criteria."
             }
         },
@@ -747,7 +747,7 @@ const classificationModelSettings = {
             },
             "learning_rate": {
                 "type": "float",
-                "default_val": "1.0",
+                "default_val": 1.0,
                 "tooltip": "float, default=1.0. Weight applied to each classifier at each boosting iteration. A higher learning rate increases the contribution of each classifier. There is a trade-off between the learning_rate and n_estimators parameters. Values must be in the range (0.0, inf)."
             },
             "random_state": {
@@ -773,7 +773,7 @@ const classificationModelSettings = {
             },
             "learning_rate": {
                 "type": "float",
-                "default_val": "0.1",
+                "default_val": 0.1,
                 "tooltip": "float, default=0.1. Weight applied to each classifier at each boosting iteration. A higher learning rate increases the contribution of each classifier. There is a trade-off between the learning_rate and n_estimators parameters. Values must be in the range (0.0, inf)."
             },
             "loss": {
@@ -799,12 +799,12 @@ const classificationModelSettings = {
             },
             "min_weight_fraction_leaf": {
                 "type": "float",
-                "default_val": "0.0",
+                "default_val": 0.0,
                 "tooltip": "float, default=0.0. The minimum weighted fraction of the sum total of weights (of all the input samples) required to be at a leaf node. Samples have equal weight when sample_weight is not provided."
             },
             "subsample": {
                 "type": "float",
-                "default_val": "1.0",
+                "default_val": 1.0,
                 "tooltip": "float, default=1.0. The fraction of samples to be used for fitting the individual base learners."
             },
             "max_features": {
@@ -819,12 +819,12 @@ const classificationModelSettings = {
             },
             "min_impurity_decrease": {
                 "type": "float",
-                "default_val": "0.0",
+                "default_val": 0.0,
                 "tooltip": "float, default=0.0. A node will be split if this split induces a decrease of the impurity greater than or equal to this value."
             },
             "ccp_alpha": {
                 "type": "float",
-                "default_val": "0.0",
+                "default_val": 0.0,
                 "tooltip": "float, default=0.0. Complexity parameter used for Minimal Cost-Complexity Pruning. The subtree with the largest cost complexity that is smaller than ccp_alpha will be chosen. By default, no pruning is performed."
             },
             "init": {
@@ -854,7 +854,7 @@ const classificationModelSettings = {
             },
             "validation_fraction": {
                 "type": "float",
-                "default_val": "0.1",
+                "default_val": 0.1,
                 "max": "1.0",
                 "min": "0.0",
                 "tooltip": "float, default=0.1. The proportion of training data to set aside as validation set for early stopping. Must be between 0 and 1. Only used if early_stopping is True. Values must be in the range (0.0, 1.0)."
@@ -866,7 +866,7 @@ const classificationModelSettings = {
             },
             "tol": {
                 "type": "float",
-                "default_val": "0.0001",
+                "default_val": 0.0001,
                 "tooltip": "float, default=0.0001. Tolerance for stopping criteria."
             }
         },
@@ -882,7 +882,7 @@ const classificationModelSettings = {
     },
     "learning_rate": {
       "type": "float",
-      "default_val": "0.1",
+      "default_val": 0.1,
       "tooltip": "float, default=0.1. Step size shrinkage used in update to prevents overfitting."
     },
     "max_depth": {
@@ -892,47 +892,47 @@ const classificationModelSettings = {
     },
     "min_child_weight": {
       "type": "float",
-      "default_val": "1.0",
+      "default_val": 1.0,
       "tooltip": "float, default=1. Minimum sum of instance weight (hessian) needed in a child."
     },
     "gamma": {
       "type": "float",
-      "default_val": "0.0",
+      "default_val": 0.0,
       "tooltip": "float, default=0. Minimum loss reduction required to make a further partition on a leaf node."
     },
     "subsample": {
       "type": "float",
-      "default_val": "1.0",
+      "default_val": 1.0,
       "tooltip": "float, default=1.0. Subsample ratio of the training instances."
     },
     "colsample_bytree": {
       "type": "float",
-      "default_val": "1.0",
+      "default_val": 1.0,
       "tooltip": "float, default=1.0. Subsample ratio of columns when constructing each tree."
     },
     "colsample_bylevel": {
       "type": "float",
-      "default_val": "1.0",
+      "default_val": 1.0,
       "tooltip": "float, default=1.0. Subsample ratio of columns for each tree level."
     },
     "colsample_bynode": {
       "type": "float",
-      "default_val": "1.0",
+      "default_val": 1.0,
       "tooltip": "float, default=1.0. Subsample ratio of columns for each split."
     },
     "reg_alpha": {
       "type": "float",
-      "default_val": "0.0",
+      "default_val": 0.0,
       "tooltip": "float, default=0. L1 regularization term on weights."
     },
     "reg_lambda": {
       "type": "float",
-      "default_val": "1.0",
+      "default_val": 1.0,
       "tooltip": "float, default=1. L2 regularization term on weights."
     },
     "scale_pos_weight": {
       "type": "float",
-      "default_val": "1.0",
+      "default_val": 1.0,
       "tooltip": "float, default=1. Control balance of positive/negative weights, useful for unbalanced classes."
     },
     "booster": {
@@ -998,7 +998,7 @@ const classificationModelSettings = {
             },
             "tol": {
                 "type": "float",
-                "default_val": "0.0001",
+                "default_val": 0.0001,
                 "tooltip": "float, default=0.0001. Tolerance for stopping criteria."
             },
             "covariance_estimator": {
@@ -1080,7 +1080,7 @@ const classificationModelSettings = {
             },
             "min_weight_fraction_leaf": {
                 "type": "float",
-                "default_val": "0.0",
+                "default_val": 0.0,
                 "tooltip": "float, default=0.0. The minimum weighted fraction of the sum total of weights (of all the input samples) required to be at a leaf node. Samples have equal weight when sample_weight is not provided."
             },
             "max_features": {
@@ -1095,12 +1095,12 @@ const classificationModelSettings = {
             },
             "min_impurity_decrease": {
                 "type": "float",
-                "default_val": "0.0",
+                "default_val": 0.0,
                 "tooltip": "float, default=0.0. A node will be split if this split induces a decrease of the impurity greater than or equal to this value."
             },
             "ccp_alpha": {
                 "type": "float",
-                "default_val": "0.0",
+                "default_val": 0.0,
                 "tooltip": "float, default=0.0. Complexity parameter used for Minimal Cost-Complexity Pruning. The subtree with the largest cost complexity that is smaller than ccp_alpha will be chosen. By default, no pruning is performed."
             }
         },
@@ -1131,7 +1131,7 @@ const classificationModelSettings = {
             },
             "learning_rate": {
                 "type": "float",
-                "default_val": "0.1",
+                "default_val": 0.1,
                 "tooltip": "float, default=0.1. Weight applied to each classifier at each boosting iteration. A higher learning rate increases the contribution of each classifier. There is a trade-off between the learning_rate and n_estimators parameters. Values must be in the range (0.0, inf)."
             },
             "n_estimators": {
@@ -1146,12 +1146,12 @@ const classificationModelSettings = {
             },
             "min_split_gain": {
                 "type": "float",
-                "default_val": "0.0",
+                "default_val": 0.0,
                 "tooltip": " float, default=0. Minimum loss reduction required to make a further partition on a leaf node of the tree."
             },
             "min_child_weight": {
                 "type": "float",
-                "default_val": "0.001",
+                "default_val": 0.001,
                 "tooltip": "float, default=0.001. Minimum sum of instance weight (Hessian) needed in a child (leaf)."
             },
             "min_child_samples": {
@@ -1161,7 +1161,7 @@ const classificationModelSettings = {
             },
             "subsample": {
                 "type": "float",
-                "default_val": "1.0",
+                "default_val": 1.0,
                 "tooltip": "float, default=1.0. The fraction of samples to be used for fitting the individual base learners."
             },
             "subsample_freq": {
@@ -1171,17 +1171,17 @@ const classificationModelSettings = {
             },
             "colsample_bytree": {
                 "type": "float",
-                "default_val": "1.0",
+                "default_val": 1.0,
                 "tooltip": "float, default=1. Subsample ratio of columns when constructing each tree."
             },
             "reg_alpha": {
                 "type": "float",
-                "default_val": "0.0",
+                "default_val": 0.0,
                 "tooltip": "float, default=0. L1 regularization term on weights."
             },
             "reg_lambda": {
                 "type": "float",
-                "default_val": "0.0",
+                "default_val": 0.0,
                 "tooltip": "float, default=0. L2 regularization term on weights."
             },
             "random_state": {
