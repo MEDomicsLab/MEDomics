@@ -66,7 +66,7 @@ class Analyze(Node):
             if 'plot' in settings and type(settings['plot']) == str:
                 settings['plot'] = settings['plot'].lower()
             # Set saving path for plot_model
-            settings['save'] = Path("/tmp") if platform.system().lower() == "darwin" else True
+            settings['save'] = Path("/tmp") if platform.system().lower() in ["darwin", "linux"] else True
             plot_image = experiment['pycaret_exp'].plot_model(model, **settings)
 
             # Save Image into MongoDB
