@@ -15,6 +15,11 @@ export const TunnelContext = createContext({
   remoteJupyterPort: null,
   remotePort: null,
   username: null,
+  serverStartedRemotely: false,
+  expressStatus: "unknown",
+  goStatus: "unknown",
+  mongoStatus: "unknown",
+  expressLogPath: null,
   setTunnelInfo: () => {},
   clearTunnelInfo: () => {},
 })
@@ -34,6 +39,11 @@ export const TunnelProvider = ({ children }) => {
     remoteJupyterPort: null,
     remotePort: null,
     username: null,
+    serverStartedRemotely: false,
+    expressStatus: "unknown",
+    goStatus: "unknown",
+    mongoStatus: "unknown",
+    expressLogPath: null,
   })
 
   const setTunnel = (info) => {
@@ -58,6 +68,11 @@ export const TunnelProvider = ({ children }) => {
       remoteJupyterPort: null,
       remotePort: null,
       username: null,
+      serverStartedRemotely: false,
+      expressStatus: "unknown",
+      goStatus: "unknown",
+      mongoStatus: "unknown",
+      expressLogPath: null,
     })
   }
 

@@ -14,6 +14,12 @@ let tunnelInfo = {
   remoteJupyterPort: null,
   remotePort: null,
   username: null,
+  // Service statuses and flags
+  serverStartedRemotely: false,
+  expressStatus: "unknown",
+  goStatus: "unknown",
+  mongoStatus: "unknown",
+  expressLogPath: null,
 };
 
 export function setTunnelState(info) {
@@ -37,6 +43,11 @@ export function clearTunnelState() {
     remoteJupyterPort: null,
     remotePort: null,
     username: null,
+    serverStartedRemotely: false,
+    expressStatus: "unknown",
+    goStatus: "unknown",
+    mongoStatus: "unknown",
+    expressLogPath: null,
   };
 }
 

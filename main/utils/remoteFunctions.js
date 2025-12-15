@@ -63,6 +63,12 @@ let tunnelInfo = {
   remoteJupyterPort: null,
   remotePort: null,
   username: null,
+  // Additional statuses/flags
+  serverStartedRemotely: false,
+  expressStatus: 'unknown',
+  goStatus: 'unknown',
+  mongoStatus: 'unknown',
+  expressLogPath: null,
 }
 
 export function setTunnelState(info) {
@@ -86,6 +92,10 @@ export function clearTunnelState() {
     remoteJupyterPort: null,
     remotePort: null,
     username: null,
+    serverStartedRemotely: false,
+    expressStatus: 'unknown',
+    goStatus: 'unknown',
+    mongoStatus: 'unknown',
   }
 }
 
@@ -262,6 +272,17 @@ async function startRemoteExpress(conn, remoteOS, remotePort) {
         return { success: false, status: 'script-not-found', error: 'Cannot resolve server version directory (no current or versions found)' }
       }
     }
+    // Determine baseDir from versionDir and construct logs dir + log file path
+    const normalizedVersionDir = versionDir.replace(/\\/g, '/');
+    const baseDir = normalizedVersionDir.includes('/versions/') ? normalizedVersionDir.split('/versions/')[0] : normalizedVersionDir;
+    const logsDir = remoteOS === 'win32' ? `${baseDir.replace(/\//g,'\\')}\\logs` : `${baseDir}/logs`;
+    const logPath = remoteOS === 'win32' ? `${logsDir}\\express.log` : `${logsDir}/express.log`;
+    // Ensure logs dir exists and truncate previous log
+    if (remoteOS === 'win32') {
+      await execRemote(conn, `powershell -NoProfile -Command "New-Item -ItemType Directory -Force -Path '${logsDir.replace(/'/g, "''")}' | Out-Null; Clear-Content -Path '${logPath.replace(/'/g, "''")}' -ErrorAction SilentlyContinue; New-Item -ItemType File -Force -Path '${logPath.replace(/'/g, "''")}' | Out-Null"`)
+    } else {
+      await execRemote(conn, `bash -lc "mkdir -p '${logsDir.replace(/'/g, "'\\''")}' && : > '${logPath.replace(/'/g, "'\\''")}'"`)
+    }
     let candidates
     if (remoteOS === 'win32') {
       candidates = [
@@ -291,9 +312,11 @@ async function startRemoteExpress(conn, remoteOS, remotePort) {
     let cmd
     if (remoteOS === 'win32') {
       const psPath = scriptPath.replace(/\\/g, '/')
-      cmd = `powershell -NoProfile -Command "$env:MEDOMICS_EXPRESS_PORT='${remotePort}'; Start-Process -FilePath 'cmd.exe' -ArgumentList '/c \"\"${psPath}\"\"' -NoNewWindow"`
+      const psLog = logPath.replace(/\\/g, '/')
+      // Detach via Start-Process; redirect output to log via cmd redirection
+      cmd = `powershell -NoProfile -Command "$env:MEDOMICS_EXPRESS_PORT='${remotePort}'; Start-Process -WindowStyle Hidden -FilePath 'cmd.exe' -ArgumentList '/c \"\"${psPath}\" >> \"${psLog}\" 2>&1\"'"`
     } else {
-      cmd = `bash -lc "MEDOMICS_EXPRESS_PORT='${remotePort}' nohup '${scriptPath}' >/dev/null 2>&1 &"`
+      cmd = `bash -lc "MEDOMICS_EXPRESS_PORT='${remotePort}' nohup '${scriptPath}' >> '${logPath.replace(/'/g, "'\\''")}' 2>&1 &"`
     }
     const r2 = await execRemote(conn, cmd)
     // Poll for port open
@@ -309,6 +332,59 @@ async function startRemoteExpress(conn, remoteOS, remotePort) {
     return { success: false, status: 'failed-to-start', error: e && e.message ? e.message : String(e) }
   }
 }
+
+// Live log streaming state
+let activeExpressLogStream = null
+
+ipcMain.handle('startRemoteServerLogStream', async () => {
+  const conn = getActiveTunnel()
+  if (!conn) return { success: false, error: 'No active SSH tunnel' }
+  if (activeExpressLogStream) return { success: true } // already streaming
+  try {
+    const { expressLogPath } = getTunnelState()
+    if (!expressLogPath) return { success: false, error: 'No expressLogPath available' }
+    const remoteOS = await detectRemoteOS()
+    let cmd
+    if (remoteOS === 'win32') {
+      cmd = `powershell -NoProfile -Command \"Get-Content -Path '${expressLogPath.replace(/'/g, "''")}' -Tail 200 -Wait\"`
+    } else {
+      cmd = `bash -lc "tail -n 200 -F '${expressLogPath.replace(/'/g, "'\\''")}'"`
+    }
+    return await new Promise((resolve) => {
+      conn.exec(cmd, (err, stream) => {
+        if (err) return resolve({ success: false, error: err.message })
+        activeExpressLogStream = stream
+        try { mainWindow.webContents.send('remoteServerLog:state', { streaming: true }) } catch {}
+        stream.on('data', (d) => {
+          try { mainWindow.webContents.send('remoteServerLog:data', d.toString()) } catch {}
+        })
+        stream.stderr.on('data', (d) => {
+          try { mainWindow.webContents.send('remoteServerLog:data', d.toString()) } catch {}
+        })
+        stream.on('close', () => {
+          activeExpressLogStream = null
+          try { mainWindow.webContents.send('remoteServerLog:state', { streaming: false }) } catch {}
+        })
+        resolve({ success: true })
+      })
+    })
+  } catch (e) {
+    return { success: false, error: e && e.message ? e.message : String(e) }
+  }
+})
+
+ipcMain.handle('stopRemoteServerLogStream', async () => {
+  try {
+    if (activeExpressLogStream) {
+      try { activeExpressLogStream.close && activeExpressLogStream.close() } catch {}
+      activeExpressLogStream = null
+    }
+    try { mainWindow.webContents.send('remoteServerLog:state', { streaming: false }) } catch {}
+    return { success: true }
+  } catch (e) {
+    return { success: false, error: e && e.message ? e.message : String(e) }
+  }
+})
 
 function mapOsKey(remoteOS) {
   // Map Node-like OS ids to manifest os keys
@@ -358,7 +434,25 @@ ipcMain.handle('ensureRemoteBackend', async (_event, { port } = {}) => {
       if (!isOpen) return { success: false, status: 'timeout', error: `Express did not open port ${targetPort}` }
     }
 
-    // 2) Express is up; no GO start here
+    // 2) Express is up; set status, infer log path under baseDir/logs/express.log
+    // Try to compute log path similarly to startRemoteExpress
+    let info = { expressStatus: 'running', serverStartedRemotely: true }
+    try {
+      const exe = getRemoteBackendExecutablePath()
+      const normalized = (exe||'').replace(/\\/g,'/')
+      let baseDir = null
+      if (normalized.includes('/versions/')) baseDir = normalized.split('/versions/')[0]
+      if (!baseDir) {
+        const remoteOS = await detectRemoteOS()
+        const home = await getRemoteHome(getActiveTunnel(), remoteOS)
+        baseDir = remoteOS === 'win32' ? `${home}\\.medomics\\medomics-server` : `${home}/.medomics/medomics-server`
+      }
+      const remoteOS = await detectRemoteOS()
+      const logPath = remoteOS === 'win32' ? `${baseDir}\\logs\\express.log` : `${baseDir}/logs/express.log`
+      info = { ...info, expressLogPath: logPath }
+    } catch {}
+    setTunnelState({ ...getTunnelState(), ...info })
+    try { mainWindow.webContents.send('tunnelStateUpdate', info) } catch {}
     return { success: true, status: 'running', port: targetPort }
   } catch (e) {
     return { success: false, status: 'error', error: e && e.message ? e.message : String(e) }
@@ -737,6 +831,12 @@ export async function startSSHTunnel({ host, username, privateKey, password, rem
           goServer.on("error", (e) => {
             console.warn("GO forwarding server error:", e.message)
           })
+          // Update GO status to forwarding when server is established
+          try {
+            const info = { goStatus: 'forwarding' }
+            setTunnelState({ ...getTunnelState(), ...info })
+            mainWindow.webContents.send('tunnelStateUpdate', info)
+          } catch {}
         }
 
         setActiveTunnel(conn)
@@ -859,6 +959,12 @@ export async function startMongoTunnel() {
       ...(activeTunnelServer || {}),
       mongoServer: mongoServer
     })
+    // Update status for Mongo forwarding
+    try {
+      const info = { mongoStatus: 'forwarding' }
+      setTunnelState({ ...getTunnelState(), ...info })
+      mainWindow.webContents.send('tunnelStateUpdate', info)
+    } catch {}
     resolve({ success: true })
   })
 }

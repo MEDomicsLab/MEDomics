@@ -52,6 +52,7 @@ import SettingsPage from "../../mainPages/settings"
 import LoggingPage from "../../mainPages/logging"
 import TerminalPage from "../../mainPages/terminal"
 import IPythonPage from "../../mainPages/ipython"
+import RemoteServerPage from "../../mainPages/remoteServer"
 import { getCollectionSize, updateMEDDataObjectName, updateMEDDataObjectPath, updateMEDDataObjectType } from "../../mongoDB/mongoDBUtils"
 import { DataContext } from "../../workspace/dataContext"
 import { MEDDataObject } from "../../workspace/NewMedDataObject"
@@ -1037,6 +1038,11 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
 
         return <OutputPage />
       }
+    } else if (component === "remoteServer") {
+      if (node.getExtraData().data == null) {
+        const config = node.getConfig()
+        return <RemoteServerPage />
+      }
     } else if (component === "modelViewer") {
       if (node.getExtraData().data == null) {
         const config = node.getConfig()
@@ -1191,7 +1197,7 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
       if (component === "MEDprofilesViewer") {
         return <span style={{ marginRight: 3 }}>📊</span>
       }
-      if (component === "terminal" || component === "logging") {
+      if (component === "terminal" || component === "logging" || component === "remoteServer") {
         return <span style={{ marginRight: 3 }}>🖥️</span>
       }
       if (component === "ipython") {
@@ -1306,6 +1312,30 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
         this.handleContextAction(action)
       })
       setLayoutRequestQueue([])
+    }
+
+    // Dynamically ensure Remote Server tab visibility based on tunnel state
+    try {
+      if (this.state.model && this.props.tunnel) {
+        const started = !!this.props.tunnel.serverStartedRemotely
+        const tabId = "remoteServer"
+        const exists = !!this.state.model.getNodeById(tabId)
+        // Find bottom border
+        const borders = (this.state.model as any).getBorderSet().getBorders()
+        const bottomBorder = borders.find((b: any) => (b.getLocation && b.getLocation() === "bottom"))
+        if (started && !exists && bottomBorder && this.layoutRef && this.layoutRef.current) {
+          this.layoutRef.current.addTabToTabSet(bottomBorder.getId(), {
+            id: tabId,
+            component: "remoteServer",
+            name: "Remote Server",
+            enableClose: false,
+          })
+        } else if (!started && exists) {
+          this.state.model!.doAction(Actions.deleteTab(tabId))
+        }
+      }
+    } catch (e) {
+      // Non-fatal UI error; keep layout stable
     }
   }
 
