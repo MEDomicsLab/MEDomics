@@ -10,7 +10,8 @@ SUPERSET_PACKAGES = [
     "apache-superset==4.1.1",
     "flask-cors==5.0.0",
     "marshmallow==3.26.1",
-    "psycopg2-binary==2.9.9"
+    "psycopg2-binary==2.9.9",
+    "wtforms==2.3.3", # https://github.com/apache/superset/issues/29289#issuecomment-2341321222
 ]
 
 class SupersetEnvManager:

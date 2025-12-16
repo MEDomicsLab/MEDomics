@@ -278,8 +278,8 @@ const SupersetDashboard = () => {
           }
           supersetKilled(stderr, stdout)
         })
-      } else {
-        // Linux or MacOS
+      } else if (system === "linux") {
+        // Linux or 
         exec(`killall superset`, (err, stdout, stderr) => {
           if (err) {
             console.error(err)
@@ -296,6 +296,16 @@ const SupersetDashboard = () => {
           } else {
             supersetKilled(stderr, stdout)
           }
+        })
+      } else if (system === "darwin") {
+        // macOS
+        exec(`pkill -f superset`, (err, stdout, stderr) => {
+          if (err) {
+            console.error(err)
+            toast.error("Error killing Superset", {autoClose: 5000})
+            return
+          }
+          supersetKilled(stderr, stdout)
         })
       }
     }
