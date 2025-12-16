@@ -31,6 +31,30 @@ import { WorkspaceContext } from "../../workspace/workspaceContext"
  *
  */
 const MEDprofilesPrepareData = () => {
+  // return disabled  message
+  const warningMessage = (
+    <div className="h-100 w-100 ">
+      MEDprofiles module didn't fully pass all stability checks and is currently disabled. It will be enabled in future releases. 
+      To learn more about MEDprofiles, please visit the documentation <a 
+        style={{ color: "#4991dfff"}} 
+        href="https://medomicslab.gitbook.io/medomics-docs/tutorials/design/input-module/medprofiles" 
+        target="_blank" 
+        rel="noopener noreferrer">
+          here
+      </a>.
+    </div>
+  )
+
+  return (
+    <div className="h-100 w-100">
+      {/* Disabled warning message */}
+      <Message 
+        severity="warn" 
+        content={warningMessage}
+        className="mx-3"
+      />
+    </div>
+  )
   const [binaryFileList, setBinaryFileList] = useState([]) // list of available binary files
   const [binaryFilename, setBinaryFilename] = useState("MEDprofiles_bin.pkl") // name under which the MEDprofiles binary file will be saved
   const [generatedClassesFolder, setGeneratedClassesFolder] = useState(null) // folder containing the generated MEDclasses
