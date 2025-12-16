@@ -350,7 +350,7 @@ const HomePage = () => {
                 </div>
               )}
               {!localBackend.checking && localBackend.installed && (
-                <div>
+                <div style={{ display: "flex", flexDirection: "column"}}>
                   <h5>Set up your workspace to get started</h5>
                   <Button onClick={handleWorkspaceChange} style={{ margin: "1rem"}}>
                     Set Workspace
