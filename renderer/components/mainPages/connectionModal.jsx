@@ -498,6 +498,36 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
       return
     }
     try {
+      // Pre-check: if latest release tag already exists on remote, skip install
+      try {
+        const latest = await ipcRenderer.invoke('getLatestBackendReleaseInfo')
+        if (latest && (latest.tag || latest.tag_name || latest.name)) {
+          const tag = String(latest.tag || latest.tag_name || latest.name).trim()
+          if (tag) {
+            const listRes = await ipcRenderer.invoke('navigateRemoteDirectory', { action: 'list', path: '.medomics/medomics-server/versions' })
+            const names = Array.isArray(listRes?.contents) ? listRes.contents.map(c => c?.name).filter(Boolean) : []
+            // common release folder naming patterns: vX.Y.Z or X.Y.Z
+            const candidates = [tag, tag.startsWith('v') ? tag.slice(1) : `v${tag}`]
+            const alreadyInstalled = candidates.some(t => names.includes(t))
+            if (alreadyInstalled) {
+              toast.success(`Latest backend (${tag}) already installed. Skipping re-install.`)
+              setRemoteInstalled(true)
+              // Optionally locate executable to update path
+              try {
+                const locate = await ipcRenderer.invoke('locateRemoteBackendExecutable')
+                if (locate && locate.success && locate.path) {
+                  setRemoteBackendPath(locate.path)
+                }
+              } catch { /* ignore */ }
+              // Trigger a status recheck for UI freshness
+              setShouldRecheck(true)
+              await checkRemoteServer()
+              return
+            }
+          }
+        }
+      } catch { /* non-fatal; proceed with normal install */ }
+
       setInstallingRemote(true)
       setRemoteInstallText('Installing remote server...')
       const payload = {}
@@ -537,8 +567,24 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
       setRemoteBackendStatus('Starting remote server...')
       // Prefer explicit start if path is known, else ensure
       let started
-      if (remoteBackendPath) {
-        started = await ipcRenderer.invoke('startRemoteBackendUsingPath', { path: remoteBackendPath, port: Number(remoteStartPort)})
+      let pathToUse = remoteBackendPath
+      // Sanity check: verify saved path exists remotely; if not, auto-locate once
+      if (pathToUse) {
+        const existsStatus = await ipcRenderer.invoke('checkRemoteFileExists', pathToUse)
+        if (existsStatus !== 'exists') {
+          const locate = await ipcRenderer.invoke('locateRemoteBackendExecutable')
+          if (locate && locate.success && locate.path) {
+            pathToUse = locate.path
+            setRemoteBackendPath(pathToUse)
+            setLastStartDetails(`Executable re-located: ${pathToUse}`)
+          } else {
+            setLastStartDetails('Saved path missing; auto-locate failed. Falling back to Ensure.')
+            pathToUse = ''
+          }
+        }
+      }
+      if (pathToUse) {
+        started = await ipcRenderer.invoke('startRemoteBackendUsingPath', { path: pathToUse, port: Number(remoteStartPort)})
       } else {
         started = await ipcRenderer.invoke('ensureRemoteBackend', { port: Number(remoteStartPort) })
       }
@@ -559,6 +605,7 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
         }
         // After server starts, immediately check requirements to update UI
         await checkRequirementsRemote()
+        setShouldRecheck(true)
       } else {
         const msg = started?.error || 'unknown error'
         setRemoteBackendStatus('Failed to start remote server: ' + msg)
@@ -578,6 +625,13 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
       toast.error('SSH tunnel is not active. Connect first.')
       return
     }
+    // Debounce rapid clicks: prevent repeated SFTP scans within 2 seconds
+    const nowTs = Date.now()
+    if (typeof window !== 'undefined' && window.__lastLocateTs && nowTs - window.__lastLocateTs < 2000) {
+      toast.info('Please wait a moment before locating again.')
+      return
+    }
+    if (typeof window !== 'undefined') window.__lastLocateTs = nowTs
     try {
       const res = await ipcRenderer.invoke('locateRemoteBackendExecutable')
       if (res && res.success && res.path) {

@@ -13,10 +13,10 @@ import { installExtension, REACT_DEVELOPER_TOOLS } from "electron-extension-inst
 import MEDconfig from "../medomics.dev"
 const crypto = require("crypto")
 const decompress = require("decompress")
+const https = require("https")
 // Backend access is done over HTTP requests to the backend Express server.
 // This avoids importing backend modules into the Electron main process.
 // We expose small wrapper functions below that call the backend endpoints.
-
 // Helper to build backend URL (uses expressPort if available, otherwise falls back to serverPort)
 function backendUrl(path) {
   const port = expressPort || serverPort || MEDconfig.defaultPort
@@ -733,6 +733,41 @@ ipcMain.handle('setLocalBackendPath', async (_event, exePath) => {
   } catch (e) {
     return { success: false, error: e.message }
   }
+})
+
+// IPC: Get latest backend release info from GitHub
+ipcMain.handle('getLatestBackendReleaseInfo', async (_event, payload) => {
+  const owner = (payload && payload.owner) || 'MEDomicsLab'
+  const repo = (payload && payload.repo) || 'MEDomics'
+  const url = `https://api.github.com/repos/${owner}/${repo}/releases/latest`
+  return new Promise((resolve) => {
+    try {
+      const req = https.request(url, {
+        method: 'GET',
+        headers: {
+          'User-Agent': 'MEDomics-App',
+          'Accept': 'application/vnd.github+json'
+        }
+      }, (res) => {
+        let data = ''
+        res.on('data', (chunk) => { data += chunk })
+        res.on('end', () => {
+          try {
+            const json = JSON.parse(data)
+            resolve({ success: true, tag: json.tag_name || json.name, raw: json })
+          } catch (e) {
+            resolve({ success: false, error: `Parse error: ${e && e.message ? e.message : String(e)}` })
+          }
+        })
+      })
+      req.on('error', (err) => {
+        resolve({ success: false, error: err && err.message ? err.message : String(err) })
+      })
+      req.end()
+    } catch (e) {
+      resolve({ success: false, error: e && e.message ? e.message : String(e) })
+    }
+  })
 })
 
 ipcMain.handle('installLocalBackendFromURL', async (_event, { version, manifestUrl } = {}) => {

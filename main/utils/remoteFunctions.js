@@ -40,7 +40,12 @@ export function getRemoteWorkspacePath() {
 }
 
 export function setRemoteBackendExecutablePath(p) {
-  remoteBackendExecutablePath = p
+  // Always store a plain string path
+  if (p && typeof p === 'object' && p.path) {
+    remoteBackendExecutablePath = p.path
+  } else {
+    remoteBackendExecutablePath = p
+  }
 }
 export function getRemoteBackendExecutablePath() {
   return remoteBackendExecutablePath
@@ -529,8 +534,9 @@ ipcMain.handle('locateRemoteBackendExecutable', async () => {
     const remoteOS = await detectRemoteOS()
     const exe = await findRemoteBackendExecutable(conn, remoteOS)
     if (exe) {
-      setRemoteBackendExecutablePath(exe)
-      return { success: true, path: exe }
+      const pathValue = (typeof exe === 'object' && exe.path) ? exe.path : exe
+      setRemoteBackendExecutablePath(pathValue)
+      return { success: true, path: pathValue }
     }
     return { success: false, error: 'executable-not-found' }
   } catch (e) {
