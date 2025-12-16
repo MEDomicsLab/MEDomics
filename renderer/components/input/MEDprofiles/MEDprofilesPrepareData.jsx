@@ -1,3 +1,4 @@
+/* eslint-disable no-unreachable */
 import { randomUUID } from "crypto"
 import { DataFrame } from "../../../utilities/danfo.js"
 import { Button } from 'primereact/button'
@@ -54,7 +55,7 @@ const MEDprofilesPrepareData = () => {
         className="mx-3"
       />
     </div>
-  )
+    )
   const [binaryFileList, setBinaryFileList] = useState([]) // list of available binary files
   const [binaryFilename, setBinaryFilename] = useState("MEDprofiles_bin.pkl") // name under which the MEDprofiles binary file will be saved
   const [generatedClassesFolder, setGeneratedClassesFolder] = useState(null) // folder containing the generated MEDclasses
