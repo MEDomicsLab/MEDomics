@@ -207,6 +207,22 @@ class ModelHandler(Node):
                 # Check if a custom grid is provided
                 if self.useTuningGrid and self.model_id in list(self.config_json['data']['internal'].keys()) and 'custom_grid' in list(self.config_json['data']['internal'][self.model_id].keys()):
                     self.settingsTuning['custom_grid'] = self.config_json['data']['internal'][self.model_id]['custom_grid']
+                    
+                    # Convert hidden_layer_sizes if it is a string
+                    if "hidden_layer_sizes" in self.settingsTuning['custom_grid']:
+                        val = self.settingsTuning['custom_grid']["hidden_layer_sizes"]
+                        if isinstance(val, list):
+                            for i in range(len(val)):
+                                if isinstance(val[i], str) and val[i].startswith("(") and val[i].endswith(")"):
+                                    try:
+                                        val[i] = list(ast.literal_eval(val[i]))
+                                    except Exception as e:
+                                        raise ValueError(f"Invalid tuple format for hidden_layer_sizes: {val[i]}") from e
+                        if isinstance(val, str) and val.startswith("(") and val.endswith(")"):
+                            try:
+                                self.settingsTuning['custom_grid']["hidden_layer_sizes"] = list(ast.literal_eval(val))
+                            except Exception as e:
+                                raise ValueError(f"Invalid tuple format for hidden_layer_sizes: {val}") from e
                 
                 # Tune the model
                 model = fold_exp.tune_model(model, **self.settingsTuning)
@@ -410,6 +426,23 @@ class ModelHandler(Node):
                 # Check if a custom grid is provided
                 if self.useTuningGrid and self.model_id in list(self.config_json['data']['internal'].keys()) and 'custom_grid' in list(self.config_json['data']['internal'][self.model_id].keys()):
                     self.settingsTuning['custom_grid'] = self.config_json['data']['internal'][self.model_id]['custom_grid']
+                    # Convert hidden_layer_sizes if it is a string
+                    if "hidden_layer_sizes" in self.settingsTuning['custom_grid']:
+                        val = self.settingsTuning['custom_grid']["hidden_layer_sizes"]
+                        if isinstance(val, list):
+                            for i in range(len(val)):
+                                if isinstance(val[i], str) and val[i].startswith("(") and val[i].endswith(")"):
+                                    try:
+                                        val[i] = list(ast.literal_eval(val[i]))
+                                    except Exception as e:
+                                        raise ValueError(f"Invalid tuple format for hidden_layer_sizes: {val[i]}") from e
+                        if isinstance(val, str) and val.startswith("(") and val.endswith(")"):
+                            try:
+                                self.settingsTuning['custom_grid']["hidden_layer_sizes"] = list(ast.literal_eval(val))
+                            except Exception as e:
+                                raise ValueError(f"Invalid tuple format for hidden_layer_sizes: {val}") from e
+                
+                # Tune the model
                 trained_model = pycaret_exp.tune_model(trained_model, **self.settingsTuning)
                 if self.useTuningGrid:
                     self.CodeHandler.add_line(
@@ -574,7 +607,6 @@ class ModelHandler(Node):
             if "hidden_layer_sizes" in settings:
                 val = settings["hidden_layer_sizes"]
                 if isinstance(val, str) and val.startswith("(") and val.endswith(")"):
-                    print("Converting hidden_layer_sizes:", val)
                     try:
                         settings["hidden_layer_sizes"] = ast.literal_eval(val)
                     except Exception as e:
@@ -587,13 +619,25 @@ class ModelHandler(Node):
                 # Check if a custom grid is provided
                 if self.useTuningGrid and self.model_id in list(self.config_json['data']['internal'].keys()) and 'custom_grid' in list(self.config_json['data']['internal'][self.model_id].keys()):
                     self.settingsTuning['custom_grid'] = self.config_json['data']['internal'][self.model_id]['custom_grid']
-                if self.useTuningGrid:
-                    trained_models = [experiment['pycaret_exp'].tune_model(trained_models[0], **self.settingsTuning)]
-                else:
-                    trained_models = [experiment['pycaret_exp'].tune_model(
-                        self.config_json['data']['estimator']['type'],
-                        optimize=self.settingsTuning.get("optimize", "Accuracy")
-                    )]
+
+                    # Convert hidden_layer_sizes if it is a string
+                    if "hidden_layer_sizes" in self.settingsTuning['custom_grid']:
+                        val = self.settingsTuning['custom_grid']["hidden_layer_sizes"]
+                        if isinstance(val, list):
+                            for i in range(len(val)):
+                                if isinstance(val[i], str) and val[i].startswith("(") and val[i].endswith(")"):
+                                    try:
+                                        val[i] = list(ast.literal_eval(val[i]))
+                                    except Exception as e:
+                                        raise ValueError(f"Invalid tuple format for hidden_layer_sizes: {val[i]}") from e
+                        if isinstance(val, str) and val.startswith("(") and val.endswith(")"):
+                            try:
+                                self.settingsTuning['custom_grid']["hidden_layer_sizes"] = list(ast.literal_eval(val))
+                            except Exception as e:
+                                raise ValueError(f"Invalid tuple format for hidden_layer_sizes: {val}") from e
+
+                # Tune the model
+                trained_models = [experiment['pycaret_exp'].tune_model(trained_models[0], **self.settingsTuning)]
                 self.CodeHandler.add_line("code", f"trained_models = [pycaret_exp.tune_model(trained_models[0], {self.CodeHandler.convert_dict_to_params(self.settingsTuning)})]")
 
             if self.ensembleEnabled:
