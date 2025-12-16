@@ -24,6 +24,8 @@ class SupersetEnvManager:
         base_dir = Path(app_data_path)
         if sys.platform == "win32":
             self.env_path = base_dir / "superset_env/Scripts/python.exe"
+        elif sys.platform == "linux":
+            self.env_path = python_path.replace("bin", "bin/superset_env/bin")
         else:
             self.env_path = base_dir / "superset_env/bin/python"
 
@@ -45,11 +47,11 @@ class SupersetEnvManager:
         print(f"Creating virtual environment at: {env_name}")
 
         try:
-            # Create venv without pip first to avoid crash due to missing lib on macOS standalone builds
-            venv.create(env_name, with_pip=False, clear=True)
-            
             # Fix for macOS standalone python: symlink libpython
             if sys.platform == "darwin":
+                # Create venv without pip first to avoid crash due to missing lib on macOS standalone builds
+                venv.create(env_name, with_pip=False, clear=True)
+
                 base_python_lib = Path(self.python_path).parent.parent / "lib"
                 venv_lib = Path(env_name) / "lib"
                 
@@ -65,10 +67,20 @@ class SupersetEnvManager:
                         except Exception as e:
                             print(f"Failed to symlink libpython: {e}")
 
-            # Now install pip
-            print("Installing pip...")
-            subprocess.run([str(self.env_path), "-m", "ensurepip"], check=True)
+                # Now install pip
+                print("Installing pip...")
+                subprocess.run([str(self.env_path), "-m", "ensurepip"], check=True)
 
+            else:
+                # Create virtual environment
+                process = subprocess.Popen([
+                    self.python_path, "-m", "venv", env_name
+                ], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+                process.wait()
+                if process.returncode != 0:
+                    print(f"Error creating environment: {process.stderr}")
+                    raise Exception(f"Failed to create virtual environment. Error: {process.stderr}")
+            
             print(f"Environment created at: {self.env_path}")
             return True
         except Exception as e:
@@ -110,11 +122,11 @@ class SupersetEnvManager:
                 str(self.python_path), "-m", "pip", "freeze"
             ], capture_output=True, text=True, check=False)
             
-            packages = {}
+            packages = []
             for line in result.stdout.split('\n'):
                 if '==' in line:
                     name, version = line.split('==', 1)
-                    packages[name.lower()] = version.strip()
+                    packages.append({'name': name, 'version': version})
             return packages
 
     def is_package_installed(self, package_name, installed_packages=None):
