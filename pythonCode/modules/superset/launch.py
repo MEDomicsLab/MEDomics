@@ -28,14 +28,24 @@ class GoExecScriptPredict(GoExecutionScript):
 
     def _custom_process(self, json_config: dict) -> dict:
         """
-            This function predicts from a model, a dataset, and a new dataset
+            This function is called to execute the custom process which sets up Superset.
         """
         # Map settings
         port = json_config["port"]
         python_path = json_config["pythonPath"]
+        app_data_path = json_config.get("appDataPath")
+        
+        if not app_data_path:
+            # Fallback to default locations if not provided (for backward compatibility or testing)
+            if sys.platform == "win32":
+                app_data_path = str(Path(os.getenv('APPDATA')) / "medomics-platform")
+            elif sys.platform == "darwin":
+                app_data_path = str(Path.home() / "Library/Application Support/medomics-platform")
+            else:
+                app_data_path = str(Path.home() / ".config/medomics-platform")
 
         # Set up Superset
-        result = self.setup_superset(port, python_path)
+        result = self.setup_superset(port, python_path, app_data_path)
 
         return result
 
@@ -53,13 +63,14 @@ class GoExecScriptPredict(GoExecutionScript):
             return {"error": f"Error while running command: {command}. Full error log:" + e.stderr}
             
 
-    def setup_superset(self, port, python_path):
+    def setup_superset(self, port, python_path, app_data_path):
         """
         Set up Superset with the provided settings.
         
         Args:
             scripts_path (path): The path to the Python scripts directory.
             port (path): The port on which to run Superset.
+            app_data_path (path): The path to the application data directory.
             
         Returns:
             A dictionary containing the error message, if any.
@@ -70,7 +81,7 @@ class GoExecScriptPredict(GoExecutionScript):
 
         # Check if the virtual environment exists
         self.set_progress(now=progress, label="Checking the Superset virtual environment...")
-        manager = SupersetEnvManager(python_path)
+        manager = SupersetEnvManager(python_path, app_data_path)
         if not manager.check_env_exists():
             print("Creating Superset virtual environment...")
             self.set_progress(now=self._progress["now"]+step, label="Creating Superset virtual environment...")
@@ -96,7 +107,13 @@ class GoExecScriptPredict(GoExecutionScript):
         # Generate a private key
         print("Generating a private key...")
         self.set_progress(label="Checking the private key...")
-        private_key = subprocess.check_output("openssl rand -base64 42", shell=True, text=True).strip()
+        try:
+            import secrets
+            private_key = secrets.token_urlsafe(42)
+        except ImportError:
+            import base64
+            private_key = base64.b64encode(os.urandom(42)).decode('utf-8')
+            
         if private_key is None:
             print("Error while generating a private key.")
             return {"error": "Error while generating a private key."}
@@ -151,7 +168,7 @@ class GoExecScriptPredict(GoExecutionScript):
         # Initialize the database
         print("Initializing the Superset database...")
         self.set_progress(now=self._progress["now"]+step, label="Initializing the Superset database...")
-        result = self.run_command(f"{superset_path} db upgrade", env)
+        result = self.run_command(f'"{superset_path}" db upgrade', env)
         if "error" in result:
             return result
 
@@ -166,7 +183,7 @@ class GoExecScriptPredict(GoExecutionScript):
             "password": "admin",
         }
         result = self.run_command(
-            f"{superset_path} fab create-admin "
+            f'"{superset_path}" fab create-admin '
             f"--username {admin_user['username']} "
             f"--firstname {admin_user['firstname']} "
             f"--lastname {admin_user['lastname']} "
@@ -180,9 +197,17 @@ class GoExecScriptPredict(GoExecutionScript):
         # Initialize Superset
         print("Initializing Superset...")
         self.set_progress(now=self._progress["now"]+2*step, label="Initializing Superset...")
-        result = self.run_command(f"{superset_path} init", env)
+        result = self.run_command(f'"{superset_path}" init', env)
         if "error" in result:
             return result
+
+        # Load examples (optional)
+        print("Loading example data...")
+        self.set_progress(now=self._progress["now"]+step, label="Loading default example data (this may take several minutes)...")
+        result = self.run_command(f'"{superset_path}" load_examples', env)
+        if "error" in result:
+            print(f"Warning: Failed to load examples: {result.get('error')}")
+            # We continue even if examples fail to load, as it is optional
 
         # Check if port is available
         print(f"Checking if port {port} is available...")
@@ -202,7 +227,7 @@ class GoExecScriptPredict(GoExecutionScript):
         print(f"Launching Superset on port {port}...")
         self.set_progress(now=self._progress["now"]+step, label="Launching Superset...")
         try:
-            subprocess.Popen(f"{superset_path} run -p {port}", shell=True, env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            subprocess.Popen(f'"{superset_path}" run -p {port}', shell=True, env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         except subprocess.CalledProcessError as e:
             print(f"Error while running command: {f'{superset_path} run -p {port}'}")
             print(e.stderr)

@@ -1,25 +1,34 @@
 import json
 import subprocess
 import sys
+import os
 import time
 from pathlib import Path
+import venv
 
 SUPERSET_PACKAGES = [
     "apache-superset==4.1.1",
     "flask-cors==5.0.0",
     "marshmallow==3.26.1",
-    "psycopg2-binary==2.9.9"
+    "psycopg2-binary==2.9.9",
+    "wtforms==2.3.3", # https://github.com/apache/superset/issues/29289#issuecomment-2341321222
 ]
 
 class SupersetEnvManager:
-    def __init__(self, python_path):
+    def __init__(self, python_path, app_data_path):
         self.python_path = python_path
         self.env_path = None
+        
+        # Using app_data_path to define environment path (defined by userData https://www.electronjs.org/docs/latest/api/app#appgetapppath)
+        # This is a writeable path where we can create our virtual environment (Fix for macOS venv creation issues)
+        base_dir = Path(app_data_path)
         if sys.platform == "win32":
-            self.env_path = Path(python_path).parent / "superset_env/Scripts/python.exe"
-        else:
+            self.env_path = base_dir / "superset_env/Scripts/python.exe"
+        elif sys.platform == "linux":
             self.env_path = python_path.replace("bin", "bin/superset_env/bin")
-    
+        else:
+            self.env_path = base_dir / "superset_env/bin/python"
+
     def check_env_exists(self):
         """Check if the virtual environment exists"""
         if sys.platform == "win32":
@@ -34,17 +43,48 @@ class SupersetEnvManager:
             env_name = str(self.env_path)[:env_name+len("superset_env")]
         else:
             return False
+        
+        print(f"Creating virtual environment at: {env_name}")
 
-        # Create virtual environment
-        process = subprocess.Popen([
-            self.python_path, "-m", "venv", env_name
-        ], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-        process.wait()
-        if process.returncode == 0:
+        try:
+            # Fix for macOS standalone python: symlink libpython
+            if sys.platform == "darwin":
+                # Create venv without pip first to avoid crash due to missing lib on macOS standalone builds
+                venv.create(env_name, with_pip=False, clear=True)
+
+                base_python_lib = Path(self.python_path).parent.parent / "lib"
+                venv_lib = Path(env_name) / "lib"
+                
+                # Find libpython dylib
+                lib_files = list(base_python_lib.glob("libpython*.dylib"))
+                if lib_files:
+                    target_lib = lib_files[0]
+                    link_name = venv_lib / target_lib.name
+                    if not link_name.exists():
+                        try:
+                            link_name.symlink_to(target_lib)
+                            print(f"Symlinked {target_lib} to {link_name}")
+                        except Exception as e:
+                            print(f"Failed to symlink libpython: {e}")
+
+                # Now install pip
+                print("Installing pip...")
+                subprocess.run([str(self.env_path), "-m", "ensurepip"], check=True)
+
+            else:
+                # Create virtual environment
+                process = subprocess.Popen([
+                    self.python_path, "-m", "venv", env_name
+                ], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+                process.wait()
+                if process.returncode != 0:
+                    print(f"Error creating environment: {process.stderr}")
+                    raise Exception(f"Failed to create virtual environment. Error: {process.stderr}")
+            
             print(f"Environment created at: {self.env_path}")
             return True
-        else:
-            print(f"Error creating environment: {process.stderr}")
+        except Exception as e:
+            print(f"Error creating environment: {e}")
             return False
     
     def check_requirements(self):
@@ -82,11 +122,11 @@ class SupersetEnvManager:
                 str(self.python_path), "-m", "pip", "freeze"
             ], capture_output=True, text=True, check=False)
             
-            packages = {}
+            packages = []
             for line in result.stdout.split('\n'):
                 if '==' in line:
                     name, version = line.split('==', 1)
-                    packages[name.lower()] = version.strip()
+                    packages.append({'name': name, 'version': version})
             return packages
 
     def is_package_installed(self, package_name, installed_packages=None):
@@ -102,8 +142,20 @@ class SupersetEnvManager:
 
     def install_requirements(self):
         """Install packages in the environment"""
+        # Upgrade pip, setuptools and wheel first to ensure we can install binary wheels
+        try:
+            subprocess.run(
+                [str(self.env_path), "-m", "pip", "install", "--upgrade", "--prefer-binary", "pip", "setuptools", "wheel"],
+                check=True,
+                capture_output=True,
+                text=True
+            )
+        except subprocess.CalledProcessError as e:
+            print(f"Warning: Failed to upgrade pip/setuptools/wheel: {e.stderr}")
+
         # Build install command
-        install_cmd = [str(self.env_path), "-m", "pip", "install"]
+        # Use --prefer-binary to avoid compiling from source if possible (fixes issues on machines without build tools)
+        install_cmd = [str(self.env_path), "-m", "pip", "install", "--prefer-binary"]
 
         for requirement in SUPERSET_PACKAGES:
             if isinstance(requirement, dict):
@@ -153,11 +205,23 @@ class SupersetEnvManager:
             print(f"Failed to ensure pip: {result.stderr}")
             return False
         
+        # Upgrade pip, setuptools and wheel first
+        try:
+            subprocess.run(
+                [str(self.env_path), "-m", "pip", "install", "--upgrade", "--prefer-binary", "pip", "setuptools", "wheel"],
+                check=True,
+                capture_output=True,
+                text=True
+            )
+        except subprocess.CalledProcessError as e:
+            print(f"Warning: Failed to upgrade pip/setuptools/wheel: {e.stderr}")
+        
         success = True
         for package in SUPERSET_PACKAGES:
             set_progress(label=f"Installing {package.split('==')[0]}...")
+            # Use --prefer-binary to avoid compiling from source
             result = subprocess.run([
-                str(self.env_path), "-m", "pip", "install", package
+                str(self.env_path), "-m", "pip", "install", "--prefer-binary", package
             ], check=True, capture_output=True, text=True)
 
             if result.returncode == 0:

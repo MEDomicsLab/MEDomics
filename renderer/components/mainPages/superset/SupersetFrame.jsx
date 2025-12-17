@@ -84,12 +84,15 @@ const SupersetDashboard = () => {
   async function launchSuperset() {
     let freePort = 8080 // in the future maybe we'll use getPort() from get-port package
     let pythonPath = await ipcRenderer.invoke("getBundledPythonEnvironment")
+    let appDataPath = await ipcRenderer.invoke("appGetPath", "userData")
 
     // Send the request to the backend
     let jsonToSend = {
       "port": freePort,
       "pythonPath": pythonPath,
+      "appDataPath": appDataPath,
     }
+    console.log("Launching superset with python path:", pythonPath)
     setLoading(true)
     requestBackend(
       port,
@@ -136,10 +139,12 @@ const SupersetDashboard = () => {
   async function createUser() {
     // get Python path
     let pythonPath = await ipcRenderer.invoke("getBundledPythonEnvironment")
+    let appDataPath = await ipcRenderer.invoke("appGetPath", "userData")
 
     // Send the request to the backend
     let jsonToSend = {
       "pythonPath": pythonPath,
+      "appDataPath": appDataPath,
       "username": newUserUsername,
       "password": newUserPassword,
       "firstname": newFirstName,
@@ -273,8 +278,8 @@ const SupersetDashboard = () => {
           }
           supersetKilled(stderr, stdout)
         })
-      } else {
-        // Linux or MacOS
+      } else if (system === "linux") {
+        // Linux or 
         exec(`killall superset`, (err, stdout, stderr) => {
           if (err) {
             console.error(err)
@@ -291,6 +296,16 @@ const SupersetDashboard = () => {
           } else {
             supersetKilled(stderr, stdout)
           }
+        })
+      } else if (system === "darwin") {
+        // macOS
+        exec(`pkill -f superset`, (err, stdout, stderr) => {
+          if (err) {
+            console.error(err)
+            toast.error("Error killing Superset", {autoClose: 5000})
+            return
+          }
+          supersetKilled(stderr, stdout)
         })
       }
     }
@@ -309,9 +324,20 @@ const SupersetDashboard = () => {
     return
   }
 
-  const getEnvPath = (pythonPath) => {
+  const getEnvPath = (pythonPath, appDataPath) => {
     if (!pythonPath) return ''
     
+    // If appDataPath is provided, use it to construct the path
+    if (appDataPath) {
+      const isWindows = os.platform() === "win32"
+      if (isWindows) {
+        return `${appDataPath}\\superset_env\\Scripts\\python.exe`
+      } else {
+        return `${appDataPath}/superset_env/bin/python`
+      }
+    }
+
+    // Fallback to old logic if appDataPath is not available (should not happen with new logic)
     const isWindows = os.platform() === "win32"
     if (isWindows) {
       const pathParts = pythonPath.split(/[\\/]/)
@@ -323,7 +349,8 @@ const SupersetDashboard = () => {
   }
 
   const getSupersetConfigPath = async (pythonPath) => {
-    const envPath = getEnvPath(pythonPath)
+    let appDataPath = await ipcRenderer.invoke("appGetPath", "userData")
+    const envPath = getEnvPath(pythonPath, appDataPath)
     if (!envPath) return ''
     
     const isWindows = os.platform() === "win32"
@@ -436,7 +463,7 @@ const SupersetDashboard = () => {
           <Card 
             title="Launching superset..."
             subTitle="This process will change and override your superset configuration file and launch superset in the background.
-                Avoid using Superset within MEDomicsLab if you have a running instance of superset or if you want to keep your current configuration.">
+                Avoid using Superset within MEDomics if you have a running instance of superset or if you want to keep your current configuration.">
             {loading && (
               <ProgressBarRequests
                 progressBarProps={{ animated: true, variant: "success" }}
