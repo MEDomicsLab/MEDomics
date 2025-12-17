@@ -463,7 +463,7 @@ const SupersetDashboard = () => {
           <Card 
             title="Launching superset..."
             subTitle="This process will change and override your superset configuration file and launch superset in the background.
-                Avoid using Superset within MEDomicsLab if you have a running instance of superset or if you want to keep your current configuration.">
+                Avoid using Superset within MEDomics if you have a running instance of superset or if you want to keep your current configuration.">
             {loading && (
               <ProgressBarRequests
                 progressBarProps={{ animated: true, variant: "success" }}
