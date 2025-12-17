@@ -580,10 +580,121 @@ ipcMain.handle('backendStatus', async (_event, { target = 'local' } = {}) => {
   try {
     if (target === 'remote') {
       const tunnel = getTunnelState()
-      const lp = tunnel && tunnel.localExpressPort
-      if (!lp) return { success: false, error: 'no-remote-port' }
-      const res = await axios.get(`http://127.0.0.1:${lp}/status`, { timeout: 3000 })
-      return res.data
+      const remotePort = tunnel && tunnel.remoteExpressPort
+      // First try: use existing local→remote forwarding to /status
+      if (remotePort) {
+        try {
+          const res = await axios.get(`http://127.0.0.1:${remotePort}/status`, { timeout: 3000 })
+          if (res && res.data) return res.data
+        } catch {}
+      }
+
+      // Fallback: sweep remote ports 3000–8000 to discover an Express server
+      const conn = getActiveTunnel && getActiveTunnel()
+      if (!conn) return { success: false, error: 'no-active-ssh' }
+
+      // Single-shot list of listening ports on remote for performance
+      const remoteOS = await detectRemoteOS()
+      const listCmd = remoteOS === 'win32'
+        ? `netstat -an | findstr LISTEN`
+        : `bash -c "command -v ss >/dev/null 2>&1 && ss -ltn || netstat -an | grep LISTEN"`
+
+      const listening = await new Promise((resolve) => {
+        try {
+          conn.exec(listCmd, (err, stream) => {
+            if (err) return resolve("")
+            let out = ""
+            stream.on('data', (d) => { out += d.toString() })
+            stream.stderr.on('data', () => {})
+            stream.on('close', () => resolve(out))
+          })
+        } catch { resolve("") }
+      })
+
+      const ports = []
+      const re = /:(\d{2,5})/g
+      let m
+      while ((m = re.exec(listening)) !== null) {
+        const p = Number(m[1])
+        if (p >= 3000 && p <= 8000 && !ports.includes(p)) ports.push(p)
+          // First attempt: read remote state file to get last-known express port and started flag
+          try {
+            const conn = getActiveTunnel && getActiveTunnel()
+            if (conn) {
+              const remoteOS = await detectRemoteOS()
+              const readCmd = remoteOS === 'win32'
+                ? `powershell -NoProfile -Command "$p=Join-Path $env:USERPROFILE '.medomics\\medomics-server\\state.json'; if (Test-Path $p) { Get-Content -Raw -Path $p }"`
+                : `bash -lc 'p="$HOME/.medomics/medomics-server/state.json"; [ -f "$p" ] && cat "$p" || printf ""'`
+              const stateJsonStr = await new Promise((resolve) => {
+                try {
+                  conn.exec(readCmd, (err, stream) => {
+                    if (err) return resolve("")
+                    let out = ""
+                    stream.on('data', (d) => { out += d.toString() })
+                    stream.stderr.on('data', () => {})
+                    stream.on('close', () => resolve(out.trim()))
+                  })
+                } catch { resolve("") }
+              })
+              if (stateJsonStr) {
+                try {
+                  const state = JSON.parse(stateJsonStr)
+                  const portFromState = state?.expressPort || state?.state?.expressPort
+                  const startedFromState = typeof state?.started === 'boolean' ? state.started : (state?.state?.started)
+                  if (portFromState) {
+                    return { success: true, expressPort: Number(portFromState), started: !!startedFromState, source: 'state-file', discoveredRemotePort: Number(portFromState) }
+                  }
+                } catch {}
+              }
+            }
+          } catch {}
+      }
+
+      // Sort ascending for determinism
+      ports.sort((a,b) => a - b)
+      if (!ports.length) return { success: false, error: 'no-open-ports-in-range', range: [3000, 8000] }
+
+      // Try probing candidates by creating a temporary local forward and requesting /status
+      const tryPortStatus = async (remotePort) => {
+        return new Promise((resolve) => {
+          try {
+            const net = require('net')
+            // Find a free local port near remotePort or default 55080
+            const baseLocal = Number(remotePort) || 55080
+            findAvailablePort(baseLocal, baseLocal + 200).then((localEp) => {
+              const server = net.createServer((socket) => {
+                conn.forwardOut(socket.localAddress || '127.0.0.1', socket.localPort || 0, '127.0.0.1', parseInt(remotePort), (err, stream) => {
+                  if (err) { socket.destroy(); return }
+                  socket.pipe(stream).pipe(socket)
+                })
+              })
+              server.listen(localEp, '127.0.0.1')
+              server.on('error', () => resolve(null))
+              // Small delay to allow listener to bind
+              setTimeout(async () => {
+                try {
+                  const resp = await axios.get(`http://127.0.0.1:${localEp}/status`, { timeout: 1500 })
+                  try { server.close() } catch {}
+                  resolve(resp && resp.data ? { data: resp.data, localEp } : null)
+                } catch {
+                  try { server.close() } catch {}
+                  resolve(null)
+                }
+              }, 250)
+            }).catch(() => resolve(null))
+          } catch { resolve(null) }
+        })
+      }
+
+      for (const rp of ports) {
+        const found = await tryPortStatus(rp)
+        if (found && found.data) {
+          // Augment response with discovered ports for visibility
+          return { ...found.data, discoveredRemotePort: rp }
+        }
+      }
+
+      return { success: false, error: 'status-not-found', openPorts: ports }
     }
     // local
     if (expressPort) {
@@ -602,12 +713,12 @@ ipcMain.handle('backendEnsure', async (_event, { target = 'local', go = false, m
   try {
     if (target === 'remote') {
       const tunnel = getTunnelState()
-      const lp = tunnel && tunnel.localExpressPort
-      if (!lp) return { success: false, error: 'no-remote-port' }
+      const remotePort = tunnel && tunnel.localExpressPort
+      if (!remotePort) return { success: false, error: 'no-remote-port' }
       const ensured = {}
-      if (go) ensured.go = (await axios.post(`http://127.0.0.1:${lp}/ensure-go`, {}, { timeout: 10000 })).data
-      if (mongo) ensured.mongo = (await axios.post(`http://127.0.0.1:${lp}/ensure-mongo`, { workspacePath: workspace }, { timeout: 20000 })).data
-      if (jupyter) ensured.jupyter = (await axios.post(`http://127.0.0.1:${lp}/ensure-jupyter`, { workspacePath: workspace }, { timeout: 20000 })).data
+      if (go) ensured.go = (await axios.post(`http://127.0.0.1:${remotePort}/ensure-go`, {}, { timeout: 10000 })).data
+      if (mongo) ensured.mongo = (await axios.post(`http://127.0.0.1:${remotePort}/ensure-mongo`, { workspacePath: workspace }, { timeout: 20000 })).data
+      if (jupyter) ensured.jupyter = (await axios.post(`http://127.0.0.1:${remotePort}/ensure-jupyter`, { workspacePath: workspace }, { timeout: 20000 })).data
       return { success: true, ensured }
     }
     // local via CLI
@@ -684,13 +795,13 @@ ipcMain.handle('backendPresence', async (_event, { target = 'local' } = {}) => {
   try {
     if (target === 'remote') {
       const tunnel = getTunnelState()
-      const lp = tunnel && tunnel.localExpressPort
-      if (!lp) {
+      const remotePort = tunnel && tunnel.localExpressPort
+      if (!remotePort) {
         return { success: false, target: 'remote', installed: false, error: 'no-remote-port' }
       }
       // Try explicit remote presence endpoint first
       try {
-        const pres = await axios.get(`http://127.0.0.1:${lp}/check-local-backend`, { timeout: 5000 })
+        const pres = await axios.get(`http://127.0.0.1:${remotePort}/check-local-backend`, { timeout: 5000 })
         if (pres && pres.data) {
           // Normalize shape
           const d = pres.data
@@ -700,7 +811,7 @@ ipcMain.handle('backendPresence', async (_event, { target = 'local' } = {}) => {
       } catch {}
       // Fallback: if /status works, the server is clearly installed and running
       try {
-        const res = await axios.get(`http://127.0.0.1:${lp}/status`, { timeout: 5000 })
+        const res = await axios.get(`http://127.0.0.1:${remotePort}/status`, { timeout: 5000 })
         if (res && res.data) {
           return { success: true, target: 'remote', installed: true, details: res.data }
         }

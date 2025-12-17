@@ -17,6 +17,9 @@ import MEDconfig from "./utils/medomics.server.dev.js"
 import * as serverInstallation  from "./utils/serverInstallation.js"
 const { checkRequirements } = serverInstallation
 import { runServer, findAvailablePort } from "./utils/server.mjs"
+import fs from "fs"
+import path from "path"
+import os from "os"
 
 const expressApp = express()
 expressApp.use(bodyParser.json())
@@ -37,6 +40,45 @@ const serviceState = {
 	go: { running: false, port: null },
 	mongo: { running: false, port: null },
 	jupyter: { running: false, port: null }
+}
+
+// --- State file helpers ---
+function getStateFilePath() {
+	const dir = path.join(os.homedir(), ".medomics", "medomics-server")
+	try { if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true }) } catch(e) { console.warn("[state-file] mkdir error:", e && e.message ? e.message : e) }
+	return path.join(dir, "state.json")
+}
+
+function snapshotState(started) {
+	return {
+		started: !!started,
+		expressPort: serviceState.expressPort,
+		pid: process.pid,
+		updatedAt: new Date().toISOString()
+	}
+}
+
+function writeStateFile(started) {
+	try {
+		const p = getStateFilePath()
+		const payload = snapshotState(started)
+		fs.writeFileSync(p, JSON.stringify(payload, null, 2))
+	} catch (e) {
+		console.warn("[state-file] write error:", e && e.message ? e.message : e)
+	}
+}
+
+// On process termination, mark started=false best-effort
+function setupGracefulShutdownState() {
+	const markStopped = () => {
+		try { writeStateFile(false) } catch(e) { console.warn("[state-file] write error on shutdown:", e && e.message ? e.message : e) }
+	}
+	try {
+		process.on("SIGINT", () => { markStopped(); process.exit(0) })
+		process.on("SIGTERM", () => { markStopped(); process.exit(0) })
+		process.on("beforeExit", () => { markStopped() })
+		process.on("exit", () => { markStopped() })
+	} catch(e) { console.warn("[state-file] error setting up graceful shutdown handlers:", e && e.message ? e.message : e) }
 }
 
 let isProd = process.env.NODE_ENV && process.env.NODE_ENV === "production"
@@ -74,9 +116,16 @@ export async function startExpressServer() {
 		console.log('[express:start] selected port', expressPort)
 		const server = expressApp.listen(expressPort, () => {
 			console.log(`Express server listening on port ${expressPort}`)
+			// Write state.json with started=true and selected port
+			writeStateFile(true)
+			setupGracefulShutdownState()
 		})
 		server.on('error', (err) => {
 			console.error('[express:start] server error event', err && err.stack ? err.stack : err)
+		})
+		server.on('close', () => {
+			// Mark stopped on server close
+			writeStateFile(false)
 		})
 		serviceState.expressPort = expressPort
 		if (process.send) {

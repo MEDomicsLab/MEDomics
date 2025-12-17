@@ -1316,22 +1316,25 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
 
     // Dynamically ensure Remote Server tab visibility based on tunnel state
     try {
-      if (this.state.model && this.props.tunnel) {
-        const started = !!this.props.tunnel.serverStartedRemotely
+      // Always ensure Remote Server tab is visible for debugging
+      if (this.state.model && this.layoutRef && this.layoutRef.current) {
         const tabId = "remoteServer"
         const exists = !!this.state.model.getNodeById(tabId)
-        // Find bottom border
-        const borders = (this.state.model as any).getBorderSet().getBorders()
-        const bottomBorder = borders.find((b: any) => (b.getLocation && b.getLocation() === "bottom"))
-        if (started && !exists && bottomBorder && this.layoutRef && this.layoutRef.current) {
-          this.layoutRef.current.addTabToTabSet(bottomBorder.getId(), {
+        if (!exists) {
+          const borders = (this.state.model as any).getBorderSet().getBorders()
+          const bottomBorder = borders.find((b: any) => (b.getLocation && b.getLocation() === DockLocation.BOTTOM))
+          const tabConfig = {
             id: tabId,
             component: "remoteServer",
             name: "Remote Server",
             enableClose: false,
-          })
-        } else if (!started && exists) {
-          this.state.model!.doAction(Actions.deleteTab(tabId))
+          }
+          if (bottomBorder) {
+            this.layoutRef.current.addTabToTabSet(bottomBorder.getId(), tabConfig)
+          } else {
+            // Fallback: add to active tabset if no bottom border exists
+            this.layoutRef.current.addTabToActiveTabSet(tabConfig)
+          }
         }
       }
     } catch (e) {
