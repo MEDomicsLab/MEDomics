@@ -176,7 +176,6 @@ class MEDcohortFigureClass extends React.Component {
       }
       echarts.registerTheme("dark", require("../../../styles/input/medCohortFigureDark.json"))
     }
-
     // Respond to changes in props or state
     if (prevProps.jsonData !== this.props.jsonData) {
       this.setState({ jsonData: this.props.jsonData }, () => {

@@ -1,7 +1,7 @@
 /* eslint-disable react/prop-types */
-import React, { useRef, useCallback, useEffect, useContext, useState } from "react"
+import { useRef, useCallback, useEffect, useContext, useState } from "react"
 import { toast } from "react-toastify"
-import ReactFlow, { Controls, ControlButton, Background, MiniMap, addEdge, useReactFlow } from "reactflow"
+import ReactFlow, { Controls, ControlButton, Background, MiniMap, addEdge, useReactFlow, reconnectEdge } from "reactflow"
 import { FlowFunctionsContext } from "./context/flowFunctionsContext"
 import { PageInfosContext } from "../mainPages/moduleBasics/pageInfosContext"
 import { FlowInfosContext } from "./context/flowInfosContext"
@@ -47,7 +47,7 @@ import { useTheme } from "../theme/themeContext"
  * This component is used to display a workflow.
  * It manages base workflow functions such as node creation, node deletion, node connection, etc.
  */
-const WorkflowBase = ({ isGoodConnection, groupNodeHandlingDefault, onDeleteNode, onNodeDrag, mandatoryProps, ui, uiTopLeft, uiTopRight, uiTopCenter, customOnConnect }) => {
+const WorkflowBase = ({ isGoodConnection, groupNodeHandlingDefault, onDeleteNode, onNodeDrag, isExperiment, mandatoryProps, ui, uiTopLeft, uiTopRight, uiTopCenter, customOnConnect }) => {
   const { reactFlowInstance, setReactFlowInstance, addSpecificToNode, nodeTypes, nodes, setNodes, onNodesChange, edges, setEdges, onEdgesChange, runNode } = mandatoryProps
 
   const edgeUpdateSuccessful = useRef(true)
@@ -286,7 +286,7 @@ const WorkflowBase = ({ isGoodConnection, groupNodeHandlingDefault, onDeleteNode
         node.data = {
           ...node.data
         }
-        node.draggable = !showResultsPane
+        node.draggable = node.id.startsWith("box-") ? false : !showResultsPane
         return node
       })
     )
@@ -330,6 +330,11 @@ const WorkflowBase = ({ isGoodConnection, groupNodeHandlingDefault, onDeleteNode
           isValidConnection = true
         }
       })
+
+      // Special check: split -> clean is not allowed
+      if (sourceNode.data.internal.type === "split" && targetNode.data.internal.type === "clean") {
+        isValidConnection = false
+      }
 
       // if isGoodConnection is defined, check if the connection is valid again with the isGoodConnection function
       isGoodConnection && (isValidConnection = isValidConnection && isGoodConnection(params))
@@ -536,8 +541,7 @@ const WorkflowBase = ({ isGoodConnection, groupNodeHandlingDefault, onDeleteNode
     })
     newConnectionCreated() // this is used to update the workflow when a connection is created
     if (!alreadyExists) {
-      console.log("connection changed")
-      setEdges((els) => updateEdge(oldEdge, newConnection, els))
+      setEdges((eds) => reconnectEdge(oldEdge, newConnection, eds))
     } else {
       toast.error("Connection refused: it already exists", {
         position: "bottom-right",
@@ -612,8 +616,8 @@ const WorkflowBase = ({ isGoodConnection, groupNodeHandlingDefault, onDeleteNode
                 className="btn-ctl-available-nodes"
               />
               <ToggleButton
-                onLabel="Results mode on"
-                offLabel="See results"
+                onLabel={isExperiment ? "Results mode on" : "Analysis mode on"}
+                offLabel={isExperiment ? "See results" : "Analysis mode"}
                 onIcon="pi pi-chart-bar"
                 offIcon="pi pi-eye"
                 disabled={!isResults}

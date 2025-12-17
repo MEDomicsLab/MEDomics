@@ -1,5 +1,8 @@
 :root {
   --not-run-color: #ff9700b0;
+  --misplaced-color: #ff0000b0;
+  --selected-color: #00ff00b0;
+  --highlighted-color: #001aff7c;
   --size-top-panel: 2.5rem;
   --num-controls-btn: 6;
 
@@ -194,7 +197,7 @@
 
 .btn-info-node:hover {
   background-color: #00000000;
-  color: blue;
+  color: rgb(0, 119, 255);
 }
 
 .node {
@@ -212,7 +215,7 @@
 }
 
 .node .p-card {
-  background: #f3f3f3;
+  background: #f8f9fa;
   color: #495057;
   box-shadow:
     5px 5px 6px -1px rgb(0 0 0 / 20%),
@@ -220,6 +223,12 @@
     0px 0px 3px 2px rgb(0 0 0 / 12%);
   border-radius: 6px;
   outline: 0.1rem solid #00000015;
+}
+
+[data-theme="dark"] .node .p-card {
+  background: #2b2b2b;
+  color: #d4d4d4;
+  outline: 0.1rem solid #ffffff15;
 }
 
 .react-flow__node:hover .node .p-card {
@@ -585,6 +594,11 @@ input.node-editableLabel {
   padding: 0.5rem;
 }
 
+.options-overlayPanel-settingsBody {
+  max-height: 20rem;
+  overflow-y: auto;
+}
+
 .optimize-io {
   width: 200px;
   height: 200px;
@@ -703,6 +717,18 @@ input.node-editableLabel {
   border: 0.15rem solid var(--not-run-color);
 }
 
+.misplaced {
+  border: 0.15rem solid var(--misplaced-color);
+}
+
+.beenSelected {
+  border: 0.15rem solid var(--selected-color);
+}
+
+.highlighted {
+  border: 0.15rem solid var(--highlighted-color);
+}
+
 path {
   transition: stroke 0.25s ease-in-out;
 }
@@ -713,6 +739,10 @@ path {
 
 .stroke-hasRun path {
   stroke: #000000e1;
+}
+
+.stroke-highlighted path {
+  stroke: var(--highlighted-color);
 }
 
 .pipe-name-notRun {

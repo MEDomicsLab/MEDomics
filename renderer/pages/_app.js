@@ -15,6 +15,7 @@ import { WorkspaceProvider } from "../components/workspace/workspaceContext"
 import { loadMEDDataObjects, updateGlobalData } from "../utilities/appUtils/globalDataUtils"
 import { NotificationContextProvider } from "../components/generalPurpose/notificationContext"
 import { ThemeProvider } from "../components/theme/themeContext"
+import { SupersetRequestProvider } from "../components/mainPages/superset/supersetRequestContext"
 
 // CSS
 import "bootstrap/dist/css/bootstrap.min.css"
@@ -130,6 +131,9 @@ function App() {
 
   const [globalData, setGlobalData] = useState({}) // The global data object
 
+  const [launched, setLaunched] = useState(false) // Superset launched
+  const [supersetPort, setSupersetPort] = useState(8080) // Superset port
+
   /**
    * @ReadMe
    * This useEffect hook is called only once and it sets the ipcRenderer to listen for the "updateDirectory" message from the main process
@@ -241,6 +245,12 @@ function App() {
                     recentWorkspaces={recentWorkspaces}
                     setRecentWorkspaces={setRecentWorkspaces}
                   >
+                    <SupersetRequestProvider
+                      launched={launched}
+                      setLaunched={setLaunched}
+                      supersetPort={supersetPort}
+                      setSupersetPort={setSupersetPort}
+                    >
                     <ServerConnectionProvider port={port} setPort={setPort}>
                       <LayoutModelProvider // This is the LayoutContextProvider, which provides the layout model to all the children components of the LayoutManager
                         layoutModel={layoutModel}
@@ -252,6 +262,7 @@ function App() {
                         {/** We pass the initialLayout as a parameter */}
                       </LayoutModelProvider>
                     </ServerConnectionProvider>
+                    </SupersetRequestProvider>
                   </WorkspaceProvider>
                 </DataContextProvider>
               </NotificationContextProvider>

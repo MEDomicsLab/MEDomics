@@ -18,6 +18,7 @@ import { MdOutlineGroups3, MdSunny } from "react-icons/md"
 import { MdOutlineDarkMode } from "react-icons/md";
 import { useTheme } from "../theme/themeContext"
 
+
 /**
  * @description Sidebar component containing icons for each page
  * @param {function} onSidebarItemSelect - function to handle sidebar item selection
@@ -55,10 +56,21 @@ const IconSidebar = ({ onSidebarItemSelect }) => {
    * @param {Event} event
    * @param {string} name
    */
-  function handleDoubleClick(event, name) {
+  function handleDoubleClickModule(event, name) {
     event.stopPropagation()
     console.log(`Double clicked ${name}`, event, `open${name}Module`)
     dispatchLayout({ type: `open${name}Module`, payload: { pageId: name } })
+  }
+
+  /**
+   *
+   * @param {Event} event
+   * @param {string} name
+   */
+  function handleDoubleClickLanding(event, name) {
+    event.stopPropagation()
+    console.log(`Double clicked ${name}`, event, `open${name}LandingPage`)
+    dispatchLayout({ type: `open${name}LandingPage`, payload: { pageId: name } })
   }
 
   const { workspace } = useContext(WorkspaceContext)
@@ -131,7 +143,7 @@ const IconSidebar = ({ onSidebarItemSelect }) => {
             eventKey="home"
             data-tooltip-id="tooltip-home"
             onClick={(event) => handleClick(event, "home")}
-            onDoubleClick={(event) => handleDoubleClick(event, "Home")}
+            onDoubleClick={(event) => handleDoubleClickModule(event, "Home")}
           >
             <HouseFill size={"1.25rem"} width={"100%"} height={"100%"} style={{ scale: "0.65" }} />
           </Nav.Link>
@@ -159,7 +171,7 @@ const IconSidebar = ({ onSidebarItemSelect }) => {
                 data-pr-tooltip="Input"
                 eventKey="input"
                 data-tooltip-id="tooltip-input"
-                onDoubleClick={(event) => handleDoubleClick(event, "Input")}
+                onDoubleClick={(event) => handleDoubleClickModule(event, "Input")}
                 onClick={(event) => handleClick(event, "input")}
                 disabled={isDisabled}
               >
@@ -175,9 +187,9 @@ const IconSidebar = ({ onSidebarItemSelect }) => {
                 data-pr-disabled={extractionBtnstate}
                 eventKey="extraction"
                 data-tooltip-id="tooltip-extraction"
-                onDoubleClick={(event) => handleDoubleClick(event, "extraction")}
+                onDoubleClick={(event) => handleDoubleClickLanding(event, "extraction")}
                 onClick={() => {
-                  setExtractionBtnstate(!extractionBtnstate)
+                  //setExtractionBtnstate(!extractionBtnstate)
                 }}
                 disabled={isDisabled}
                 onBlur={(event) => {
@@ -191,7 +203,7 @@ const IconSidebar = ({ onSidebarItemSelect }) => {
                   blurAccepeted && setExtractionBtnstate(false)
                 }}
               >
-                {extractionBtnstate ? <VscChromeClose style={{ height: "1.7rem", width: "auto" }} /> : <TbFileExport style={{ height: "1.7rem", width: "auto" }} />}
+                {extractionBtnstate ? <VscChromeClose style={{ height: "1.7rem", width: "auto" }} /> : <TbFileExport style={{ height: "1.7rem", width: "auto", color: "#9e9e9e" }} />}
                 <div className={`btn-group-ext ${extractionBtnstate ? "clicked" : ""}`}>
                   <Button
                     className="ext-text-btn"
@@ -205,9 +217,9 @@ const IconSidebar = ({ onSidebarItemSelect }) => {
                       event.stopPropagation()
                       event.preventDefault()
                       setExtractionBtnstate(!extractionBtnstate)
-                      handleDoubleClick(event, "ExtractionText")
+                      handleDoubleClickModule(event, "ExtractionText")
                     }}
-                    onDoubleClick={(event) => handleDoubleClick(event, "ExtractionText")}
+                    onDoubleClick={(event) => handleDoubleClickModule(event, "ExtractionText")}
                   />
                   <Button
                     className="ext-ts-btn"
@@ -221,10 +233,10 @@ const IconSidebar = ({ onSidebarItemSelect }) => {
                       event.stopPropagation()
                       event.preventDefault()
                       // handleClick(event, "extractionTS")
-                      handleDoubleClick(event, "ExtractionTS")
+                      handleDoubleClickModule(event, "ExtractionTS")
                       setExtractionBtnstate(!extractionBtnstate)
                     }}
-                    onDoubleClick={(event) => handleDoubleClick(event, "ExtractionTS")}
+                    onDoubleClick={(event) => handleDoubleClickModule(event, "ExtractionTS")}
                   />
                   <Button
                     className="ext-img-btn"
@@ -237,10 +249,10 @@ const IconSidebar = ({ onSidebarItemSelect }) => {
                       console.log("clicked extraction image", event)
                       event.stopPropagation()
                       event.preventDefault()
-                      handleDoubleClick(event, "ExtractionImage")
+                      handleDoubleClickModule(event, "ExtractionImage")
                       setExtractionBtnstate(!extractionBtnstate)
                     }}
-                    onDoubleClick={(event) => handleDoubleClick(event, "ExtractionImage")}
+                    onDoubleClick={(event) => handleDoubleClickModule(event, "ExtractionImage")}
                   />
                 </div>
               </Nav.Link>
@@ -252,13 +264,14 @@ const IconSidebar = ({ onSidebarItemSelect }) => {
                 data-pr-tooltip="Exploratory"
                 eventKey="exploratory"
                 data-tooltip-id="tooltip-exploratory"
-                onDoubleClick={(event) => handleDoubleClick(event, "Exploratory")}
+                onDoubleClick={(event) => handleDoubleClickModule(event, "Exploratory")}
                 onClick={(event) => handleClick(event, "exploratory")}
                 disabled={isDisabled}
               >
                 {" "}
                 <FaMagnifyingGlassChart style={{ height: "1.7rem", width: "auto" }} />
               </Nav.Link>
+
             </div>
             <div className="medomics-layer-text">Design</div>
           </div>
@@ -285,7 +298,7 @@ const IconSidebar = ({ onSidebarItemSelect }) => {
                 data-pr-my="left center"
                 data-pr-tooltip="MEDfl"
                 eventKey="MEDfl"
-                onDoubleClick={(event) => handleDoubleClick(event, "MEDfl")}
+                onDoubleClick={(event) => handleDoubleClickModule(event, "MEDfl")}
                 onClick={(event) => handleClick(event, "medfl")}
                 disabled={isDisabled}
               >
@@ -310,7 +323,7 @@ const IconSidebar = ({ onSidebarItemSelect }) => {
                 data-pr-my="left center"
                 data-pr-tooltip="MED3pa"
                 eventKey="MED3pa"
-                onDoubleClick={(event) => handleDoubleClick(event, "MED3pa")}
+                onDoubleClick={(event) => handleDoubleClickModule(event, "MED3pa")}
                 onClick={(event) => handleClick(event, "med3pa")}
                 disabled={isDisabled}
               >
@@ -332,7 +345,7 @@ const IconSidebar = ({ onSidebarItemSelect }) => {
                 data-tooltip-id="tooltip-application"
                 onClick={(event) => handleClick(event, "application")}
                 disabled={isDisabled}
-                onDoubleClick={(event) => handleDoubleClick(event, "Application")}
+                onDoubleClick={(event) => handleDoubleClickModule(event, "Application")}
               >
                 <Send size={"1.25rem"} width={"100%"} height={"100%"} style={{ scale: "0.65" }} />
               </Nav.Link>

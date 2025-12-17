@@ -80,6 +80,7 @@ class Node(ABC):
         self.type = self.config_json['data']['internal']['type']
         self.username = self.config_json['data']['internal']['name']
         self.id = id_
+        self.nameID = self.config_json['data']['internal'].get('nameID', None)
         self._has_run = False
         self.just_run = False
         self._info_for_next_node = {}
@@ -127,6 +128,8 @@ class Node(ABC):
         """
         self.CodeHandler.reset()
         self.CodeHandler.add_line("md", f"### This is {self.username}")
+        if self.nameID is not None and self.type != "train_model" and self.type != "compare_models":
+            self.CodeHandler.add_line("md", f"##### *Node ID: {self.nameID}*")
         self.just_run = True
         self._has_run = True
 

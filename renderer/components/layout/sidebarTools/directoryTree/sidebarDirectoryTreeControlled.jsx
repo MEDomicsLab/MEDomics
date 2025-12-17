@@ -309,6 +309,7 @@ const SidebarDirectoryTreeControlled = ({ setExternalSelectedItems, setExternalD
         dispatchLayout({ type: "openInModelViewer", payload: item })
       } else {
         console.log("DBCLICKED", event, item)
+        toast.warn("You can't open this file type.")
       }
       setDbClickedItem(item)
     } else {

@@ -145,9 +145,9 @@ export const axiosPostJson = async (jsonData, pathName) => {
  * @returns the cleaned response
  */
 const parsingCleaning = (response) => {
-  console.log("Parsing cleaning (before):", response)
+  // console.log("Parsing cleaning (before):", response)
   let newResponse = response.substring(response.indexOf("{"), response.lastIndexOf("}") + 1)
-  console.log("Parsing cleaning (after):", newResponse)
+  // console.log("Parsing cleaning (after):", newResponse)
   return newResponse
 }
 

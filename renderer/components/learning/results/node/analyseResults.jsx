@@ -1,3 +1,4 @@
+/* eslint-disable */
 import React, { useEffect, useState, useContext } from "react"
 import { Image } from "primereact/image"
 import { DataContext } from "../../../workspace/dataContext"
@@ -15,6 +16,13 @@ const AnalyseResults = ({ selectedResults }) => {
   const { workspace } = useContext(WorkspaceContext)
 
   useEffect(() => {
+    const imageExists = Object.entries(globalData).some(([key, _]) => {
+      return Object.values(selectedResults.data).includes(key)
+    })
+    if (!imageExists) {
+      setImages([])
+      return
+    }
     const imagesInfos = Object.entries(selectedResults.data).map(([modelName, collectionId]) => ({ modelName, collectionId }))
     const alreadyInWorkspace = globalData[globalData[Object.entries(selectedResults.data)[0][1]].parentID].inWorkspace
 

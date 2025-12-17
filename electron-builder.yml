@@ -60,6 +60,7 @@ mac: # Added from package.json
   #   - "Contents/MacOS/MEDomicsLab"
 pkg: # Added from package.json
   isRelocatable: false
+  scripts: "../build/pkg-scripts"
 win: # Added from package.json
   target: nsis
   icon: "app/assets/icon.ico"

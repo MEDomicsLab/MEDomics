@@ -26,7 +26,7 @@ const ModelViewer = ({ id }) => {
 
   // Template for the card section
   const renderCardSection = (title, content, icon) => (
-    <Card style={{ width: '100%', marginBottom: '20px', backgroundColor: "#cfcfcfa4", }}>
+    <Card style={{ width: '100%', marginBottom: '20px' }}>
       <div className="p-card-header" style={{ display: 'flex', alignItems: 'center' }}>
         <Tag icon={icon} severity="info" style={{ marginRight: '10px' }}></Tag>
         <h3>{title}</h3>
@@ -77,7 +77,7 @@ const ModelViewer = ({ id }) => {
           {renderCardSection(
             "Machine Learning Type",
             <p>{data.ml_type}</p>,
-            "pi pi-brain"
+            "pi pi-circle"
           )}
         </>
       )}

@@ -192,7 +192,7 @@ func StartPythonScripts(jsonParam string, filename string, id string) (string, e
 	err = Scripts[id].Cmd.Start()
 	Mu.Unlock()
 	if err != nil {
-		log.Println("Error starting command " + script)
+		log.Println("Error starting command " + Scripts[id].Cmd.String())
 		return "", err
 	}
 	response := ""

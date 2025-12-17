@@ -20,7 +20,6 @@ import { FaRegQuestionCircle } from "react-icons/fa"
 const HomePage = () => {
   const { workspace, setWorkspace, recentWorkspaces } = useContext(WorkspaceContext)
   const [hasBeenSet, setHasBeenSet] = useState(workspace.hasBeenSet)
-  const [appVersion, setAppVersion] = useState("")
   const [sampleGenerated, setSampleGenerated] = useState(false)
   const { port } = useContext(ServerConnectionContext)
   const [requirementsMet, setRequirementsMet] = useState(true)
@@ -87,9 +86,6 @@ const HomePage = () => {
         setRequirementsMet(false)
       }
     })
-    ipcRenderer.invoke("getAppVersion").then((data) => {
-      setAppVersion(data)
-    })
   }, [])
 
   // We set the workspace hasBeenSet state
@@ -144,9 +140,9 @@ const HomePage = () => {
       >
         <Stack direction="vertical" gap={1} style={{ alignContent: "center", flexGrow: 1 }}>
           <h2>Home page</h2>
-          <Stack direction="horizontal" gap={0} style={{ alignContent: "center" }}>
+          <Stack direction="horizontal" gap={0} style={{ padding: "0 0 0 0", alignContent: "center" }}>
             <h1 style={{ fontSize: "5rem" }}>MEDomics</h1>
-            <h2 style={{ fontSize: "2rem", marginTop: "1.5rem" }}>v{appVersion}</h2>
+
             <Image src={myimage} alt="" style={{ height: "175px", width: "175px" }} />
           </Stack>
           {hasBeenSet ? (
@@ -215,7 +211,7 @@ const HomePage = () => {
 
           <ul style={{ paddingLeft: "1.5rem", listStyleType: "none" }}>
             <li>📖 Documentation:  
-              <a href="https://medomics-udes.gitbook.io/medomicslab-docs/medomicslab-docs-v0/tutorials" 
+              <a href="https://medomicslab.gitbook.io/medomics-docs/tutorials" 
                  target="_blank" rel="noopener noreferrer" style={{ color: "#4991dfff", textDecoration: "none", marginLeft: "5px" }}>
                 MEDomics Documentation
               </a>
@@ -247,7 +243,13 @@ const HomePage = () => {
             borderRadius: "5px"
           }}
         >
-          ⚠️ <strong>Note:</strong> The Testing Phase offers the first official tutorials of MEDomics, based on the pre-released version launched in January 2024. Despite subsequent improvements, these tutorials are still a valuable starting point for new users.
+          ⚠️ <strong>Note:</strong> The Testing Phase offers the first official tutorials of MEDomics, 
+          based on the pre-released version launched in January 2024. Despite subsequent improvements, 
+          these tutorials are still a valuable starting point for new users. The testing phase documentation can be found
+          in the version<a href="https://medomicslab.gitbook.io/medomics-docs/medomicslab-docs-v0/test-with-mimic" 
+          target="_blank" rel="noopener noreferrer" style={{ color: "#4991dfff", textDecoration: "none", marginLeft: "5px" }}>
+               V0
+              </a> of the docs.
         </div>
 
         </div>

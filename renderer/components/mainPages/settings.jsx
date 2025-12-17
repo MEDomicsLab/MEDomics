@@ -134,7 +134,7 @@ const SettingsPage = ({pageId = "settings", checkJupyterIsRunning, startJupyterS
 
   useEffect(() => {
     ipcRenderer.invoke("getBundledPythonEnvironment").then((res) => {
-      console.log("Python imbedded: ", res)
+      console.log("Python embedded: ", res)
       if (res !== null) {
         ipcRenderer.invoke("getInstalledPythonPackages", res).then((pythonPackages) => {
           console.log("Installed Python Packages: ", pythonPackages)
