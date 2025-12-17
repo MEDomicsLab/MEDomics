@@ -46,6 +46,8 @@ const EvaluationPageContent = () => {
         if (config && config.model?.id) {
           if (configToLoad[0] && configToLoad[0].model && configToLoad[0].model.id === config.model.id) {
             config = {...config, ...configToLoad[0], ...modelData[0]}
+          } else if (config && modelData[0]) {
+            config = {...config, ...modelData[0]}
           }
         }
       } else {
