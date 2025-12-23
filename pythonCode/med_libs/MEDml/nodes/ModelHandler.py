@@ -226,6 +226,10 @@ class ModelHandler(Node):
                 
                 # Tune the model
                 model = fold_exp.tune_model(model, **self.settingsTuning)
+
+                # Log models params
+                custom_logger = pycaret_exp.get_config('logging_param').loggers[0]
+                custom_logger.log_params(model.get_params())
             
             # Model Ensembling
             try:
