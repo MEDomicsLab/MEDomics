@@ -201,14 +201,6 @@ class GoExecScriptPredict(GoExecutionScript):
         if "error" in result:
             return result
 
-        # Load examples (optional)
-        print("Loading example data...")
-        self.set_progress(now=self._progress["now"]+step, label="Loading default example data (this may take several minutes)...")
-        result = self.run_command(f'"{superset_path}" load_examples', env)
-        if "error" in result:
-            print(f"Warning: Failed to load examples: {result.get('error')}")
-            # We continue even if examples fail to load, as it is optional
-
         # Check if port is available
         print(f"Checking if port {port} is available...")
         self.set_progress(now=self._progress["now"]+step, label="Checking if port is available...")
