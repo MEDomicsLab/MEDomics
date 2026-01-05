@@ -42,6 +42,9 @@ const serviceState = {
 	jupyter: { running: false, port: null }
 }
 
+// Keep a handle to the HTTP server to support graceful stop via endpoint
+let httpServer = null
+
 // --- State file helpers ---
 function getStateFilePath() {
 	const dir = path.join(os.homedir(), ".medomics", "medomics-server")
@@ -114,18 +117,20 @@ export async function startExpressServer() {
 			}
 		}
 		console.log('[express:start] selected port', expressPort)
-		const server = expressApp.listen(expressPort, () => {
+		httpServer = expressApp.listen(expressPort, () => {
 			console.log(`Express server listening on port ${expressPort}`)
 			// Write state.json with started=true and selected port
 			writeStateFile(true)
 			setupGracefulShutdownState()
 		})
-		server.on('error', (err) => {
+		httpServer.on('error', (err) => {
 			console.error('[express:start] server error event', err && err.stack ? err.stack : err)
 		})
-		server.on('close', () => {
+		httpServer.on('close', () => {
 			// Mark stopped on server close
 			writeStateFile(false)
+			serviceState.expressPort = null
+			httpServer = null
 		})
 		serviceState.expressPort = expressPort
 		if (process.send) {
@@ -200,6 +205,24 @@ expressApp.post("/run-go-server", async (req, res) => {
 		return
   }
 	res.json({ success: true, running: true, port: serviceState.go.port })
+})
+
+// Stop Express server gracefully
+expressApp.post("/stop-express", async (req, res) => {
+	try {
+		if (!httpServer) {
+			return res.status(400).json({ success: false, error: "Express server is not running" })
+		}
+		httpServer.close(() => {
+			try { writeStateFile(false) } catch (e) { /* ignore */ }
+			serviceState.expressPort = null
+			httpServer = null
+			res.json({ success: true, stopped: true })
+		})
+	} catch (err) {
+		console.error("Error stopping Express server:", err)
+		res.status(500).json({ success: false, error: err.message })
+	}
 })
 
 

@@ -122,7 +122,7 @@ ipcMain.handle('clearTunnelState', () => {
   mainWindow.webContents.send('tunnelStateClear')
 })
 
-// Helpers for managing remote backend (GO) server lifecycle
+// Helpers for managing remote backend (Express) server lifecycle
 async function execRemote(conn, cmd) {
   return new Promise((resolve, reject) => {
     conn.exec(cmd, (err, stream) => {
@@ -150,37 +150,54 @@ async function getRemoteHome(conn, remoteOS) {
 
 async function findRemoteBackendExecutable(conn, remoteOS) {
   try {
+    // If a path is already stored, verify it exists and is executable
     if (remoteBackendExecutablePath) {
-      // Verify it exists
       if (remoteOS === 'win32') {
         const r = await execRemote(conn, `powershell -NoProfile -Command "If (Test-Path '${remoteBackendExecutablePath.replace(/'/g, "''")}') { Write-Output '${remoteBackendExecutablePath.replace(/'/g, "''")}' }"`)
-        if (r.stdout) return { path: remoteBackendExecutablePath }
+        if ((r.stdout||'').trim()) return { path: remoteBackendExecutablePath }
       } else {
-        const r = await execRemote(conn, `[ -x '${remoteBackendExecutablePath.replace(/'/g, "'\\''")}' ] && echo '${remoteBackendExecutablePath.replace(/'/g, "'\\''")}' || true`)
-        if (r.stdout) return { path: remoteBackendExecutablePath }
+        const r = await execRemote(conn, `[ -x '${remoteBackendExecutablePath.replace(/'/g, "'\\''")}'] && echo '${remoteBackendExecutablePath.replace(/'/g, "'\\''")}' || true`)
+        if ((r.stdout||'').trim()) return { path: remoteBackendExecutablePath }
       }
     }
+
+    // Look for medomics-server under the versions directory of ~/.medomics/medomics-server
     const home = await getRemoteHome(conn, remoteOS)
+    const baseDir = remoteOS === 'win32' ? `${home}\\.medomics\\medomics-server` : `${home}/.medomics/medomics-server`
+    const versionsDir = remoteOS === 'win32' ? `${baseDir}\\versions` : `${baseDir}/versions`
+
     if (remoteOS === 'win32') {
-      const candidates = [
-        `${home}\\.medomics\\MEDomicsLab\\go_executables\\server_go_win32.exe`,
-        `${home}\\.medomics\\go_executables\\server_go_win32.exe`,
-        `C:\\Program Files\\MEDomicsLab\\go_executables\\server_go_win32.exe`
-      ]
-      const ps = `powershell -NoProfile -Command "${candidates.map(p=>`If (Test-Path '${p.replace(/'/g, "''")}') { Write-Output '${p.replace(/'/g, "''")}'; exit }`).join(' ')}"`
+      // Prefer newest medomics-server.exe found under versions/**/bin
+      const ps = `powershell -NoProfile -Command "if (Test-Path '${versionsDir.replace(/'/g, "''")}') { Get-ChildItem -Path '${versionsDir.replace(/'/g, "''")}' -Recurse -Filter medomics-server.exe | Sort-Object LastWriteTime -Descending | Select-Object -First 1 -ExpandProperty FullName }"`
       const r = await execRemote(conn, ps)
-      if (r.stdout) return { path: r.stdout }
-      const whereCmd = await execRemote(conn, 'where server_go_win32.exe')
-      if (whereCmd.stdout) return { path: whereCmd.stdout.split(/\r?\n/)[0] }
+      const found = (r.stdout||'').trim()
+      if (found) return { path: found }
+      // Fallback: check typical bin path for latest version directory
+      const ls = await execRemote(conn, `powershell -NoProfile -Command "If (Test-Path '${versionsDir.replace(/'/g, "''")}') { Get-ChildItem -Path '${versionsDir.replace(/'/g, "''")}' -Directory | Sort-Object LastWriteTime -Descending | Select-Object -First 1 -ExpandProperty FullName }"`)
+      const latestDir = (ls.stdout||'').trim()
+      if (latestDir) {
+        const candidate = `${latestDir}\\bin\\medomics-server.exe`
+        const chk = await execRemote(conn, `powershell -NoProfile -Command "If (Test-Path '${candidate.replace(/'/g, "''")}') { Write-Output '${candidate.replace(/'/g, "''")}' }"`)
+        if ((chk.stdout||'').trim()) return { path: candidate }
+      }
     } else {
-      const candidates = [
-        `${home}/.medomics/MEDomicsLab/go_executables/server_go`,
-        `${home}/.medomics/go_executables/server_go`,
-        `${home}/MEDomicsLab/go_executables/server_go`
-      ]
-      const testCmd = candidates.map(p=>`[ -x '${p.replace(/'/g, "'\\''")}' ] && { echo '${p.replace(/'/g, "'\\''")}'; exit 0; }`).join(' ') + '; command -v server_go || true'
-      const r = await execRemote(conn, `bash -lc "${testCmd}"`)
-      if (r.stdout) return { path: r.stdout.split(/\r?\n/)[0] }
+      // POSIX: prefer current/bin/medomics-server, else search under versions
+      const currentBin = `${baseDir}/current/bin/medomics-server`
+      const curChk = await execRemote(conn, `bash -lc "[ -x '${currentBin.replace(/'/g, "'\\''")}' ] && echo '${currentBin.replace(/'/g, "'\\''")}' || true"`)
+      const curFound = (curChk.stdout||'').trim()
+      if (curFound) return { path: currentBin }
+      const findCmd = `bash -lc "if [ -d '${versionsDir.replace(/'/g, "'\\''")}' ]; then find '${versionsDir.replace(/'/g, "'\\''")}' -type f -name 'medomics-server' -perm +111 -print -quit; fi || true"`
+      const r = await execRemote(conn, findCmd)
+      const found = (r.stdout||'').trim()
+      if (found) return { path: found }
+      // Fallback: check bin under latest version dir
+      const ls = await execRemote(conn, `bash -lc "ls -1dt '${versionsDir.replace(/'/g, "'\\''")}'/* 2>/dev/null | head -n1"`)
+      const latestDir = (ls.stdout||'').trim()
+      if (latestDir) {
+        const candidate = `${latestDir}/bin/medomics-server`
+        const chk = await execRemote(conn, `bash -lc "[ -x '${candidate.replace(/'/g, "'\\''")}' ] && echo '${candidate.replace(/'/g, "'\\''")}' || true"`)
+        if ((chk.stdout||'').trim()) return { path: candidate }
+      }
     }
     return null
   } catch (e) {
@@ -536,6 +553,19 @@ ipcMain.handle('locateRemoteBackendExecutable', async () => {
     if (exe) {
       const pathValue = (typeof exe === 'object' && exe.path) ? exe.path : exe
       setRemoteBackendExecutablePath(pathValue)
+      // Optionally infer and set express log path for convenience
+      try {
+        const normalized = (pathValue||'').replace(/\\/g,'/')
+        let baseDir = null
+        if (normalized.includes('/versions/')) baseDir = normalized.split('/versions/')[0]
+        if (!baseDir) {
+          const home = await getRemoteHome(conn, remoteOS)
+          baseDir = remoteOS === 'win32' ? `${home}\\.medomics\\medomics-server` : `${home}/.medomics/medomics-server`
+        }
+        const logPath = remoteOS === 'win32' ? `${baseDir}\\logs\\express.log` : `${baseDir}/logs/express.log`
+        setTunnelState({ ...getTunnelState(), expressLogPath: logPath })
+        try { mainWindow.webContents.send('tunnelStateUpdate', { expressLogPath: logPath }) } catch {}
+      } catch {}
       return { success: true, path: pathValue }
     }
     return { success: false, error: 'executable-not-found' }

@@ -659,8 +659,8 @@ ipcMain.handle('backendStatus', async (_event, { target = 'local' } = {}) => {
         return new Promise((resolve) => {
           try {
             const net = require('net')
-            // Find a free local port near remotePort or default 55080
-            const baseLocal = Number(remotePort) || 55080
+            // Find a free local port near remotePort or default 3001
+            const baseLocal = Number(remotePort) || 3001
             findAvailablePort(baseLocal, baseLocal + 200).then((localEp) => {
               const server = net.createServer((socket) => {
                 conn.forwardOut(socket.localAddress || '127.0.0.1', socket.localPort || 0, '127.0.0.1', parseInt(remotePort), (err, stream) => {

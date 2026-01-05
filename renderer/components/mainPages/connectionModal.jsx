@@ -16,6 +16,7 @@ import { GoFile, GoFileDirectoryFill, GoChevronDown, GoChevronUp, GoChevronLeft,
 import { FaFolderPlus } from "react-icons/fa"
 import { WorkspaceContext } from "../workspace/workspaceContext"
 import { IoMdClose, IoIosRefresh } from "react-icons/io"
+import RemoteServerPage from "./remoteServer"
 
 /**
  *
@@ -34,8 +35,8 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
   const [password, setPassword] = useState("")
   const [remotePort, setRemotePort] = useState("22")
   // Express ports (local forwarded port and remote Express port)
-  const [localExpressPort, setLocalExpressPort] = useState("55080")
-  const [remoteExpressPort, setRemoteExpressPort] = useState("55088")
+  const [localExpressPort, setLocalExpressPort] = useState("3001")
+  const [remoteExpressPort, setRemoteExpressPort] = useState("3000")
   // GO ports (optional direct forwarding)
   const [localGoPort, setLocalGoPort] = useState("54280")
   const [remoteGoPort, setRemoteGoPort] = useState("54288")
@@ -189,8 +190,8 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
         setHost(tunnel.host || "")
         setUsername(tunnel.username || "")
         setRemotePort(tunnel.remotePort || "22")
-        setLocalExpressPort(tunnel.localExpressPort || "55080")
-        setRemoteExpressPort(tunnel.remoteExpressPort || "55088")
+        setLocalExpressPort(tunnel.localExpressPort || "3010")
+        setRemoteExpressPort(tunnel.remoteExpressPort || "3000")
         setLocalGoPort(tunnel.localGoPort || "54280")
         setRemoteGoPort(tunnel.remoteGoPort || "54288")
         setLocalDBPort(tunnel.localDBPort || "54020")
@@ -477,6 +478,34 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
           setRemoteServerRunning(false)
           setShouldRecheck(false)
         }
+
+        // Confirm it's our Express server by hitting forwarded /status and update tunnel panel
+        try {
+          const resp = await window.backend.requestExpress({ method: 'get', path: '/status', host, port: Number(localExpressPort) })
+          const data = resp?.data || {}
+          if (data && data.success) {
+            // Normalize statuses
+            const expressStatus = 'running'
+            const goStatus = (data.go && data.go.running) ? 'running' : 'stopped'
+            const mongoStatus = (data.mongo && data.mongo.running) ? 'running' : 'stopped'
+            // Sync express port from server snapshot if provided
+            if (typeof data.expressPort === 'number') {
+              setRemoteExpressPort(String(data.expressPort))
+            }
+            // Update the Remote Server tab state
+            await ipcRenderer.invoke('setTunnelState', {
+              expressStatus,
+              goStatus,
+              mongoStatus,
+              // We didn’t start it here, just confirming
+              serverStartedRemotely: false
+            })
+            setRemoteBackendStatus(`Express server confirmed via /status${data.expressPort ? ' on port ' + data.expressPort : ''}`)
+          }
+        } catch (confirmErr) {
+          // Keep prior result; inability to GET /status might mean not the expected server
+          console.warn('Confirm /status failed:', confirmErr && confirmErr.message ? confirmErr.message : confirmErr)
+        }
       } else {
         setRemoteBackendStatus(installed ? 'Remote server installed but unreachable.' : 'Remote server not found. Install or locate it.')
         setRemoteServerRunning(false)
@@ -617,6 +646,36 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
       setRemoteBackendStatus('Failed to start remote server: ' + msg)
       setLastStartDetails(`Exception: ${msg}`)
       setRemoteServerRunning(false)
+    }
+  }
+
+  const stopRemoteServer = async () => {
+    if (!tunnelActive || !remoteServerRunning) {
+      toast.error('Server not running or tunnel inactive.')
+      return
+    }
+    try {
+      setRemoteBackendStatus('Stopping remote server...')
+      // Request remote Express to stop via forwarded endpoint
+      const resp = await window.backend.requestExpress({ method: 'post', path: '/stop-express', host, port: Number(localExpressPort) })
+      if (resp?.data?.success) {
+        setRemoteBackendStatus('Remote server stopped')
+        setRemoteServerRunning(false)
+        setShouldRecheck(true)
+        toast.success('Remote server stopped successfully.')
+        try {
+          // Update tunnel panel statuses and stop log streaming
+          await ipcRenderer.invoke('setTunnelState', { expressStatus: 'stopped', serverStartedRemotely: false })
+          await ipcRenderer.invoke('stopRemoteServerLogStream')
+        } catch(e) { console.log('Failed to update tunnel state after remote stop: ', e) }
+        // Immediately re-run status check to reflect latest state
+        await checkRemoteServer()
+      } else {
+        const msg = resp?.data?.error || 'unknown error'
+        setRemoteBackendStatus('Failed to stop remote server: ' + msg)
+      }
+    } catch (e) {
+      setRemoteBackendStatus('Failed to stop remote server: ' + (e?.message || String(e)))
     }
   }
 
@@ -890,6 +949,8 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
   const [showNewFolderModal, setShowNewFolderModal] = useState(false)
   const [newFolderName, setNewFolderName] = useState("")
   const [creatingFolder, setCreatingFolder] = useState(false)
+  // Debug panel toggle
+  const [showRemotePanel, setShowRemotePanel] = useState(true)
 
   const handleCreateFolder = async () => {
     setCreatingFolder(true)
@@ -970,13 +1031,13 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <h3 style={{ margin: 0, fontSize: '1rem' }}>Remote Express Server</h3>
-              <div style={{ fontSize: 13, color: remoteBackendStatus.includes('running') ? 'var(--success)' : remoteBackendStatus ? 'var(--warning)' : 'var(--text-muted)' }}>
+              <div style={{ fontSize: 13, color: remoteBackendStatus.includes('running') || remoteBackendStatus.includes('reachable') ? 'var(--success)' : remoteBackendStatus ? 'var(--warning)' : 'var(--text-muted)' }}>
                 {remoteBackendStatus || 'Unknown'}
               </div>
             </div>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
               <Button onClick={checkRemoteServer} disabled={!tunnelActive || connectionProcessing} style={{ background: 'var(--button-bg)', color: 'var(--button-text)' }}>{shouldRecheck ? 'Recheck status' : 'Check'}</Button>
-                  <Button onClick={installRemoteServer} disabled={!tunnelActive || installingRemote} style={{ background: 'var(--button-bg)', color: 'var(--button-text)' }}>Install / Update</Button>
+              <Button onClick={installRemoteServer} disabled={!tunnelActive || installingRemote} style={{ background: 'var(--button-bg)', color: 'var(--button-text)' }}>Install / Update</Button>
               <Button onClick={locateRemoteServerExecutable} disabled={!tunnelActive || connectionProcessing} style={{ background: 'var(--bg-secondary)', color: 'var(--text-secondary)' }}>Locate Executable</Button>
               {(installingRemote || remoteInstallPhase) && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
@@ -1008,7 +1069,11 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
             <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginTop: 8 }}>
               <span>Start on port:</span>
               <InputNumber disabled={!tunnelActive || connectionProcessing} value={remoteStartPort} onChange={e => setRemoteStartPort(e.value)} useGrouping={false} min={1} max={65535} />
-              <Button onClick={startRemoteServer} disabled={!tunnelActive || connectionProcessing} style={{ background: 'var(--button-bg)', color: 'var(--button-text)' }}>Start Server</Button>
+              {!remoteServerRunning ? (
+                <Button onClick={startRemoteServer} disabled={!tunnelActive || connectionProcessing} style={{ background: 'var(--button-bg)', color: 'var(--button-text)' }}>Start Server</Button>
+              ) : (
+                <Button onClick={stopRemoteServer} disabled={!tunnelActive || connectionProcessing} style={{ background: 'var(--danger)', color: 'var(--button-text)' }}>Stop Server</Button>
+              )}
               <Button onClick={async () => {
                 if (!tunnelActive) return toast.error('SSH tunnel not active.')
                 try {
@@ -1424,6 +1489,25 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
           />
         </div>
         )}
+        {/* Remote Server Debug Panel - collapsible */}
+        <div style={{ marginTop: '1rem', borderTop: '1px solid var(--border-color)', paddingTop: '1rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+            <h3 style={{ margin: 0, fontSize: '1rem' }}>Remote Server Panel</h3>
+            <Button
+              onClick={() => setShowRemotePanel(v => !v)}
+              style={{ marginLeft: 'auto', background: 'var(--bg-secondary)', color: 'var(--text-secondary)' }}
+              title={showRemotePanel ? 'Hide panel' : 'Show panel'}
+            >
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                {showRemotePanel ? 'Hide' : 'Show'}
+                {showRemotePanel ? <GoChevronUp size={18} /> : <GoChevronDown size={18} />}
+              </span>
+            </Button>
+          </div>
+          {showRemotePanel && (
+            <RemoteServerPage />
+          )}
+        </div>
         {/* Global wizard footer navigation */}
         {tunnelStatus && (
           <div>
