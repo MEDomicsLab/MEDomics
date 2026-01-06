@@ -834,6 +834,26 @@ export async function startSSHTunnel({ host, username, privateKey, password, rem
         // Backward compatibility mapping
         if (!localExpressPort && localBackendPort) localExpressPort = localBackendPort
         if (!remoteExpressPort && remoteBackendPort) remoteExpressPort = remoteBackendPort
+        // Pre-check remote ports to reduce noise and set initial statuses
+        ;(async () => {
+          try {
+            const expressOpen = await checkRemotePortOpen(conn, parseInt(remoteExpressPort))
+            const updates = {}
+            if (typeof expressOpen === 'boolean') {
+              updates.expressStatus = expressOpen ? 'forwarding' : 'closed'
+            }
+            if (remoteGoPort && localGoPort) {
+              const goOpen = await checkRemotePortOpen(conn, parseInt(remoteGoPort))
+              updates.goStatus = goOpen ? 'forwarding' : 'closed'
+            }
+            if (Object.keys(updates).length) {
+              try {
+                setTunnelState({ ...getTunnelState(), ...updates })
+                mainWindow.webContents.send('tunnelStateUpdate', updates)
+              } catch {}
+            }
+          } catch {}
+        })()
         const expressServer = net.createServer((socket) => {
           conn.forwardOut(socket.localAddress || "127.0.0.1", socket.localPort || 0, "127.0.0.1", parseInt(remoteExpressPort), (err, stream) => {
             if (err) {
@@ -853,26 +873,39 @@ export async function startSSHTunnel({ host, username, privateKey, password, rem
         // Optional GO forwarding if provided
         let goServer = null
         if (remoteGoPort && localGoPort) {
-          goServer = net.createServer((socket) => {
-            conn.forwardOut(socket.localAddress || "127.0.0.1", socket.localPort || 0, "127.0.0.1", parseInt(remoteGoPort), (err, stream) => {
-              if (err) {
-                console.error(err)
-                socket.destroy()
+          // Only create GO forward if remote port is listening to reduce noise
+          ;(async () => {
+            try {
+              const open = await checkRemotePortOpen(conn, parseInt(remoteGoPort))
+              if (!open) {
+                try {
+                  const info = { goStatus: 'closed' }
+                  setTunnelState({ ...getTunnelState(), ...info })
+                  mainWindow.webContents.send('tunnelStateUpdate', info)
+                } catch {}
                 return
               }
-              socket.pipe(stream).pipe(socket)
-            })
-          })
-          goServer.listen(localGoPort, "127.0.0.1")
-          goServer.on("error", (e) => {
-            console.warn("GO forwarding server error:", e.message)
-          })
-          // Update GO status to forwarding when server is established
-          try {
-            const info = { goStatus: 'forwarding' }
-            setTunnelState({ ...getTunnelState(), ...info })
-            mainWindow.webContents.send('tunnelStateUpdate', info)
-          } catch {}
+              goServer = net.createServer((socket) => {
+                conn.forwardOut(socket.localAddress || "127.0.0.1", socket.localPort || 0, "127.0.0.1", parseInt(remoteGoPort), (err, stream) => {
+                  if (err) {
+                    console.error(err)
+                    socket.destroy()
+                    return
+                  }
+                  socket.pipe(stream).pipe(socket)
+                })
+              })
+              goServer.listen(localGoPort, "127.0.0.1")
+              goServer.on("error", (e) => {
+                console.warn("GO forwarding server error:", e.message)
+              })
+              try {
+                const info = { goStatus: 'forwarding' }
+                setTunnelState({ ...getTunnelState(), ...info })
+                mainWindow.webContents.send('tunnelStateUpdate', info)
+              } catch {}
+            } catch {}
+          })()
         }
 
         setActiveTunnel(conn)
@@ -885,6 +918,48 @@ export async function startSSHTunnel({ host, username, privateKey, password, rem
       .connect(connConfig)
   })
 }
+
+// IPC to rebind the Express forward to a newly discovered remote port
+ipcMain.handle('rebindExpressForward', async (_event, { newRemoteExpressPort, newLocalExpressPort } = {}) => {
+  try {
+    const conn = getActiveTunnel()
+    if (!conn) return { success: false, error: 'No active SSH tunnel' }
+    const servers = getActiveTunnelServer()
+    const state = getTunnelState()
+    const localPort = Number(newLocalExpressPort || state.localExpressPort)
+    const remotePort = Number(newRemoteExpressPort)
+    if (!remotePort || isNaN(remotePort)) return { success: false, error: 'invalid-remote-port' }
+    if (!localPort || isNaN(localPort)) return { success: false, error: 'invalid-local-port' }
+
+    // Close existing express forward listener if present
+    if (servers && servers.expressServer) {
+      try {
+        await new Promise((resolve) => servers.expressServer.close(() => resolve()))
+      } catch {}
+    }
+
+    // Create a new forward listener targeting the new remote port
+    const netServer = net.createServer((socket) => {
+      conn.forwardOut(socket.localAddress || '127.0.0.1', socket.localPort || 0, '127.0.0.1', remotePort, (err, stream) => {
+        if (err) { socket.destroy(); return }
+        socket.pipe(stream).pipe(socket)
+      })
+    })
+    await new Promise((resolve, reject) => {
+      netServer.once('error', reject)
+      netServer.listen(localPort, '127.0.0.1', () => resolve())
+    })
+
+    // Update active servers and tunnel state
+    setActiveTunnelServer({ ...(servers || {}), expressServer: netServer })
+    const updates = { remoteExpressPort: remotePort }
+    setTunnelState({ ...getTunnelState(), ...updates })
+    try { mainWindow.webContents.send('tunnelStateUpdate', updates) } catch {}
+    return { success: true, localPort, remotePort }
+  } catch (e) {
+    return { success: false, error: e && e.message ? e.message : String(e) }
+  }
+})
 
 /**
  * Checks if a port is open on the remote host via SSH.

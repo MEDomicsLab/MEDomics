@@ -463,53 +463,116 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
       }
       setRemoteInstalled(installed)
 
-      // Then, check runtime status via /status
+      // Then, read snapshot/status (may include a last-known port from state file)
       const status = await ipcRenderer.invoke('backendStatus', { target: 'remote' })
-      if (status && status.success) {
-        const expressPort = status.expressPort || status.state?.expressPort || status.expressPort
-        if (expressPort) setRemoteExpressPort(String(expressPort))
-        const running = (status.go && status.go.running) || (status.mongo && status.mongo.running) || (status.jupyter && status.jupyter.running) || !!expressPort
-        if (running) {
-          setRemoteBackendStatus(`Remote server reachable${expressPort ? ' on port ' + expressPort : ''}`)
+      console.log('Remote backend status:', status)
+      const expressPort = status && (status.expressPort || status.state?.expressPort)
+      if (typeof expressPort === 'number') {
+        setRemoteExpressPort(String(expressPort))
+      }
+
+      // If a different remote port was discovered, offer to rebind the forward
+      try {
+        const discovered = typeof status?.discoveredRemotePort === 'number' ? status.discoveredRemotePort : (typeof expressPort === 'number' ? expressPort : null)
+        const currentRemote = Number(remoteExpressPort)
+        if (discovered && currentRemote && discovered !== currentRemote) {
+          const accept = window.confirm(`Remote Express appears to be running on port ${discovered}, but your tunnel targets ${currentRemote}. Rebind the forward to ${discovered}?`)
+          if (accept) {
+            const reb = await ipcRenderer.invoke('rebindExpressForward', { newRemoteExpressPort: Number(discovered) })
+            if (reb && reb.success) {
+              setRemoteExpressPort(String(discovered))
+              // Sync context
+              try { tunnelContext.setTunnelInfo(await ipcRenderer.invoke("getTunnelState")) } catch {}
+              toast.success(`Rebound Express forward to remote port ${discovered}.`)
+              // After rebind, try a quick status confirm
+              try {
+                const resp = await window.backend.requestExpress({ method: 'get', path: '/status', host, port: Number(localExpressPort), timeout: 3000 })
+                if (resp?.data?.success) {
+                  setRemoteBackendStatus(`Express server confirmed via /status on port ${discovered}`)
+                  setRemoteServerRunning(true)
+                }
+              } catch {}
+            } else {
+              toast.error(`Failed to rebind forward: ${reb?.error || 'Unknown error'}`)
+            }
+          }
+        }
+      } catch { /* non-fatal */ }
+
+      // If installation could not be confirmed, stop immediately without probing /status
+      if (!installed) {
+        setRemoteBackendStatus('Remote server not found. Install or locate it.')
+        setRemoteServerRunning(false)
+        setShouldRecheck(false)
+        return
+      }
+
+      // If backendStatus already confirmed via /status (not just state file), use it directly
+      if (status && status.success && status.source !== 'state-file') {
+        const data = status
+        const expressStatus = 'running'
+        const goStatus = (data.go && data.go.running) ? 'running' : 'stopped'
+        const mongoStatus = (data.mongo && data.mongo.running) ? 'running' : 'stopped'
+        if (typeof data.expressPort === 'number') {
+          setRemoteExpressPort(String(data.expressPort))
+        }
+        await ipcRenderer.invoke('setTunnelState', {
+          expressStatus,
+          goStatus,
+          mongoStatus,
+          serverStartedRemotely: false
+        })
+        try {
+          tunnelContext.setTunnelInfo(await ipcRenderer.invoke("getTunnelState"))
+        } catch(e) { /* non-fatal context sync */ }
+        setRemoteBackendStatus(`Express server confirmed via /status${data.expressPort ? ' on port ' + data.expressPort : ''}`)
+        setRemoteServerRunning(true)
+        setShouldRecheck(true)
+        return
+      }
+
+      // Confirm it's our Express server by hitting forwarded /status and update tunnel panel
+      try {
+        const resp = await window.backend.requestExpress({ method: 'get', path: '/status', host, port: Number(localExpressPort), timeout: 4000 })
+        const data = resp?.data || {}
+        if (data && data.success) {
+          // Normalize statuses
+          const expressStatus = 'running'
+          const goStatus = (data.go && data.go.running) ? 'running' : 'stopped'
+          const mongoStatus = (data.mongo && data.mongo.running) ? 'running' : 'stopped'
+          // Sync express port from server snapshot if provided
+          if (typeof data.expressPort === 'number') {
+            setRemoteExpressPort(String(data.expressPort))
+          }
+          // Update the Remote Server tab state
+          await ipcRenderer.invoke('setTunnelState', {
+            expressStatus,
+            goStatus,
+            mongoStatus,
+            // We didn’t start it here, just confirming
+            serverStartedRemotely: false
+          })
+          try {
+            tunnelContext.setTunnelInfo(await ipcRenderer.invoke("getTunnelState"))
+          } catch(e) { /* non-fatal context sync */ }
+          setRemoteBackendStatus(`Express server confirmed via /status${data.expressPort ? ' on port ' + data.expressPort : ''}`)
           setRemoteServerRunning(true)
           setShouldRecheck(true)
-        } else {
-          setRemoteBackendStatus(installed ? 'Remote server installed but not running.' : 'Remote server not running. Install or start it.')
-          setRemoteServerRunning(false)
-          setShouldRecheck(false)
+          return
         }
+      } catch (confirmErr) {
+        console.warn('Confirm /status failed:', confirmErr && confirmErr.message ? confirmErr.message : confirmErr)
+      }
 
-        // Confirm it's our Express server by hitting forwarded /status and update tunnel panel
-        try {
-          const resp = await window.backend.requestExpress({ method: 'get', path: '/status', host, port: Number(localExpressPort) })
-          const data = resp?.data || {}
-          if (data && data.success) {
-            // Normalize statuses
-            const expressStatus = 'running'
-            const goStatus = (data.go && data.go.running) ? 'running' : 'stopped'
-            const mongoStatus = (data.mongo && data.mongo.running) ? 'running' : 'stopped'
-            // Sync express port from server snapshot if provided
-            if (typeof data.expressPort === 'number') {
-              setRemoteExpressPort(String(data.expressPort))
-            }
-            // Update the Remote Server tab state
-            await ipcRenderer.invoke('setTunnelState', {
-              expressStatus,
-              goStatus,
-              mongoStatus,
-              // We didn’t start it here, just confirming
-              serverStartedRemotely: false
-            })
-            setRemoteBackendStatus(`Express server confirmed via /status${data.expressPort ? ' on port ' + data.expressPort : ''}`)
-          }
-        } catch (confirmErr) {
-          // Keep prior result; inability to GET /status might mean not the expected server
-          console.warn('Confirm /status failed:', confirmErr && confirmErr.message ? confirmErr.message : confirmErr)
-        }
-      } else {
-        setRemoteBackendStatus(installed ? 'Remote server installed but unreachable.' : 'Remote server not found. Install or locate it.')
+      // If confirmation failed, report based on installation/presence without claiming reachability
+      if (installed) {
+        setRemoteBackendStatus('Remote server installed but unreachable.')
         setRemoteServerRunning(false)
         setShouldRecheck(true)
+      } else {
+        setRemoteBackendStatus('Remote server not found. Install or locate it.')
+        setRemoteServerRunning(false)
+        setShouldRecheck(false)
       }
     } catch (e) {
       setRemoteBackendStatus('Failed to check remote server: ' + (e?.message || String(e)))
@@ -666,6 +729,9 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
         try {
           // Update tunnel panel statuses and stop log streaming
           await ipcRenderer.invoke('setTunnelState', { expressStatus: 'stopped', serverStartedRemotely: false })
+          try {
+            tunnelContext.setTunnelInfo(await ipcRenderer.invoke("getTunnelState"))
+          } catch(e) { /* non-fatal context sync */ }
           await ipcRenderer.invoke('stopRemoteServerLogStream')
         } catch(e) { console.log('Failed to update tunnel state after remote stop: ', e) }
         // Immediately re-run status check to reflect latest state
@@ -711,6 +777,7 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
       setRequirementsChecking(true)
       const resp = await window.backend.requestExpress({ method: 'get', path: '/check-requirements', host, port: Number(localExpressPort) })
       const result = resp?.data?.result || {}
+      console.log('Remote requirements check result:', result)
       // Normalize shapes: support both legacy and consolidated formats
       const pythonEnv = result?.python ? !!result.python.env : (typeof result?.pythonInstalled === 'boolean' ? !!result.pythonInstalled : false)
       const pythonPackages = result?.python ? (
@@ -1031,7 +1098,7 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <h3 style={{ margin: 0, fontSize: '1rem' }}>Remote Express Server</h3>
-              <div style={{ fontSize: 13, color: remoteBackendStatus.includes('running') || remoteBackendStatus.includes('reachable') ? 'var(--success)' : remoteBackendStatus ? 'var(--warning)' : 'var(--text-muted)' }}>
+              <div style={{ fontSize: 13, color: remoteBackendStatus.includes('running') || remoteBackendStatus.includes(' reachable') ? 'var(--success)' : remoteBackendStatus ? 'var(--warning)' : 'var(--text-muted)' }}>
                 {remoteBackendStatus || 'Unknown'}
               </div>
             </div>

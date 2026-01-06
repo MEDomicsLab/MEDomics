@@ -248,6 +248,7 @@ expressApp.post("/set-working-directory", async (req, res) =>{
 // Status: single source of truth snapshot for all services this backend manages
 expressApp.get("/status", async (req, res) => {
 		try {
+      console.log("Received request to get service status")
 			// Optionally refresh Jupyter runtime status on demand
 			try {
 				const jStatus = await checkJupyterIsRunning()
