@@ -1,6 +1,5 @@
 /* eslint-disable no-unreachable */
 import { randomUUID } from "crypto"
-import { DataFrame } from "../../../utilities/danfo.js"
 import { Button } from 'primereact/button'
 import { DataView } from "primereact/dataview"
 import { Dropdown } from "primereact/dropdown"
@@ -8,14 +7,13 @@ import { InputText } from "primereact/inputtext"
 import { Message } from "primereact/message"
 import { MultiSelect } from "primereact/multiselect"
 import { ProgressSpinner } from "primereact/progressspinner"
-import React, { useContext, useEffect, useState } from "react"
+import { useContext, useEffect, useState } from "react"
 import ProgressBar from "react-bootstrap/ProgressBar"
 import { toast } from "react-toastify"
+import { DataFrame } from "../../../utilities/danfo.js"
 import { loadCSVPath } from "../../../utilities/fileManagementUtils"
 import { requestBackend } from "../../../utilities/requests"
-import { ErrorRequestContext } from "../../generalPurpose/errorRequestContext"
 import { LayoutModelContext } from "../../layout/layoutContext"
-import { PageInfosContext } from "../../mainPages/moduleBasics/pageInfosContext"
 import { insertMEDDataObjectIfNotExists } from "../../mongoDB/mongoDBUtils"
 import { DataContext } from "../../workspace/dataContext"
 import { MEDDataObject } from "../../workspace/NewMedDataObject"
@@ -78,8 +76,6 @@ const MEDprofilesPrepareData = () => {
   const { dispatchLayout } = useContext(LayoutModelContext) // used to open the MEDprofiles Viewer tab
   const { globalData } = useContext(DataContext) // we get the global data from the context to retrieve the directory tree of the workspace, thus retrieving the data files
   const { port } = useContext(WorkspaceContext) // we get the port for server connexion
-  const { pageId } = useContext(PageInfosContext) // used to get the pageId
-  const { setError } = useContext(ErrorRequestContext) // used to diplay the errors
 
 
   /**
@@ -219,7 +215,7 @@ const MEDprofilesPrepareData = () => {
     // Run creation process
     requestBackend(
       port,
-      "/MEDprofiles/create_master_table/" + pageId,
+      "/MEDprofiles/create_master_table/",
       {
         id: id,
         csvCollections: csvCollections,
@@ -231,7 +227,6 @@ const MEDprofilesPrepareData = () => {
           setSelectedSubMasterTableFiles(null)
         } else {
           toast.error(`Creation failed: ${jsonResponse.error.message}`)
-          setError(jsonResponse.error)
         }
       },
       function (err) {
@@ -254,7 +249,7 @@ const MEDprofilesPrepareData = () => {
     // Run extraction process
     requestBackend(
       port,
-      "/MEDprofiles/create_MEDclasses/" + pageId,
+      "/MEDprofiles/create_MEDclasses/" ,
       {
         masterTableID: selectedMasterTable.id,
         MEDprofilesFolderPath: MEDprofilesFolderPath,
@@ -265,7 +260,6 @@ const MEDprofilesPrepareData = () => {
           MEDDataObject.updateWorkspaceDataObject()
         } else {
           toast.error(`Creation failed: ${jsonResponse.error.message}`)
-          setError(jsonResponse.error)
         }
       },
       function (err) {
@@ -340,7 +334,7 @@ const MEDprofilesPrepareData = () => {
       // Run extraction process
       requestBackend(
         port,
-        "/MEDprofiles/create_MEDprofiles_folder/" + pageId,
+        "/MEDprofiles/create_MEDprofiles_folder/",
         {
           rootDataFolder: rootDataFolder.path,
         },
@@ -352,7 +346,6 @@ const MEDprofilesPrepareData = () => {
             resolve()
           } else {
             toast.error(`Creation failed: ${jsonResponse.error.message}`)
-            setError(jsonResponse.error)
             setLoadingMasterTables(false)
             setLoadingSubMasterTables(false)
             reject(jsonResponse.error)
@@ -396,7 +389,7 @@ const MEDprofilesPrepareData = () => {
     // Run extraction process
     requestBackend(
       port,
-      "/MEDprofiles/get_master_csv/" + pageId,
+      "/MEDprofiles/get_master_csv/",
       {
         csvCollections: csvCollections,
       },
@@ -415,7 +408,6 @@ const MEDprofilesPrepareData = () => {
           }
         } else {
           toast.error(`Loading csv matching formats failed: ${jsonResponse.error.message}`)
-          setError(jsonResponse.error)
         }
         setLoadingMasterTables(false)
         setLoadingSubMasterTables(false)
@@ -439,7 +431,7 @@ const MEDprofilesPrepareData = () => {
     return new Promise((resolve, reject) => {
       requestBackend(
         port,
-        "/MEDprofiles/initialize_MEDprofiles_instantiation/" + pageId,
+        "/MEDprofiles/initialize_MEDprofiles_instantiation/",
         {
           masterTableID: selectedMasterTable.id,
           MEDprofilesFolderPath: MEDprofilesFolderPath,
@@ -503,7 +495,7 @@ const MEDprofilesPrepareData = () => {
           setProgressNumber(progress.toFixed(2))
           requestBackend(
             port,
-            "/MEDprofiles/instantiate_MEDprofiles/" + pageId,
+            "/MEDprofiles/instantiate_MEDprofiles/",
             {
               masterTableID: selectedMasterTable.id,
               MEDclassesFolder: generatedClassesFolder.path,
@@ -519,7 +511,6 @@ const MEDprofilesPrepareData = () => {
         if (jsonResponse.error) {
           console.error(jsonResponse.error)
           toast.error(`Instantiation failed: ${jsonResponse.error.message}`)
-          setError(jsonResponse.error)
           return
         }
       } catch (err) {
@@ -563,7 +554,6 @@ const MEDprofilesPrepareData = () => {
       }
     } else if (jsonInitialization.error) {
       toast.error(`Instantiation failed: ${jsonInitialization.error.message}`)
-      setError(jsonInitialization.error)
     } else {
       toast.error("Instantiation failed: invalid dataset")
     }

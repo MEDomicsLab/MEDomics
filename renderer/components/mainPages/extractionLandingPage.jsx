@@ -1,13 +1,13 @@
+import Image from "next/image"
+import { Message } from "primereact/message"
 import { useContext } from "react"
 import { Button, Card, Stack } from "react-bootstrap"
-import Image from "next/image"
-import myimage from "../../../resources/medomics_transparent_bg.png"
-import medimageLogo from "../../../resources/MEDimageLogo.png"
 import { FaAlignJustify, FaChartLine } from "react-icons/fa"
-import { LayoutModelContext } from "../layout/layoutContext"
-import { LuBrain } from "react-icons/lu"
 import { FaImage } from "react-icons/fa6"
-import { Message } from "primereact/message"
+import { LuBrain } from "react-icons/lu"
+import medimageLogo from "../../../resources/MEDimageLogo.png"
+import myimage from "../../../resources/medomics_transparent_bg.png"
+import { LayoutModelContext } from "../layout/layoutContext"
 
 
 export default function ExtractionLandingPage() {

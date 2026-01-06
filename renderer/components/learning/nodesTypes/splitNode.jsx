@@ -15,28 +15,40 @@ const SplitNode = ({ id, data }) => {
   const [useUserDefinedSettings, setUseUserDefinedSettings] = useState(false)
   const [useTags, setUseTags] = useState(false)
 
-  // Update available options when split type changes
-  useEffect(() => {
-    if (!data.internal.settings.columns){
-      handleWarning({ state: true, tooltip: <p>No columns available for stratification. Please select a dataset with columns.</p> })
-    }
-    if (data.internal.settings?.global?.stratify_columns.length === 0){
-      handleWarning({ state: true, tooltip: <p>Please select the stratification columns.</p> })
-    }
-  }, [data.internal.settings])
-
   const handleStratificationWarning = () => {
-    const selectedStratificationColumns = data.internal.settings.global.stratify_columns.length > 0
-    const usedTags = data.internal.settings.useTags && (
-      (data.internal.settings.global.columnsTags && data.internal.settings.global.columnsTags.length > 0) ||
-      (data.internal.settings.global.rowsTags && data.internal.settings.global.rowsTags.length > 0)
-    )
-    if (!selectedStratificationColumns && !usedTags) {
-      return { state: true, tooltip: <p>Please select the stratification columns or use tags.</p> }
-    } else {
-      return { state: false }
+  const sc = data.internal.settings.global?.stratify_columns
+  const hasStratCols = Array.isArray(sc)
+    ? sc.filter(Boolean).length > 0
+    : (typeof sc === "string" ? sc.trim() !== "" : false)
+
+  const usedTags = data.internal.settings.useTags && (
+    (data.internal.settings.global.columnsTags && data.internal.settings.global.columnsTags.length > 0) ||
+    (data.internal.settings.global.rowsTags && data.internal.settings.global.rowsTags.length > 0)
+  )
+
+  // Only blocking case: "Use tags" is enabled but no tags are selected
+  if (data.internal.settings.useTags && !usedTags) {
+    return { state: true, tooltip: <p>You enabled "Use tags" but no tags are selected.</p> }
+  }
+
+  // If user selected stratification columns → informational (non-blocking)
+  if (hasStratCols) {
+    return {
+      state: false, //do not block the Launch button
+      tooltip: (
+        <p>
+          Selecting stratification columns is optional. An inappropriate choice
+           may cause errors when starting
+          training (e.g., empty classes per fold).
+        </p>
+      )
     }
   }
+
+  // No stratification columns and no tags → no warning
+  return { state: false }
+}
+
 
   // Handler for input changes for global parameters
   const onGlobalInputChange = (inputUpdate) => {
@@ -120,7 +132,7 @@ const SplitNode = ({ id, data }) => {
             columnsTags: data.internal.settings.columnsTags || [],
             rowsTagsMapped: data.internal.settings.rowsTagsMapped || {},
             rowsTags: data.internal.settings.rowsTags || [],
-            stratify_columns: columnsArray.length > 0 ? columnsArray[columnsArray.length - 1] : "",
+            stratify_columns: "",
           },
         },
       },
@@ -199,13 +211,13 @@ const SplitNode = ({ id, data }) => {
       }
       // Only update if something changed
       if (JSON.stringify(data.internal.settings.columnsTagsMapped) !== JSON.stringify(newSettings.columnsTagsMapped)) {
-        newSettings.global.columnsTags = newSettings.columnsTags
-        newSettings.global.columnsTagsMapped = newSettings.columnsTagsMapped
+        newSettings.columnsTags = newSettings.columnsTags
+        newSettings.columnsTagsMapped = newSettings.columnsTagsMapped
         hasChanged = true
       }
       if (JSON.stringify(data.internal.settings.rowsTagsMapped) !== JSON.stringify(newSettings.rowsTagsMapped)) {
-        newSettings.global.rowsTags = newSettings.rowsTags
-        newSettings.global.rowsTagsMapped = newSettings.rowsTagsMapped
+        newSettings.rowsTags = newSettings.rowsTags
+        newSettings.rowsTagsMapped = newSettings.rowsTagsMapped
         hasChanged = true
       }
       if (hasChanged) {
@@ -396,6 +408,22 @@ const SplitNode = ({ id, data }) => {
                     }}
                   />
                 )}
+                {(() => {
+                  const sc = data.internal.settings.global?.stratify_columns
+                  const hasStratCols = Array.isArray(sc)
+                    ? sc.filter(Boolean).length > 0
+                    : (typeof sc === "string" ? sc.trim() !== "" : false)
+
+                  if (!hasStratCols) return null
+                  return (
+                    <Message
+                      severity="warn"
+                      text="Selecting stratification columns is optional. An inappropriate choice may cause errors during training (e.g., empty classes per fold)."
+                      style={{ borderWidth: '0 0 0 6px' }}
+                    />
+                  )
+                })()}
+
                 {data.internal.settings.global && Object.entries(data.internal.settings.global).filter(
                   ([nameParam]) => !nameParam.toLowerCase().includes("tags")
                 ).map(([nameParam, index]) => {
@@ -421,7 +449,7 @@ const SplitNode = ({ id, data }) => {
                         }}
                       />
                     }
-
+                    
                     return (
                         <Input
                           key={nameParam}

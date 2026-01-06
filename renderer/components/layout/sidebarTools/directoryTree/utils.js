@@ -53,6 +53,8 @@ export function fromJSONtoTree(data, showHiddenFiles) {
         data: element.name,
         canRename: ableToRename && !isRoot,
         type: element.type,
+        inWorkspace: element.inWorkspace,
+        path: element.path ? element.path : null,
         isLocked: element.isLocked,
         usedIn: element.usedIn,
         path: element.path

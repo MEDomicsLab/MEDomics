@@ -48,13 +48,7 @@ function FlowResultsProvider({ children }) {
       return results[firstKey].results ? true : false
     }
     if (isValidFormat(newResults)) {
-      if (finalizing) {
-        // If we are finalizing the results, we only update the results of the finalized node
-        if (finalizedNode) {
-          newResults = updateKeyInObject(flowResults, finalizedNode, newResults)
-          setFlowResults((prevResults) => updateKeyInObject(prevResults, finalizedNode, newResults))
-        }
-      } else {
+      if (!finalizing) {
         setFlowResults({ ...newResults })
       }
       setIsResults(true)

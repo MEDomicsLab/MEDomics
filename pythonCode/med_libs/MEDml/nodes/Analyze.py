@@ -4,7 +4,6 @@ import json
 import os
 from pathlib import Path
 import platform
-import tempfile
 import uuid
 from typing import Union
 
@@ -12,7 +11,7 @@ import numpy as np
 import pandas as pd
 from colorama import Fore
 from MEDDataObject import MEDDataObject
-from mongodb_utils import (insert_med_data_object_if_not_exists, overwrite_med_data_object_content)
+from mongodb_utils import (connect_to_mongo, insert_med_data_object_if_not_exists, overwrite_med_data_object_content)
 from PIL import Image, ImageFile
 ImageFile.LOAD_TRUNCATED_IMAGES = True  # To handle truncated images
 
@@ -34,12 +33,14 @@ class Analyze(Node):
             global_config_json (json): The global config json.
         """
         super().__init__(id_, global_config_json)
+        self.finalize = global_config_json["finalize"]
 
     def _execute(self,  experiment: dict = None, **kwargs) -> json:
         """
         This function is used to execute the node.
         """
         self._info_for_next_node = kwargs  # Pass all kwargs to finalze and save models
+        if self.finalize: return {} # Skip analyze if finalizing models
         selection = self.config_json['data']['internal']['selection']
         if selection not in ['interpret_model', 'plot_model', 'dashboard']:
             selection = 'plot_model'  # Default to plot_model if not specified
@@ -61,7 +62,7 @@ class Analyze(Node):
         self.CodeHandler.add_line(
             "code", f"pycaret_exp.{selection}(model, {self.CodeHandler.convert_dict_to_params(print_settings)})", 1)
         for model in kwargs['models']:
-            model = format_model(model)
+            model = copy.deepcopy(format_model(model))
             # Convert plot settings to lowercase
             if 'plot' in settings and type(settings['plot']) == str:
                 settings['plot'] = settings['plot'].lower()
@@ -84,6 +85,25 @@ class Analyze(Node):
             image_data = {
                 'data': image_bytes.getvalue()
             }
+
+            # Check if another image with same name exists
+            db = connect_to_mongo()
+            collection = db['medDataObjects']
+
+            # Rename if meddataobject already in database
+            existing_object_by_id = collection.find_one({'id': image_med_object.id})
+            if not existing_object_by_id:
+                # Rename image if name exists
+                existing_object_by_attributes = collection.find_one({
+                    'name': image_med_object.name,
+                    'type': image_med_object.type,
+                    'parentID': image_med_object.parentID
+                })
+                if existing_object_by_attributes:
+                    # If already exists, rename
+                    new_name = image_med_object.name.split('.png')[0] + '_' + image_med_object.id + '.png'
+                    image_med_object.name = new_name
+
             image_med_object_id = insert_med_data_object_if_not_exists(image_med_object, [image_data])
             if image_med_object_id != image_med_object.id:
                 # If image already existed we overwrite its content

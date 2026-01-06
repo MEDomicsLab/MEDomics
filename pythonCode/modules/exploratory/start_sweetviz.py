@@ -13,6 +13,82 @@ if not hasattr(pd.Series, "iteritems"):
 if not hasattr(pd.DataFrame, "iteritems"):
     pd.DataFrame.iteritems = pd.DataFrame.items
 
+# ===========================
+# SWEETVIZ PANDAS COMPATIBILITY PATCH
+# ===========================
+import math
+import pandas as pd
+
+# -- Pandas >= 2: restore iteritems if missing (Sweetviz sometimes calls iteritems)
+if not hasattr(pd.Series, "iteritems"):
+    pd.Series.iteritems = pd.Series.items
+if not hasattr(pd.DataFrame, "iteritems"):
+    pd.DataFrame.iteritems = pd.DataFrame.items
+
+# -- Pandas >= 2: reintroduce Series.mad() (mean absolute deviation) removed from Pandas
+if not hasattr(pd.Series, "mad"):
+    def _series_mad(self, axis=None, skipna=None, level=None):
+        # Compute Mean Absolute Deviation manually; coerce to numeric and handle NaN
+        s = pd.to_numeric(self, errors="coerce")
+        if skipna is None:
+            skipna = True
+        if skipna:
+            s = s.dropna()
+        if s.size == 0:
+            return math.nan
+        m = s.mean()
+        return (s - m).abs().mean()
+    pd.Series.mad = _series_mad
+
+# -- Sweetviz get_counts(): replace with a robust version that does NOT assume a column named "index"
+import sweetviz.series_analyzer as _sza
+
+def _get_counts_robust(series: pd.Series):
+    s = series
+
+    # value_counts with and without NaN (do not rely on reset_index/set_index("index"))
+    vc_with_nan = s.value_counts(dropna=False)
+    vc_without_nan = s.dropna().value_counts(dropna=False)
+
+    # Row-level stats
+    num_total = int(len(s))
+    nan_count = int(s.isna().sum())
+    num_with_data = int(num_total - nan_count)
+
+    # Distinct value counts
+    distinct_with_nan = int(vc_with_nan.shape[0])
+    distinct_without_nan = int(vc_without_nan.shape[0])
+
+    # Return the dictionary shape Sweetviz expects across versions/branches
+    return {
+        # value_counts
+        "value_counts_with_nan": vc_with_nan,
+        "value_counts_without_nan": vc_without_nan,
+
+        # distinct/unique (some branches use "distinct_*", others "unique_*")
+        "distinct_count_with_nan": distinct_with_nan,
+        "distinct_count_without_nan": distinct_without_nan,
+        "unique_count_with_nan": distinct_with_nan,
+        "unique_count_without_nan": distinct_without_nan,
+
+        # base row stats (used by add_series_base_stats_to_dict)
+        "num_rows_total": num_total,
+        "num_rows_with_data": num_with_data,
+        "num_rows_with_nan": nan_count,
+        "percent_rows_with_data": (100.0 * num_with_data / num_total) if num_total else 0.0,
+        "percent_rows_with_missing": (100.0 * nan_count / num_total) if num_total else 0.0,
+
+        # sometimes read elsewhere
+        "nan_count": nan_count,
+    }
+
+_sza.get_counts = _get_counts_robust
+# ===========================
+# END OF PATCH
+# ===========================
+
+
+
 sys.path.append(str(Path(os.path.dirname(os.path.abspath(__file__))).parent.parent))
 from med_libs.GoExecutionScript import GoExecutionScript, parse_arguments
 from med_libs.server_utils import go_print

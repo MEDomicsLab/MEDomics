@@ -248,6 +248,23 @@ const FlowCanvas = ({ workflowType, setWorkflowType }) => {
     return newNode
   }
 
+  const duplicateNode = (id) => {
+    const nodeToDuplicate = nodes.find((node) => node.id === id)
+    if (!nodeToDuplicate) return
+
+    const newNode = {
+      ...deepCopy(nodeToDuplicate),
+      id: `node_${uuid.v4()}`,
+      position: {
+        x: nodeToDuplicate.position.x + 40,
+        y: nodeToDuplicate.position.y + 100
+      },
+      selected: false
+    }
+
+    setNodes((nds) => [...nds, newNode])
+  }
+
   /**
    * @param {Object} id id of the node to delete
    *
@@ -710,6 +727,7 @@ const FlowCanvas = ({ workflowType, setWorkflowType }) => {
           reactFlowInstance: reactFlowInstance,
           setReactFlowInstance: setReactFlowInstance,
           addSpecificToNode: addSpecificToNode,
+          duplicateNode: duplicateNode,
           nodeTypes: nodeTypes,
           nodes: nodes,
           setNodes: setNodes,

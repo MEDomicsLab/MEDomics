@@ -57,6 +57,7 @@ const FlowSceneSidebar = ({ type }) => {
     let sceneFolderId = await insertMEDDataObjectIfNotExists(sceneFolder)
 
     for (const folder of typeInfo[type].externalFolders) {
+      if (isExperiment && folder === "models") continue
       let medObject = new MEDDataObject({
         id: randomUUID(),
         name: folder,

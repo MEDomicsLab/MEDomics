@@ -146,6 +146,9 @@ class MEDexperimentLearning(MEDexperiment):
         node.CodeHandler.add_line("code", f"temp_df = df[df['{kwargs['target']}'].notna()]")
         temp_df.replace("", float("NaN"), inplace=True)
         temp_df.dropna(how='all', axis=1, inplace=True)
+        if 'variables' in node.settings and node.settings['variables']:
+            first_col = temp_df.columns[0]
+            temp_df = temp_df[[first_col] + [kwargs['target']] + node.settings['variables']]
         node.CodeHandler.add_line("code", f"temp_df.dropna(how='all', axis=1, inplace=True)")
         medml_logger = MEDml_logger()
 

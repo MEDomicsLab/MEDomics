@@ -3,7 +3,7 @@ const classificationSettings = {
   split: {
     global: {
       stratify_columns: {
-        type: "list-multiple-name",
+        type: "list-multiple-columns",
         tooltip: "<p>Select stratification variables. These will be used to stratify the data during splitting.</p>",
         default_val: [],
         choices: {}
@@ -318,11 +318,23 @@ const classificationSettings = {
             "<p>Classifier used to determine feature importances. Must have <cite>feature_importances_</cite> or <cite>coef_</cite> after fitting.<br>Ignored when <cite>feature_selection_method='univariate'</cite>. If None, LGBClassifier is used by default.</p>",
           default_val: "lightgbm",
           choices: {
-              lightgbm: "LGBM",
-              random_forest: "RandomForest",
-              extra_trees: "ExtraTrees",
-              catboost: "CatBoost",
-              xgboost: "XGBoost"
+              lr : "Linear regression", 
+              knn: "K-Nearest Neighbors", 
+              nb: "Naive Bayes", 
+              dt: "Decision Tree", 
+              svm: "Support Vector Machine", 
+              rbfsvm: "RBF SVM", 
+              gpc: "Gaussian Process Classifier", 
+              mlp: "Multi-layer Perceptron", 
+              ridge: "Ridge Classifier", 
+              rf: "Random Forest", 
+              qda: "Quadratic Discriminant Analysis", 
+              ada: "AdaBoost", 
+              gbc: "Gradient Boosting Classifier", 
+              lda: "Linear Discriminant Analysis", 
+              et: "Extra Trees", 
+              lightgbm: "LightGBM", 
+              dummy: "Dummy Classifier"
           }
       },
       feature_selection_method: {
@@ -341,14 +353,18 @@ const classificationSettings = {
         tooltip:
           "<p>The maximum number of features to select with feature_selection. If &lt;1,\nit\u2019s the fraction of starting features. Note that this parameter doesn\u2019t\ntake features in ignore_features or keep_features into account\nwhen counting.</p>\n",
         default_val: "0.2",
-        min: 0.0,
-        max: 1.0
+        min: 0.0
       }
     },
     code: ""
   },
   dataset: {
     options: {
+      session_id: {
+        type: "int",
+        tooltip: "<p>Controls the randomness of experiment. It is equivalent to \u2018random_state\u2019 in\nscikit-learn. When None, a pseudo random number is generated. This can be used\nfor later reproducibility of the entire experiment.</p>\n",
+        default_val: "None"
+      },
       index: {
         type: "bool-int-str",
         tooltip:
@@ -374,13 +390,13 @@ const classificationSettings = {
         default_val: "None"
       },
       numeric_features: {
-        type: "custom-list",
+        type: "list-multiple-columns",
         tooltip:
           "<p>If the inferred data types are not correct, the numeric_features param can\nbe used to define the data types. It takes a list of strings with column\nnames that are numeric.</p>\n",
         default_val: "None"
       },
       categorical_features: {
-        type: "custom-list",
+        type: "list-multiple-columns",
         tooltip:
           "<p>If the inferred data types are not correct, the categorical_features param\ncan be used to define the data types. It takes a list of strings with column\nnames that are categorical.</p>\n",
         default_val: "None"
@@ -936,13 +952,88 @@ const classificationSettings = {
       search_library: {
         type: "string",
         tooltip:
-          "<p>The search library used for tuning hyperparameters. Possible values:</p>\n<ul >\n<li><dl >\n<dt>\u2018scikit-learn\u2019 - default, requires no further installation</dt><dd><p>https://github.com/scikit-learn/scikit-learn</p>\n</dd>\n</dl>\n</li>\n<li><dl >\n<dt>\u2018scikit-optimize\u2019 - pip install scikit-optimize</dt><dd><p>https://scikit-optimize.github.io/stable/</p>\n</dd>\n</dl>\n</li>\n<li><dl >\n<dt>\u2018tune-sklearn\u2019 - pip install tune-sklearn ray[tune]</dt><dd><p>https://github.com/ray-project/tune-sklearn</p>\n</dd>\n</dl>\n</li>\n<li><dl >\n<dt>\u2018optuna\u2019 - pip install optuna</dt><dd><p>https://optuna.org/</p>\n</dd>\n</dl>\n</li>\n</ul>\n",
+          "<p>The search library used for tuning hyperparameters. Possible values:</p>\n" +
+
+          "<ul>\n" +
+
+          "<li><dl>\n" +
+          "<dt><strong>‘scikit-learn’</strong> (default)</dt>\n" +
+          "<dd>\n" +
+          "<p>Requires no additional installation.</p>\n" +
+          "<p>https://github.com/scikit-learn/scikit-learn</p>\n" +
+          "</dd>\n" +
+          "</dl></li>\n" +
+
+          "<li><dl>\n" +
+          "<dt><strong>‘scikit-optimize’</strong></dt>\n" +
+          "<dd>\n" +
+          "<p>pip install scikit-optimize</p>\n" +
+          "<p>https://scikit-optimize.github.io/stable/</p>\n" +
+          "</dd>\n" +
+          "</dl></li>\n" +
+
+          "<li><dl>\n" +
+          "<dt><strong>‘tune-sklearn’</strong></dt>\n" +
+          "<dd>\n" +
+          "<p>pip install tune-sklearn ray[tune]</p>\n" +
+          "<p>https://github.com/ray-project/tune-sklearn</p>\n" +
+          "<p><strong>Warning:</strong> Due to Ray compatibility issues, MEDomics supports only <code>grid</code> and <code>random</code> search with <em>tune-sklearn</em>.</p>\n" +
+          "</dd>\n" +
+          "</dl></li>\n" +
+
+          "<li><dl>\n" +
+          "<dt><strong>‘optuna’</strong></dt>\n" +
+          "<dd>\n" +
+          "<p>pip install optuna</p>\n" +
+          "<p>https://optuna.org/</p>\n" +
+          "<p><strong>Warning:</strong> MEDomics currently supports Optuna only with the <code>random</code> search strategy.</p>\n" +
+          "</dd>\n" +
+          "</dl></li>\n" +
+
+          "</ul>",
         default_val: "scikit-learn"
       },
       search_algorithm: {
         type: "string",
         tooltip:
-          "<p>The search algorithm depends on the search_library parameter.\nSome search algorithms require additional libraries to be installed.\nIf None, will use search library-specific default algorithm.</p>\n<ul >\n<li><dl >\n<dt>\u2018scikit-learn\u2019 possible values:</dt><dd><ul>\n<li><p>\u2018random\u2019 : random grid search (default)</p></li>\n<li><p>\u2018grid\u2019 : grid search</p></li>\n</ul>\n</dd>\n</dl>\n</li>\n<li><dl >\n<dt>\u2018scikit-optimize\u2019 possible values:</dt><dd><ul>\n<li><p>\u2018bayesian\u2019 : Bayesian search (default)</p></li>\n</ul>\n</dd>\n</dl>\n</li>\n<li><dl >\n<dt>\u2018tune-sklearn\u2019 possible values:</dt><dd><ul>\n<li><p>\u2018random\u2019 : random grid search (default)</p></li>\n<li><p>\u2018grid\u2019 : grid search</p></li>\n<li><p>\u2018bayesian\u2019 : pip install scikit-optimize</p></li>\n<li><p>\u2018hyperopt\u2019 : pip install hyperopt</p></li>\n<li><p>\u2018optuna\u2019 : pip install optuna</p></li>\n<li><p>\u2018bohb\u2019 : pip install hpbandster ConfigSpace</p></li>\n</ul>\n</dd>\n</dl>\n</li>\n<li><dl >\n<dt>\u2018optuna\u2019 possible values:</dt><dd><ul>\n<li><p>\u2018random\u2019 : randomized search</p></li>\n<li><p>\u2018tpe\u2019 : Tree-structured Parzen Estimator search (default)</p></li>\n</ul>\n</dd>\n</dl>\n</li>\n</ul>\n",
+          "<p>The search algorithm depends on the selected <code>search_library</code>.</p>\n" +
+
+          "<ul>\n" +
+
+          "<li><dl>\n" +
+          "<dt><strong>scikit-learn</strong></dt>\n" +
+          "<dd><ul>\n" +
+          "<li><p><code>grid</code> : exhaustive grid search</p></li>\n" +
+          "<li><p><code>random</code> : randomized search</p></li>\n" +
+          "</ul></dd>\n" +
+          "</dl></li>\n" +
+
+          "<li><dl>\n" +
+          "<dt><strong>scikit-optimize</strong></dt>\n" +
+          "<dd><ul>\n" +
+          "<li><p><code>bayesian</code> : Bayesian optimization</p></li>\n" +
+          "</ul></dd>\n" +
+          "</dl></li>\n" +
+
+          "<li><dl>\n" +
+          "<dt><strong>tune-sklearn</strong></dt>\n" +
+          "<dd><ul>\n" +
+          "<li><p><code>grid</code> : grid search (supported)</p></li>\n" +
+          "<li><p><code>random</code> : randomized search (supported)</p></li>\n" +
+          "</ul>\n" +
+          "<p><strong>Warning:</strong> Advanced Ray-based algorithms (bayesian, hyperopt, bohb) are not supported in MEDomics.</p>\n" +
+          "</dd>\n" +
+          "</dl></li>\n" +
+
+          "<li><dl>\n" +
+          "<dt><strong>optuna</strong></dt>\n" +
+          "<dd><ul>\n" +
+          "<li><p><code>random</code> : randomized search (supported)</p></li>\n" +
+          "<li><p><code>tpe</code> : <strong>not available in MEDomics yet</strong></p></li>\n" +
+          "</ul></dd>\n" +
+          "</dl></li>\n" +
+
+          "</ul>",
         default_val: "None"
       },
       early_stopping: {

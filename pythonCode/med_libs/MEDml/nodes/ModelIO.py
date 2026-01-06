@@ -10,6 +10,7 @@ from typing import Union
 import numpy as np
 import pandas as pd
 from colorama import Fore
+from sklearn.pipeline import Pipeline
 
 from .NodeObj import Node, format_model
 
@@ -52,12 +53,19 @@ class ModelIO(Node):
         if self.type == 'save_model':
             self.CodeHandler.add_line("code", f"for model in trained_models:")
             for model in kwargs['models']:
-                model = format_model(model)
+                # Retrieve fitted model
+                fitted_model = format_model(model)
+                if dir(fitted_model).__contains__('feature_names_in_'):
+                    model_features = fitted_model.__getattribute__('feature_names_in_')
+                elif dir(fitted_model).__contains__('feature_name_') and model_features is None:
+                    model_features = fitted_model.__getattribute__('feature_name_')
+                model_features = list(model_features)
+
                 # Model's name
                 if 'model_name' in settings.keys() and settings['model_name']:
                     model_name = settings['model_name']
                 else:
-                    model_name = model.__class__.__name__
+                    model_name = fitted_model.__class__.__name__
 
                 # Path save model (if too big for MongoDB)
                 if 'pathSave' in settings.keys() and settings['pathSave']:
@@ -66,7 +74,14 @@ class ModelIO(Node):
 
                 # Serialize model
                 serialized_model = pickle.dumps(model)
-                
+
+                # Model's threshold
+                model_threshold = None
+                if hasattr(model, 'steps'):
+                    classifier = model.steps[-1][1]
+                    if hasattr(classifier, 'probability_threshold'):
+                        model_threshold = classifier.probability_threshold
+
                 # .medmodel object
                 model_med_object = MEDDataObject(
                     id = str(uuid.uuid4()),
@@ -88,7 +103,6 @@ class ModelIO(Node):
 
                 settings_copy = copy.deepcopy(settings)
                 settings_copy['model_name'] = model_name
-                """ getattr(experiment['pycaret_exp'], self.type)(model, **settings_copy) """
                 self.CodeHandler.add_line(
                     "code", 
                     f"pycaret_exp.save_model(model, {self.CodeHandler.convert_dict_to_params(settings_copy)})", 
@@ -104,7 +118,7 @@ class ModelIO(Node):
                     childrenIDs = [],
                     inWorkspace = False
                 )
-    
+
                 if fits_mongo:
                     serialized_model_id = insert_med_data_object_if_not_exists(serialized_model_med_object, [{'model': serialized_model}])
                     # If model already existed we overwrite its content
@@ -133,7 +147,7 @@ class ModelIO(Node):
                     inWorkspace = False
                 )
                 to_write = {
-                    "columns": self.global_config_json["columns"],
+                    "columns": model_features,
                     "target": self.global_config_json["target_column"],
                     "steps": self.global_config_json["steps"],
                     "ml_type": self.global_config_json["MLType"]
@@ -142,6 +156,8 @@ class ModelIO(Node):
                     to_write['selectedTags'] = self.global_config_json['selectedTags']
                 if 'selectedVariables' in self.global_config_json:
                     to_write['selectedVariables'] = self.global_config_json['selectedVariables']
+                if model_threshold is not None:
+                    to_write['model_threshold'] = model_threshold
 
                 metadata_model_id = insert_med_data_object_if_not_exists(metadata_med_object, [to_write])
                 if metadata_model_id != metadata_med_object.id:

@@ -452,7 +452,8 @@ export class MEDDataObject {
 
     // Check if the object is already in workspace
     if (medDataObject.inWorkspace && fs.existsSync(this.getFullPath(dict, id, workspacePath))) {
-      console.log(`MEDDataObject with id ${id} is already in workspace`)
+      console.log(`MEDDataObject with id ${id} is already saved locally in workspace`)
+      toast.info(`${medDataObject.name} is already saved locally in workspace`)
       return
     }
 

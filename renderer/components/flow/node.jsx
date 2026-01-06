@@ -10,7 +10,7 @@ import * as Icon from "react-bootstrap-icons"
 import NodeWrapperResults from "./nodeWrapperResults"
 import { OverlayPanel } from "primereact/overlaypanel"
 import { Stack } from "react-bootstrap"
-import { IoClose } from "react-icons/io5"
+import { IoClose, IoDuplicateOutline } from "react-icons/io5"
 import { BsPlay } from "react-icons/bs"
 import { Tooltip } from "primereact/tooltip"
 import { AiOutlineInfoCircle } from "react-icons/ai"
@@ -45,7 +45,7 @@ const NodeObject = ({ id, data, nodeSpecific, color = null, nodeBody, defaultSet
   const [nodeName, setNodeName] = useState(data.internal.nameID || data.internal.name) // used to store the name of the node
   const { flowInfos, canRun } = useContext(FlowInfosContext) // used to get the flow infos
   const { showResultsPane } = useContext(FlowResultsContext) // used to get the flow results
-  const { updateNode, onDeleteNode, runNode } = useContext(FlowFunctionsContext) // used to get the function to update the node
+  const { updateNode, onDeleteNode, runNode, onDuplicateNode } = useContext(FlowFunctionsContext) // used to get the function to update the node
   const op = useRef(null)
 
   // update warnings when the node is loaded
@@ -142,6 +142,14 @@ const NodeObject = ({ id, data, nodeSpecific, color = null, nodeBody, defaultSet
               </div>
 
               <div className="btn-node-div">
+                {/* here are the buttons to duplicate and run the node*/}
+                <IoDuplicateOutline
+                  className="btn-duplicate-node"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    onDuplicateNode(id)
+                  }}
+                />
                 {/* here are the buttons to delete and run the node*/}
                 <IoClose
                   className="btn-close-node"

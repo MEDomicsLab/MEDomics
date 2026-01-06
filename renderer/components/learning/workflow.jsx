@@ -5,7 +5,7 @@ import { toast } from "react-toastify"
 import Form from "react-bootstrap/Form"
 import { useNodesState, useEdgesState, useReactFlow, addEdge } from "reactflow"
 import WorkflowBase from "../flow/workflowBase"
-import { loadJsonSync } from "../../utilities/fileManagementUtils"
+import { downloadFile, loadJsonSync } from "../../utilities/fileManagementUtils"
 import { requestBackend } from "../../utilities/requests"
 import EditableLabel from "react-simple-editlabel"
 import BtnDiv from "../flow/btnDiv"
@@ -82,7 +82,7 @@ const Workflow = forwardRef(({ setWorkflowType, workflowType, isExperiment }, re
 
   const { groupNodeId, changeSubFlow, hasNewConnection } = useContext(FlowFunctionsContext)
   const { pageId } = useContext(PageInfosContext) // used to get the page infos such as id and config path
-  const { updateFlowResults, saveFlowResults, isResults, flowResults } = useContext(FlowResultsContext)
+  const { updateFlowResults, saveFlowResults, isResults } = useContext(FlowResultsContext)
   const { canRun, sceneName, setSceneName } = useContext(FlowInfosContext)
   const { port } = useContext(WorkspaceContext)
   const { setError } = useContext(ErrorRequestContext)
@@ -94,7 +94,7 @@ const Workflow = forwardRef(({ setWorkflowType, workflowType, isExperiment }, re
       standardNode: StandardNode,
       splitNode: SplitNode,
       selectionNode: SelectionNode,
-      boxNode, boxNode,
+      boxNode: boxNode,
       analysisBoxNode: analysisBoxNode,
       ResizableGroupNode: ResizableGroupNode,
       CombineModelsNode: CombineModelsNode,
@@ -231,6 +231,7 @@ const Workflow = forwardRef(({ setWorkflowType, workflowType, isExperiment }, re
             node.data.setupParam.possibleSettingsTuning = deepCopy(staticNodesParams["optimize"]["tune_model"]["possibleSettings"][MLType])
             node.data.internal.checkedOptionsTuning = []
             node.data.internal.settingsTuning = {}
+            node.data.internal.threshOptimizationMetric = "Accuracy"
             node.data.internal.settingsCalibration = {}
             node.data.internal.settingsEnsembling = {}
           }
@@ -366,7 +367,13 @@ const Workflow = forwardRef(({ setWorkflowType, workflowType, isExperiment }, re
     } else {
       // Remove warnings if no duplicates are found
       nodes.forEach((node) => {
-        if (node.data.internal.hasWarning && node.data.internal.hasWarning.state && node.data.internal.hasWarning.tooltip && node.data.internal.hasWarning.tooltip.props && node.data.internal.hasWarning.tooltip.props.children.startsWith("This node shares the same ID")) {
+        if (node.data.internal.hasWarning && 
+            node.data.internal.hasWarning.state && 
+            node.data.internal.hasWarning.tooltip && 
+            node.data.internal.hasWarning.tooltip.props && 
+            node.data.internal.hasWarning.tooltip.props.children && 
+            node.data.internal.hasWarning.tooltip.props.children.startsWith("This node shares the same ID")
+        ) {
           node.data.internal.hasWarning = { state: false }
           setNodes((nds) =>
             nds.map((n) => {
@@ -980,6 +987,26 @@ const Workflow = forwardRef(({ setWorkflowType, workflowType, isExperiment }, re
   }, [setNodes, setViewport, nodes])
 
   /**
+   * this function exports the current workflow to a json file
+   * it is called when the user clicks on the export button
+   */
+  const onExport = useCallback(() => {
+    try {
+      if (reactFlowInstance) {
+        const flow = deepCopy(reactFlowInstance.toObject())
+        flow.MLType = MLType
+        flow.intersections = intersections
+        flow.isExperiment = isExperiment
+        downloadFile(flow, `${sceneName ? sceneName + '_ML_Scene' : "workflow"}.json`)
+      }
+    } catch (error) {
+      console.error("Error exporting workflow:", error)
+      toast.error("An error occurred while exporting the workflow. Check console for more details.")
+    }
+  }, [MLType, reactFlowInstance, intersections, isExperiment])
+
+
+  /**
    *
    * @param {Object} newScene new scene to update the workflow
    *
@@ -1079,6 +1106,7 @@ const Workflow = forwardRef(({ setWorkflowType, workflowType, isExperiment }, re
         setupParams.possibleSettingsTuning = setupParamsTuning["possibleSettings"][MLType]
         newNode.data.internal.checkedOptionsTuning = []
         newNode.data.internal.settingsTuning = {}
+        newNode.data.internal.threshOptimizationMetric = "Accuracy"
         newNode.data.internal.settingsCalibration = {}
         newNode.data.internal.settingsEnsembling = {}
       }
@@ -1155,6 +1183,23 @@ const Workflow = forwardRef(({ setWorkflowType, workflowType, isExperiment }, re
     
 
     return newNode
+  }
+
+  const duplicateNode = (id) => {
+    const nodeToDuplicate = nodes.find((node) => node.id === id)
+    if (!nodeToDuplicate) return
+
+    const newNode = {
+      ...deepCopy(nodeToDuplicate),
+      id: `node_${uuid.v4()}`,
+      position: {
+        x: nodeToDuplicate.position.x + 40,
+        y: nodeToDuplicate.position.y + 100
+      },
+      selected: false
+    }
+
+    setNodes((nds) => [...nds, newNode])
   }
 
   /**
@@ -1241,6 +1286,7 @@ const Workflow = forwardRef(({ setWorkflowType, workflowType, isExperiment }, re
             return
           }
           if (!jsonResponse.error) {
+            MEDDataObject.updateWorkspaceDataObject()
             setCurrentResults(jsonResponse)
             updateFlowResults(jsonResponse, saveAndFinalize, modelToFinalize)
             setProgress({
@@ -1598,6 +1644,7 @@ const Workflow = forwardRef(({ setWorkflowType, workflowType, isExperiment }, re
           reactFlowInstance: reactFlowInstance,
           setReactFlowInstance: setReactFlowInstance,
           addSpecificToNode: addSpecificToNode,
+          duplicateNode: duplicateNode,
           nodeTypes: nodeTypes,
           nodes: nodes,
           setNodes: setNodes,
@@ -1634,7 +1681,8 @@ const Workflow = forwardRef(({ setWorkflowType, workflowType, isExperiment }, re
                     { type: "run", onClick: onRun, disabled: !canRun },
                     { type: "clear", onClick: onClear },
                     { type: "save", onClick: onSave },
-                    { type: "load", onClick: onLoad }
+                    { type: "load", onClick: onLoad },
+                    { type: "export", onClick: onExport }
                   ]}
                 />
               </div>

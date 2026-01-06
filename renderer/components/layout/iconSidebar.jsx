@@ -206,6 +206,22 @@ const IconSidebar = ({ onSidebarItemSelect }) => {
                 {extractionBtnstate ? <VscChromeClose style={{ height: "1.7rem", width: "auto" }} /> : <TbFileExport style={{ height: "1.7rem", width: "auto", color: "#9e9e9e" }} />}
                 <div className={`btn-group-ext ${extractionBtnstate ? "clicked" : ""}`}>
                   <Button
+                    className="ext-MEDimg-btn"
+                    icon="pi pi-image"
+                    data-pr-at="right center"
+                    data-pr-my="left center"
+                    data-pr-tooltip="MEDimage"
+                    data-is-ext-btn
+                    onClick={(event) => {
+                      event.stopPropagation()
+                      event.preventDefault()
+                      handleDoubleClickModule(event, "ExtractionMEDimage")
+                      // handleClick(event, "extractionMEDimage")
+                      setExtractionBtnstate(!extractionBtnstate)
+                    }}
+                    onDoubleClick={(event) => handleDoubleClickModule(event, "ExtractionMEDimage")}
+                  />
+                  <Button
                     className="ext-text-btn"
                     icon="pi pi-align-left"
                     data-pr-at="right center"

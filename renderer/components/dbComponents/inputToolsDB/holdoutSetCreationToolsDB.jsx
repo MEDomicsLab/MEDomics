@@ -18,6 +18,7 @@ import { ServerConnectionContext } from "../../serverConnection/connectionContex
 import { MEDDataObject } from "../../workspace/NewMedDataObject"
 import { DataContext } from "../../workspace/dataContext"
 import { getCollectionColumns } from "../../mongoDB/mongoDBUtils"
+import { InputSwitch } from "primereact/inputswitch"
 
 /**
  * @description
@@ -34,10 +35,11 @@ const HoldoutSetCreationToolsDB = ({ currentCollection }) => {
   const [holdoutSetSize, setHoldoutSetSize] = useState(20)
   const [cleaningOption, setCleaningOption] = useState("drop")
   const cleaningOptions = ["drop", "random fill", "mean fill", "median fill", "mode fill", "bfill", "ffill"]
-  const [newCollectionName, setNewCollectionName] = useState("")
   const [loading, setLoading] = useState(false)
   const { globalData } = useContext(DataContext)
+  const [newCollectionName, setNewCollectionName] = globalData[currentCollection] ? useState(globalData[currentCollection].name.split(".csv")[0]) : useState("")
   const { port } = useContext(ServerConnectionContext)
+  const [keepTags, setKeepTags] = useState(true) // clone tags onto Learning/Holdout
 
   // Fetch the columns of the current collection without fetching the whole dataset
   useEffect(() => {
@@ -94,7 +96,9 @@ const HoldoutSetCreationToolsDB = ({ currentCollection }) => {
       stratify: stratify,
       columnsToStratifyWith: selectedColumns,
       nanMethod: cleaningOption,
-      randomState: seed
+      randomState: seed,
+      keepTags,                            
+      tagsCollectionName: "column_tags"   
     }
 
     // Check if the collection already exists
@@ -279,9 +283,18 @@ const HoldoutSetCreationToolsDB = ({ currentCollection }) => {
               style={{ margin: "10px" }}
             />
             <div className="p-inputgroup w-full md:w-30rem" style={{ margin: "10px", fontSize: "1rem", width: "230px", marginTop: "5px" }}>
-              <InputText value={newCollectionName} onChange={(e) => setNewCollectionName(e.target.value)} placeholder="New set name" />
+              <InputText value={newCollectionName} onChange={(e) => setNewCollectionName(e.target.value)} placeholder={newCollectionName} />
               <span className="p-inputgroup-addon">.csv</span>
             </div>
+            <span style={{ display: "flex", alignItems: "center", margin: "10px" }}>
+              <InputSwitch
+                checked={keepTags}
+                onChange={(e) => setKeepTags(e.value)}
+                 tooltip="Clone column tags from the source dataset onto the new Learning/Holdout collections."
+                tooltipOptions={{ position: "top" }}
+              />
+              <label style={{ marginLeft: 8 }}>Keep tags</label>
+            </span>
             <Button
               icon="pi pi-plus"
               style={{ margin: "10px" }}

@@ -1,7 +1,7 @@
 import { Card } from 'primereact/card'
 import { Divider } from 'primereact/divider'
 import { Tag } from 'primereact/tag'
-import React, { useContext, useEffect, useState } from "react"
+import { useContext, useEffect, useState } from "react"
 import { getCollectionData } from "../dbComponents/utils"
 import { MEDDataObject } from "../workspace/NewMedDataObject"
 import { DataContext } from "../workspace/dataContext"
@@ -78,6 +78,13 @@ const ModelViewer = ({ id }) => {
             "Machine Learning Type",
             <p>{data.ml_type}</p>,
             "pi pi-circle"
+          )}
+
+          {/* Model Threshold Section */}
+          {data.model_threshold && renderCardSection(
+            "Model's Threshold",
+            <p>{data.model_threshold}</p>,
+            "pi pi-bars"
           )}
         </>
       )}

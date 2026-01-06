@@ -407,11 +407,26 @@ const ConvertCategoricalColumnIntoNumericDB = ({ currentCollection }) => {
             )}
           </ul>
         </div>
+        
       )}
+      {/* Warning for target encoding */}
+      <Message
+        severity="warn"
+        text="If your target appears among the columns, don’t encode it here. It will be encoded automatically (using one-hot encoding) in the Learning module via PyCaret’s setup(). See the documentation for details."
+        style={{
+          marginBottom: "12px",
+          background: "#FEF3C7",
+          border: "1px solid #F59E0B",
+          borderLeft: "8px solid #D97706",
+          color: "#7C2D12",
+          fontWeight: 600
+        }}
+      />
       {modifiedColumns.length > 0 && <Button label={`Undo Changes:  ${modifiedColumns}`} className="p-button-danger" onClick={undoChanges} style={{ marginTop: "20px", marginRight: "10px" }} />}
       {isDataModified() && <Button label="Overwrite Current Dataset" className="p-button-success" loading={loadingOW} onClick={overwriteEncodedDataToDB} style={{ marginTop: "20px" }} />}{" "}
       {isDataModified() && <Button label="Append New Columns to Dataset" className="p-button-success" loading={loadingAP} onClick={appendEncodedDataToDB} style={{ marginTop: "20px" }} />}{" "}
     </div>
+    
   )
 }
 

@@ -116,7 +116,7 @@ const FileCreationBtn = ({ createEmptyFile, label = "Create Page", piIcon = "pi-
                 hasMedStandrad &&
                 <div>
                   <div className="p-field-checkbox">
-                    <label htmlFor="medStandard">MEDomicsLab Standard</label>
+                    <label htmlFor="medStandard">MEDomics Standard</label>
                     <InputSwitch id="medStandard" checked={useMedStandard} onChange={(e) => setUseMedStandard(e.value)} />
                   </div>
                 </div>
