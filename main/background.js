@@ -565,7 +565,13 @@ function startMongoDB(workspacePath) {
     console.log("Starting MongoDB with config: " + mongoConfigPath)
     let mongod = getMongoDBPath()
     if (process.platform !== "darwin") {
-      mongoProcess = spawn(mongod, ["--config", mongoConfigPath])
+      mongoProcess = spawn(mongod, [
+      "--config",
+      mongoConfigPath,
+      "--port",
+      MEDconfig.mongoPort
+    ])
+
     } else {
       if (fs.existsSync(getMongoDBPath())) {
         mongoProcess = spawn(getMongoDBPath(), ["--config", mongoConfigPath])
