@@ -1288,7 +1288,7 @@ const Workflow = forwardRef(({ setWorkflowType, workflowType, isExperiment }, re
           if (!jsonResponse.error) {
             MEDDataObject.updateWorkspaceDataObject()
             setCurrentResults(jsonResponse)
-            updateFlowResults(jsonResponse, saveAndFinalize, modelToFinalize)
+            updateFlowResults(jsonResponse, saveAndFinalize)
             setProgress({
               now: 100,
               currentLabel: "Done!"

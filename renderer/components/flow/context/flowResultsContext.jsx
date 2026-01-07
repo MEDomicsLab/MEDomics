@@ -1,3 +1,4 @@
+/* eslint-disable no-unused-vars */
 import { createContext, useState, useContext } from "react"
 import { FlowInfosContext } from "./flowInfosContext"
 import { MEDDataObject } from "../../workspace/NewMedDataObject"
@@ -41,7 +42,7 @@ function FlowResultsProvider({ children }) {
   }
 
   // This function is used to update the flowResults
-  const updateFlowResults = async (newResults, finalizing = false, finalizedNode = null) => {
+  const updateFlowResults = async (newResults, finalizing = false) => {
     if (!newResults || Object.keys(newResults).length === 0) return
     const isValidFormat = (results) => {
       let firstKey = Object.keys(results)[0]

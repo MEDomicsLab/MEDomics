@@ -1,24 +1,26 @@
 /* eslint-disable no-unused-vars */
-import React, { useState, useCallback, useMemo, useEffect, useContext } from "react"
+import { useCallback, useContext, useEffect, useMemo, useState } from "react"
 import { toast } from "react-toastify"
 
 // Import utilities
-import { loadJsonSync, downloadFile } from "../../utilities/fileManagementUtils"
+import uuid from "react-native-uuid"
+import { downloadFile, loadJsonSync } from "../../utilities/fileManagementUtils"
 import { requestJson } from "../../utilities/requests"
 
+
 // Workflow imports
-import { useNodesState, useEdgesState, useReactFlow } from "reactflow"
-import WorkflowBase from "../flow/workflowBase"
+import { useEdgesState, useNodesState, useReactFlow } from "reactflow"
 import { FlowFunctionsContext } from "../flow/context/flowFunctionsContext"
-import { WorkspaceContext } from "../workspace/workspaceContext"
+import WorkflowBase from "../flow/workflowBase"
 import { ErrorRequestContext } from "../generalPurpose/errorRequestContext"
+import { WorkspaceContext } from "../workspace/workspaceContext"
 
 // Import node types
-import StandardNode from "./nodesTypes/standardNode"
-import SegmentationNode from "./nodesTypes/segmentationNode"
-import FilterNode from "./nodesTypes/filterNode"
-import FeaturesNode from "./nodesTypes/featuresNode"
 import ExtractionNode from "./nodesTypes/extractionNode"
+import FeaturesNode from "./nodesTypes/featuresNode"
+import FilterNode from "./nodesTypes/filterNode"
+import SegmentationNode from "./nodesTypes/segmentationNode"
+import StandardNode from "./nodesTypes/standardNode"
 
 // Import node parameters
 import nodesParams from "../../public/setupVariables/allNodesParams"
@@ -27,7 +29,7 @@ import nodesParams from "../../public/setupVariables/allNodesParams"
 import BtnDiv from "../flow/btnDiv"
 
 // Static functions used in the workflow
-import { mergeWithoutDuplicates, deepCopy } from "../../utilities/staticFunctions"
+import { deepCopy, mergeWithoutDuplicates } from "../../utilities/staticFunctions"
 
 // Static nodes parameters
 const staticNodesParams = nodesParams

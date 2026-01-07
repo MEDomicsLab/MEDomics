@@ -1,5 +1,5 @@
 import Image from "next/image"
-import React, { useEffect } from "react"
+import React from "react"
 import * as Icon from "react-bootstrap-icons"
 import { FaPython } from "react-icons/fa"
 import { PiGraph } from "react-icons/pi"

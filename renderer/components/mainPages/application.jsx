@@ -39,7 +39,6 @@ import ModulePage from "./moduleBasics/modulePage"
  * @returns {React.Component} The entry component
  */
 const Entry = ({ pageId, setRequestSettings, chosenModel, modelMetadata, updateWarnings, mode, setMode, setIsValid2Predict, inputsData, setInputsData, imputedColumns }) => {
-  const [inputTypeChecked, setInputTypeChecked] = useState(false)
   const [chosenDataset, setChosenDataset] = useState(null)
   const [datasetHasWarning, setDatasetHasWarning] = useState({ state: true, tooltip: "No dataset selected" })
   const [isColsValid, setIsColsValid] = useState(false)

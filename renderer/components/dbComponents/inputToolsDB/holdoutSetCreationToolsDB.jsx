@@ -37,7 +37,8 @@ const HoldoutSetCreationToolsDB = ({ currentCollection }) => {
   const cleaningOptions = ["drop", "random fill", "mean fill", "median fill", "mode fill", "bfill", "ffill"]
   const [loading, setLoading] = useState(false)
   const { globalData } = useContext(DataContext)
-  const [newCollectionName, setNewCollectionName] = globalData[currentCollection] ? useState(globalData[currentCollection].name.split(".csv")[0]) : useState("")
+  const initialCollectionName = globalData[currentCollection].name.split(".csv")[0] || ""
+  const [newCollectionName, setNewCollectionName] = useState(initialCollectionName)
   const { port } = useContext(ServerConnectionContext)
   const [keepTags, setKeepTags] = useState(true) // clone tags onto Learning/Holdout
 

@@ -57,7 +57,6 @@ export function fromJSONtoTree(data, showHiddenFiles) {
         path: element.path ? element.path : null,
         isLocked: element.isLocked,
         usedIn: element.usedIn,
-        path: element.path
       }
     }
   })

@@ -1108,8 +1108,6 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
           return <MEDprofilesViewer pageId={"MEDprofilesViewer"} MEDclassesFolder={config?.MEDclassesFolder} MEDprofilesBinaryFile={config?.MEDprofilesBinaryFile} />
         }
       }
-    } else if (component === "extractionLandingPage") {
-        return <ExtractionLandingPage />
     } else if (component === "extractionImagePage") {
       if (node.getExtraData().data == null) {
         const config = node.getConfig()
