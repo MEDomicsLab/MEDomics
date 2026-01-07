@@ -75,6 +75,12 @@
   box-shadow: 0 0 0 0.25rem rgb(13 110 253 / 25%) !important;
 }
 
+/* Override Bootstrap floating label color */
+.form-floating > .form-select ~ label,
+.form-floating > .form-control ~ label {
+  color: inherit !important;
+}
+
 .list-multiple {
   margin-top: 0.35rem;
 }
