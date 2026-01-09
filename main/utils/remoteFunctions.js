@@ -830,86 +830,29 @@ export async function startSSHTunnel({ host, username, privateKey, password, rem
     conn
       .on("ready", () => {
         console.log("SSH connection established to", host)
-        // Express (backend) port forwarding
-        // Backward compatibility mapping
+      // Backward compatibility mapping
         if (!localExpressPort && localBackendPort) localExpressPort = localBackendPort
         if (!remoteExpressPort && remoteBackendPort) remoteExpressPort = remoteBackendPort
-        // Pre-check remote ports to reduce noise and set initial statuses
-        ;(async () => {
-          try {
-            const expressOpen = await checkRemotePortOpen(conn, parseInt(remoteExpressPort))
-            const updates = {}
-            if (typeof expressOpen === 'boolean') {
-              updates.expressStatus = expressOpen ? 'forwarding' : 'closed'
-            }
-            if (remoteGoPort && localGoPort) {
-              const goOpen = await checkRemotePortOpen(conn, parseInt(remoteGoPort))
-              updates.goStatus = goOpen ? 'forwarding' : 'closed'
-            }
-            if (Object.keys(updates).length) {
-              try {
-                setTunnelState({ ...getTunnelState(), ...updates })
-                mainWindow.webContents.send('tunnelStateUpdate', updates)
-              } catch {}
-            }
-          } catch {}
-        })()
-        const expressServer = net.createServer((socket) => {
-          conn.forwardOut(socket.localAddress || "127.0.0.1", socket.localPort || 0, "127.0.0.1", parseInt(remoteExpressPort), (err, stream) => {
-            if (err) {
-              console.error(err)
-              socket.destroy()
-              return
-            }
-            socket.pipe(stream).pipe(socket)
+
+        // Defer creating Express/Go forwards until remote /status confirms running.
+        // Initialize tunnel state with provided ports and mark services as closed.
+        try {
+          setTunnelState({
+            ...getTunnelState(),
+            localExpressPort: localExpressPort ? Number(localExpressPort) : null,
+            remoteExpressPort: remoteExpressPort ? Number(remoteExpressPort) : null,
+            localGoPort: localGoPort ? Number(localGoPort) : null,
+            remoteGoPort: remoteGoPort ? Number(remoteGoPort) : null,
+            expressStatus: 'closed',
+            goStatus: 'closed'
           })
-        })
-        expressServer.listen(localExpressPort, "127.0.0.1")
-        expressServer.on("error", (e) => {
-          conn.end()
-          console.error("Connection to Express server error:", e)
-          reject(new Error("Express local server error: " + e.message))
-        })
-        // Optional GO forwarding if provided
-        let goServer = null
-        if (remoteGoPort && localGoPort) {
-          // Only create GO forward if remote port is listening to reduce noise
-          ;(async () => {
-            try {
-              const open = await checkRemotePortOpen(conn, parseInt(remoteGoPort))
-              if (!open) {
-                try {
-                  const info = { goStatus: 'closed' }
-                  setTunnelState({ ...getTunnelState(), ...info })
-                  mainWindow.webContents.send('tunnelStateUpdate', info)
-                } catch {}
-                return
-              }
-              goServer = net.createServer((socket) => {
-                conn.forwardOut(socket.localAddress || "127.0.0.1", socket.localPort || 0, "127.0.0.1", parseInt(remoteGoPort), (err, stream) => {
-                  if (err) {
-                    console.error(err)
-                    socket.destroy()
-                    return
-                  }
-                  socket.pipe(stream).pipe(socket)
-                })
-              })
-              goServer.listen(localGoPort, "127.0.0.1")
-              goServer.on("error", (e) => {
-                console.warn("GO forwarding server error:", e.message)
-              })
-              try {
-                const info = { goStatus: 'forwarding' }
-                setTunnelState({ ...getTunnelState(), ...info })
-                mainWindow.webContents.send('tunnelStateUpdate', info)
-              } catch {}
-            } catch {}
-          })()
-        }
+          mainWindow.webContents.send('tunnelStateUpdate', {
+            localExpressPort, remoteExpressPort, localGoPort, remoteGoPort, expressStatus: 'closed', goStatus: 'closed'
+          })
+        } catch {}
 
         setActiveTunnel(conn)
-        setActiveTunnelServer({ expressServer, goServer })
+        setActiveTunnelServer({})
         resolve({ success: true })
       })
       .on("error", (err) => {
@@ -959,6 +902,96 @@ ipcMain.handle('rebindExpressForward', async (_event, { newRemoteExpressPort, ne
   } catch (e) {
     return { success: false, error: e && e.message ? e.message : String(e) }
   }
+})
+
+// New: Explicit starters for Express and Go forwarding, invoked after /status confirmation
+export async function startExpressForward({ localExpressPort, remoteExpressPort }) {
+  try {
+    const conn = getActiveTunnel()
+    if (!conn) return { success: false, error: 'No active SSH tunnel' }
+    const servers = getActiveTunnelServer() || {}
+    const localPort = Number(localExpressPort || getTunnelState().localExpressPort)
+    const remotePort = Number(remoteExpressPort || getTunnelState().remoteExpressPort)
+    if (!localPort || isNaN(localPort)) return { success: false, error: 'invalid-local-port' }
+    if (!remotePort || isNaN(remotePort)) return { success: false, error: 'invalid-remote-port' }
+
+    // Close any existing express listener
+    if (servers.expressServer) {
+      try { await new Promise((resolve) => servers.expressServer.close(() => resolve())) } catch {}
+    }
+
+    const netServer = net.createServer((socket) => {
+      conn.forwardOut(socket.localAddress || '127.0.0.1', socket.localPort || 0, '127.0.0.1', remotePort, (err, stream) => {
+        if (err) { socket.destroy(); return }
+        socket.pipe(stream).pipe(socket)
+      })
+    })
+    await new Promise((resolve, reject) => {
+      netServer.once('error', reject)
+      netServer.listen(localPort, '127.0.0.1', () => resolve())
+    })
+
+    setActiveTunnelServer({ ...servers, expressServer: netServer })
+    const updates = { localExpressPort: localPort, remoteExpressPort: remotePort, expressStatus: 'forwarding' }
+    setTunnelState({ ...getTunnelState(), ...updates })
+    try { mainWindow.webContents.send('tunnelStateUpdate', updates) } catch {}
+    return { success: true, localPort, remotePort }
+  } catch (e) {
+    return { success: false, error: e && e.message ? e.message : String(e) }
+  }
+}
+
+export async function startGoForward({ localGoPort, remoteGoPort }) {
+  try {
+    const conn = getActiveTunnel()
+    if (!conn) return { success: false, error: 'No active SSH tunnel' }
+    const servers = getActiveTunnelServer() || {}
+    const localPort = Number(localGoPort || getTunnelState().localGoPort)
+    const remotePort = Number(remoteGoPort || getTunnelState().remoteGoPort)
+    if (!localPort || isNaN(localPort)) return { success: false, error: 'invalid-local-port' }
+    if (!remotePort || isNaN(remotePort)) return { success: false, error: 'invalid-remote-port' }
+
+    // Verify remote port is open before forwarding
+    const open = await checkRemotePortOpen(conn, remotePort)
+    if (!open) {
+      const updates = { goStatus: 'closed' }
+      setTunnelState({ ...getTunnelState(), ...updates })
+      try { mainWindow.webContents.send('tunnelStateUpdate', updates) } catch {}
+      return { success: false, error: 'remote-go-closed' }
+    }
+
+    // Close existing GO listener if present
+    if (servers.goServer) {
+      try { await new Promise((resolve) => servers.goServer.close(() => resolve())) } catch {}
+    }
+
+    const netServer = net.createServer((socket) => {
+      conn.forwardOut(socket.localAddress || '127.0.0.1', socket.localPort || 0, '127.0.0.1', remotePort, (err, stream) => {
+        if (err) { socket.destroy(); return }
+        socket.pipe(stream).pipe(socket)
+      })
+    })
+    await new Promise((resolve, reject) => {
+      netServer.once('error', reject)
+      netServer.listen(localPort, '127.0.0.1', () => resolve())
+    })
+
+    setActiveTunnelServer({ ...servers, goServer: netServer })
+    const updates = { localGoPort: localPort, remoteGoPort: remotePort, goStatus: 'forwarding' }
+    setTunnelState({ ...getTunnelState(), ...updates })
+    try { mainWindow.webContents.send('tunnelStateUpdate', updates) } catch {}
+    return { success: true, localPort, remotePort }
+  } catch (e) {
+    return { success: false, error: e && e.message ? e.message : String(e) }
+  }
+}
+
+// IPC wrappers for starting forwards explicitly
+ipcMain.handle('startExpressForward', async (_event, payload = {}) => {
+  return startExpressForward(payload)
+})
+ipcMain.handle('startGoForward', async (_event, payload = {}) => {
+  return startGoForward(payload)
 })
 
 /**

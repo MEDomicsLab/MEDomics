@@ -461,6 +461,17 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
           }
         } catch(e) { console.log('Fallback remote presence check failed:', e) }
       }
+      // Attempt to locate the executable to keep path in sync and as a last resort confirm presence
+      try {
+        const locate = await ipcRenderer.invoke('locateRemoteBackendExecutable')
+        if (locate && locate.success && locate.path) {
+          setRemoteBackendPath(locate.path)
+          // If we couldn't confirm installation earlier but we found a path, consider it installed
+          if (!installed) installed = true
+        }
+      } catch (e) {
+        console.warn('Locate remote backend executable failed:', e)
+      }
       setRemoteInstalled(installed)
 
       // Then, read snapshot/status (may include a last-known port from state file)
@@ -482,7 +493,7 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
             if (reb && reb.success) {
               setRemoteExpressPort(String(discovered))
               // Sync context
-              try { tunnelContext.setTunnelInfo(await ipcRenderer.invoke("getTunnelState")) } catch {}
+              try { tunnelContext.setTunnelInfo(await ipcRenderer.invoke("getTunnelState")) } catch(e) { console.warn('Post-rebind context sync failed:', e) }
               toast.success(`Rebound Express forward to remote port ${discovered}.`)
               // After rebind, try a quick status confirm
               try {
@@ -491,7 +502,7 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
                   setRemoteBackendStatus(`Express server confirmed via /status on port ${discovered}`)
                   setRemoteServerRunning(true)
                 }
-              } catch {}
+              } catch(e) { console.warn('Post-rebind /status confirm failed:', e) }
             } else {
               toast.error(`Failed to rebind forward: ${reb?.error || 'Unknown error'}`)
             }
@@ -501,7 +512,7 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
 
       // If installation could not be confirmed, stop immediately without probing /status
       if (!installed) {
-        setRemoteBackendStatus('Remote server not found. Install or locate it.')
+        setRemoteBackendStatus('Remote server not found. Install it to continue.')
         setRemoteServerRunning(false)
         setShouldRecheck(false)
         return
@@ -593,6 +604,7 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
       // Pre-check: if latest release tag already exists on remote, skip install
       try {
         const latest = await ipcRenderer.invoke('getLatestBackendReleaseInfo')
+        console.log('Latest backend release info:', latest)
         if (latest && (latest.tag || latest.tag_name || latest.name)) {
           const tag = String(latest.tag || latest.tag_name || latest.name).trim()
           if (tag) {
@@ -601,6 +613,7 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
             // common release folder naming patterns: vX.Y.Z or X.Y.Z
             const candidates = [tag, tag.startsWith('v') ? tag.slice(1) : `v${tag}`]
             const alreadyInstalled = candidates.some(t => names.includes(t))
+            console.log(candidates, names, alreadyInstalled)
             if (alreadyInstalled) {
               toast.success(`Latest backend (${tag}) already installed. Skipping re-install.`)
               setRemoteInstalled(true)
@@ -745,31 +758,6 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
     }
   }
 
-  const locateRemoteServerExecutable = async () => {
-    if (!tunnelActive) {
-      toast.error('SSH tunnel is not active. Connect first.')
-      return
-    }
-    // Debounce rapid clicks: prevent repeated SFTP scans within 2 seconds
-    const nowTs = Date.now()
-    if (typeof window !== 'undefined' && window.__lastLocateTs && nowTs - window.__lastLocateTs < 2000) {
-      toast.info('Please wait a moment before locating again.')
-      return
-    }
-    if (typeof window !== 'undefined') window.__lastLocateTs = nowTs
-    try {
-      const res = await ipcRenderer.invoke('locateRemoteBackendExecutable')
-      if (res && res.success && res.path) {
-        setRemoteBackendPath(res.path)
-        toast.success('Located remote backend: ' + res.path)
-        setShouldRecheck(true)
-      } else {
-        toast.warn('Could not locate remote backend executable' + (res?.error ? `: ${res.error}` : ''))
-      }
-    } catch (e) {
-      toast.error('Locate failed: ' + (e?.message || String(e)))
-    }
-  }
 
   const checkRequirementsRemote = async () => {
     if (!tunnelActive || !remoteServerRunning) return
@@ -805,13 +793,13 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
       try {
         await window.backend.requestExpress({ method: 'post', path: '/install-bundled-python', host, port: Number(localExpressPort) })
       } catch (e) {
-        // ignore installation error; we'll re-check requirements after
+        console.warn('Python remote install error:', e)
       }
       // Then MongoDB
       try {
         await window.backend.requestExpress({ method: 'post', path: '/install-mongo', host, port: Number(localExpressPort) })
       } catch (e) {
-        // ignore installation error; we'll re-check requirements after
+        console.warn('Mongo remote install error:', e)
       }
       // Re-check
       await checkRequirementsRemote()
@@ -1105,7 +1093,6 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
             <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
               <Button onClick={checkRemoteServer} disabled={!tunnelActive || connectionProcessing} style={{ background: 'var(--button-bg)', color: 'var(--button-text)' }}>{shouldRecheck ? 'Recheck status' : 'Check'}</Button>
               <Button onClick={installRemoteServer} disabled={!tunnelActive || installingRemote} style={{ background: 'var(--button-bg)', color: 'var(--button-text)' }}>Install / Update</Button>
-              <Button onClick={locateRemoteServerExecutable} disabled={!tunnelActive || connectionProcessing} style={{ background: 'var(--bg-secondary)', color: 'var(--text-secondary)' }}>Locate Executable</Button>
               {(installingRemote || remoteInstallPhase) && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
                   {typeof remoteDownloadPercent === 'number' ? (

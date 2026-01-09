@@ -136,7 +136,9 @@ import {
   getActiveTunnel,
   detectRemoteOS,
   getRemoteWorkspacePath,
-  checkRemotePortOpen
+  checkRemotePortOpen,
+  startExpressForward,
+  startGoForward
 } from './utils/remoteFunctions.js'
 // MongoDB and Jupyter functions are accessed via HTTP wrappers (startMongoDB, stopMongoDB, getMongoDBPath, startJupyterServer, stopJupyterServer, checkJupyterIsRunning)
 
@@ -205,6 +207,28 @@ console.log = function () {
 
 // **** BACKEND EXPRESS SERVER **** //
 let expressPort = null
+
+// ---- Local port blacklist to avoid accidental use in remote flows ----
+const portBlacklist = new Set()
+function blacklistPort(port) {
+  const p = Number(port)
+  if (Number.isFinite(p)) portBlacklist.add(p)
+}
+function isPortBlacklisted(port) {
+  const p = Number(port)
+  return Number.isFinite(p) && portBlacklist.has(p)
+}
+function setExpressPort(p) {
+  expressPort = p
+  blacklistPort(p)
+}
+
+// IPC helpers to query/manage blacklist from renderer if needed
+ipcMain.handle('getPortBlacklist', async () => Array.from(portBlacklist))
+ipcMain.handle('blacklistPort', async (_event, port) => {
+  blacklistPort(port)
+  return { success: true, port: Number(port) }
+})
 
 ipcMain.handle("get-express-port", async () => {
   return expressPort
@@ -427,7 +451,7 @@ function startBackendServer() {
           if (obj && obj.success && (obj.state?.expressPort || obj.expressPort)) {
             const port = obj.state?.expressPort || obj.expressPort
             console.log(`Local Express server started on port: ${port}`)
-            expressPort = port
+            setExpressPort(port)
           }
         } catch (_) {
           // Non-JSON line; ignore
@@ -449,7 +473,7 @@ function startBackendServer() {
         if (message && message.type === "EXPRESS_PORT") {
           const port = message.expressPort || message.port
           console.log(`Local Express server started on port: ${port}`)
-          expressPort = port
+          setExpressPort(port)
         }
       } catch (err) {
         console.warn('Error handling message from backend process:', err)
@@ -464,7 +488,7 @@ function startBackendServer() {
       try {
         const found = await findExpressPortByProbing(3000, 8000, 48, 250)
         if (found) {
-          expressPort = found
+          setExpressPort(found)
           console.log(`Discovered Express port via probe: ${found}`)
         } else {
           console.warn('Failed to discover Express port via probe within timeout')
@@ -485,7 +509,10 @@ async function findExpressPortByProbing(start = 3000, end = 8000, batchSize = 40
   while (p <= end) {
     const to = clamp(p + batchSize - 1, p, end)
     const ports = []
-    for (let i = p; i <= to; i++) ports.push(i)
+    for (let i = p; i <= to; i++) {
+      // Skip blacklisted ports (i.e., local server port) to avoid false positives
+      if (!portBlacklist.has(i)) ports.push(i)
+    }
     const results = await Promise.allSettled(ports.map(port => axios.get(`http://127.0.0.1:${port}/status`, { timeout: timeoutMs })))
     for (let i = 0; i < results.length; i++) {
       const r = results[i]
@@ -689,6 +716,17 @@ ipcMain.handle('backendStatus', async (_event, { target = 'local' } = {}) => {
       for (const rp of ports) {
         const found = await tryPortStatus(rp)
         if (found && found.data) {
+          // Persistently start Express forward using discovered remote port
+          try {
+            await startExpressForward({ remoteExpressPort: rp })
+          } catch {}
+          // If GO service is reported running with a port, start GO forward too
+          try {
+            const goPort = Number(found.data?.go?.port)
+            if (found.data?.go?.running && goPort) {
+              await startGoForward({ remoteGoPort: goPort })
+            }
+          } catch {}
           // Augment response with discovered ports for visibility
           return { ...found.data, discoveredRemotePort: rp }
         }
@@ -847,11 +885,32 @@ ipcMain.handle('setLocalBackendPath', async (_event, exePath) => {
 })
 
 // IPC: Get latest backend release info from GitHub
+// Enhancement: fetch all releases and return the latest "server-" tagged one.
 ipcMain.handle('getLatestBackendReleaseInfo', async (_event, payload) => {
-  const owner = (payload && payload.owner) || 'MEDomicsLab'
-  const repo = (payload && payload.repo) || 'MEDomics'
-  const url = `https://api.github.com/repos/${owner}/${repo}/releases/latest`
-  return new Promise((resolve) => {
+  const owner = (payload && payload.owner) || 'm-alexparent' // TO REPLACE WITH MEDOMICS BASE REPO
+  const repo = (payload && payload.repo) || 'MEDomics-NodeServerDeploymentTests'
+  const serverOnly = payload && typeof payload.serverOnly === 'boolean' ? payload.serverOnly : true
+
+  // Helpers
+  const isServerTag = (s) => {
+    const tag = (s || '').toLowerCase()
+    // Prefer explicit server-vX pattern, but allow serverX as a fallback
+    return /^server[-_]?v\d+/i.test(tag) || tag.startsWith('server-') || tag.startsWith('server_')
+  }
+  const parseSemver = (s) => {
+    if (!s) return null
+    const m = (s.match(/v(\d+)(?:\.(\d+))?(?:\.(\d+))?/i))
+    if (!m) return null
+    return [parseInt(m[1]||'0',10), parseInt(m[2]||'0',10), parseInt(m[3]||'0',10)]
+  }
+  const cmpSemverDesc = (a,b) => {
+    for (let i=0;i<3;i++) { const d = (b[i]||0)-(a[i]||0); if (d!==0) return d }
+    return 0
+  }
+
+  const releasesUrl = `https://api.github.com/repos/${owner}/${repo}/releases?per_page=100`
+
+  const fetchJson = (url) => new Promise((resolve) => {
     try {
       const req = https.request(url, {
         method: 'GET',
@@ -863,22 +922,47 @@ ipcMain.handle('getLatestBackendReleaseInfo', async (_event, payload) => {
         let data = ''
         res.on('data', (chunk) => { data += chunk })
         res.on('end', () => {
-          try {
-            const json = JSON.parse(data)
-            resolve({ success: true, tag: json.tag_name || json.name, raw: json })
-          } catch (e) {
-            resolve({ success: false, error: `Parse error: ${e && e.message ? e.message : String(e)}` })
-          }
+          try { resolve({ ok: true, json: JSON.parse(data) }) }
+          catch (e) { resolve({ ok: false, error: `Parse error: ${e && e.message ? e.message : String(e)}` }) }
         })
       })
-      req.on('error', (err) => {
-        resolve({ success: false, error: err && err.message ? err.message : String(err) })
-      })
+      req.on('error', (err) => resolve({ ok: false, error: err && err.message ? err.message : String(err) }))
       req.end()
-    } catch (e) {
-      resolve({ success: false, error: e && e.message ? e.message : String(e) })
-    }
+    } catch (e) { resolve({ ok: false, error: e && e.message ? e.message : String(e) }) }
   })
+
+  // Try full releases listing to pick the latest server-tagged release
+  const listRes = await fetchJson(releasesUrl)
+  if (listRes.ok && Array.isArray(listRes.json)) {
+    let rels = listRes.json
+    if (serverOnly) {
+      rels = rels.filter(r => isServerTag(r.tag_name || r.name))
+    }
+    if (rels.length > 0) {
+      // Prefer semver compare if parsable; else fall back to published_at
+      const withSem = rels.map(r => ({ r, v: parseSemver((r.tag_name || r.name) || '') }))
+      const semAvail = withSem.some(x => x.v)
+      let chosen
+      if (semAvail) {
+        const sortable = withSem.map(x => ({ ...x, v: x.v || [0,0,0] }))
+        sortable.sort((a,b) => cmpSemverDesc(a.v,b.v))
+        chosen = sortable[0].r
+      } else {
+        rels.sort((a,b) => new Date(b.published_at||b.created_at||0) - new Date(a.published_at||a.created_at||0))
+        chosen = rels[0]
+      }
+      return { success: true, tag: chosen.tag_name || chosen.name, raw: chosen }
+    }
+  }
+
+  // Fallback: GitHub latest (may be a client release)
+  const latestUrl = `https://api.github.com/repos/${owner}/${repo}/releases/latest`
+  const latestRes = await fetchJson(latestUrl)
+  if (latestRes.ok && latestRes.json) {
+    const json = latestRes.json
+    return { success: true, tag: json.tag_name || json.name, raw: json }
+  }
+  return { success: false, error: listRes.error || latestRes.error || 'Failed to fetch releases' }
 })
 
 ipcMain.handle('installLocalBackendFromURL', async (_event, { version, manifestUrl } = {}) => {
@@ -1624,7 +1708,12 @@ ipcMain.handle("getInstalledPythonPackages", async (event, pythonPath) => {
   const tunnel = getTunnelState()
   if (activeTunnel && tunnel) {
     let pythonPackages = null
-    await axios.get(`http://${tunnel.host}:${expressPort}/get-installed-python-packages`, { params: { pythonPath: pythonPath } })
+    const forwardedPort = tunnel.localExpressPort || tunnel.remoteExpressPort
+    if (!forwardedPort) {
+      console.error("Remote Python packages request: no forwarded Express port available")
+      return null
+    }
+    await axios.get(`http://127.0.0.1:${forwardedPort}/get-installed-python-packages`, { params: { pythonPath: pythonPath } })
           .then((response) => {
             if (response.data.success && response.data.packages) {
               pythonPackages = response.data.packages
@@ -1656,7 +1745,12 @@ ipcMain.handle("getBundledPythonEnvironment", async (event) => {
   const tunnel = getTunnelState()
   if (activeTunnel && tunnel) {
     let pythonEnv = null
-    await axios.get(`http://${tunnel.host}:3000/get-bundled-python-environment`)
+    const forwardedPort = tunnel.localExpressPort || tunnel.remoteExpressPort
+    if (!forwardedPort) {
+      console.error("Remote bundled Python environment request: no forwarded Express port available")
+      return null
+    }
+    await axios.get(`http://127.0.0.1:${forwardedPort}/get-bundled-python-environment`)
           .then((response) => {
             if (response.data.success && response.data.pythonEnv) {
               pythonEnv = response.data.pythonEnv
