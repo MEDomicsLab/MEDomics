@@ -3,45 +3,58 @@ import { Button, ListGroup, Alert, Form } from "react-bootstrap"
 import { FaLaptop } from "react-icons/fa"
 import { FiRefreshCw } from "react-icons/fi"
 
-export default function ConnectedWSAgents({ wsAgents = [], selectedAgents, setSelectedAgents, setMinAvailableClients, setCanRun, getWSAgents, renderOsIcon = () => null }) {
-  // ✅ Always normalize wsAgents to a safe array
-  const agents = Array.isArray(wsAgents) ? wsAgents : []
+/**
+ * Props:
+ *  - groupId: string
+ *  - agents: Array<{ id: string, groupNodeId: string, os?: string }>
+ *  - selectedMap: { [agentId]: boolean }  // selection for THIS group
+ *  - setSelectedAgentsByGroup: fn(updater)
+ *  - setMinAvailableClients: fn(number)
+ *  - setCanRun: fn(boolean)
+ *  - getWSAgents: fn()
+ *  - renderOsIcon: fn(os) => JSX
+ */
+export default function ConnectedWSAgents({ groupId, agents = [], selectedMap = {}, setSelectedAgentsByGroup, setMinAvailableClients, setCanRun, getWSAgents, renderOsIcon = () => null }) {
+  const allSelected = agents.length > 0 && agents.every((a) => selectedMap[a.id])
+  const someSelected = agents.some((a) => selectedMap[a.id])
 
-  const allSelected = agents.length > 0 && agents.every((a) => selectedAgents[a])
-  const someSelected = agents.some((a) => selectedAgents[a])
+  const updateGroupSelection = (nextForGroup) => {
+    setSelectedAgentsByGroup((prev) => ({
+      ...prev,
+      [groupId]: nextForGroup
+    }))
+  }
 
-  const toggleAgent = (agent) => {
-    const next = { ...selectedAgents, [agent]: !selectedAgents[agent] }
-    setSelectedAgents(next)
-    setMinAvailableClients(agents.filter((a) => next[a]).length)
-
-    console.log("toggleAgent", selectedAgents, next)
+  const toggleAgent = (agentId) => {
+    const next = { ...(selectedMap || {}), [agentId]: !selectedMap[agentId] }
+    updateGroupSelection(next)
+    const count = Object.values(next).filter(Boolean).length
+    setMinAvailableClients(count)
   }
 
   const toggleSelectAll = () => {
     if (allSelected) {
-      // Unselect all
       const cleared = {}
-      agents.forEach((a) => (cleared[a] = false))
-      setSelectedAgents(cleared)
+      agents.forEach((a) => (cleared[a.id] = false))
+      updateGroupSelection(cleared)
       setMinAvailableClients(0)
     } else {
-      // Select all
       const filled = {}
-      agents.forEach((a) => (filled[a] = true))
-      setSelectedAgents(filled)
+      agents.forEach((a) => (filled[a.id] = true))
+      updateGroupSelection(filled)
       setMinAvailableClients(agents.length)
     }
   }
 
   useEffect(() => {
-    console.log("wsAgents normalized:", agents)
-    setCanRun(agents.length > 0 && someSelected)
-  }, [agents, selectedAgents])
+    const count = Object.values(selectedMap || {}).filter(Boolean).length
+    setMinAvailableClients(count)
+    setCanRun(agents.length > 0 && count > 0)
+  }, [agents, selectedMap])
 
   return (
     <div
-      className="d-flex flex-column gap-2 mt-3 p-3  rounded shadow-sm"
+      className="d-flex flex-column gap-2 mt-3 p-3 rounded shadow-sm"
       style={{
         background: "#fff",
         border: "1px solid #e5e7eb",
@@ -49,16 +62,21 @@ export default function ConnectedWSAgents({ wsAgents = [], selectedAgents, setSe
         color: "#2c3e50"
       }}
     >
-      {!someSelected && <span className="alert-warning alert   rounded" style={{ color: "red", fontWeight: 500, fontSize: "0.95em" }}>Select some Clients</span>}
+      {!someSelected && (
+        <span className="alert-warning alert rounded" style={{ color: "red", fontWeight: 500, fontSize: "0.95em" }}>
+          Select some Clients in <code>{groupId}</code>
+        </span>
+      )}
+
       <div className="d-flex justify-content-between align-items-center">
         <div className="d-flex align-items-center gap-2">
           <FaLaptop size={18} />
-          <strong>Available Clients</strong>
+          <strong>Available Clients — Group: {groupId}</strong>
         </div>
         <div className="d-flex align-items-center gap-3">
           <Form.Check
             type="checkbox"
-            id="select-all-agents"
+            id={`select-all-${groupId}`}
             label="Select all"
             checked={allSelected}
             ref={(el) => {
@@ -66,25 +84,25 @@ export default function ConnectedWSAgents({ wsAgents = [], selectedAgents, setSe
             }}
             onChange={toggleSelectAll}
           />
-          <Button size="sm" variant="" onClick={getWSAgents}>
+          <Button size="sm" variant="" onClick={getWSAgents} title="Refresh">
             <FiRefreshCw className="ms-1" />
           </Button>
         </div>
       </div>
 
-      {agents.length === 0 ? (
+      {!agents || agents.length === 0 ? (
         <Alert variant="light" className="mt-2 mb-0">
-          No machines connected yet.
+          No machines connected in this group.
         </Alert>
       ) : (
         <ListGroup className="mt-2">
-          {agents.map((agent) => (
-            <ListGroup.Item key={agent} className={`d-flex align-items-center justify-content-between ${!!selectedAgents[agent] ? "border bg-light" : ""}`}>
+          {agents.map((a) => (
+            <ListGroup.Item key={a.id} className={`d-flex align-items-center justify-content-between ${!!selectedMap[a.id] ? "border bg-light" : ""}`}>
               <div className="d-flex align-items-center" style={{ gap: ".6rem" }}>
-                {renderOsIcon(agent.split("-").pop())}
-                <span style={{ fontFamily: "monospace" }}>{agent.split("-").slice(0, -1).join("-")}</span>
+                {renderOsIcon(a.os)}
+                <span style={{ fontFamily: "monospace" }}>{a.id}</span>
               </div>
-              <Form.Check type="checkbox" id={`chk-${agent}`} checked={!!selectedAgents[agent]} onChange={() => toggleAgent(agent)} label="Use" />
+              <Form.Check type="checkbox" id={`chk-${groupId}-${a.id}`} checked={!!selectedMap[a.id]} onChange={() => toggleAgent(a.id)} label="Use" />
             </ListGroup.Item>
           ))}
         </ListGroup>

@@ -54,6 +54,7 @@ class GoExecScriptRunPipelineFromMEDfl(GoExecutionScript):
         return weights
 
     def _start_server(self, json_config: dict):
+        go_print(str(json_config))
         """The function that starts the Flower server."""
         go_print("Starting the Federated Learning Server with the following configuration:")
 
@@ -84,7 +85,14 @@ class GoExecScriptRunPipelineFromMEDfl(GoExecutionScript):
             savingPath=json_config['savingPath'],
             saveOnRounds=json_config['saveOnRounds'],
             total_rounds=json_config['num_rounds'],
-            # datasetConfig=json_config.get('datasetConfig', {})
+            
+            features=json_config['features'],
+            target=json_config['target'],
+            val_fraction=json_config['val_fraction'],
+            test_fraction=json_config['test_fraction'],
+            split_mode=json_config['split_mode'],
+            id_col=json_config['id_col'],
+            client_fractions=json_config['client_fractions'],
         )
 
         server = FederatedServer(

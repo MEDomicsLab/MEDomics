@@ -278,7 +278,7 @@ const FlWorflowBase = ({ workflowType = "fl", isGoodConnection, groupNodeHandlin
     console.log("targetNode", targetNode)
     console.log("edges", edges)
     // if the targetNode is a ml strategy node, check if it has a model as input
-    if (targetNode.type == "mlStrategyNode" && sourceNode.type == "groupNode") {
+    if (targetNode.type == "mlStrategyNode" && sourceNode.type == "flrwNetworkNode") {
       existingEdge = edges.find((edge) => edge.target === targetNode.id)
     }
     return existingEdge

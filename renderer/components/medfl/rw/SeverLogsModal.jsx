@@ -706,7 +706,7 @@ const ServerLogosModal = ({ show, onHide, nodes, onSaveScean, setRunServer, conf
         min_available_clients: Object.keys(selectedAgents[index]).length,
         port: "808" + String(index),
         use_transfer_learning: conf.flModelNode.activateTl == "true" ? true : false,
-        pretrained_model_path: conf.flModelNode.file.path || "",
+        pretrained_model_path: conf.flModelNode.file?.path || "",
         local_epochs: conf.flModelNode["Local epochs"] || 1,
         threshold: conf.flModelNode.Threshold || 0.5,
         optimizer: conf.flModelNode.optimizer || "SGD",

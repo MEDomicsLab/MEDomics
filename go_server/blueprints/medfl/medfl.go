@@ -28,7 +28,7 @@ var wsBase = "/" + prePath + "/rw/ws"
 
 // Tailscale config (as provided)
 var (
-	apiKey  = "tskey-api-kWfnEVGAk321CNTRL-4g9yhN4QaFEAM3A7sU3FFEgx7VCeuUzWH"
+	apiKey  = "tskey-api-kabnFtXy1d11CNTRL-VnuWgPy7uSbBqafErZ2CTbtNENMj63ug"
 	tailnet = "taild030b7.ts.net"
 )
 
@@ -64,6 +64,9 @@ func AddHandleFunc() {
 	Utils.CreateHandleFunc(prePath+"/rw/ws/stats/", handleWsStats)
 
 	Utils.CreateHandleFunc(prePath+"/rw/ws/logs/", handleWsLogs)
+	Utils.CreateHandleFunc(prePath+"/rw/ws/check-ids/", handleWsCheckIDs)
+
+	Utils.CreateHandleFunc(prePath+"/read-pkl/", handleReadPklModel)
 
 	// WebSocket upgrade endpoint (must be GET/Upgrade; cannot use CreateHandleFunc)
 	addRealtimeOrchestratorRoutes()
@@ -187,6 +190,8 @@ func addRealtimeOrchestratorRoutes() {
 			case "LOG_RESULT":
 				// <- THIS was missing; unblock handleWsLogs
 				resolvePending(m.RID, string(m.Args))
+			case "CHECK_IDS_RESULT":
+				resolvePending(m.RID, string(m.Args))
 
 			case "CLIENT_STATUS":
 				// optional: just log it
@@ -249,6 +254,115 @@ func handleWsRun(jsonConfig string, id string) (string, error) {
 	}
 
 	return `{"status":"sent","agent":"` + id + `"}`, nil
+}
+
+// handleWsCheckIDs forwards a CHECK_IDS request to a connected agent and waits for CHECK_IDS_RESULT.
+// Payload JSON:
+//
+//	{
+//	  "id": "agent-id",
+//	  "column": "PatientID",
+//	  "ids": ["A12","B77","C09","X999"]   // also accepts a single comma-separated string
+//	}
+func handleWsCheckIDs(jsonConfig string, _ string) (string, error) {
+	// Parse payload
+	var payload struct {
+		ID     string        `json:"id"`
+		Column string        `json:"column"`
+		IDs    []interface{} `json:"ids"` // accept any, we’ll coerce to []string
+	}
+
+	if err := json.Unmarshal([]byte(jsonConfig), &payload); err != nil {
+		return "", fmt.Errorf("invalid payload: %w", err)
+	}
+	if payload.ID == "" {
+		return "", fmt.Errorf("invalid payload: missing agent id (id)")
+	}
+	if strings.TrimSpace(payload.Column) == "" {
+		return "", fmt.Errorf("invalid payload: missing column")
+	}
+
+	// Coerce IDs to []string; also support a single comma-separated string
+	ids := make([]string, 0, len(payload.IDs))
+	if len(payload.IDs) == 0 {
+		// try to see if the raw JSON had: "ids":"a,b,c"
+		var raw map[string]json.RawMessage
+		if err := json.Unmarshal([]byte(jsonConfig), &raw); err == nil {
+			if v, ok := raw["ids"]; ok {
+				var s string
+				if err2 := json.Unmarshal(v, &s); err2 == nil && strings.TrimSpace(s) != "" {
+					for _, t := range strings.Split(s, ",") {
+						t = strings.TrimSpace(t)
+						if t != "" {
+							ids = append(ids, t)
+						}
+					}
+				}
+			}
+		}
+	}
+	if len(ids) == 0 {
+		for _, v := range payload.IDs {
+			switch t := v.(type) {
+			case string:
+				s := strings.TrimSpace(t)
+				if s != "" {
+					ids = append(ids, s)
+				}
+			case float64:
+				// JSON numbers arrive as float64; stringify without .0 if integer
+				if t == float64(int64(t)) {
+					ids = append(ids, fmt.Sprintf("%d", int64(t)))
+				} else {
+					ids = append(ids, fmt.Sprintf("%v", t))
+				}
+			case bool:
+				ids = append(ids, fmt.Sprintf("%v", t))
+			default:
+				b, _ := json.Marshal(t)
+				if len(b) > 0 {
+					ids = append(ids, string(b))
+				}
+			}
+		}
+	}
+	if len(ids) == 0 {
+		return "", fmt.Errorf("invalid payload: empty ids")
+	}
+
+	// Find agent
+	ag, ok := wsHub.Get(payload.ID)
+	if !ok {
+		return "", fmt.Errorf("agent %q not found", payload.ID)
+	}
+
+	// Prepare request/await response
+	rid := fmt.Sprintf("req-%d", time.Now().UnixNano())
+	pr := addPending(rid)
+
+	cmd := map[string]any{
+		"type": "CHECK_IDS",
+		"rid":  rid,
+		"args": map[string]any{
+			"column": payload.Column,
+			"ids":    ids,
+		},
+	}
+
+	ag.mu.Lock()
+	err := ag.ws.WriteJSON(cmd)
+	ag.mu.Unlock()
+	if err != nil {
+		return "", fmt.Errorf("write to agent %q failed: %w", payload.ID, err)
+	}
+
+	select {
+	case res := <-pr.ch:
+		// res is exactly the agent's args JSON (present_ids/missing_ids/exists_all/...)
+		return res, nil
+	case <-time.After(10 * time.Second):
+		return "", fmt.Errorf("timeout waiting for CHECK_IDS_RESULT from agent %q", payload.ID)
+	}
 }
 
 // NEW: Request dataset stats from an agent
@@ -502,7 +616,17 @@ func handleConfigFlDb(jsonConfig string, id string) (string, error) {
 // Run pipeline
 func handleRunFlPipeline(jsonConfig string, id string) (string, error) {
 	log.Println("Setting FL pipeline...", id)
-	response, err := Utils.StartPythonScripts(jsonConfig, "../pythonCode/modules/medfl/run_fl_pipeline.py", id)
+	response, err := Utils.StartPythonScripts(jsonConfig, "../pythonCode/modules/medfl/run_fl_pipeline_copy.py", id)
+	Utils.RemoveIdFromScripts(id)
+	if err != nil {
+		return "", err
+	}
+	return response, nil
+}
+
+func handleReadPklModel(jsonConfig string, id string) (string, error) {
+
+	response, err := Utils.StartPythonScripts(jsonConfig, "../pythonCode/modules/medfl/readPKLmodel.py", id)
 	Utils.RemoveIdFromScripts(id)
 	if err != nil {
 		return "", err

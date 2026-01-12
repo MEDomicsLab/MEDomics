@@ -19,6 +19,7 @@ const GroupNode = ({ id, data }) => {
 
   return (
     <>
+
       <Node
         id={id}
         data={data}

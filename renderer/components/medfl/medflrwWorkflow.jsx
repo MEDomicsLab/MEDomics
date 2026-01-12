@@ -65,6 +65,9 @@ import { MEDDataObject } from "../workspace/NewMedDataObject.js"
 import boxNode from "../learning/nodesTypes/boxNode.jsx"
 import analysisBoxNode from "../learning/nodesTypes/analysisBoxNode.jsx"
 import NewServerLogsModal from "./rw/SeverLogsModal_copy.jsx"
+import RwNetworkNode from "./nodesTypes/flrwNetworkNode.jsx"
+import MedDataObject from "../workspace/medDataObject.js"
+import { overwriteMEDDataObjectContent } from "../mongoDB/mongoDBUtils.js"
 
 const staticNodesParams = nodesParams // represents static nodes parameters
 
@@ -87,7 +90,7 @@ const MedflrwWorkflow = ({ setWorkflowType, workflowType, mode = "fl" }) => {
   const { port } = useContext(WorkspaceContext)
   const { setError } = useContext(ErrorRequestContext)
   const { globalData } = useContext(DataContext)
-  const { updateColumnsIntersectionFromNetworkCheck } = useMEDflContext()
+  const { updateColumnsIntersectionFromNetworkCheck, columnsIntersectionFromNetworkCheck, networkClients } = useMEDflContext()
 
   // ========== React Flow handles ==========
   const { setViewport } = useReactFlow() // setViewport is used to update the viewport of the workflow
@@ -116,7 +119,7 @@ const MedflrwWorkflow = ({ setWorkflowType, workflowType, mode = "fl" }) => {
   // ========== Server / network status ==========
   const [serverRunning, setServerRunning] = useState(false)
   const [isServerRunning, setRunServer] = useState(false)
-  const [networkChecked, setNetworkChecked] = useState(false) // networkChecked is used to check if the network is checked
+  const { networkChecked, setNetworkChecked } = useMEDflContext() // networkChecked is used to check if the network is checked
   const [socketAgents, setSocketAgents] = useState([]) // socketAgents is used to store the agents connected to the socket server
 
   const [isInitialized, setIsInitialized] = useState(true)
@@ -126,8 +129,11 @@ const MedflrwWorkflow = ({ setWorkflowType, workflowType, mode = "fl" }) => {
   const [showClientsDatasetModal, setShowClientsDatasetModal] = useState(false) // showClientsDatasetModal is used to show the clients dataset modal
   const [isSaveModal, openSaveModal] = useState(false)
   const [scenName, setSceanName] = useState("")
+  const [boxIntersections, setBoxIntersections] = useState({})
 
   const [datasetConfiguration, setDatasetConfiguration] = useState({})
+
+  const { updateNode } = useContext(FlowFunctionsContext)
 
   // declare node types using useMemo hook to avoid re-creating component types unnecessarily (it memorizes the output) https://www.w3schools.com/react/react_usememo.asp
   const nodeTypes = useMemo(
@@ -153,7 +159,8 @@ const MedflrwWorkflow = ({ setWorkflowType, workflowType, mode = "fl" }) => {
       flrwServerNode: FlrwServerNode,
       boxNode: boxNode,
       analysisBoxNode: analysisBoxNode,
-      mlStrategyNode: MlStrategyNode
+      mlStrategyNode: MlStrategyNode,
+      flrwNetworkNode: RwNetworkNode
     }),
     []
   )
@@ -171,28 +178,28 @@ const MedflrwWorkflow = ({ setWorkflowType, workflowType, mode = "fl" }) => {
           draggable: false,
           selectable: true,
           image: "",
-          size: { width: 700, height: 1000 },
+          size: { width: 500, height: 1000 },
           borderColor: "rgba(173, 230, 150, 0.8)",
           selectedBorderColor: "rgb(255, 187, 0)"
         },
         "box-initialization"
       )
       let netBox = createBoxNode(
-        { x: 800, y: 150 },
+        { x: 600, y: 150 },
         {
           nodeType: "boxNode",
           name: "FL Networks",
           draggable: false,
           selectable: true,
           image: "",
-          size: { width: 700, height: 700 },
-          borderColor: "rgba(230, 198, 150, 0.8)",
-          selectedBorderColor: "rgb(255, 187, 0)"
+          size: { width: 500, height: 700 },
+          borderColor: "rgba(205, 212, 253, 0.8)",
+          selectedBorderColor: "rgba(0, 102, 255, 1)"
         },
         "box-networks"
       )
       let trainBox = createBoxNode(
-        { x: 1600, y: 250 },
+        { x: 1200, y: 250 },
         {
           nodeType: "boxNode",
           name: "Training",
@@ -200,7 +207,7 @@ const MedflrwWorkflow = ({ setWorkflowType, workflowType, mode = "fl" }) => {
           selectable: true,
           image: "",
           size: { width: 500, height: 500 },
-          borderColor: "rgba(173, 230, 150, 0.8)",
+          borderColor: "rgba(230, 222, 150, 0.8)",
           selectedBorderColor: "rgb(255, 187, 0)"
         },
         "box-training"
@@ -214,8 +221,8 @@ const MedflrwWorkflow = ({ setWorkflowType, workflowType, mode = "fl" }) => {
           selectable: true,
           image: "",
           size: { width: 500, height: 300 },
-          borderColor: "rgba(150, 201, 230, 0.8)",
-          selectedBorderColor: "rgb(255, 187, 0)"
+          borderColor: "rgba(230, 218, 150, 0.8)",
+          selectedBorderColor: "rgba(255, 230, 0, 1)"
         },
         "box-analysis"
       )
@@ -326,10 +333,24 @@ const MedflrwWorkflow = ({ setWorkflowType, workflowType, mode = "fl" }) => {
   }, [isResults])
 
   useEffect(() => {
-    if (!networkChecked) {
-      updateColumnsIntersectionFromNetworkCheck([])
+    if (networkChecked == {}) {
+      updateColumnsIntersectionFromNetworkCheck({})
     }
-  }, [networkChecked])
+
+    for (const id in networkChecked) {
+      edges.forEach((edge) => {
+        if (edge.source === id) {
+          let targetNode = nodes.find((node) => node.id === edge.target)
+          targetNode.data.internal.settings.intersectionColumns = columnsIntersectionFromNetworkCheck[id] || []
+          targetNode.data.internal.settings.checkedClients = Object.keys(networkClients[edge.source]).filter((key) => networkClients[edge.source][key])
+          updateNode({
+            id: edge.target,
+            updatedData: targetNode.data.internal
+          })
+        }
+      })
+    }
+  }, [networkChecked, edges])
 
   // executed when the machine learning type is changed
   // it updates the possible settings of the nodes
@@ -628,6 +649,8 @@ const MedflrwWorkflow = ({ setWorkflowType, workflowType, mode = "fl" }) => {
         return node
       })
     )
+
+    console.log("theeees ere  the é , é ", edges)
 
     setEdges((edges) =>
       edges.map((edge) => {
@@ -1006,43 +1029,74 @@ const MedflrwWorkflow = ({ setWorkflowType, workflowType, mode = "fl" }) => {
   /**
    * save the workflow as a json file
    */
-  const onSave = useCallback(
-    async (scean) => {
-      let dirPath = ""
-      if (reactFlowInstance) {
-        console.log("Saving scene", scean)
-        const flow = deepCopy(reactFlowInstance.toObject())
-        flow.MLType = MLType
-        console.log("flow debug", flow)
-        flow.nodes.forEach((node) => {
-          node.data.setupParam = null
-        })
-        flow.intersections = intersections
-        if (configPath != "") {
-          console.log("Heeeeeeere")
-          modifyZipFileSync(configPath, async (path) => {
-            // do custom actions in the folder while it is unzippsed
-            await MEDDataObject.writeFileSync(flow, path, "metadata", "json")
-            toast.success("Scene has been saved successfully")
-          })
-        } else {
-          console.log("here", scean)
-          let configPath = "C:\\Users\\HP User\\Desktop\\medfl_workspace\\EXPERIMENTS\\FL\\Sceans"
-          createSceneContent(configPath, scean, mode, null).then(() =>
-            modifyZipFileSync(configPath + "\\" + scean + ".fl", async (path) => {
-              // do custom actions in the folder while it is unzipped
-              await MEDDataObject.writeFileSync(flow, path, "metadata", "json")
-              toast.success("Scene has been saved successfully")
-            })
-          )
-        }
+// const onSave = useCallback(
+//     async (scean) => {
+//       let dirPath = ""
+//       if (reactFlowInstance) {
+//         console.log("Saving scene", scean)
+//         const flow = deepCopy(reactFlowInstance.toObject())
+//         flow.MLType = MLType
+//         console.log("flow debug", flow)
+//         flow.nodes.forEach((node) => {
+//           node.data.setupParam = null
+//         })
+//         flow.intersections = intersections
+//         if (configPath && configPath != ""  ) {
+//           // 1. grab just “fileName.exe”
+//           const base = configPath.slice(configPath.lastIndexOf("/") + 1)
+//           // 2. drop everything after the last “.”
+//           const nameWithoutExt = base.slice(0, base.lastIndexOf("."))
 
-        return dirPath
+//           dirPath = configPath.substring(0, configPath.lastIndexOf("/"))
+
+//           await MedDataObject.writeFileSync(flow, dirPath, nameWithoutExt, "rwfl")
+
+//           toast.success("Scene has been saved successfully")
+//         } else {
+//           const now = new Date()
+//           const pad = (n) => String(n).padStart(2, "0")
+//           const timestamp = [now.getFullYear(), pad(now.getMonth() + 1), pad(now.getDate())].join("") + "_" + [pad(now.getHours()), pad(now.getMinutes()), pad(now.getSeconds())].join("")
+
+//           let configPath = globalData["UUID_ROOT"].path + "/EXPERIMENTS"
+
+//           MedDataObject.createFolderFromPath(configPath + "/FL")
+//           MedDataObject.createFolderFromPath(configPath + "/FL/Sceans")
+//           MedDataObject.createFolderFromPath(configPath + "/FL/Sceans/FL_RW_" + timestamp)
+//           MedDataObject.createFolderFromPath(configPath + "/FL/Sceans/FL_RW_" + timestamp + "/models")
+//           MedDataObject.createFolderFromPath(configPath + "/FL/Sceans/FL_RW_" + timestamp + "/notebooks")
+
+//           dirPath = configPath + "/FL/Sceans/FL_RW_" + timestamp
+
+//           await MedDataObject.writeFileSync(flow, dirPath, scean, "rwfl")
+
+//           toast.success("Scene has been saved successfully")
+//         }
+
+//         return dirPath
+//       }
+//     },
+
+//     [reactFlowInstance, MLType, intersections]
+//   )
+
+  const onSave = useCallback(async () => {
+    if (reactFlowInstance && metadataFileID) {
+      const flow = deepCopy(reactFlowInstance.toObject())
+      flow.MLType = MLType
+      flow.intersections = intersections
+      flow.isExperiment = true
+      console.log("scene saved", flow)
+      flow.nodes.forEach((node) => {
+        node.data.setupParam = null
+      })
+      let success = await overwriteMEDDataObjectContent(metadataFileID, [flow])
+      if (success) {
+        toast.success("Scene " + 'sceneName' + " has been saved successfully")
+      } else {
+        toast.error("Error while saving scene: " + 'sceneName')
       }
-    },
-
-    [reactFlowInstance, MLType, intersections]
-  )
+    }
+  }, [reactFlowInstance, MLType, intersections])
 
   /**
    * Clear the canvas if the user confirms
@@ -1147,7 +1201,7 @@ const MedflrwWorkflow = ({ setWorkflowType, workflowType, mode = "fl" }) => {
       ></NewServerLogsModal>
 
       <ManageScriptsModal onHide={() => setShowScriptConfigs(false)} show={showScriptConfigs} />
-      <NewtworkCheckModal onHide={() => setShowNetworkCheckModal(false)} show={showNetworkCheckModal} setNetworkChecked={setNetworkChecked} />
+      <NewtworkCheckModal onHide={() => setShowNetworkCheckModal(false)} show={showNetworkCheckModal} setNetworkChecked={setNetworkChecked} networkChecked={networkChecked} />
       <ClientDatasetModal setDatasetConfiguration={setDatasetConfiguration} onHide={() => setShowClientsDatasetModal(false)} show={showClientsDatasetModal} clients={socketAgents} />
       <Modal show={isSaveModal} onHide={() => openSaveModal(false)}>
         <Modal.Header>
@@ -1200,13 +1254,13 @@ const MedflrwWorkflow = ({ setWorkflowType, workflowType, mode = "fl" }) => {
             {workflowType == "rwflNetwork" && (
               <div className="d-flex gap-2">
                 <Button
-                  badge={!networkChecked ? "!" : ""}
+                  badge={!networkChecked[groupNodeId.id] ? "!" : ""}
                   badgeClassName="p-badge-danger"
                   icon="pi pi-verified"
                   rounded
-                  outlined={!networkChecked}
-                  severity={!networkChecked ? "secondary" : "success"}
-                  label={!networkChecked ? "Check Network" : "network checked"}
+                  outlined={!networkChecked[groupNodeId.id]}
+                  severity={!networkChecked[groupNodeId.id] ? "secondary" : "success"}
+                  label={!networkChecked[groupNodeId.id] ? "Check Network" : "network checked"}
                   onClick={() => setShowNetworkCheckModal(!showNetworkCheckModal)}
                 />
               </div>
@@ -1255,7 +1309,7 @@ const MedflrwWorkflow = ({ setWorkflowType, workflowType, mode = "fl" }) => {
             {workflowType == "rwflNetwork" && (
               <div className="d-flex gap-2">
                 <Button icon="pi pi-file" rounded outlined severity="secondary" label="Scripts" onClick={() => setShowScriptConfigs(!showScriptConfigs)} />
-                <Button icon="pi pi-database" rounded outlined severity="secondary" label="Database" onClick={() => setShowClientsDatasetModal(!showClientsDatasetModal)} />
+                {/* <Button icon="pi pi-database" rounded outlined severity="secondary" label="Database" onClick={() => setShowClientsDatasetModal(!showClientsDatasetModal)} /> */}
               </div>
             )}
           </>

@@ -1,8 +1,9 @@
 // components/.../DatasetOverview.jsx
-import React, { useMemo, useEffect, useRef } from "react"
+import React, { useMemo, useEffect, useRef, useContext } from "react"
 import { Badge } from "react-bootstrap"
 import { FaCheckCircle, FaTimesCircle } from "react-icons/fa"
 import { useMEDflContext } from "../../workspace/medflContext"
+import { FlowFunctionsContext } from "../../flow/context/flowFunctionsContext"
 
 /**
  * datasetStats shape (per agent):
@@ -13,7 +14,8 @@ import { useMEDflContext } from "../../workspace/medflContext"
  * }
  */
 export default function DatasetOverview({ datasetStats = {} }) {
-  const { updateColumnsIntersectionFromNetworkCheck } = useMEDflContext()
+  const { updateColumnsIntersectionFromNetworkCheck, columnsIntersectionFromNetworkCheck } = useMEDflContext()
+  const { groupNodeId } = useContext(FlowFunctionsContext)
 
   const agents = useMemo(() => Object.keys(datasetStats), [datasetStats])
   if (!agents.length) return null
@@ -24,16 +26,16 @@ export default function DatasetOverview({ datasetStats = {} }) {
 
   // Compute everything once per datasetStats change
   const computed = useMemo(() => {
-    const existsByAgent   = Object.fromEntries(agents.map((a) => [a, !!datasetStats[a]?.exists]))
-    const rowsByAgent     = Object.fromEntries(agents.map((a) => [a, datasetStats[a]?.n_rows ?? null]))
-    const colsByAgent     = Object.fromEntries(agents.map((a) => [a, datasetStats[a]?.n_cols ?? null]))
-    const columnsByAgent  = Object.fromEntries(agents.map((a) => [a, datasetStats[a]?.columns || []]))
-    const engineByAgent   = Object.fromEntries(agents.map((a) => [a, datasetStats[a]?.engine || "-"]))
+    const existsByAgent = Object.fromEntries(agents.map((a) => [a, !!datasetStats[a]?.exists]))
+    const rowsByAgent = Object.fromEntries(agents.map((a) => [a, datasetStats[a]?.n_rows ?? null]))
+    const colsByAgent = Object.fromEntries(agents.map((a) => [a, datasetStats[a]?.n_cols ?? null]))
+    const columnsByAgent = Object.fromEntries(agents.map((a) => [a, datasetStats[a]?.columns || []]))
+    const engineByAgent = Object.fromEntries(agents.map((a) => [a, datasetStats[a]?.engine || "-"]))
 
     const allExist = agents.every((a) => existsByAgent[a])
 
     // pick first agent that actually has columns as reference
-    const refAgent   = agents.find((a) => (columnsByAgent[a] || []).length) || agents[0]
+    const refAgent = agents.find((a) => (columnsByAgent[a] || []).length) || agents[0]
     const refColsSet = toSet(columnsByAgent[refAgent])
 
     const sameColumnsEverywhere = agents.every((a) => equalSets(refColsSet, toSet(columnsByAgent[a])))
@@ -52,7 +54,7 @@ export default function DatasetOverview({ datasetStats = {} }) {
       agents.map((a) => {
         const s = toSet(columnsByAgent[a])
         const missing = [...refColsSet].filter((c) => !s.has(c))
-        const extra   = [...s].filter((c) => !refColsSet.has(c))
+        const extra = [...s].filter((c) => !refColsSet.has(c))
         return [a, { missing, extra }]
       })
     )
@@ -95,27 +97,13 @@ export default function DatasetOverview({ datasetStats = {} }) {
   useEffect(() => {
     if (lastHashRef.current !== interHash) {
       lastHashRef.current = interHash
-      updateColumnsIntersectionFromNetworkCheck(computed.interArray)
+      updateColumnsIntersectionFromNetworkCheck({ ...columnsIntersectionFromNetworkCheck, [groupNodeId.id]: computed.interArray })
     }
   }, [interHash, computed.interArray, updateColumnsIntersectionFromNetworkCheck])
 
-  const {
-    existsByAgent,
-    rowsByAgent,
-    colsByAgent,
-    engineByAgent,
-    allExist,
-    refAgent,
-    sameColumnsEverywhere,
-    interCols,
-    unionCols,
-    diffByAgent,
-    sameEngineEverywhere,
-    sameRows,
-    sameCols
-  } = computed
+  const { existsByAgent, rowsByAgent, colsByAgent, engineByAgent, allExist, refAgent, sameColumnsEverywhere, interCols, unionCols, diffByAgent, sameEngineEverywhere, sameRows, sameCols } = computed
 
-  const Pill = ({ ok, text }) => (
+  const Pill = ({ ok, text, warning = false }) => (
     <span
       style={{
         display: "inline-flex",
@@ -126,8 +114,8 @@ export default function DatasetOverview({ datasetStats = {} }) {
         fontSize: 12,
         fontWeight: 600,
         marginRight: 8,
-        background: ok ? "rgba(40,167,69,0.1)" : "rgba(220,53,69,0.1)",
-        color: ok ? "#28a745" : "#dc3545"
+        background: warning ? "rgba(167, 133, 40, 0.1)" : ok ? "rgba(40,167,69,0.1)" : "rgba(220,53,69,0.1)",
+        color: warning ? "#ee932bff" : ok ? "#28a745" : "#dc3545"
       }}
     >
       {ok ? <FaCheckCircle /> : <FaTimesCircle />} {text}
@@ -147,9 +135,9 @@ export default function DatasetOverview({ datasetStats = {} }) {
           <div style={{ marginTop: 8, marginBottom: 16 }}>
             <Pill ok={allExist} text={allExist ? "All datasets exist" : "Some datasets missing"} />
             <Pill ok={sameColumnsEverywhere} text={sameColumnsEverywhere ? "Columns identical across agents" : "Columns differ across agents"} />
-            <Pill ok={sameEngineEverywhere} text={sameEngineEverywhere ? "Same engine" : "Different engines"} />
-            <Pill ok={sameRows} text={sameRows ? "Same #rows" : "Different #rows"} />
-            <Pill ok={sameCols} text={sameCols ? "Same #cols" : "Different #cols"} />
+            <Pill ok={sameEngineEverywhere} text={sameEngineEverywhere ? "Same engine" : "Different engines"} warning={!sameEngineEverywhere} />
+            <Pill ok={sameRows} text={sameRows ? "Same #rows" : "Different #rows"} warning={!sameRows} />
+            <Pill ok={sameCols} text={sameCols ? "Same #cols" : "Different #cols"} warning={!sameCols} />
           </div>
 
           {/* Columns union / intersection */}

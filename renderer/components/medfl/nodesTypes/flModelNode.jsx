@@ -6,8 +6,15 @@ import CodeEditor from "../../flow/codeEditor"
 import { FlowFunctionsContext } from "../../flow/context/flowFunctionsContext"
 import { Message } from "primereact/message"
 import { loadFileFromPathSync } from "../../../utilities/fileManagementUtils"
+import { requestBackend } from "../../../utilities/requests"
+import { WorkspaceContext } from "../../workspace/workspaceContext"
+
+import { PageInfosContext } from "../../mainPages/moduleBasics/pageInfosContext"
 
 const FlModelNode = ({ id, data }) => {
+  const { port } = useContext(WorkspaceContext)
+  const { pageId, configPath } = useContext(PageInfosContext)
+
   // context
   const { updateNode } = useContext(FlowFunctionsContext)
 
@@ -94,8 +101,38 @@ const FlModelNode = ({ id, data }) => {
     }
   }, [optimFile?.path])
 
+  const readpklmodel = () => {
+    requestBackend(
+      port,
+      "/medfl/read-pkl/" + pageId,
+      {
+        pklPath: data.internal.settings.file?.path
+      },
+      (json) => {
+        if (json.error) {
+          // toast.error?.("Error: " + json.error)
+          console.error("WS Agents error:", json.error)
+        } else {
+          console.log("Model content:", json.data)
+          data.internal.settings.optimizer = json.data.params.solver
+          data.internal.settings["learning rate"] = json.data.params.learning_rate_init
+          data.internal.settings.Threshold = json.data.params.Threshold
+          data.internal.settings["Local epochs"] = json.data.params.max_iter
+
+          updateNode({
+            id: id,
+            updatedData: data.internal
+          })
+        }
+      },
+      (err) => {
+        console.error(err)
+      }
+    )
+  }
+
   useEffect(() => {
-    if (tlActivated == "true" && (!data.internal.settings.file || data.internal.settings.file.path == "")) {
+    if (tlActivated == "true" && (!data.internal.settings.file || data.internal.settings.file?.path == "")) {
       data.internal.hasWarning.state = true
       data.internal.hasWarning.tooltip = "You need to specify a file for the transfer learning"
       updateNode({
@@ -103,6 +140,7 @@ const FlModelNode = ({ id, data }) => {
         updatedData: data.internal
       })
     } else {
+      readpklmodel()
       data.internal.hasWarning.state = false
       data.internal.hasWarning.tooltip = ""
       updateNode({
@@ -168,14 +206,14 @@ const FlModelNode = ({ id, data }) => {
                         currentValue={data.internal.settings.file && data.internal.settings.file.id}
                         onInputChange={onFilesChange}
                         setHasWarning={() => {}}
-                        acceptedExtensions={["pth"]}
+                        acceptedExtensions={["pth", "pkl"]}
                       />
                       <FlInput
                         name="optimizer"
                         settingInfos={{
                           type: "list",
                           tooltip: "<p>Specify a data file (xlsx, csv, json)</p>",
-                          choices: [{ name: "Adam" }, { name: "SGD" }, { name: "RMSprop" }]
+                          choices: [{ name: "adam" }, { name: "sgd" }, { name: "rmsprop" }]
                         }}
                         currentValue={data.internal.settings.optimizer || {}}
                         onInputChange={onModelInputChange}

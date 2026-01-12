@@ -24,10 +24,10 @@ const exec = util.promisify(require("child_process").exec)
  * Settings page
  * @returns {JSX.Element} Settings page
  */
-const SettingsPage = ({pageId = "settings", checkJupyterIsRunning, startJupyterServer, stopJupyterServer}) => {
+const SettingsPage = ({ pageId = "settings", checkJupyterIsRunning, startJupyterServer, stopJupyterServer }) => {
   const { workspace, port } = useContext(WorkspaceContext)
   const [settings, setSettings] = useState(null) // Settings object
-  const [serverIsRunning, setServerIsRunning] = useState(false) // Boolean to know if the server is running  
+  const [serverIsRunning, setServerIsRunning] = useState(false) // Boolean to know if the server is running
   const [mongoServerIsRunning, setMongoServerIsRunning] = useState(false) // Boolean to know if the server is running
   const [jupyterServerIsRunning, setjupyterServerIsRunning] = useState(false) // Boolean to know if Jupyter Noteobok is running
   const [activeIndex, setActiveIndex] = useState(0) // Index of the active tab
@@ -123,7 +123,7 @@ const SettingsPage = ({pageId = "settings", checkJupyterIsRunning, startJupyterS
 
         if (res !== null) {
           ipcRenderer.invoke("getInstalledPythonPackages", res).then((pythonPackages) => {
-            console.log("Installed Python Packages: ", pythonPackages)
+            // console.log("Installed Python Packages: ", pythonPackages)
             setPythonEmbedded({ pythonEmbedded: res, pythonPackages: pythonPackages })
           })
         }
@@ -137,7 +137,7 @@ const SettingsPage = ({pageId = "settings", checkJupyterIsRunning, startJupyterS
       console.log("Python imbedded: ", res)
       if (res !== null) {
         ipcRenderer.invoke("getInstalledPythonPackages", res).then((pythonPackages) => {
-          console.log("Installed Python Packages: ", pythonPackages)
+          // console.log("Installed Python Packages: ", pythonPackages)
           setPythonEmbedded({ pythonEmbedded: res, pythonPackages: pythonPackages })
         })
       }
@@ -223,18 +223,17 @@ const SettingsPage = ({pageId = "settings", checkJupyterIsRunning, startJupyterS
           return binPath
         }
       }
-      console.error("mongod not found in PATH"+paths)
+      console.error("mongod not found in PATH" + paths)
       // Check if mongod is in the default installation path on Linux - /usr/bin/mongod
       if (fs.existsSync("/usr/bin/mongod")) {
         return "/usr/bin/mongod"
       }
       console.error("mongod not found in /usr/bin/mongod")
-      
-      if (fs.existsSync("/home/"+process.env.USER+"/.medomics/mongodb/bin/mongod")) {
-        return "/home/"+process.env.USER+"/.medomics/mongodb/bin/mongod"
+
+      if (fs.existsSync("/home/" + process.env.USER + "/.medomics/mongodb/bin/mongod")) {
+        return "/home/" + process.env.USER + "/.medomics/mongodb/bin/mongod"
       }
       return null
-
     }
   }
 
@@ -288,14 +287,18 @@ const SettingsPage = ({pageId = "settings", checkJupyterIsRunning, startJupyterS
                   <Button
                     label="Start server"
                     className=" p-button-success"
-                    onClick={() => {startJupyterServer()}}
+                    onClick={() => {
+                      startJupyterServer()
+                    }}
                     style={{ backgroundColor: jupyterServerIsRunning ? "grey" : "#54a559", borderColor: jupyterServerIsRunning ? "grey" : "#54a559", marginRight: "1rem" }}
                     disabled={jupyterServerIsRunning}
                   />
                   <Button
                     label="Stop server"
                     className="p-button-danger"
-                    onClick={() => {stopJupyterServer()}}
+                    onClick={() => {
+                      stopJupyterServer()
+                    }}
                     style={{ backgroundColor: jupyterServerIsRunning ? "#d55757" : "grey", borderColor: jupyterServerIsRunning ? "#d55757" : "grey" }}
                     disabled={!jupyterServerIsRunning}
                   />
@@ -357,18 +360,18 @@ const SettingsPage = ({pageId = "settings", checkJupyterIsRunning, startJupyterS
                   />
                   {process.env.NODE_ENV === "development" && (
                     <>
-                  <Button
-                    label="Show first setup modal"
-                    className="p-button-info"
-                    onClick={() => {
-                      console.log("show first setup modal")
-                      setFirstSetupModalVisible(true)
-
-                    }}
-                    // style={{ backgroundColor: serverIsRunning ? "#d55757" : "grey", borderColor: serverIsRunning ? "#d55757" : "grey" }}
-                    // disabled={!serverIsRunning}
-                  />
-                  </>)}
+                      <Button
+                        label="Show first setup modal"
+                        className="p-button-info"
+                        onClick={() => {
+                          console.log("show first setup modal")
+                          setFirstSetupModalVisible(true)
+                        }}
+                        // style={{ backgroundColor: serverIsRunning ? "#d55757" : "grey", borderColor: serverIsRunning ? "#d55757" : "grey" }}
+                        // disabled={!serverIsRunning}
+                      />
+                    </>
+                  )}
                 </Col>
                 <Col xs={12} md={12} style={{ display: "flex", flexDirection: "row", justifyContent: "flex-start", alignItems: "center", flexWrap: "wrap", marginTop: ".75rem" }}>
                   <Col xs={12} md="auto" style={{ display: "flex", flexDirection: "row", justifyContent: "flex-start", alignItems: "center", flexWrap: "wrap" }}>
@@ -396,7 +399,9 @@ const SettingsPage = ({pageId = "settings", checkJupyterIsRunning, startJupyterS
                         }}
                       />
                     )}
-                    {pythonEmbedded.pythonEmbedded && typeof pythonEmbedded.pythonEmbedded === "string" && <h6 style={{ marginTop: "0.5rem", marginLeft: "0.75rem" }}>at {pythonEmbedded.pythonEmbedded}</h6>}
+                    {pythonEmbedded.pythonEmbedded && typeof pythonEmbedded.pythonEmbedded === "string" && (
+                      <h6 style={{ marginTop: "0.5rem", marginLeft: "0.75rem" }}>at {pythonEmbedded.pythonEmbedded}</h6>
+                    )}
                   </Col>
                   {/* If pythonEmbedded.pythonEmbedded is defined and a string, show it in a label just under this way: "at ${pythonEmbedded.pythonEmbedded}"*/}
                 </Col>

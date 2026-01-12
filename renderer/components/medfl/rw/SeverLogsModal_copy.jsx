@@ -105,6 +105,15 @@ const NewServerLogsModal = ({ show, onHide, nodes, onSaveScean, setRunServer, co
             n = node.data.internal.settings
             break
           }
+          case "mlStrategyNode": {
+            if (node.data.internal.settings.splitMode === "global") {
+              delete node.data.internal.settings.perClientConfig
+            }
+            delete node.data.internal.settings["intersectionColumns"]
+
+            n = node.data.internal.settings
+            break
+          }
           case "flStrategyNode":
             n = node.data.internal.settings
             break
@@ -125,6 +134,7 @@ const NewServerLogsModal = ({ show, onHide, nodes, onSaveScean, setRunServer, co
       Object.keys(config).forEach((key) => {
         const nodeId = config[key].id
         const [nodeData, nodeType] = getNodeById(nodeId)
+        console.log("nodeData", nodeData, "nodeType", nodeType)
         fullConfig[index][nodeType === "groupNode" ? "Network" : nodeType] = nodeData
       })
     })
@@ -243,6 +253,8 @@ const NewServerLogsModal = ({ show, onHide, nodes, onSaveScean, setRunServer, co
     if (isSaveModel) {
       if (savingPath !== "") return
       const savePath = await onSaveScean("FL_scean")
+
+      console.log("this is the saving path", savePath)
       setSavingPath(savePath)
     } else {
       setSavingPath("")
@@ -612,18 +624,26 @@ const NewServerLogsModal = ({ show, onHide, nodes, onSaveScean, setRunServer, co
         num_rounds: conf.flRunServerNode.numRounds,
         fraction_fit: conf.flRunServerNode.fractionFit,
         fraction_evaluate: conf.flRunServerNode.fractionEvaluate,
-        min_fit_clients: Object.keys(selectedAgents[index]).length,
-        min_evaluate_clients: Object.keys(selectedAgents[index]).length,
-        min_available_clients: Object.keys(selectedAgents[index]).length,
+        min_fit_clients: conf.flrwNetworkNode.clients.length,
+        min_evaluate_clients: conf.flrwNetworkNode.clients.length,
+        min_available_clients: conf.flrwNetworkNode.clients.length,
         port: "808" + String(index),
         use_transfer_learning: conf.flModelNode.activateTl == "true" ? true : false,
-        pretrained_model_path: conf.flModelNode.file.path || "",
+        pretrained_model_path: conf.flModelNode.file?.path || "",
         local_epochs: conf.flModelNode["Local epochs"] || 1,
         threshold: conf.flModelNode.Threshold || 0.5,
         optimizer: conf.flModelNode.optimizer || "SGD",
         learning_rate: conf.flModelNode["Learning rate"] || 0.01,
         savingPath: savingPath + "/models",
-        saveOnRounds: conf.flRunServerNode.saveOnRounds || 5
+        saveOnRounds: conf.flRunServerNode.saveOnRounds || 5,
+
+        features: conf.mlStrategyNode.selectedColumns.join(","),
+        target: "label",
+        val_fraction: conf.mlStrategyNode.validationFraction,
+        test_fraction: conf.mlStrategyNode.testFraction,
+        split_mode: conf.mlStrategyNode.splitMode,
+        id_col: "id",
+        client_fractions: conf.mlStrategyNode.perClientConfig || {}
       },
       (json) => {
         json?.error ? toast.error("Error: " + json.error) : MedDataObject.updateWorkspaceDataObject()
@@ -633,7 +653,8 @@ const NewServerLogsModal = ({ show, onHide, nodes, onSaveScean, setRunServer, co
       }
     )
 
-    const selectedClients = Object.keys(selectedAgents[index]).filter((key) => selectedAgents[index][key])
+    const selectedClients = conf.flrwNetworkNode.clients
+
     selectedClients.reduce((promise, client) => {
       return promise.then(
         () =>
@@ -814,7 +835,7 @@ const NewServerLogsModal = ({ show, onHide, nodes, onSaveScean, setRunServer, co
               <Form.Select value={configToCode} onChange={(e) => setConfigToCode(e.target.value)} className="mb-3">
                 {experimentConfig?.map((_, index) => (
                   <option key={index} value={index}>
-                    Configuration {index + 1}
+                    Pipeline {index + 1}
                   </option>
                 ))}
               </Form.Select>
@@ -853,8 +874,8 @@ const NewServerLogsModal = ({ show, onHide, nodes, onSaveScean, setRunServer, co
                   }}
                 >
                   {experimentConfig.map((config, index) => (
-                    <Tab key={index} eventKey={"conf" + index} title={"Configuration " + (index + 1)}>
-                      <ConnectedWSAgents
+                    <Tab key={index} eventKey={"conf" + index} title={"Pipeline " + (index + 1)}>
+                      {/* <ConnectedWSAgents
                         key={`agents-${index}`}
                         wsAgents={wsAgents}
                         selectedAgents={selectedAgents[index] || {}}
@@ -869,13 +890,24 @@ const NewServerLogsModal = ({ show, onHide, nodes, onSaveScean, setRunServer, co
                         getWSAgents={getWSAgents}
                         setCanRun={setCanRun}
                         renderOsIcon={renderOsIcon}
-                      />
+                      /> */}
                       {Object.keys(config).map((key) =>
                         key !== "Network" ? (
                           <div key={`${key}-${index}`} className="card shadow-sm border-0 mb-3">
                             <div className="card-header fw-semibold" style={{ background: "var(--bs-primary-bg-subtle)", color: "var(--bs-emphasis-color)", fontSize: 16 }}>
                               {key}
                             </div>
+
+                            {key == "mlStrategyNode" &&
+                              Object.values(config[key]["perClientConfig"]).some((client) => {
+                                return client.idsCheck && client.idsCheck.missing_ids.length > 0
+                              }) && (
+                                <div className="p-3">
+                                  <Alert variant="warning" className="">
+                                    <strong>Warning:</strong> One or more clients are missing required IDs for training. Please ensure all clients have the necessary identifiers configured.
+                                  </Alert>
+                                </div>
+                              )}
                             <div className="card-body p-3">
                               <div className="bg-body-tertiary rounded p-2">
                                 <JsonView data={config[key]} shouldExpandNode={allExpanded} className="bg-transparent" />
@@ -1052,14 +1084,15 @@ const NewServerLogsModal = ({ show, onHide, nodes, onSaveScean, setRunServer, co
               onClick={() => {
                 if (experimentConfig?.length > 0) {
                   // Check if any configuration has no selected agents
-                  const emptyConfigIndex = experimentConfig.findIndex((_, idx) => !selectedAgents[idx] || Object.keys(selectedAgents[idx]).length === 0)
-                  console.log("Empty config index:", emptyConfigIndex)
-                  if (emptyConfigIndex !== -1) {
-                    toast.error(`Please select at least one agent for configuration ${emptyConfigIndex + 1}`)
-                    return
-                  } else {
-                    setStartRunningConfig(true)
-                  }
+                  // const emptyConfigIndex = experimentConfig.findIndex((_, idx) => !selectedAgents[idx] || Object.keys(selectedAgents[idx]).length === 0)
+                  // console.log("Empty config index:", emptyConfigIndex)
+                  // if (emptyConfigIndex !== -1) {
+                  //   toast.error(`Please select at least one agent for configuration ${emptyConfigIndex + 1}`)
+                  //   return
+                  // } else {
+                  //   setStartRunningConfig(true)
+                  // }
+                  setStartRunningConfig(true)
                 }
               }}
               disabled={waitingForServer.includes(true)}

@@ -24,7 +24,7 @@ const nodesParams = {
     possibleSettings: {}
   },
   fl_network: {
-    type: "groupNode",
+    type: "flrwNetworkNode",
     classes: "object",
     nbInput: 1,
     nbOutput: 1,

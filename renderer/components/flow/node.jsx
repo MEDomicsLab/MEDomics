@@ -19,7 +19,6 @@ import { deepCopy } from "../../utilities/staticFunctions"
 import { Tag } from "primereact/tag"
 import { shell } from "electron"
 import { FaWindows, FaLinux, FaApple } from "react-icons/fa"
-import { MdCopyAll } from "react-icons/md"
 
 // keep this import for the code editor (to be implemented)
 // import dynamic from "next/dynamic"
@@ -154,7 +153,7 @@ const NodeObject = ({ id, data, nodeSpecific, nodeBody, defaultSettings, onClick
           pt={{
             body: { className: `${nodeBody ? "padding-0_2rem-important" : "padding-0-important"}` }
           }}
-          onClick={(e) => (onClickCustom ? onClickCustom(e) : op.current.toggle(e))}
+          onClick={(e) => (data.internal.isLocked ? null : onClickCustom ? onClickCustom(e) : op.current.toggle(e))}
           // if the node has run and the results pane is displayed, the node is displayed normally
           // if the node has not run and the results pane is displayed, the node is displayed with a notRun class (see .css file)
           className={`text-left ${data.internal.hasRun && showResultsPane ? "" : showResultsPane ? "notRun" : ""} `}

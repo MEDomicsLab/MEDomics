@@ -220,7 +220,7 @@ function comparePythonInstalledPackages(pythonPackages, requirements) {
       missingPackages.push({ name: requirementName, version: requirementVersion })
     }
   }
-  console.log("Missing packages: " + JSON.stringify(missingPackages))
+  // console.log("Missing packages: " + JSON.stringify(missingPackages))
   return missingPackages
 }
 

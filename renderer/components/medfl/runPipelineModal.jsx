@@ -39,7 +39,7 @@ const RunPipelineModal = ({ show, onHide, configs, nodes, onRun }) => {
             n = {
               name: node.data.internal.settings.files?.name,
               path: node.data.internal.settings.files?.path,
-              target: node.data.internal.settings.target , 
+              target: node.data.internal.settings.target,
               validationFraction: node.data.internal.settings.validFrac,
               testFraction: node.data.internal.settings.testFrac
             }
@@ -156,7 +156,7 @@ const RunPipelineModal = ({ show, onHide, configs, nodes, onRun }) => {
             <Tabs defaultActiveKey="conf0" id="uncontrolled-tab-example" className="mb-3">
               {experimentConfig?.map((config, index) => {
                 return (
-                  <Tab key={index} eventKey={"conf" + index} title={"Configuration " + (index + 1)}>
+                  <Tab key={index} eventKey={"conf" + index} title={"Pipeline " + (index + 1)}>
                     {Object.keys(config).map((key) => (
                       <div key={key} style={{ border: "solid 0.5px grey", borderRadius: 5, margin: 5 }}>
                         <div style={{ borderRadius: "5px 5px 0 0", background: "#D7DBFA", padding: 5, fontWeight: 700, fontSize: 17 }}>{key}</div>
