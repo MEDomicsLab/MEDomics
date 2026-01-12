@@ -591,7 +591,7 @@ ipcMain.handle('installRemoteBackendFromURL', async (_event, { manifestUrl, vers
     if (manifestUrl) {
       // Legacy manifest-based install
       sendInstallProgress({ phase: 'fetch-manifest', manifestUrl })
-      const { data: manifest } = await axios.get(manifestUrl, { timeout: 30000 })
+      const { data: manifest } = await axios.get(manifestUrl, { timeout: 20000 })
       manifestVersion = version || manifest?.version
       if (!manifestVersion) return { success: false, error: 'no-version-in-manifest' }
       const asset = selectAssetForRemote(manifest, remoteOS)
@@ -606,7 +606,7 @@ ipcMain.handle('installRemoteBackendFromURL', async (_event, { manifestUrl, vers
       sendInstallProgress({ phase: 'github-fetch-releases', owner: defaultOwner, repo: defaultRepo })
       const { data: releases } = await axios.get(`https://api.github.com/repos/${defaultOwner}/${defaultRepo}/releases`, {
         headers: { 'Accept': 'application/vnd.github+json', 'User-Agent': 'medomicslab-remote-installer' },
-        timeout: 30000
+        timeout: 20000
       })
       if (!Array.isArray(releases) || releases.length === 0) {
         return { success: false, error: 'no-releases-found' }

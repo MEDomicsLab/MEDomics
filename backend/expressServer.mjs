@@ -31,7 +31,7 @@ expressApp.use(function(req, res, next) {
 	next()
 })
 
-const EXPRESS_PORT_START = 3000
+const EXPRESS_PORT_START = 5000
 const EXPRESS_PORT_END = 8000
 
 // Service state snapshot to report via /status and to keep idempotent ensures

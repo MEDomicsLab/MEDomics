@@ -486,7 +486,7 @@ function startBackendServer() {
   setTimeout(async () => {
     if (!expressPort) {
       try {
-        const found = await findExpressPortByProbing(3000, 8000, 48, 250)
+        const found = await findExpressPortByProbing(5000, 8000, 48, 250)
         if (found) {
           setExpressPort(found)
           console.log(`Discovered Express port via probe: ${found}`)
@@ -503,7 +503,7 @@ function startBackendServer() {
   return child
 }
 
-async function findExpressPortByProbing(start = 3000, end = 8000, batchSize = 40, timeoutMs = 300) {
+async function findExpressPortByProbing(start = 5000, end = 8000, batchSize = 40, timeoutMs = 300) {
   const clamp = (n, min, max) => Math.max(min, Math.min(max, n))
   let p = start
   while (p <= end) {
@@ -607,16 +607,16 @@ ipcMain.handle('backendStatus', async (_event, { target = 'local' } = {}) => {
   try {
     if (target === 'remote') {
       const tunnel = getTunnelState()
-      const remotePort = tunnel && tunnel.remoteExpressPort
+      const localExpressPort = tunnel && tunnel.localExpressPort
       // First try: use existing local→remote forwarding to /status
-      if (remotePort) {
+      if (localExpressPort) {
         try {
-          const res = await axios.get(`http://127.0.0.1:${remotePort}/status`, { timeout: 3000 })
+          const res = await axios.get(`http://127.0.0.1:${localExpressPort}/status`, { timeout: 3000 })
           if (res && res.data) return res.data
         } catch {}
       }
 
-      // Fallback: sweep remote ports 3000–8000 to discover an Express server
+      // Fallback: sweep remote ports 5000–8000 to discover an Express server
       const conn = getActiveTunnel && getActiveTunnel()
       if (!conn) return { success: false, error: 'no-active-ssh' }
 
@@ -643,7 +643,7 @@ ipcMain.handle('backendStatus', async (_event, { target = 'local' } = {}) => {
       let m
       while ((m = re.exec(listening)) !== null) {
         const p = Number(m[1])
-        if (p >= 3000 && p <= 8000 && !ports.includes(p)) ports.push(p)
+        if (p >= 5000 && p <= 8000 && !ports.includes(p)) ports.push(p)
           // First attempt: read remote state file to get last-known express port and started flag
           try {
             const conn = getActiveTunnel && getActiveTunnel()
@@ -679,36 +679,44 @@ ipcMain.handle('backendStatus', async (_event, { target = 'local' } = {}) => {
 
       // Sort ascending for determinism
       ports.sort((a,b) => a - b)
-      if (!ports.length) return { success: false, error: 'no-open-ports-in-range', range: [3000, 8000] }
+      if (!ports.length) return { success: false, error: 'no-open-ports-in-range', range: [5000, 8000] }
 
       // Try probing candidates by creating a temporary local forward and requesting /status
       const tryPortStatus = async (remotePort) => {
         return new Promise((resolve) => {
           try {
             const net = require('net')
-            // Find a free local port near remotePort or default 3001
-            const baseLocal = Number(remotePort) || 3001
-            findAvailablePort(baseLocal, baseLocal + 200).then((localEp) => {
-              const server = net.createServer((socket) => {
-                conn.forwardOut(socket.localAddress || '127.0.0.1', socket.localPort || 0, '127.0.0.1', parseInt(remotePort), (err, stream) => {
+            const server = net.createServer((socket) => {
+              conn.forwardOut(
+                socket.localAddress || '127.0.0.1',
+                socket.localPort || 0,
+                '127.0.0.1',
+                parseInt(remotePort, 10),
+                (err, stream) => {
                   if (err) { socket.destroy(); return }
                   socket.pipe(stream).pipe(socket)
-                })
-              })
-              server.listen(localEp, '127.0.0.1')
-              server.on('error', () => resolve(null))
-              // Small delay to allow listener to bind
+                }
+              )
+            })
+            // Let the OS assign an ephemeral local port
+            server.listen(0, '127.0.0.1')
+            server.on('error', () => { try { server.close() } catch {}; resolve(null) })
+            server.on('listening', () => {
+              const addr = server.address()
+              const localPort = (addr && typeof addr === 'object') ? addr.port : null
+              if (!localPort) { try { server.close() } catch {}; return resolve(null) }
+              // Small delay to allow listener to bind fully
               setTimeout(async () => {
                 try {
-                  const resp = await axios.get(`http://127.0.0.1:${localEp}/status`, { timeout: 1500 })
+                  const resp = await axios.get(`http://127.0.0.1:${localPort}/status`, { timeout: 1500 })
                   try { server.close() } catch {}
-                  resolve(resp && resp.data ? { data: resp.data, localEp } : null)
+                  resolve(resp && resp.data ? { data: resp.data, localEp: localPort } : null)
                 } catch {
                   try { server.close() } catch {}
                   resolve(null)
                 }
               }, 250)
-            }).catch(() => resolve(null))
+            })
           } catch { resolve(null) }
         })
       }
@@ -1005,7 +1013,7 @@ ipcMain.handle('installLocalBackendFromURL', async (_event, { version, manifestU
     if (manifestUrl) {
       // Legacy manifest-based install
       progress({ phase: 'fetch-manifest', manifestUrl })
-      const { data: manifest } = await axios.get(manifestUrl, { timeout: 30000 })
+      const { data: manifest } = await axios.get(manifestUrl, { timeout: 20000 })
       const manifestVersion = version || manifest?.version || 'unknown'
       const osKeys = [platform, platform === 'win32' ? 'windows' : (platform === 'darwin' ? 'darwin' : 'linux')]
       const candidates = (manifest?.assets || []).filter(a => {
@@ -1065,7 +1073,7 @@ ipcMain.handle('installLocalBackendFromURL', async (_event, { version, manifestU
     progress({ phase: 'github-fetch-releases', owner: defaultOwner, repo: defaultRepo })
     const { data: releases } = await axios.get(`https://api.github.com/repos/${defaultOwner}/${defaultRepo}/releases`, {
       headers: { 'Accept': 'application/vnd.github+json', 'User-Agent': 'medomicslab-installer' },
-      timeout: 30000
+      timeout: 20000
     })
     if (!Array.isArray(releases) || releases.length === 0) {
       return { success: false, error: 'no-releases-found' }
@@ -1620,7 +1628,7 @@ if (isProd) {
       if (activeTunnel && tunnel) {
         // If an SSH tunnel is active, we set the remote workspace path
         const remoteWorkspacePath = getRemoteWorkspacePath()
-        axios.get(`http://${tunnel.host}:3000/get-working-dir-tree`, { params: { requestedPath: remoteWorkspacePath } })
+        axios.get(`http://localhost:${tunnel.localExpressPort}/get-working-dir-tree`, { params: { requestedPath: remoteWorkspacePath } })
           .then((response) => {
             if (response.data.success && response.data.workingDirectory) {
               event.reply("updateDirectory", {

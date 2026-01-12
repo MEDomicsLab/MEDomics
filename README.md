@@ -175,7 +175,7 @@ chmod +x start.sh stop.sh
 node ./backend/cli/medomics-server.mjs status --json
 ```
 
-- Or via HTTP from another terminal/app once you know the Express port (defaults to an available port in 3000–8000):
+- Or via HTTP from another terminal/app once you know the Express port (defaults to an available port in 5000–8000):
 
 ```bash
 curl http://127.0.0.1:<expressPort>/status
@@ -185,11 +185,11 @@ curl http://127.0.0.1:<expressPort>/status
 - To force the Express port, set `MEDOMICS_EXPRESS_PORT` before starting:
 
 ```bash
-MEDOMICS_EXPRESS_PORT=4000 ./start.sh   # Linux/macOS
+MEDOMICS_EXPRESS_PORT=6000 ./start.sh   # Linux/macOS
 ```
 
 ```powershell
-$env:MEDOMICS_EXPRESS_PORT=4000; ./start.bat   # Windows PowerShell
+$env:MEDOMICS_EXPRESS_PORT=6000; ./start.bat   # Windows PowerShell
 ```
 
 If Python/Mongo are missing, the start script will download and install a local Python runtime under `~/.medomics/python` and set up MongoDB as needed.
