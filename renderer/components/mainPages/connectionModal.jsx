@@ -36,7 +36,7 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
   const [remotePort, setRemotePort] = useState("22")
   // Express ports (local forwarded port and remote Express port)
   const [localExpressPort, setLocalExpressPort] = useState("5001")
-  const [remoteExpressPort, setRemoteExpressPort] = useState("5000")
+  const [remoteExpressPort, setRemoteExpressPort] = useState("5010")
   // GO ports (optional direct forwarding)
   const [localGoPort, setLocalGoPort] = useState("54280")
   const [remoteGoPort, setRemoteGoPort] = useState("54288")
@@ -74,7 +74,7 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
   const [, setRemoteInstalled] = useState(false)
   const [installingRemote, setInstallingRemote] = useState(false)
   const [remoteInstallText, setRemoteInstallText] = useState('')
-  const [remoteStartPort, setRemoteStartPort] = useState('5000')
+  const [remoteStartPort, setRemoteStartPort] = useState('5010')
   const [remoteServerRunning, setRemoteServerRunning] = useState(false)
   const [shouldRecheck, setShouldRecheck] = useState(false)
   const [requirementsChecking, setRequirementsChecking] = useState(false)
@@ -191,7 +191,7 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
         setUsername(tunnel.username || "")
         setRemotePort(tunnel.remotePort || "22")
         setLocalExpressPort(tunnel.localExpressPort || "5001")
-        setRemoteExpressPort(tunnel.remoteExpressPort || "5000")
+        setRemoteExpressPort(tunnel.remoteExpressPort || "5010")
         setLocalGoPort(tunnel.localGoPort || "54280")
         setRemoteGoPort(tunnel.remoteGoPort || "54288")
         setLocalDBPort(tunnel.localDBPort || "54020")
@@ -688,6 +688,7 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
           }
         }
       }
+      console.log('Starting remote backend using path:', pathToUse || '(Ensure)')
       if (pathToUse) {
         started = await ipcRenderer.invoke('startRemoteBackendUsingPath', { path: pathToUse, port: Number(remoteStartPort)})
       } else {
@@ -711,6 +712,13 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
         // After server starts, immediately check requirements to update UI
         await checkRequirementsRemote()
         setShouldRecheck(true)
+        // Sync tunnel context so Remote Server panel sees updated ports/status/log path
+        try {
+          const tunnel = await ipcRenderer.invoke('getTunnelState')
+          tunnelContext.setTunnelInfo(tunnel)
+        } catch (e) {
+          console.warn('Failed to sync tunnel context after starting server:', e && e.message ? e.message : e)
+        }
       } else {
         const msg = started?.error || 'unknown error'
         setRemoteBackendStatus('Failed to start remote server: ' + msg)
@@ -732,15 +740,16 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
     }
     try {
       setRemoteBackendStatus('Stopping remote server...')
-      // Request remote Express to stop via forwarded endpoint
-      const resp = await window.backend.requestExpress({ method: 'post', path: '/stop-express', host, port: Number(localExpressPort) })
-      if (resp?.data?.success) {
-        setRemoteBackendStatus('Remote server stopped')
+      // Request remote Express to stop via SSH-forwarded endpoint on localhost
+      const tunnelState = await ipcRenderer.invoke('getTunnelState')
+      const forwardedPort = tunnelState?.localExpressPort || Number(localExpressPort)
+      const remoteExpressPortNum = Number(tunnelState?.remoteExpressPort || remoteStartPort)
+
+      const markStopped = async (message = 'Remote server stopped') => {
+        setRemoteBackendStatus(message)
         setRemoteServerRunning(false)
         setShouldRecheck(true)
-        toast.success('Remote server stopped successfully.')
         try {
-          // Update tunnel panel statuses and stop log streaming
           await ipcRenderer.invoke('setTunnelState', { expressStatus: 'stopped', serverStartedRemotely: false })
           try {
             tunnelContext.setTunnelInfo(await ipcRenderer.invoke("getTunnelState"))
@@ -749,7 +758,34 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
         } catch(e) { console.log('Failed to update tunnel state after remote stop: ', e) }
         // Immediately re-run status check to reflect latest state
         await checkRemoteServer()
+      }
+
+      let resp
+      try {
+        resp = await window.backend.requestExpress({ method: 'post', path: '/stop-express', host: '127.0.0.1', port: Number(forwardedPort) })
+      } catch (err) {
+        // If stop endpoint failed, fall through to port check below
+        console.warn('Remote /stop-express request failed:', err && err.message ? err.message : err)
+      }
+
+      if (resp?.data?.success) {
+        toast.success('Remote server stopped successfully.')
+        await markStopped('Remote server stopped')
       } else {
+        // If the stop call did not succeed, check whether the remote Express port is still open.
+        try {
+          if (remoteExpressPortNum && !Number.isNaN(remoteExpressPortNum)) {
+            const check = await ipcRenderer.invoke('remoteCheckPort', { port: remoteExpressPortNum })
+            if (check?.success && !check.open) {
+              // Port is no longer listening → treat as stopped even if /stop-express failed.
+              toast.success('Remote server appears stopped (port closed).')
+              await markStopped('Remote server stopped (port closed)')
+              return
+            }
+          }
+        } catch (checkErr) {
+          console.warn('remoteCheckPort after stop failed:', checkErr && checkErr.message ? checkErr.message : checkErr)
+        }
         const msg = resp?.data?.error || 'unknown error'
         setRemoteBackendStatus('Failed to stop remote server: ' + msg)
       }

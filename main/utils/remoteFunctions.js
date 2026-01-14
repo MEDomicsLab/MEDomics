@@ -211,32 +211,98 @@ async function startRemoteBackend(conn, remoteOS, exePath, remotePort) {
       return { success: false, status: 'not-found', error: 'No remote Express path provided' }
     }
     const isScript = exePath.endsWith('.js') || exePath.endsWith('.mjs')
+    // Derive versionDir and log path similarly to startRemoteExpress
+    let versionDir = getVersionDirFromExePath(exePath, remoteOS)
+    let baseDir = null
+    if (versionDir) {
+      const normalizedVersionDir = versionDir.replace(/\\/g, '/')
+      baseDir = normalizedVersionDir.includes('/versions/') ? normalizedVersionDir.split('/versions/')[0] : normalizedVersionDir
+    }
+    let logsDir = null
+    let logPath = null
+    if (baseDir) {
+      logsDir = remoteOS === 'win32' ? `${baseDir.replace(/\//g,'\\')}\\logs` : `${baseDir}/logs`
+      logPath = remoteOS === 'win32' ? `${logsDir}\\express.log` : `${logsDir}/express.log`
+      // Ensure logs dir exists and truncate previous log
+      if (remoteOS === 'win32') {
+        await execRemote(conn, `powershell -NoProfile -Command "New-Item -ItemType Directory -Force -Path '${logsDir.replace(/'/g, "''")}' | Out-Null; Clear-Content -Path '${logPath.replace(/'/g, "''")}' -ErrorAction SilentlyContinue; New-Item -ItemType File -Force -Path '${logPath.replace(/'/g, "''")}' | Out-Null"`)
+      } else {
+        await execRemote(conn, `bash -lc "mkdir -p '${logsDir.replace(/'/g, "'\\''")}' && : > '${logPath.replace(/'/g, "'\\''")}'"`)
+      }
+    }
+    if (logPath) {
+      try {
+        setTunnelState({ ...getTunnelState(), expressLogPath: logPath })
+        try { mainWindow.webContents.send('tunnelStateUpdate', { expressLogPath: logPath }) } catch {}
+      } catch {}
+    }
     let cmd
+    console.log('[remote] startRemoteBackend called', { remoteOS, exePath, remotePort, isScript })
     if (remoteOS === 'win32') {
       if (isScript) {
         cmd = `powershell -NoProfile -Command "$env:MEDOMICS_EXPRESS_PORT=${remotePort}; Start-Process -FilePath 'node' -ArgumentList '${exePath.replace(/'/g, "''")}' -WindowStyle Hidden -PassThru | Out-Null"`
       } else {
-        cmd = `powershell -NoProfile -Command "$env:MEDOMICS_EXPRESS_PORT=${remotePort}; Start-Process -FilePath '${exePath.replace(/'/g, "''")}' -WindowStyle Hidden -PassThru | Out-Null"`
+        // If launching medomics-server.exe, pass explicit CLI args: start --json
+        const workDir = (versionDir || path.dirname(exePath)).replace(/\\/g, '\\')
+        const exeBase = path.basename(exePath).replace(/\\/g, '\\')
+        if (logsDir && logPath) {
+          cmd = `cmd.exe /c "cd /d \"${workDir}\" && set MEDOMICS_EXPRESS_PORT=${remotePort} && \"${exeBase}\" start --json >> \"${logPath.replace(/\\/g,'\\')}\" 2>&1"`
+        } else {
+          // Fallback without log redirection
+          cmd = `cmd.exe /c "cd /d \"${workDir}\" && set MEDOMICS_EXPRESS_PORT=${remotePort} && \"${exeBase}\" start --json"`
+        }
       }
     } else {
       if (isScript) {
         cmd = `bash -lc 'export MEDOMICS_EXPRESS_PORT=${remotePort}; nohup node "${exePath.replace(/"/g, '\\"')}" >/dev/null 2>&1 < /dev/null & echo $!'`
       } else {
-        cmd = `bash -lc 'export MEDOMICS_EXPRESS_PORT=${remotePort}; nohup "${exePath.replace(/"/g, '\\"')}" >/dev/null 2>&1 < /dev/null & echo $!'`
+        const exeEsc = exePath.replace(/"/g, '\\"')
+        if (logPath) {
+          cmd = `bash -lc 'export MEDOMICS_EXPRESS_PORT=${remotePort}; nohup "${exeEsc}" start --json >> "${logPath.replace(/"/g, '\\"')}" 2>&1 < /dev/null & echo $!'`
+        } else {
+          cmd = `bash -lc 'export MEDOMICS_EXPRESS_PORT=${remotePort}; nohup "${exeEsc}" start --json >/dev/null 2>&1 < /dev/null & echo $!'`
+        }
       }
     }
-    const r = await execRemote(conn, cmd)
-    if (r && r.stderr && r.stderr.trim() && !r.stdout) {
-      return { success: false, status: 'failed-to-start', error: r.stderr.trim() }
+    console.log('[remote] startRemoteBackend exec cmd', cmd)
+    let r = null
+    if (remoteOS === 'win32' && !isScript) {
+      // Fire-and-forget for the long-running medomics-server.exe so we can poll the port
+      try {
+        conn.exec(cmd, (err, stream) => {
+          if (err) {
+            console.log('[remote] startRemoteBackend exec error', err.message || String(err))
+            return
+          }
+          stream.on('data', (d) => {
+            try { console.log('[remote] startRemoteBackend stdout chunk', d.toString().slice(0, 200)) } catch {}
+          })
+          stream.stderr.on('data', (d) => {
+            try { console.log('[remote] startRemoteBackend stderr chunk', d.toString().slice(0, 200)) } catch {}
+          })
+          stream.on('close', (code) => {
+            console.log('[remote] startRemoteBackend cmd closed with code', code)
+          })
+        })
+      } catch (e) {
+        console.log('[remote] startRemoteBackend exec exception', e && e.message ? e.message : String(e))
+      }
+    } else {
+      r = await execRemote(conn, cmd)
+      console.log('[remote] startRemoteBackend exec result', r)
+      if (r && r.stderr && r.stderr.trim() && !r.stdout) {
+        return { success: false, status: 'failed-to-start', error: r.stderr.trim() }
+      }
     }
     // Poll for port to open
     await sleep(800)
-    const maxAttempts = 15
+    const maxAttempts = 30
     for (let i = 0; i < maxAttempts; i++) {
       const open = await checkRemotePortOpen(conn, remotePort)
       if (open) return { success: true, status: 'express-running' }
       await sleep(600)
     }
+    console.log('[remote] startRemoteBackend timeout waiting for port', remotePort)
     return { success: false, status: 'timeout', error: `Express did not open port ${remotePort} in time` }
   } catch (e) {
     return { success: false, status: 'failed-to-start', error: e && e.message ? e.message : String(e) }
@@ -269,6 +335,7 @@ function getVersionDirFromExePath(p, remoteOS) {
 async function startRemoteExpress(conn, remoteOS, remotePort) {
   try {
     const exePath = getRemoteBackendExecutablePath()
+    console.log('[remote] startRemoteExpress called', { remoteOS, remotePort, exePath })
     let versionDir = getVersionDirFromExePath(exePath, remoteOS)
     // Fallback: use ~/.medomics/medomics-server/{current|latest version}
     if (!versionDir) {
@@ -299,6 +366,7 @@ async function startRemoteExpress(conn, remoteOS, remotePort) {
     const baseDir = normalizedVersionDir.includes('/versions/') ? normalizedVersionDir.split('/versions/')[0] : normalizedVersionDir;
     const logsDir = remoteOS === 'win32' ? `${baseDir.replace(/\//g,'\\')}\\logs` : `${baseDir}/logs`;
     const logPath = remoteOS === 'win32' ? `${logsDir}\\express.log` : `${logsDir}/express.log`;
+    console.log('[remote] startRemoteExpress resolved paths', { versionDir, baseDir, logsDir, logPath })
     // Ensure logs dir exists and truncate previous log
     if (remoteOS === 'win32') {
       await execRemote(conn, `powershell -NoProfile -Command "New-Item -ItemType Directory -Force -Path '${logsDir.replace(/'/g, "''")}' | Out-Null; Clear-Content -Path '${logPath.replace(/'/g, "''")}' -ErrorAction SilentlyContinue; New-Item -ItemType File -Force -Path '${logPath.replace(/'/g, "''")}' | Out-Null"`)
@@ -319,10 +387,12 @@ async function startRemoteExpress(conn, remoteOS, remotePort) {
         `${versionDir}/bin/start.sh`,
       ]
     }
+    console.log("Candidates: ", candidates)
     let scriptPath = null
     for (const candidate of candidates) {
       const checkCmd = remoteOS === 'win32'
-        ? `powershell -NoProfile -Command "Test-Path '${candidate.replace(/\\/g, "/")}"`
+        // Use a well-formed PowerShell Test-Path invocation and keep backslashes
+        ? `powershell -NoProfile -Command "Test-Path '${candidate.replace(/'/g, "''")}'"`
         : `bash -lc "[ -f '${candidate}' ] && echo yes || echo no"`
       const r = await execRemote(conn, checkCmd)
       const exists = remoteOS === 'win32' ? /True/i.test(r.stdout || '') : /yes/i.test(r.stdout || '')
@@ -331,16 +401,43 @@ async function startRemoteExpress(conn, remoteOS, remotePort) {
     if (!scriptPath) {
       return { success: false, status: 'script-not-found', error: 'start script not found in server directory' }
     }
+    console.log('[remote] startRemoteExpress using scriptPath', scriptPath)
     let cmd
     if (remoteOS === 'win32') {
-      const psPath = scriptPath.replace(/\\/g, '/')
-      const psLog = logPath.replace(/\\/g, '/')
-      // Detach via Start-Process; redirect output to log via cmd redirection
-      cmd = `powershell -NoProfile -Command "$env:MEDOMICS_EXPRESS_PORT='${remotePort}'; Start-Process -WindowStyle Hidden -FilePath 'cmd.exe' -ArgumentList '/c \"\"${psPath}\" >> \"${psLog}\" 2>&1\"'"`
+      // Use cmd.exe directly: cd into the versionDir, set MEDOMICS_EXPRESS_PORT,
+      // and run the batch file, redirecting its output to express.log so we can see errors.
+      const workDir = versionDir.replace(/\\/g, '\\')
+      const batName = path.basename(scriptPath)
+      const winLogPath = logPath.replace(/\\/g, '\\')
+      cmd = `cmd.exe /c "cd /d \"${workDir}\" && set MEDOMICS_EXPRESS_PORT=${remotePort} && \"${batName}\" >> \"${winLogPath}\" 2>&1"`
+      console.log('[remote] startRemoteExpress exec cmd', cmd)
+      // Fire-and-forget: do not await completion of the batch; it runs the server and can stay running.
+      try {
+        conn.exec(cmd, (err, stream) => {
+          if (err) {
+            console.log('[remote] startRemoteExpress exec error', err.message || String(err))
+            return
+          }
+          stream.on('data', (d) => {
+            // Optionally log a small amount of stdout for debugging
+            try { console.log('[remote] startRemoteExpress stdout chunk', d.toString().slice(0, 200)) } catch {}
+          })
+          stream.stderr.on('data', (d) => {
+            try { console.log('[remote] startRemoteExpress stderr chunk', d.toString().slice(0, 200)) } catch {}
+          })
+          stream.on('close', (code) => {
+            console.log('[remote] startRemoteExpress cmd closed with code', code)
+          })
+        })
+      } catch (e) {
+        console.log('[remote] startRemoteExpress exec exception', e && e.message ? e.message : String(e))
+      }
     } else {
       cmd = `bash -lc "MEDOMICS_EXPRESS_PORT='${remotePort}' nohup '${scriptPath}' >> '${logPath.replace(/'/g, "'\\''")}' 2>&1 &"`
+      console.log('[remote] startRemoteExpress exec cmd', cmd)
+      const r2 = await execRemote(conn, cmd)
+      console.log('[remote] startRemoteExpress exec result', r2)
     }
-    const r2 = await execRemote(conn, cmd)
     // Poll for port open
     await sleep(800)
     const maxAttempts = 20
@@ -349,6 +446,7 @@ async function startRemoteExpress(conn, remoteOS, remotePort) {
       if (open) return { success: true, status: 'running', port: remotePort }
       await sleep(500)
     }
+    console.log('[remote] startRemoteExpress timeout waiting for port', remotePort)
     return { success: false, status: 'timeout', error: `Express did not open port ${remotePort} in time` }
   } catch (e) {
     return { success: false, status: 'failed-to-start', error: e && e.message ? e.message : String(e) }
@@ -473,6 +571,12 @@ ipcMain.handle('ensureRemoteBackend', async (_event, { port } = {}) => {
       const logPath = remoteOS === 'win32' ? `${baseDir}\\logs\\express.log` : `${baseDir}/logs/express.log`
       info = { ...info, expressLogPath: logPath }
     } catch {}
+    // 3) Ensure there is a local forward from localPort -> targetPort
+    try {
+      await startExpressForward({ localExpressPort: localPort, remoteExpressPort: targetPort })
+    } catch (e) {
+      console.warn('Failed to start Express forward after ensureRemoteBackend:', e && e.message ? e.message : e)
+    }
     setTunnelState({ ...getTunnelState(), ...info })
     try { mainWindow.webContents.send('tunnelStateUpdate', info) } catch {}
     return { success: true, status: 'running', port: targetPort }
@@ -578,7 +682,26 @@ ipcMain.handle('startRemoteBackendUsingPath', async (_event, { path: exePath, po
   const conn = getActiveTunnel()
   if (!conn) return { success: false, error: 'No active SSH tunnel' }
   const remoteOS = await detectRemoteOS()
-  const res = await startRemoteBackend(conn, remoteOS, exePath, port || (getTunnelState().remoteExpressPort))
+  const state = getTunnelState()
+  const targetPort = port || state.remoteExpressPort
+  const res = await startRemoteBackend(conn, remoteOS, exePath, targetPort)
+  if (res && res.success) {
+    // Mark Express as running, started via app, and ensure forward is active
+    try {
+      const info = {
+        expressStatus: 'running',
+        serverStartedRemotely: true,
+        remoteExpressPort: targetPort ? Number(targetPort) : state.remoteExpressPort,
+      }
+      setTunnelState({ ...getTunnelState(), ...info })
+      try { mainWindow.webContents.send('tunnelStateUpdate', info) } catch {}
+    } catch {}
+    try {
+      await startExpressForward({ localExpressPort: state.localExpressPort, remoteExpressPort: targetPort })
+    } catch (e) {
+      console.warn('Failed to start Express forward after startRemoteBackendUsingPath:', e && e.message ? e.message : e)
+    }
+  }
   return res
 })
 
