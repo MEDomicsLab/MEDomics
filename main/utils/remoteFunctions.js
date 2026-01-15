@@ -1131,16 +1131,18 @@ export async function checkRemotePortOpen(conn, port, loadBlocking = false) {
   const remoteOS = await detectRemoteOS()
   let checkCmd
   if (remoteOS === "win32") {
-    // Windows: use netstat and findstr
-    checkCmd = `netstat -an | findstr :${port}`
+    // Windows: only treat the port as open if it's in LISTENING state.
+    // This avoids counting TIME_WAIT/CLOSE_WAIT as "open" after a successful stop.
+    checkCmd = `netstat -an | findstr LISTENING | findstr :${port}`
   } else {
     // Linux/macOS: use ss or netstat/grep
     checkCmd = `bash -c "command -v ss >/dev/null 2>&1 && ss -ltn | grep :${port} || netstat -an | grep LISTEN | grep :${port}" || netstat -an | grep :${port}`
   }
+  console.log('[checkRemotePortOpen] remoteOS:', remoteOS, 'cmd:', checkCmd)
   return new Promise((resolve, reject) => {
     conn.exec(checkCmd, (err, stream) => {
       if (err) {
-        console.log("SSH exec error:", err)
+        console.log("[checkRemotePortOpen] SSH exec error:", err)
         return reject(err)
       }
       let found = false
@@ -1154,6 +1156,7 @@ export async function checkRemotePortOpen(conn, port, loadBlocking = false) {
         stderr += data.toString()
       })
       stream.on("close", (code, signal) => {
+        console.log('[checkRemotePortOpen] close', { code, signal, found, stdout: stdout.trim(), stderr: stderr.trim() })
         resolve(found)
       })
     })

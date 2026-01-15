@@ -783,15 +783,18 @@ ipcMain.handle('backendEnsure', async (_event, { target = 'local', go = false, m
 // Check if a remote port is open (listening) on the SSH-connected host
 ipcMain.handle('remoteCheckPort', async (_event, { port }) => {
   try {
+    console.log('[remoteCheckPort] request for port', port)
     const tunnel = getTunnelState()
     if (!tunnel || !tunnel.tunnelActive) return { success: false, error: 'no-tunnel' }
     if (!port || isNaN(Number(port))) return { success: false, error: 'invalid-port' }
     const conn = getActiveTunnel && getActiveTunnel()
     if (!conn) return { success: false, error: 'no-active-ssh' }
     const open = await checkRemotePortOpen(conn, Number(port))
+    console.log('[remoteCheckPort] result', { port: Number(port), open: !!open })
     return { success: true, port: Number(port), open: !!open }
   } catch (e) {
-    return { success: false, error: e.message }
+    console.warn('[remoteCheckPort] error', e && e.message ? e.message : e)
+    return { success: false, error: e && e.message ? e.message : String(e) }
   }
 })
 

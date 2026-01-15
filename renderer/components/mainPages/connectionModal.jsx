@@ -750,7 +750,10 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
         setRemoteServerRunning(false)
         setShouldRecheck(true)
         try {
-          await ipcRenderer.invoke('setTunnelState', { expressStatus: 'stopped', serverStartedRemotely: false })
+          console.log("oldState: ", tunnelState)
+          await ipcRenderer.invoke('setTunnelState', { tunnelActive: true, expressStatus: 'stopped', serverStartedRemotely: false })
+          const newState = await ipcRenderer.invoke("getTunnelState")
+          console.log("newState: ", newState)
           try {
             tunnelContext.setTunnelInfo(await ipcRenderer.invoke("getTunnelState"))
           } catch(e) { /* non-fatal context sync */ }
@@ -763,9 +766,19 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
       let resp
       try {
         resp = await window.backend.requestExpress({ method: 'post', path: '/stop-express', host: '127.0.0.1', port: Number(forwardedPort) })
+        console.log('Remote /stop-express response:', {
+          status: resp?.status,
+          data: resp?.data,
+          forwardedPort,
+          remoteExpressPortNum,
+        })
       } catch (err) {
         // If stop endpoint failed, fall through to port check below
-        console.warn('Remote /stop-express request failed:', err && err.message ? err.message : err)
+        console.warn('Remote /stop-express request failed:', {
+          message: err && err.message ? err.message : String(err),
+          forwardedPort,
+          remoteExpressPortNum,
+        })
       }
 
       if (resp?.data?.success) {
@@ -773,9 +786,12 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
         await markStopped('Remote server stopped')
       } else {
         // If the stop call did not succeed, check whether the remote Express port is still open.
+        let portCheckResult = null
         try {
           if (remoteExpressPortNum && !Number.isNaN(remoteExpressPortNum)) {
             const check = await ipcRenderer.invoke('remoteCheckPort', { port: remoteExpressPortNum })
+            portCheckResult = check
+            console.log('remoteCheckPort after stop:', check)
             if (check?.success && !check.open) {
               // Port is no longer listening → treat as stopped even if /stop-express failed.
               toast.success('Remote server appears stopped (port closed).')
@@ -786,7 +802,11 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
         } catch (checkErr) {
           console.warn('remoteCheckPort after stop failed:', checkErr && checkErr.message ? checkErr.message : checkErr)
         }
-        const msg = resp?.data?.error || 'unknown error'
+        const baseMsg = resp?.data?.error || resp?.data?.message || resp?.statusText || 'unknown error'
+        const detail = portCheckResult
+          ? ` (remoteCheckPort: success=${portCheckResult.success}, open=${portCheckResult.open}, error=${portCheckResult.error || 'none'})`
+          : ''
+        const msg = baseMsg + detail
         setRemoteBackendStatus('Failed to stop remote server: ' + msg)
       }
     } catch (e) {
