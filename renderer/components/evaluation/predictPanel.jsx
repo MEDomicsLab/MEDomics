@@ -68,7 +68,7 @@ const PredictPanel = ({ isUpdating, setIsUpdating, data, error=null }) => {
         <h1>Predictions: </h1>
         {!isUpdating && data ? (
           <>
-            <div style={{ overflow: "auto", height: "500px" }}>
+            <div style={{ overflow: "auto", height: "700px" }}>
               <DataTableFromDB data={{ id: data.collection_id }} isReadOnly={true} />
             </div>
           </>

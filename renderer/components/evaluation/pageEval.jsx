@@ -302,7 +302,7 @@ const PageEval = ({ run, pageId, config, updateWarnings, setChosenModel, updateC
             <PanelResizeHandle />
           </>
         {/* Panel is used to create the results pane, used to be able to resize it on drag */}
-        <Panel id={`eval-body-${pageId}`} minSize={30} order={2} collapsible={true} collapsibleSize={10} className="eval-body">
+        <div className="eval-body">
             <Button className={`btn-show-header ${showHeader ? "opened" : "closed"}`} onClick={() => setShowHeader(!showHeader)}>
               <hr />
               <i className="pi pi-chevron-down"></i>
@@ -319,7 +319,7 @@ const PageEval = ({ run, pageId, config, updateWarnings, setChosenModel, updateC
               </TabPanel>
             </TabView>
           </div>
-        </Panel>
+        </div>
       </PanelGroup>
     </div>
   )
