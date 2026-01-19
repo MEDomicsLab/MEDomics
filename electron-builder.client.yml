@@ -1,6 +1,9 @@
 appId: com.medomicslab.medapp
 productName: MEDomicsLab
 artifactName: "${productName}-${version}-${os}.${ext}"
+nodeGypRebuild: false
+npmRebuild: false
+npmArgs: "--build-from-source=false"
 directories:
   output: build/dist
   buildResources: resources
