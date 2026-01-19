@@ -80,7 +80,7 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
   const [requirementsChecking, setRequirementsChecking] = useState(false)
   const [requirementsMetRemote, setRequirementsMetRemote] = useState(false)
   const [requirementsInstalling, setRequirementsInstalling] = useState(false)
-  const [requirementsDetailsRemote, setRequirementsDetailsRemote] = useState({ pythonEnv: false, pythonPackages: false, mongoInstalled: false })
+  const [requirementsDetailsRemote, setRequirementsDetailsRemote] = useState({ pythonInstalled: false, mongoInstalled: false })
   // Debug: last start attempt details
   const [lastStartDetails, setLastStartDetails] = useState('')
   // Remote install progress
@@ -750,10 +750,7 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
         setRemoteServerRunning(false)
         setShouldRecheck(true)
         try {
-          console.log("oldState: ", tunnelState)
           await ipcRenderer.invoke('setTunnelState', { tunnelActive: true, expressStatus: 'stopped', serverStartedRemotely: false })
-          const newState = await ipcRenderer.invoke("getTunnelState")
-          console.log("newState: ", newState)
           try {
             tunnelContext.setTunnelInfo(await ipcRenderer.invoke("getTunnelState"))
           } catch(e) { /* non-fatal context sync */ }
@@ -816,26 +813,30 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
 
 
   const checkRequirementsRemote = async () => {
-    if (!tunnelActive || !remoteServerRunning) return
+    if (!tunnelActive || !remoteServerRunning) {
+      console.warn('Cannot check remote requirements: tunnel inactive or server not running.')
+      return
+    }
     try {
       setRequirementsChecking(true)
-      const resp = await window.backend.requestExpress({ method: 'get', path: '/check-requirements', host, port: Number(localExpressPort) })
+      // Always call via the SSH-forwarded localhost port
+      const tunnelState = await ipcRenderer.invoke('getTunnelState')
+      const forwardedPort = tunnelState?.localExpressPort || Number(localExpressPort)
+      const resp = await window.backend.requestExpress({ method: 'get', path: '/check-requirements', host: '127.0.0.1', port: Number(forwardedPort) })
       const result = resp?.data?.result || {}
       console.log('Remote requirements check result:', result)
-      // Normalize shapes: support both legacy and consolidated formats
-      const pythonEnv = result?.python ? !!result.python.env : (typeof result?.pythonInstalled === 'boolean' ? !!result.pythonInstalled : false)
-      const pythonPackages = result?.python ? (
-        typeof result.python.packagesOk === 'boolean' ? !!result.python.packagesOk : (Array.isArray(result.python.missingPackages) ? result.python.missingPackages.length === 0 : false)
-      ) : (typeof result?.pythonPackagesOk === 'boolean' ? !!result.pythonPackagesOk : false)
-      const mongoInstalled = result?.mongo ? !!result.mongo.installed : (typeof result?.mongoDBInstalled === 'boolean' ? !!result.mongoDBInstalled : false)
+      // Treat any non-empty path for Python/Mongo as "installed"
+      const pythonInstalled = !!(result?.pythonInstalled)
+      const mongoInstalled = !!(result?.mongoDBInstalled)
 
-      const ok = pythonEnv && pythonPackages && mongoInstalled
-      setRequirementsDetailsRemote({ pythonEnv, pythonPackages, mongoInstalled })
+      const ok = pythonInstalled && mongoInstalled
+      setRequirementsDetailsRemote({ pythonInstalled, mongoInstalled })
       setRequirementsMetRemote(ok)
       if (!ok) toast.warn('Some requirements are missing on remote.')
     } catch (e) {
+      console.warn('Remote requirements check failed:', e && e.message ? e.message : e)
       setRequirementsMetRemote(false)
-      setRequirementsDetailsRemote({ pythonEnv: false, pythonPackages: false, mongoInstalled: false })
+      setRequirementsDetailsRemote({ pythonInstalled: false, mongoInstalled: false })
     } finally {
       setRequirementsChecking(false)
     }
@@ -845,17 +846,25 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
     if (!tunnelActive || !remoteServerRunning) return
     try {
       setRequirementsInstalling(true)
-      // Try installing Python first
-      try {
-        await window.backend.requestExpress({ method: 'post', path: '/install-bundled-python', host, port: Number(localExpressPort) })
-      } catch (e) {
-        console.warn('Python remote install error:', e)
+      const tunnelState = await ipcRenderer.invoke('getTunnelState')
+      const forwardedPort = tunnelState?.localExpressPort || Number(localExpressPort)
+      // Install only the requirements that are currently missing
+      const { pythonInstalled, mongoInstalled } = requirementsDetailsRemote || {}
+
+      if (!pythonInstalled) {
+        try {
+          await window.backend.requestExpress({ method: 'post', path: '/install-bundled-python', host: '127.0.0.1', port: Number(forwardedPort) })
+        } catch (e) {
+          console.warn('Python remote install error:', e)
+        }
       }
-      // Then MongoDB
-      try {
-        await window.backend.requestExpress({ method: 'post', path: '/install-mongo', host, port: Number(localExpressPort) })
-      } catch (e) {
-        console.warn('Mongo remote install error:', e)
+
+      if (!mongoInstalled) {
+        try {
+          await window.backend.requestExpress({ method: 'post', path: '/install-mongo', host: '127.0.0.1', port: Number(forwardedPort) })
+        } catch (e) {
+          console.warn('Mongo remote install error:', e)
+        }
       }
       // Re-check
       await checkRequirementsRemote()
@@ -876,11 +885,13 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
     }
     try {
       setConnectionProcessing(true)
+      const tunnelState = await ipcRenderer.invoke('getTunnelState')
+      const forwardedPort = tunnelState?.localExpressPort || Number(localExpressPort)
       // Ensure GO and Mongo on remote
-      await window.backend.requestExpress({ method: 'post', path: '/ensure-go', host, port: Number(localExpressPort), body: {} })
-      await window.backend.requestExpress({ method: 'post', path: '/ensure-mongo', host, port: Number(localExpressPort), body: { workspacePath: remoteDirPath } })
+      await window.backend.requestExpress({ method: 'post', path: '/ensure-go', host: '127.0.0.1', port: Number(forwardedPort), body: {} })
+      await window.backend.requestExpress({ method: 'post', path: '/ensure-mongo', host: '127.0.0.1', port: Number(forwardedPort), body: { workspacePath: remoteDirPath } })
       // Set workspace
-      const resp = await window.backend.requestExpress({ method: 'post', path: '/set-working-directory', host, port: Number(localExpressPort), body: { workspacePath: remoteDirPath } })
+      const resp = await window.backend.requestExpress({ method: 'post', path: '/set-working-directory', host: '127.0.0.1', port: Number(forwardedPort), body: { workspacePath: remoteDirPath } })
       if (resp?.data?.success) {
         toast.success('Workspace set on remote app.')
         if (resp.data.workspace !== workspace) setWorkspace(resp.data.workspace)
@@ -1208,7 +1219,7 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
                 <Tag value={requirementsMetRemote ? 'OK' : 'Missing'} severity={requirementsMetRemote ? 'success' : 'warning'} rounded />
               </div>
               <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4 }}>
-                Python Env: <strong style={{ color: requirementsDetailsRemote.pythonEnv ? 'var(--success)' : 'var(--danger)' }}>{requirementsDetailsRemote.pythonEnv ? 'Yes' : 'No'}</strong> · Packages: <strong style={{ color: requirementsDetailsRemote.pythonPackages ? 'var(--success)' : 'var(--danger)' }}>{requirementsDetailsRemote.pythonPackages ? 'OK' : 'Missing'}</strong> · MongoDB: <strong style={{ color: requirementsDetailsRemote.mongoInstalled ? 'var(--success)' : 'var(--danger)' }}>{requirementsDetailsRemote.mongoInstalled ? 'Installed' : 'Missing'}</strong>
+                Python: <strong style={{ color: requirementsDetailsRemote.pythonInstalled ? 'var(--success)' : 'var(--danger)' }}>{requirementsDetailsRemote.pythonInstalled ? 'Installed' : 'Missing'}</strong> · MongoDB: <strong style={{ color: requirementsDetailsRemote.mongoInstalled ? 'var(--success)' : 'var(--danger)' }}>{requirementsDetailsRemote.mongoInstalled ? 'Installed' : 'Missing'}</strong>
               </div>
               <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 8 }}>
                 <Button onClick={checkRequirementsRemote} disabled={!remoteServerRunning || requirementsChecking} style={{ background: 'var(--button-bg)', color: 'var(--button-text)' }}>Check</Button>

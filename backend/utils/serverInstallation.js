@@ -65,7 +65,6 @@ async function checkRequirements() {
 }
 
 async function installMongoDB() {
-  const exec = require("util").promisify(require("child_process").exec)
   const downloadsDir = getAppPath("downloads")
   if (process.platform === "win32") {
     const downloadUrl = "https://fastdl.mongodb.org/windows/mongodb-windows-x86_64-7.0.12-signed.msi"
@@ -121,7 +120,7 @@ async function promptAndInstallMongoDB() {
   const answer = await question("MongoDB is not installed. Would you like to install it now? (Y/n): ")
   rl.close()
   if (answer.trim().toLowerCase() === "y" || answer.trim() === "") {
-    const success = await exports.installMongoDB()
+    const success = await installMongoDB()
     if (success) {
       console.log("MongoDB installed successfully.")
     } else {
