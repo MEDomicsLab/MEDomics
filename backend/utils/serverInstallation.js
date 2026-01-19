@@ -55,13 +55,7 @@ async function checkRequirements() {
 
   console.log("MongoDB installed:", mongoDBInstalled ? mongoDBInstalled : "Not found")
   console.log("Python installed:", pythonInstalled ? pythonInstalled : "Not found")
-
-  // Prompt user to install MongoDB if not found
-  if (!mongoDBInstalled) {
-    await promptAndInstallMongoDB()
-  }
-  // (Optional) Prompt for Python install if needed, similar logic can be added
-  return { pythonInstalled, mongoDBInstalled: getMongoDBPath() }
+  return { pythonInstalled, mongoDBInstalled }
 }
 
 async function installMongoDB() {
