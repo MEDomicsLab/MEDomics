@@ -536,7 +536,16 @@ expressApp.post("/stop-jupyter-server", async (req, res) => {
 			res.status(200).json({ success: !!result })
 		} catch (err) {
 			console.error("Error installing MongoDB:", err)
-			res.status(500).json({ success: false, error: err.message })
+			const payload = { success: false, error: err.message }
+			// Surface installer exit code (e.g., Windows Installer 1601) to the renderer
+			if (typeof err.code !== "undefined") {
+				payload.errorCode = err.code
+				payload.installerExitCode = err.code
+				if (err.code === 1601) {
+					payload.windowsInstallerError = true
+				}
+			}
+			res.status(500).json(payload)
 		}
 	})
 
@@ -638,6 +647,8 @@ if (process.argv[1] && process.argv[1].endsWith('expressServer.mjs')) {
 			console.log('[bootstrap] starting express')
 			await startExpressServer()
 			console.log('[bootstrap] express started on', serviceState.expressPort)
+			await startGoServer()
+			console.log('[bootstrap] go server started on', serviceState.go.port)
 		} catch (e) {
 			console.error('[bootstrap] fatal startup error', e && e.stack ? e.stack : e)
 			process.exit(1)

@@ -863,7 +863,28 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
         try {
           await window.backend.requestExpress({ method: 'post', path: '/install-mongo', host: '127.0.0.1', port: Number(forwardedPort) })
         } catch (e) {
-          console.warn('Mongo remote install error:', e)
+      console.warn('Mongo remote install error:', e)
+      // Detect Windows Installer service failures (e.g., MSI exit code 1601)
+      try {
+      const msg = e && e.message ? e.message : null
+      let installerCode = null
+      let windowsInstallerError = false
+      if (msg && typeof msg === 'object') {
+        installerCode = msg.installerExitCode || msg.errorCode || null
+        windowsInstallerError = !!msg.windowsInstallerError
+      } else if (msg) {
+        const str = String(msg)
+        if (str.includes('1601')) installerCode = 1601
+        if (str.toLowerCase().includes('windows installer service could not be accessed')) {
+          windowsInstallerError = true
+        }
+      }
+      if (installerCode === 1601 || windowsInstallerError) {
+        toast.error('Automatic MongoDB installation failed on the remote machine because the Windows Installer service is not available. Please install MongoDB manually using the official documentation: https://www.mongodb.com/docs/manual/administration/install-community/#std-label-install-mdb-community-edition')
+      }
+      } catch (_) {
+      // Best-effort diagnostics; ignore parsing issues
+      }
         }
       }
       // Re-check
@@ -940,7 +961,7 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
   setGoVerifyStatus('checking')
     try {
       await requestBackend(
-        port,
+        localGoPort,
         "/connection/connection_test_request",
         { data: "" },
         async (jsonResponse) => {
@@ -1221,10 +1242,15 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
               <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4 }}>
                 Python: <strong style={{ color: requirementsDetailsRemote.pythonInstalled ? 'var(--success)' : 'var(--danger)' }}>{requirementsDetailsRemote.pythonInstalled ? 'Installed' : 'Missing'}</strong> · MongoDB: <strong style={{ color: requirementsDetailsRemote.mongoInstalled ? 'var(--success)' : 'var(--danger)' }}>{requirementsDetailsRemote.mongoInstalled ? 'Installed' : 'Missing'}</strong>
               </div>
-              <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 8 }}>
-                <Button onClick={checkRequirementsRemote} disabled={!remoteServerRunning || requirementsChecking} style={{ background: 'var(--button-bg)', color: 'var(--button-text)' }}>Check</Button>
-                <Button onClick={installRequirementsRemote} disabled={!remoteServerRunning || requirementsInstalling || requirementsMetRemote} style={{ background: 'var(--button-bg)', color: 'var(--button-text)' }}>Install Missing</Button>
-                {(requirementsChecking || requirementsInstalling) && <ProgressBar mode="indeterminate" style={{ width: 200 }} />}
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 8, flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                  <Button onClick={checkRequirementsRemote} disabled={!remoteServerRunning || requirementsChecking} style={{ background: 'var(--button-bg)', color: 'var(--button-text)' }}>Check</Button>
+                  <Button onClick={installRequirementsRemote} disabled={!remoteServerRunning || requirementsInstalling || requirementsMetRemote} style={{ background: 'var(--button-bg)', color: 'var(--button-text)' }}>Install Missing</Button>
+                  {(requirementsChecking || requirementsInstalling) && <ProgressBar mode="indeterminate" style={{ width: 200 }} />}
+                </div>
+                <span style={{ fontSize: 11, color: 'var(--text-secondary)', maxWidth: 420 }}>
+                  Note: On some Windows systems MongoDB cannot be installed automatically because the Windows Installer service is unavailable. In that case you may need to install MongoDB manually using the official instructions.
+                </span>
               </div>
             </div>
             {/* Page navigation moved to the global footer */}
