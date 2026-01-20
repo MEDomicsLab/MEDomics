@@ -617,31 +617,31 @@ const classificationModelSettings = {
                 "tooltip": "bool, default=False. When set to True, reuse the solution of the previous call to fit as initialization, otherwise, just erase the previous solution."
             },
             "class_weight": {
-    "type": "multi",
-    "tooltip": "Weights associated with classes. Can be a string ('balanced', 'balanced_subsample'), a dict {class_label: weight}, or a list of such dicts for multi-output problems.",
-    "allowedTypes": {
-        "str": {
-            "label": "String",
-            mapTo: "string",
-            "choices": ["None", "balanced", "balanced_subsample"],
-            "default_val": "None",
-            "description": "String mode: automatic balancing using class frequencies."
-        },
-        "dict": {
-            "label": "Dictionary",
-            "mapTo": "string",
-            "default_val": "{}",
-            "description": "Custom weights per class. Example: {\"0\": 1, \"1\": 3}."
-        },
-        "list-dict": {
-            "label": "List of dictionaries",
-            "mapTo": "string",
-            "default_val": "[{}]",
-            "description": "Required for multi-output tasks. One dict per output column."
-        }
-    },
-    "default_val": null
-},
+            "type": "multi",
+            "tooltip": "Weights associated with classes. Can be a string ('balanced', 'balanced_subsample'), a dict {class_label: weight}, or a list of such dicts for multi-output problems.",
+            "allowedTypes": {
+                    "str": {
+                        "label": "String",
+                        mapTo: "string",
+                        "choices": ["None", "balanced", "balanced_subsample"],
+                        "default_val": "None",
+                        "description": "String mode: automatic balancing using class frequencies."
+                    },
+                    "dict": {
+                        "label": "Dictionary",
+                        "mapTo": "string",
+                        "default_val": "{}",
+                        "description": "Custom weights per class. Example: {\"0\": 1, \"1\": 3}."
+                    },
+                    "list-dict": {
+                        "label": "List of dictionaries",
+                        "mapTo": "string",
+                        "default_val": "[{}]",
+                        "description": "Required for multi-output tasks. One dict per output column."
+                    }
+                },
+                "default_val": null
+            },
             "max_samples": {
                 "type": "NoneType",
                 "default_val": "None",
@@ -674,9 +674,46 @@ const classificationModelSettings = {
                 "tooltip": "float, default=0.0. The minimum weighted fraction of the sum total of weights (of all the input samples) required to be at a leaf node. Samples have equal weight when sample_weight is not provided."
             },
             "max_features": {
-                "type": "string",
+            "type": "multi",
+            "label": "Max features",
+            "default_val": "sqrt",
+            "tooltip": "Number of features to consider when looking for the best split. Can be a string (sqrt, log2), an integer, a fraction, or None.",
+            "allowedTypes": {
+                "sqrt": {
+                "label": "Square root",
+                "mapTo": "string",
                 "default_val": "sqrt",
-                "tooltip": "String, default=”sqrt”. The number of features to consider when looking for the best split: If int, then consider max_features features at each split. If float, then max_features is a fraction and max(1, int(max_features * n_features_in_)) features are considered at each split. If “sqrt”, then max_features=sqrt(n_features).If “log2”, then max_features=log2(n_features) If None, then max_features=n_features."
+                "description": "Uses sqrt(n_features) features at each split."
+                },
+                "log2": {
+                "label": "Log2",
+                "mapTo": "string",
+                "default_val": "log2",
+                "description": "Uses log2(n_features) features at each split."
+                },
+                "none": {
+                "label": "All features",
+                "mapTo": "none",
+                "default_val": null,
+                "description": "Uses all available features (no feature subsampling)."
+                },
+                "int": {
+                "label": "Fixed number",
+                "mapTo": "int",
+                "default_val": 10,
+                "min": 1,
+                "description": "Uses an exact number of features at each split."
+                },
+                "float": {
+                "label": "Fraction",
+                "mapTo": "float",
+                "default_val": 0.5,
+                "min": 0.01,
+                "max": 1.0,
+                "step": 0.05,
+                "description": "Uses a fraction of the total number of features."
+                }
+            }
             },
             "max_leaf_nodes": {
                 "type": "NoneType",
