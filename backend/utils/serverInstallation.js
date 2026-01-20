@@ -1,4 +1,4 @@
-import { getBundledPythonEnvironment } from "./pythonEnv.js"
+import { getBundledPythonEnvironment, execCallbacksForChildWithNotifications } from "./pythonEnv.js"
 import { getMongoDBPath } from "./mongoDBServer.js"
 import { getAppPath } from "./serverPathUtils.js"
 import fs from "fs"
@@ -23,6 +23,7 @@ async function checkIsXcodeSelectInstalled() {
   } catch (error) {
     isXcodeSelectInstalled = false
   }
+  return isXcodeSelectInstalled
 }
 
 async function installBrew(){
@@ -59,20 +60,41 @@ async function checkRequirements() {
 }
 
 async function installMongoDB() {
-  const downloadsDir = getAppPath("downloads")
   if (process.platform === "win32") {
+    // Download MongoDB installer
     const downloadUrl = "https://fastdl.mongodb.org/windows/mongodb-windows-x86_64-7.0.12-signed.msi"
-    const downloadPath = path.join(downloadsDir, "mongodb-windows-x86_64-7.0.12-signed.msi")
-    console.log("Downloading MongoDB installer...")
-    await exec(`curl -o "${downloadPath}" "${downloadUrl}"`)
-    console.log("Running MongoDB installer...")
-    await exec(`msiexec.exe /l*v mdbinstall.log /qb /i "${downloadPath}" ADDLOCAL="ServerNoService" SHOULD_INSTALL_COMPASS="0"`)
-    // Remove installer
-    try { await exec(`del "${downloadPath}"`, { shell: "powershell.exe" }) } catch (e) { console.warn("Failed to remove installer:", e) }
+    const downloadPath = path.join(getAppPath("downloads"), "mongodb-windows-x86_64-7.0.12-signed.msi")
+    let downloadMongoDBPromise = exec(`curl -o ${downloadPath} ${downloadUrl}`)
+    execCallbacksForChildWithNotifications(downloadMongoDBPromise.child, "Downloading MongoDB installer")
+    await downloadMongoDBPromise
+    // Install MongoDB
+    // msiexec.exe /l*v mdbinstall.log /qb /i mongodb-windows-x86_64-7.0.12-signed.msi ADDLOCAL="ServerNoService" SHOULD_INSTALL_COMPASS="0"
+    let installMongoDBPromise = exec(`msiexec.exe /l*v mdbinstall.log /qb /i ${downloadPath} ADDLOCAL="ServerNoService" SHOULD_INSTALL_COMPASS="0"`)
+    execCallbacksForChildWithNotifications(installMongoDBPromise.child, "Installing MongoDB")
+    await installMongoDBPromise
+
+    let removeMongoDBInstallerPromise = exec(`rm ${downloadPath}`, { shell: "powershell" })
+    execCallbacksForChildWithNotifications(removeMongoDBInstallerPromise.child, "Removing MongoDB installer")
+    await removeMongoDBInstallerPromise
+
     return getMongoDBPath() !== null
   } else if (process.platform === "darwin") {
-    console.log("Installing MongoDB via Homebrew...")
-    await exec(`brew tap mongodb/brew && brew install mongodb-community@7.0.12`)
+    // Check if Homebrew is installed
+    let isBrewInstalled = await checkIsBrewInstalled()
+    if (!isBrewInstalled) {
+      await installBrew()
+    }
+    // Check if Xcode Command Line Tools are installed
+    let isXcodeSelectInstalled = await checkIsXcodeSelectInstalled()
+    if (!isXcodeSelectInstalled) {
+      await installXcodeSelect()
+    }
+
+    let installMongoDBPromise = exec(`brew tap mongodb/brew && brew install mongodb-community@7.0.12`)
+    execCallbacksForChildWithNotifications(installMongoDBPromise.child, "Installing MongoDB")
+    
+
+    
     return getMongoDBPath() !== null
   } else if (process.platform === "linux") {
     const linuxURLDict = {
@@ -83,27 +105,48 @@ async function installMongoDB() {
       "Debian 10 x86_64": "https://fastdl.mongodb.org/linux/mongodb-linux-x86_64-debian10-7.0.15.tgz",
       "Debian 11 x86_64": "https://fastdl.mongodb.org/linux/mongodb-linux-x86_64-debian11-7.0.15.tgz",
     }
-    if (getMongoDBPath() !== null) return true
-    const { stdout } = await exec(`cat /etc/os-release`)
-    const osRelease = stdout
-    const isUbuntu = osRelease.includes("Ubuntu")
-    if (!isUbuntu) {
-      console.log("Only Ubuntu is supported for now")
-      return false
+    // Check if MongoDB is installed
+    if (getMongoDBPath() !== null) {
+      return true
+    } else {
+      // Check which Linux distribution is being used
+      let { stdout, stderr } = await exec(`cat /etc/os-release`)
+      let osRelease = stdout
+      let isUbuntu = osRelease.includes("Ubuntu")
+      if (!isUbuntu) {
+        console.log("Only Ubuntu is supported for now")
+        return false
+      } else {
+        // osRelease is a string with the contents of /etc/os-release
+        // Get the version of Ubuntu
+        let ubuntuVersion = osRelease.match(/VERSION_ID="(.*)"/)[1]
+        // Get the architecture of the system
+        let architecture = "x86_64"
+        if (process.arch === "arm64") {
+          architecture = "aarch64"
+        }
+        // Get the download URL
+        let downloadUrl = linuxURLDict[`Ubuntu ${ubuntuVersion} ${architecture}`]
+        // Download MongoDB installer
+        const downloadPath = path.join(getAppPath("downloads"), `mongodb-linux-${architecture}-ubuntu${ubuntuVersion}-7.0.15.tgz`)
+        let downloadMongoDBPromise = exec(`curl -o ${downloadPath} ${downloadUrl}`)
+        execCallbacksForChildWithNotifications(downloadMongoDBPromise.child, "Downloading MongoDB installer")
+        await downloadMongoDBPromise
+        // Install MongoDB in the .medomics directory in the user's home directory
+        ubuntuVersion = ubuntuVersion.replace(".", "")
+        let command = `tar -xvzf ${downloadPath} -C /home/${process.env.USER}/.medomics/ && mv /home/${process.env.USER}/.medomics/mongodb-linux-${architecture}-ubuntu${ubuntuVersion}-7.0.15 /home/${process.env.USER}/.medomics/mongodb`
+        let installMongoDBPromise = exec(command)
+
+        // let installMongoDBPromise = exec(`tar -xvzf ${downloadPath} && mv mongodb-linux-${architecture}-ubuntu${ubuntuVersion}-7.0.15 /home/${process.env.USER}/.medomics/mongodb`)
+        execCallbacksForChildWithNotifications(installMongoDBPromise.child, "Installing MongoDB")
+        await installMongoDBPromise
+        
+        
+        
+
+        return getMongoDBPath() !== null
+      }
     }
-    const ubuntuVersion = osRelease.match(/VERSION_ID="(.*)"/)[1]
-    let architecture = process.arch === "arm64" ? "aarch64" : "x86_64"
-    const downloadUrl = linuxURLDict[`Ubuntu ${ubuntuVersion} ${architecture}`]
-    const downloadPath = path.join(downloadsDir, `mongodb-linux-${architecture}-ubuntu${ubuntuVersion}-7.0.15.tgz`)
-    console.log("Downloading MongoDB installer...")
-    await exec(`curl -o "${downloadPath}" "${downloadUrl}"`)
-    const homeDir = getAppPath("home")
-    const medomicsDir = path.join(homeDir, ".medomics")
-    const extractCmd = `tar -xvzf "${downloadPath}" -C "${medomicsDir}" && mv "${medomicsDir}/mongodb-linux-${architecture}-ubuntu${ubuntuVersion}-7.0.15" "${medomicsDir}/mongodb"`
-    console.log("Extracting and installing MongoDB...")
-    await exec(extractCmd)
-    try { await exec(`rm "${downloadPath}"`) } catch (e) { console.warn("Failed to remove installer:", e) }
-    return getMongoDBPath() !== null
   }
 }
 
