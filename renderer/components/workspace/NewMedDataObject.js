@@ -451,7 +451,7 @@ export class MEDDataObject {
     }
 
     // Check if the object is already in workspace
-    if (medDataObject.inWorkspace && fs.existsSync(this.getFullPath(dict, id, workspacePath))) {
+    if (medDataObject.type == "directory" && medDataObject.inWorkspace && fs.existsSync(this.getFullPath(dict, id, workspacePath))) {
       console.log(`MEDDataObject with id ${id} is already saved locally in workspace`)
       toast.info(`${medDataObject.name} is already saved locally in workspace`)
       return
@@ -481,6 +481,9 @@ export class MEDDataObject {
     try {
       if (medDataObject.type != "directory" && medDataObject.type != "medml" && medDataObject.type != "medeval" && medDataObject.type != "medmlres" && medDataObject.type != "medmodel") {
         await downloadCollectionToFile(id, filePath, medDataObject.type)
+        if (medDataObject.inWorkspace && notify) {
+          toast.success(`Sync ${medDataObject.name} successfully`)
+        }
       }
 
       // Sync child objects for specific types
