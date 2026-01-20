@@ -16,6 +16,43 @@ from .NodeObj import Node
 DATAFRAME_LIKE = Union[dict, list, tuple, np.ndarray, pd.DataFrame]
 TARGET_LIKE = Union[int, str, list, tuple, np.ndarray, pd.Series]
 
+def sanitize_hyperparam(name, value):
+    # --- max_features
+    if name == "max_features":
+        if value is None:
+            return None
+        if isinstance(value, str):
+            if value.isdigit():
+                return int(value)
+            try:
+                return float(value)
+            except ValueError:
+                return value
+        return value
+
+    # --- class_weight
+    if name == "class_weight":
+        if isinstance(value, str):
+            return json.loads(value)
+        return value
+
+    return value
+
+
+def sanitize_custom_grid(custom_grid: dict) -> dict:
+    """
+    Sanitize all hyperparameters coming from frontend
+    """
+    clean_grid = {}
+
+    for param, values in custom_grid.items():
+        clean_grid[param] = [
+            sanitize_hyperparam(param, v) for v in values
+        ]
+
+    return clean_grid
+
+
 class ModelHandler(Node):
     """
     This class represents the ModelHandler node.
@@ -206,8 +243,9 @@ class ModelHandler(Node):
                 
                 # Check if a custom grid is provided
                 if self.useTuningGrid and self.model_id in list(self.config_json['data']['internal'].keys()) and 'custom_grid' in list(self.config_json['data']['internal'][self.model_id].keys()):
-                    self.settingsTuning['custom_grid'] = self.config_json['data']['internal'][self.model_id]['custom_grid']
-                    
+                    raw_grid = self.config_json['data']['internal'][self.model_id]['custom_grid']
+                    self.settingsTuning['custom_grid'] = sanitize_custom_grid(raw_grid)
+          
                     # Convert hidden_layer_sizes if it is a string
                     if "hidden_layer_sizes" in self.settingsTuning['custom_grid']:
                         val = self.settingsTuning['custom_grid']["hidden_layer_sizes"]
@@ -429,7 +467,9 @@ class ModelHandler(Node):
             if self.isTuningEnabled:
                 # Check if a custom grid is provided
                 if self.useTuningGrid and self.model_id in list(self.config_json['data']['internal'].keys()) and 'custom_grid' in list(self.config_json['data']['internal'][self.model_id].keys()):
-                    self.settingsTuning['custom_grid'] = self.config_json['data']['internal'][self.model_id]['custom_grid']
+                    raw_grid = self.config_json['data']['internal'][self.model_id]['custom_grid']
+                    self.settingsTuning['custom_grid'] = sanitize_custom_grid(raw_grid)
+
                     # Convert hidden_layer_sizes if it is a string
                     if "hidden_layer_sizes" in self.settingsTuning['custom_grid']:
                         val = self.settingsTuning['custom_grid']["hidden_layer_sizes"]
@@ -622,7 +662,8 @@ class ModelHandler(Node):
             if self.isTuningEnabled:
                 # Check if a custom grid is provided
                 if self.useTuningGrid and self.model_id in list(self.config_json['data']['internal'].keys()) and 'custom_grid' in list(self.config_json['data']['internal'][self.model_id].keys()):
-                    self.settingsTuning['custom_grid'] = self.config_json['data']['internal'][self.model_id]['custom_grid']
+                    raw_grid = self.config_json['data']['internal'][self.model_id]['custom_grid']
+                    self.settingsTuning['custom_grid'] = sanitize_custom_grid(raw_grid)
 
                     # Convert hidden_layer_sizes if it is a string
                     if "hidden_layer_sizes" in self.settingsTuning['custom_grid']:
