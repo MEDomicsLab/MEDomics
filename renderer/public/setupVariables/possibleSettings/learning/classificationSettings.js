@@ -950,7 +950,7 @@ const classificationSettings = {
         default_val: "None"
       },
       search_library: {
-        type: "string",
+        type: "list",
         tooltip:
           "<p>The search library used for tuning hyperparameters. Possible values:</p>\n" +
 
@@ -991,10 +991,14 @@ const classificationSettings = {
           "</dl></li>\n" +
 
           "</ul>",
-        default_val: "scikit-learn"
+        default_val: "scikit-learn",
+        choices: {
+          "scikit-learn": "Scikit-learn",
+          "scikit-optimize": "Scikit-optimize"
+        }
       },
       search_algorithm: {
-        type: "string",
+        type: "list",
         tooltip:
           "<p>The search algorithm depends on the selected <code>search_library</code>.</p>\n" +
 
@@ -1013,28 +1017,17 @@ const classificationSettings = {
           "<dd><ul>\n" +
           "<li><p><code>bayesian</code> : Bayesian optimization</p></li>\n" +
           "</ul></dd>\n" +
-          "</dl></li>\n" +
-
-          "<li><dl>\n" +
-          "<dt><strong>tune-sklearn</strong></dt>\n" +
-          "<dd><ul>\n" +
-          "<li><p><code>grid</code> : grid search (supported)</p></li>\n" +
-          "<li><p><code>random</code> : randomized search (supported)</p></li>\n" +
-          "</ul>\n" +
-          "<p><strong>Warning:</strong> Advanced Ray-based algorithms (bayesian, hyperopt, bohb) are not supported in MEDomics.</p>\n" +
-          "</dd>\n" +
-          "</dl></li>\n" +
-
-          "<li><dl>\n" +
-          "<dt><strong>optuna</strong></dt>\n" +
-          "<dd><ul>\n" +
-          "<li><p><code>random</code> : randomized search (supported)</p></li>\n" +
-          "<li><p><code>tpe</code> : <strong>not available in MEDomics yet</strong></p></li>\n" +
-          "</ul></dd>\n" +
-          "</dl></li>\n" +
-
-          "</ul>",
-        default_val: "None"
+          "</dl></li>\n",
+        default_val: "None",
+        choices_by_library: {
+    "scikit-learn": {
+      grid: "Grid search",
+      random: "Random search"
+    },
+    "scikit-optimize": {
+      bayesian: "Bayesian optimization"
+    }
+  }
       },
       early_stopping: {
         type: "list",
