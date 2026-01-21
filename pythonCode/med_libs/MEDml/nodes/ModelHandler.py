@@ -16,25 +16,59 @@ from .NodeObj import Node
 DATAFRAME_LIKE = Union[dict, list, tuple, np.ndarray, pd.DataFrame]
 TARGET_LIKE = Union[int, str, list, tuple, np.ndarray, pd.Series]
 
+import ast
+import json
+
+def _parse_class_weight(value):
+    if value is None:
+        return None
+
+    # Strings vides ou "None"
+    if isinstance(value, str):
+        s = value.strip()
+        if s == "" or s.lower() == "none":
+            return None
+
+        # 1) JSON (ex: {"0": 1.0, "1": 0.5})
+        try:
+            value = json.loads(s)
+        except Exception:
+            # 2) fallback Python literal (ex: {0: 1.0, 1: 0.5})
+            value = ast.literal_eval(s)
+
+    # if it's a dict, normalize the keys
+    if isinstance(value, dict):
+        clean = {}
+        for k, v in value.items():
+            # Convert "0" -> 0
+            if isinstance(k, str) and k.isdigit():
+                k = int(k)
+            clean[k] = v
+        return clean
+
+    return value
+
+
 def sanitize_hyperparam(name, value):
     # --- max_features
     if name == "max_features":
         if value is None:
             return None
         if isinstance(value, str):
-            if value.isdigit():
-                return int(value)
+            s = value.strip()
+            if s == "" or s.lower() == "none":
+                return None
+            if s.isdigit():
+                return int(s)
             try:
-                return float(value)
+                return float(s)
             except ValueError:
-                return value
+                return s
         return value
 
     # --- class_weight
     if name == "class_weight":
-        if isinstance(value, str):
-            return json.loads(value)
-        return value
+        return _parse_class_weight(value)
 
     return value
 
@@ -47,9 +81,10 @@ def sanitize_custom_grid(custom_grid: dict) -> dict:
 
     for param, values in custom_grid.items():
         clean_grid[param] = [
-            sanitize_hyperparam(param, v) for v in values
+            sanitize_hyperparam(param, v)
+            for v in values
+            if v is not None and (not isinstance(v, str) or v.strip() != "")
         ]
-
     return clean_grid
 
 

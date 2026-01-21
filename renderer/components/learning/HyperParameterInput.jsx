@@ -234,7 +234,8 @@ const HyperParameterInput = ({
     
     // Validate based on type
     let validatedValue = parseInputValue(value)
-    if (!validatedValue) return
+    if (validatedValue === null || validatedValue === undefined) return
+
 
     // Check if value already exists
     if (!discreteValues.includes(validatedValue)) {
