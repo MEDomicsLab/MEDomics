@@ -167,6 +167,7 @@ function getBundledPythonEnvironment() {
     if (medomicsDirExists) {
       bundledPythonPath = path.join(getHomePath(), ".medomics", "python")
     } else {
+      console.log("Using process.cwd() path because medomicsDirExists is false: ", process.cwd())
       bundledPythonPath = path.join(process.cwd(), "python")
     }
   }
@@ -303,6 +304,7 @@ function getHomePath() {
   } else {
     homePath = process.env.HOME
   }
+  console.log("homePath: ", homePath)
   return homePath
 }
 
@@ -333,6 +335,7 @@ async function installBundledPythonExecutable(notify) {
     }
     bundledPythonPath = pythonPath
   } else {
+    console.log("Using process.cwd() path because not in production env: ", process.cwd())
     bundledPythonPath = path.join(process.cwd(), "python")
   }
   // Check if the python executable is already installed

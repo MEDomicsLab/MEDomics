@@ -481,6 +481,12 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
       if (typeof expressPort === 'number') {
         setRemoteExpressPort(String(expressPort))
       }
+      const goPort = status && (status.go?.port || status.state?.goPort)
+      if (typeof goPort === 'number') {
+        setRemoteGoPort(String(goPort))
+        console.log('Starting go forward on port ', goPort, ' to local port ', localGoPort)
+        ipcRenderer.invoke('startGoForward', { localGoPort: Number(localGoPort), remoteGoPort: Number(goPort) })
+      }
 
       // If a different remote port was discovered, offer to rebind the forward
       try {

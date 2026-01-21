@@ -1033,10 +1033,18 @@ export async function startExpressForward({ localExpressPort, remoteExpressPort 
     const conn = getActiveTunnel()
     if (!conn) return { success: false, error: 'No active SSH tunnel' }
     const servers = getActiveTunnelServer() || {}
-    const localPort = Number(localExpressPort || getTunnelState().localExpressPort)
-    const remotePort = Number(remoteExpressPort || getTunnelState().remoteExpressPort)
+    const state = getTunnelState()
+    const localPort = Number(localExpressPort || state.localExpressPort)
+    const remotePort = Number(remoteExpressPort || state.remoteExpressPort)
     if (!localPort || isNaN(localPort)) return { success: false, error: 'invalid-local-port' }
     if (!remotePort || isNaN(remotePort)) return { success: false, error: 'invalid-remote-port' }
+
+    // If there's already an express forward for this local/remote pair, reuse it.
+    const existingLocal = Number(state.localExpressPort)
+    const existingRemote = Number(state.remoteExpressPort)
+    if (servers.expressServer && existingLocal === localPort && existingRemote === remotePort) {
+      return { success: true, localPort, remotePort, reused: true }
+    }
 
     // Close any existing express listener
     if (servers.expressServer) {
@@ -1069,10 +1077,18 @@ export async function startGoForward({ localGoPort, remoteGoPort }) {
     const conn = getActiveTunnel()
     if (!conn) return { success: false, error: 'No active SSH tunnel' }
     const servers = getActiveTunnelServer() || {}
-    const localPort = Number(localGoPort || getTunnelState().localGoPort)
-    const remotePort = Number(remoteGoPort || getTunnelState().remoteGoPort)
+    const state = getTunnelState()
+    const localPort = Number(localGoPort || state.localGoPort)
+    const remotePort = Number(remoteGoPort || state.remoteGoPort)
     if (!localPort || isNaN(localPort)) return { success: false, error: 'invalid-local-port' }
     if (!remotePort || isNaN(remotePort)) return { success: false, error: 'invalid-remote-port' }
+
+    // If there's already a GO forward for this local/remote pair, reuse it.
+    const existingLocal = Number(state.localGoPort)
+    const existingRemote = Number(state.remoteGoPort)
+    if (servers.goServer && existingLocal === localPort && existingRemote === remotePort) {
+      return { success: true, localPort, remotePort, reused: true }
+    }
 
     // Verify remote port is open before forwarding
     const open = await checkRemotePortOpen(conn, remotePort)
