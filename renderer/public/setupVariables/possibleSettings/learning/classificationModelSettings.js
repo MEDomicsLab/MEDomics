@@ -617,24 +617,10 @@ const classificationModelSettings = {
                 "tooltip": "bool, default=False. When set to True, reuse the solution of the previous call to fit as initialization, otherwise, just erase the previous solution."
             },
             "class_weight": {
-            "type": "multi",
-            "tooltip": "Weights associated with classes. Can be a string ('balanced', 'balanced_subsample'), a dict {class_label: weight}, or a list of such dicts for multi-output problems.",
-            "allowedTypes": {
-                    "str": {
-                        "label": "String",
-                        mapTo: "string",
-                        "choices": ["None", "balanced", "balanced_subsample"],
-                        "default_val": "None",
-                        "description": "String mode: automatic balancing using class frequencies."
-                    },
-                    "dict": {
-                        "label": "Dictionary",
-                        "mapTo": "string",
-                        "default_val": "{}",
-                        "description": "Custom weights per class. Example: {\"0\": 1, \"1\": 3}."
-                    }
-                },
-                "default_val": null
+            "type": "list",
+            "tooltip": "Weights associated with classes. Can be a string ('None', 'balanced', 'balanced_subsample') or a dictionary encoded as a string mapping class labels to weights (e.g. {\"0\": 1, \"1\": 3}).",
+            "default_val": "None",
+            "choices": ["None", "balanced", "balanced_subsample"]
             },
             "max_samples": {
                 "type": "NoneType",

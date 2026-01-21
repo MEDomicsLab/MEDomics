@@ -50,28 +50,45 @@ const HyperParameterInput = ({
 
   // Initialize component state based on currentValue prop
   useEffect(() => {
-    if (currentValue) {
-      currentValue = Array.isArray(currentValue) ? currentValue : parseInputValue(currentValue)
-      if (Array.isArray(currentValue)) {
-        setInputMode('discrete')
-        setDiscreteValues(currentGridValues || currentValue)
-      } else if (typeof currentValue === 'object' && currentValue.start && currentValue.end) {
-        setInputMode('range')
-        setRangeStart(currentValue.start)
-        setRangeEnd(currentValue.end)
-        setRangeStep(currentValue.step || getDefaultStep(effectiveType))
-      } else {
-        setInputMode('discrete')
-        setDiscreteValues(currentGridValues || [currentValue])
-      }
-    } else {
-      // Default initialization
-      setDiscreteValues(currentGridValues || [])
-      setRangeStart(paramInfo.min || 0)
-      setRangeEnd(paramInfo.max || 10)
-      setRangeStep(getDefaultStep(effectiveType))
+  const isEmptyDict =
+    typeof currentValue === "object" &&
+    currentValue !== null &&
+    !Array.isArray(currentValue) &&
+    Object.keys(currentValue).length === 0;
+
+  if (currentValue && !isEmptyDict) {
+    const parsedValue = Array.isArray(currentValue)
+      ? currentValue
+      : parseInputValue(currentValue);
+
+    if (Array.isArray(parsedValue)) {
+      setInputMode("discrete");
+      setDiscreteValues(currentGridValues || parsedValue);
+    } 
+    else if (
+      typeof parsedValue === "object" &&
+      parsedValue.start !== undefined &&
+      parsedValue.end !== undefined
+    ) {
+      setInputMode("range");
+      setRangeStart(parsedValue.start);
+      setRangeEnd(parsedValue.end);
+      setRangeStep(parsedValue.step || getDefaultStep(effectiveType));
+    } 
+    else {
+      setInputMode("discrete");
+      setDiscreteValues(currentGridValues || [parsedValue]);
     }
-  }, [])
+  } 
+  else {
+    // currentValue = {} ou null
+    setDiscreteValues(currentGridValues || []);
+    setRangeStart(paramInfo.min || 0);
+    setRangeEnd(paramInfo.max || 10);
+    setRangeStep(getDefaultStep(effectiveType));
+  }
+}, []);
+
 
   // Determine the effective type (for multi parameters)
   const effectiveType =
@@ -176,16 +193,30 @@ const HyperParameterInput = ({
   ) {
     generateGridValues()
   } 
-    else if (inputMode === 'discrete') {
-      if (!hasError &&  discreteValues.length > 0) {
-        onParamChange(model, {
-          name: name,
-          value: discreteValues,
-          type: effectiveType,
-          mode: inputMode
-        })
-      }
+    else if (inputMode === "discrete") {
+  if (!hasError && discreteValues.length > 0) {
+
+    const cleanValues =
+      effectiveType === "dict"
+        ? discreteValues.filter(
+            v =>
+              v &&
+              typeof v === "object" &&
+              !Array.isArray(v) &&
+              Object.keys(v).length > 0
+          )
+        : discreteValues;
+
+    if (cleanValues.length > 0) {
+      onParamChange(model, {
+        name: name,
+        value: cleanValues,
+        type: effectiveType,
+        mode: inputMode
+      });
     }
+  }
+}
     setHasWarning(hasError)
   }, [inputMode, discreteValues, rangeStart, rangeEnd, rangeStep])
 
