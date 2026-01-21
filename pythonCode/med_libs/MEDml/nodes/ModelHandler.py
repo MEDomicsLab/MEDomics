@@ -68,7 +68,11 @@ def sanitize_hyperparam(name, value):
 
     # --- class_weight
     if name == "class_weight":
-        return _parse_class_weight(value)
+        if isinstance(value, str):
+            parsed = json.loads(value)          # {"0": 1.0, "1": 0.5}
+            return {int(k): v for k, v in parsed.items()}  # int keys
+        return value
+
 
     return value
 

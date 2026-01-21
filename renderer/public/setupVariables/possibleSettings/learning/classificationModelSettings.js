@@ -632,12 +632,6 @@ const classificationModelSettings = {
                         "mapTo": "string",
                         "default_val": "{}",
                         "description": "Custom weights per class. Example: {\"0\": 1, \"1\": 3}."
-                    },
-                    "list-dict": {
-                        "label": "List of dictionaries",
-                        "mapTo": "string",
-                        "default_val": "[{}]",
-                        "description": "Required for multi-output tasks. One dict per output column."
                     }
                 },
                 "default_val": null
@@ -698,14 +692,14 @@ const classificationModelSettings = {
                 "description": "Uses all available features (no feature subsampling)."
                 },
                 "int": {
-                "label": "Fixed number",
+                "label": "Integer",
                 "mapTo": "int",
                 "default_val": 10,
                 "min": 1,
                 "description": "Uses an exact number of features at each split."
                 },
                 "float": {
-                "label": "Fraction",
+                "label": "Float",
                 "mapTo": "float",
                 "default_val": 0.5,
                 "min": 0.01,
