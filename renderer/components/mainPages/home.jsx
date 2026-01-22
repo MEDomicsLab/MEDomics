@@ -170,10 +170,22 @@ const HomePage = () => {
             setInstallState(prev => ({ ...prev, percent: bands.extract.end }))
             break
           case 'done':
-          toast.success('Local server installed and ready.')
-          // Refresh local backend status immediately
-          checkLocalBackendNow()
+            toast.success('Local server installed and ready.')
+            // Refresh local backend status immediately
+            checkLocalBackendNow()
             setInstallState({ active: false, phase: '', percent: 0, speed: 0 })
+            break
+          case 'already-installed':
+            // Backend was already present on disk; treat like success
+            toast.success('Local server already installed and ready.')
+            checkLocalBackendNow()
+            setInstallState({ active: false, phase: '', percent: 0, speed: 0 })
+            break
+          case 'error':
+            // Any terminal error from the installer should clear the progress UI
+            // The invoking handler shows a toast based on the IPC result.
+            setInstallState({ active: false, phase: '', percent: 0, speed: 0 })
+            break
         }
       } catch(e) {
         console.error("Error handling localBackendInstallProgress event:", e)

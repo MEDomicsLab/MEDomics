@@ -1586,9 +1586,8 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
                 finally {
                   setConnectionProcessing(false)
                 }
-                handleDisconnect()
               }}
-              title="Disconnect and stop servers"
+              title="Disconnect from the current mongoDB workspace"
               disabled={!tunnelActive || connectionProcessing}
               style={{ background: 'var(--danger)', color: 'var(--button-text)' }}
             >

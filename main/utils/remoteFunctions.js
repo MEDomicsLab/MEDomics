@@ -716,12 +716,21 @@ ipcMain.handle('installRemoteBackendFromURL', async (_event, { manifestUrl, vers
       sendInstallProgress({ phase: 'fetch-manifest', manifestUrl })
       const { data: manifest } = await axios.get(manifestUrl, { timeout: 20000 })
       manifestVersion = version || manifest?.version
-      if (!manifestVersion) return { success: false, error: 'no-version-in-manifest' }
+      if (!manifestVersion) {
+        sendInstallProgress({ phase: 'error', step: 'manifest', error: 'no-version-in-manifest' })
+        return { success: false, error: 'no-version-in-manifest' }
+      }
       const asset = selectAssetForRemote(manifest, remoteOS)
-      if (!asset) return { success: false, error: 'no-asset-for-remote', details: { remoteOS} }
+      if (!asset) {
+        sendInstallProgress({ phase: 'error', step: 'manifest', error: 'no-asset-for-remote', details: { remoteOS } })
+        return { success: false, error: 'no-asset-for-remote', details: { remoteOS } }
+      }
       url = asset.url
       expectedSha = (asset.sha256||'').trim().toLowerCase()
-      if (!url) return { success: false, error: 'asset-has-no-url' }
+      if (!url) {
+        sendInstallProgress({ phase: 'error', step: 'manifest', error: 'asset-has-no-url' })
+        return { success: false, error: 'asset-has-no-url' }
+      }
     } else {
       // GitHub releases-based install (no manifest provided)
       const defaultOwner = 'm-alexparent'
@@ -732,6 +741,7 @@ ipcMain.handle('installRemoteBackendFromURL', async (_event, { manifestUrl, vers
         timeout: 20000
       })
       if (!Array.isArray(releases) || releases.length === 0) {
+        sendInstallProgress({ phase: 'error', step: 'github', error: 'no-releases-found' })
         return { success: false, error: 'no-releases-found' }
       }
       const serverReleases = releases.filter(r => {
@@ -745,7 +755,10 @@ ipcMain.handle('installRemoteBackendFromURL', async (_event, { manifestUrl, vers
         return pb - pa
       })
       const chosen = sorted[0]
-      if (!chosen) return { success: false, error: 'no-suitable-release' }
+      if (!chosen) {
+        sendInstallProgress({ phase: 'error', step: 'github', error: 'no-suitable-release' })
+        return { success: false, error: 'no-suitable-release' }
+      }
       sendInstallProgress({ phase: 'github-pick-release', tag: chosen.tag_name, name: chosen.name })
       // Select asset by fixed naming pattern: MEDomicsLab-Server-[version]-<os>.zip
       const assets = chosen.assets || []
@@ -755,9 +768,15 @@ ipcMain.handle('installRemoteBackendFromURL', async (_event, { manifestUrl, vers
         // Fallback: check browser_download_url
         candidate = assets.find(a => (a.browser_download_url||'').toLowerCase().endsWith(suffix))
       }
-      if (!candidate) return { success: false, error: 'no-asset-for-platform', details: { remoteOS, expectedSuffix: suffix } }
+      if (!candidate) {
+        sendInstallProgress({ phase: 'error', step: 'github', error: 'no-asset-for-platform', details: { remoteOS, expectedSuffix: suffix } })
+        return { success: false, error: 'no-asset-for-platform', details: { remoteOS, expectedSuffix: suffix } }
+      }
       url = candidate.browser_download_url
-      if (!url) return { success: false, error: 'asset-missing-download-url' }
+      if (!url) {
+        sendInstallProgress({ phase: 'error', step: 'github', error: 'asset-missing-download-url' })
+        return { success: false, error: 'asset-missing-download-url' }
+      }
       manifestVersion = chosen.tag_name || chosen.name || 'latest'
       sendInstallProgress({ phase: 'github-select-asset', asset: candidate.name, url })
     }
@@ -860,6 +879,7 @@ ipcMain.handle('installRemoteBackendFromURL', async (_event, { manifestUrl, vers
         const r = await execRemote(conn, `bash -lc "unzip -o '${remoteDownloadPath.replace(/'/g, "'\\''")}' -d '${versionDir.replace(/'/g, "'\\''")}'"`)
         if (r.code !== 0 && r.stderr) { sendInstallProgress({ phase: 'error', step: 'extract', details: r.stderr }); return { success: false, error: 'extract-failed', details: r.stderr } }
       } else {
+        sendInstallProgress({ phase: 'error', step: 'extract', error: 'unsupported-archive-format' })
         return { success: false, error: 'unsupported-archive-format' }
       }
     }

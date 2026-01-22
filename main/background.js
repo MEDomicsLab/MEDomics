@@ -1025,12 +1025,18 @@ ipcMain.handle('installLocalBackendFromURL', async (_event, { version, manifestU
         if (!a.arch) return true
         return (a.arch||'').toLowerCase() === arch
       })
-      if (!candidates.length) return { success: false, error: 'no-asset-for-platform', details: { platform, arch } }
+      if (!candidates.length) {
+        progress({ phase: 'error', error: 'no-asset-for-platform', details: { platform, arch } })
+        return { success: false, error: 'no-asset-for-platform', details: { platform, arch } }
+      }
       const asset = candidates[0]
       const url = asset.url
       const expectedSha = (asset.sha256||'').trim().toLowerCase()
       const format = (asset.format||'').toLowerCase() || (url.endsWith('.zip') ? 'zip' : (url.endsWith('.tar.gz') ? 'tar.gz' : ''))
-      if (!url) return { success: false, error: 'asset-has-no-url' }
+      if (!url) {
+        progress({ phase: 'error', error: 'asset-has-no-url' })
+        return { success: false, error: 'asset-has-no-url' }
+      }
 
       const versionDir = path.join(versionsDir, manifestVersion)
       const existingExe = findInstalledExecutable(versionDir)
@@ -1050,7 +1056,10 @@ ipcMain.handle('installLocalBackendFromURL', async (_event, { version, manifestU
         progress({ phase: 'verify-start' })
         const actualSha = await sha256File(downloadPath)
         const ok = (actualSha||'').toLowerCase() === expectedSha
-        if (!ok) return { success: false, error: 'checksum-mismatch', expectedSha, actualSha }
+        if (!ok) {
+          progress({ phase: 'error', error: 'checksum-mismatch', expectedSha, actualSha })
+          return { success: false, error: 'checksum-mismatch', expectedSha, actualSha }
+        }
         progress({ phase: 'verify-ok', sha256: actualSha })
       } else {
         progress({ phase: 'verify-skip', reason: 'no-sha256-in-manifest' })
@@ -1061,7 +1070,10 @@ ipcMain.handle('installLocalBackendFromURL', async (_event, { version, manifestU
       progress({ phase: 'extract-complete', to: versionDir })
 
       const exePath = findInstalledExecutable(versionDir)
-      if (!exePath) return { success: false, error: 'executable-not-found-in-extracted', versionDir }
+      if (!exePath) {
+        progress({ phase: 'error', error: 'executable-not-found-in-extracted', versionDir })
+        return { success: false, error: 'executable-not-found-in-extracted', versionDir }
+      }
       try { if (process.platform !== 'win32') fs.chmodSync(exePath, 0o755) } catch {}
 
       await saveLocalBackendPath(exePath)
@@ -1079,6 +1091,7 @@ ipcMain.handle('installLocalBackendFromURL', async (_event, { version, manifestU
       timeout: 20000
     })
     if (!Array.isArray(releases) || releases.length === 0) {
+      progress({ phase: 'error', error: 'no-releases-found' })
       return { success: false, error: 'no-releases-found' }
     }
 
@@ -1094,14 +1107,23 @@ ipcMain.handle('installLocalBackendFromURL', async (_event, { version, manifestU
       return pb - pa
     })
     const chosen = sorted[0]
-    if (!chosen) return { success: false, error: 'no-suitable-release' }
+    if (!chosen) {
+      progress({ phase: 'error', error: 'no-suitable-release' })
+      return { success: false, error: 'no-suitable-release' }
+    }
     progress({ phase: 'github-pick-release', tag: chosen.tag_name, name: chosen.name })
 
     // Select asset for OS/arch
     const asset = selectOsArchAsset(chosen.assets||[])
-    if (!asset) return { success: false, error: 'no-asset-for-platform', details: { platform, arch } }
+    if (!asset) {
+      progress({ phase: 'error', error: 'no-asset-for-platform', details: { platform, arch } })
+      return { success: false, error: 'no-asset-for-platform', details: { platform, arch } }
+    }
     const url = asset.browser_download_url
-    if (!url) return { success: false, error: 'asset-missing-download-url' }
+    if (!url) {
+      progress({ phase: 'error', error: 'asset-missing-download-url' })
+      return { success: false, error: 'asset-missing-download-url' }
+    }
     progress({ phase: 'github-select-asset', asset: asset.name, url })
 
     const ver = chosen.tag_name || chosen.name || 'latest'
@@ -1128,7 +1150,10 @@ ipcMain.handle('installLocalBackendFromURL', async (_event, { version, manifestU
 
     // Locate executable
     const exePath = findInstalledExecutable(versionDir)
-    if (!exePath) return { success: false, error: 'executable-not-found-in-extracted', versionDir }
+    if (!exePath) {
+      progress({ phase: 'error', error: 'executable-not-found-in-extracted', versionDir })
+      return { success: false, error: 'executable-not-found-in-extracted', versionDir }
+    }
     try { if (process.platform !== 'win32') fs.chmodSync(exePath, 0o755) } catch {}
 
     await saveLocalBackendPath(exePath)
@@ -1136,7 +1161,9 @@ ipcMain.handle('installLocalBackendFromURL', async (_event, { version, manifestU
     progress({ phase: 'done', version: ver, path: exePath })
     return { success: true, version: ver, path: exePath }
   } catch (e) {
-    return { success: false, error: e.message || String(e) }
+    const message = e?.message || String(e)
+    try { progress({ phase: 'error', error: message }) } catch {}
+    return { success: false, error: message }
   }
 })
 
