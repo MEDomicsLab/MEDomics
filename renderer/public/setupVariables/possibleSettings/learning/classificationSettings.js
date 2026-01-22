@@ -1019,14 +1019,9 @@ const classificationSettings = {
           "</ul></dd>\n" +
           "</dl></li>\n",
         default_val: "None",
-        choices_by_library: {
-    "scikit-learn": {
-      grid: "Grid search",
-      random: "Random search"
-    },
-    "scikit-optimize": {
-      bayesian: "Bayesian optimization"
-    }
+        choices: {
+    "scikit-learn": "scikit-learn",
+    "scikit-optimize": "scikit-optimize"
   }
       },
       early_stopping: {

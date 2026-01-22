@@ -617,7 +617,7 @@ const classificationModelSettings = {
                 "tooltip": "bool, default=False. When set to True, reuse the solution of the previous call to fit as initialization, otherwise, just erase the previous solution."
             },
             "class_weight": {
-            "type": "list",
+            "type": "string",
             "tooltip": "Weights associated with classes. Can be a string ('None', 'balanced', 'balanced_subsample') or a dictionary encoded as a string mapping class labels to weights (e.g. {\"0\": 1, \"1\": 3}).",
             "default_val": "None",
             "choices": ["None", "balanced", "balanced_subsample"]
