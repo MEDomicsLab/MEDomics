@@ -144,6 +144,7 @@ function getBundledPythonEnvironment() {
 
   // Check if the python path can be found in the .medomics directory
   let medomicsDirExists = fs.existsSync(path.join(getAppPath("home"), ".medomics", "python"))
+  console.log("medomicsDirExists: ", medomicsDirExists)
 
   if (process.env.NODE_ENV === "production") {
     // Get the user path followed by .medomics

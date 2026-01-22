@@ -182,6 +182,14 @@ async function main() {
     if (platform === 'win32') {
     await fsp.writeFile(path.join(outBase, 'start.bat'), [
       '@echo off',
+      'net session >nul 2>&1',
+      'if %errorLevel% == 0 (',
+      '  echo Running as admin.',
+      '  goto :main',
+      ') else (',
+      '    powershell Start-Process "%~f0" -Verb RunAs',
+      '    exit /b',
+      ')',
       'medomics-server.exe ensure --json --go --mongo --jupyter',
       'medomics-server.exe start --json',
       ''
