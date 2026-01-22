@@ -28,7 +28,7 @@ const DocLink = ({ linkString, name, image }) => {
   return (
     <>
       <p className="docLink">
-        {image && <Image className="docLink-image" />}
+        {image && <Image className="docLink-image" alt="docLink image" />}
         <a href={linkString} onClick={handleLinkClick}>
           {name}
         </a>

@@ -4,9 +4,17 @@ module.exports = {
 		if (!isServer) {
 			config.target = "electron-renderer";
 		}
-
-		return config;
+		config.module.rules.push({
+			test: /\.node$/,
+			use: "node-loader"
+		}),
+		config.module.rules.push({
+			test: /\.html$/,
+			use: "html-loader"
+		})
+		
+		return config
 	},
-	images: {unoptimized : true}
-
-};
+	images: { unoptimized : true }
+  }
+  

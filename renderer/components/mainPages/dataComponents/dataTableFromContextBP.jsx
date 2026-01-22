@@ -1,7 +1,7 @@
 import React, { useContext, useState, useEffect } from "react"
 import { DataContext } from "../../workspace/dataContext"
 import DataTableWrapperBPClass from "../../dataTypeVisualisation/dataTableWrapperBPClass"
-import * as dfd from "danfojs"
+import * as dfd from "../../../utilities/danfo.js"
 import { toast } from "react-toastify"
 import fs from "fs"
 import Papa from "papaparse"

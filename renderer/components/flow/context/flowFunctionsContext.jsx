@@ -14,6 +14,7 @@ function FlowFunctionsProvider({ children }) {
   const [edgeUpdate, setEdgeUpdate] = useState({})
   const [groupNodeId, setGroupNodeId] = useState({ id: "MAIN" })
   const [node2Run, setNode2Run] = useState(null)
+  const [node2Duplicate, setNode2Duplicate] = useState(null)
   const [node2Delete, setNode2Delete] = useState(null)
   const [hasNewConnection, setHasNewConnection] = useState(false)
 
@@ -82,6 +83,14 @@ function FlowFunctionsProvider({ children }) {
     setNode2Run(nodeId)
   }
 
+  /**
+   *
+   * @param {String} nodeId id of the node to duplicate
+   */
+  const onDuplicateNode = (nodeId) => {
+    setNode2Duplicate(nodeId)
+  }
+
   const newConnectionCreated = () => {
     setHasNewConnection(!hasNewConnection)
   }
@@ -100,6 +109,9 @@ function FlowFunctionsProvider({ children }) {
         runNode,
         node2Delete,
         onDeleteNode,
+        node2Duplicate,
+        setNode2Duplicate,
+        onDuplicateNode,
         newConnectionCreated,
         hasNewConnection
       }}

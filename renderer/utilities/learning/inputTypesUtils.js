@@ -50,6 +50,13 @@ const implementedTypesDescription = [
     }
   },
   {
+    type: "list-multiple-columns",
+    description: "for list input (form select of all the options, multiple selection possible)",
+    default: () => {
+      return []
+    }
+  },
+  {
     type: "range",
     description: "for range input",
     default: (min, max) => {
@@ -109,8 +116,17 @@ const implementedTypesDescription = [
     type: "int-float-str",
     description: "int-float-str",
     default: ""
-  }
-
+  },
+  {
+    type: "dataframe",
+    description: "for dataframe input",
+    default: ""
+  },
+  {
+  type: "multi",
+  description: "Generic type supporting multiple possible input types",
+  default: null
+}
 ]
 
 // this object is used to get the default value and implemeted types of possible settings

@@ -254,7 +254,7 @@ components
 │
 └───workspace
         dataContext.jsx
-        medDataObject.js
+        newMedDataObject.js
         workspaceContext.jsx
 ```
 

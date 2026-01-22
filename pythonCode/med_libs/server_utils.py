@@ -1,13 +1,12 @@
-import json
-
-import pandas
-import sklearn
-from flask import jsonify
+import os
 import sys
 import traceback
-import os
 from pathlib import Path
+from json import dumps
 
+import pandas as pd
+import sklearn
+from flask import jsonify
 from pycaret.internal.pipeline import Pipeline
 
 
@@ -54,7 +53,7 @@ def go_print(msg):
     This function is used to print a message to the stdout pipeline wich go is listening to
     """
     sys.stdout.flush()
-    sys.stdout.write(json.dumps(msg, indent=2))
+    sys.stdout.write(dumps(msg, indent=2))
     sys.stdout.write("\n")
     sys.stdout.flush()
 
@@ -88,27 +87,6 @@ def get_free_space_mb(folder):
     return free / (1024.0 ** 3)
 
 
-def get_model_from_medmodel(medmodel_path: str) -> sklearn.base.BaseEstimator:
-    """
-        This function is used to get the model from a medmodel
-    """
-    import joblib
-    from .CustomZipFile import CustomZipFile
-
-    cust_zip_file_model = CustomZipFile(".medmodel")
-
-    def load_model_from_zip(path):
-        pkl_path = os.path.join(path, "model.pkl")
-        with open(pkl_path, "rb") as f:
-            model = joblib.load(f)
-        if isinstance(model, Pipeline):
-            model = model.steps[-1][1]
-        return model
-
-    return cust_zip_file_model.read_in_zip(
-        medmodel_path, load_model_from_zip)
-
-
 def get_model_from_path(path: str) -> sklearn.base.BaseEstimator:
     """
         This function is used to get the model from a medmodel
@@ -121,7 +99,7 @@ def get_model_from_path(path: str) -> sklearn.base.BaseEstimator:
     return model
 
 
-def load_csv(path: str, target: str) -> pandas.DataFrame:
+def load_csv(path: str, target: str) -> pd.DataFrame:
     """
         This function is used to load a csv file
 
@@ -129,70 +107,43 @@ def load_csv(path: str, target: str) -> pandas.DataFrame:
             path: The path of the csv file
             target: The target column name
     """
-    df = pandas.read_csv(path)
+    df = pd.read_csv(path)
     temp_df = df[df[target].notna()]
     temp_df.replace("", float("NaN"), inplace=True)
     temp_df.dropna(how='all', axis=1, inplace=True)
     return temp_df
 
 
-def load_med_standard_data(dataset_list, tags_list, vars_list, target) -> pandas.DataFrame:
+def load_med_standard_data(database: pd.DataFrame, dataset_list: list, vars_list: list, target: str) -> pd.DataFrame:
     """
     This function is used to combine the dataframes.
     Args:
-        df_list: list of dataframes
-        tags_list: list of tags
+        database (pd.DataFrame): the mongDB database
+        dataset_list (list): list of datasets
+        vars_list (list): list of variables
+        target (str): the target column name
 
-    Returns: the combined dataframe
+    Returns: 
+        pd.DataFrame: the combined dataframe
 
     """
 
     # load the dataframes
-    df_dict = {}  # dict containing time points to their associated files
-    df_path_list = [file['path'] for file in dataset_list]
+    df_list = [] # dict containing time points to their associated files
+    df_ids_list = [file['id'] for file in dataset_list]
     df_name_list = [file['name'] for file in dataset_list]
-    for i, name in enumerate(
-            df_name_list):  # if the filename not contains T+number we don't keep it, else we associate it to his time point number
-        number = ''
-        T_in_name = False
-        for char in name:
-            if char == 'T':
-                T_in_name = True
-            elif T_in_name and char.isdigit():
-                number += char
-            elif T_in_name:
-                break
-        if len(number) > 0:
-            df_dict['_T' + number] = pandas.read_csv(df_path_list[i], sep=',', encoding='utf-8')
-    first_col = df_dict['_T' + number].columns[0]
+    for i, name in enumerate(df_name_list):  # if the filename not contains T+number we don't keep it, else we associate it to his time point number
+        collection = database[df_ids_list[i]]
+        collection_data = collection.find({}, {'_id': False})
+        df_list.append(pd.DataFrame(list(collection_data)))
 
-    # for each dataframe, add a suffix to their columns
-    for key in df_dict:
-        df_dict[key].columns = [f'{col}{key}' if col != target and col != first_col else col for col in
-                                df_dict[key].columns]
-
-    sorted_keys = sorted(df_dict.keys(), key=lambda x: int(x.split('_T')[1]))
-    df_list = [df_dict[key] for key in sorted_keys]
-
-
-    # first column should be the ID
-    first_col = 'subject_id'
-    # last column should be the target
+    if len(df_list) == 1:
+        return df_list[0]
 
     # merge the dataframes on the first column and the target
-    df_merged: pandas.DataFrame = df_list[0]
+    df_merged: pd.DataFrame = df_list[0]
+    first_col = df_merged.columns[0]
     for i in range(len(df_list) - 1):
         df_merged = df_merged.merge(df_list[i + 1], on=[first_col, target], how='outer')
-
-    # drop all columns not containing tags from tags list
-    cols_2_keep = [first_col, target]
-    for col in df_merged.columns:
-        if col in cols_2_keep:
-            continue
-        col_name = col.split('_|_')[1]
-        if col_name in vars_list:
-            cols_2_keep.append(col)
-    df_merged = df_merged[cols_2_keep]
-
 
     return df_merged

@@ -1,0 +1,70 @@
+.db-tree {
+  background-color: #353535;
+  border-color: #353535;
+  color: #ffffff;
+  padding: 0px;
+}
+
+.db-tree .p-treenode-content {
+  padding: 0 !important;
+}
+
+.db-tree .p-tree-toggler:focus {
+  box-shadow: none !important;
+}
+
+.db-tree .p-tree-toggler:hover {
+  background-color: #ffffff31 !important;
+}
+
+/* Main Node */
+.db-tree .p-treenode-content.db-node-main:focus {
+  box-shadow: none !important;
+  background-color: transparent !important;
+}
+
+.db-tree .p-treenode-content.db-node-main:hover {
+  background-color: transparent !important;
+  color: #ffffff !important;
+}
+
+/* Child Nodes */
+.db-tree .p-treenode-content.db-node-child:focus {
+  box-shadow: none !important;
+  background-color: #ffffff31 !important;
+}
+
+.db-tree .p-treenode-content.db-node-child:hover {
+  background-color: #ffffff31 !important;
+  color: #ffffff !important;
+}
+
+.node-label {
+  display: flex;
+  align-items: center;
+}
+
+.node-label .p-button {
+  margin-left: 0;
+  padding: 5px;
+}
+
+.node-label .p-button:first-of-type {
+  margin-left: 5px;
+}
+
+.node-label .p-button:hover {
+  background-color: #ffffff31 !important;
+}
+
+.node-label .p-button:focus {
+  background-color: #ffffff31 !important;
+}
+
+.db-tree .p-treenode-content.db-node-child .node-label .p-button {
+  visibility: hidden; /* Hide delete button on chil nodes by default */
+}
+
+.db-tree .p-treenode-content.db-node-child:hover .node-label .p-button {
+  visibility: visible; /* Show delete button on child nodes while hovering */
+}

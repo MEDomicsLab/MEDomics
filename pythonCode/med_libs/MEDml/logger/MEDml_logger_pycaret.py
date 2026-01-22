@@ -57,7 +57,8 @@ class MEDml_logger(BaseLogger):
         # self.results[self.current_logging_step]['model_results_comp'] = model_result.to_json()
 
     def log_metrics(self, metrics, source=None):
-        print()
+        if source == 'finalize_model':
+            return
         print(Fore.GREEN + f"log metrics: {metrics}, {source}" + Fore.RESET)
         self.results[self.current_logging_step]['metrics'] = metrics
 

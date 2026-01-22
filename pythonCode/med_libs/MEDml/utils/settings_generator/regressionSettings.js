@@ -583,7 +583,7 @@ const regressionSettings = {
                 },
                 "verbose": {
                     "type": "bool",
-                    "tooltip": "<p>When set to False, progress bar is not displayed.</p>\n",
+                    "tooltip": "<p>When set to False, backend's progress bar is not displayed.</p>\n",
                     "default_val": "True"
                 },
                 "display_format": {

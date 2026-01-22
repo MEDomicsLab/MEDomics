@@ -2,6 +2,7 @@
 import pandas as pd
 import numpy as np
 import math
+from bson import ObjectId
 
 def assert_no_nan_values_for_each_column(df: pd.DataFrame, cols: list = None):
     """
@@ -150,7 +151,8 @@ def clean_rows(df: pd.DataFrame, rows:list, method:str):
     elif method == "random fill":
         for row in rows:
             for column in df.columns:
-                if math.isnan(df.loc[row, column]):
+                value = df.loc[row, column]
+                if not isinstance(value, ObjectId) and math.isnan(value):
                     df.loc[row, column] = np.random.choice(df.loc[:, column][~df.loc[:, column].isna()])
     elif method == "mean fill":
         df.loc[rows] = df.loc[rows].fillna(df.mean())

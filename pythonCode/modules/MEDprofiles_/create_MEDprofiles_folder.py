@@ -1,12 +1,12 @@
+import json
 import os
 import sys
 from pathlib import Path
-import json
 
-sys.path.append(
-    str(Path(os.path.dirname(os.path.abspath(__file__))).parent.parent))
-from med_libs.server_utils import go_print
+sys.path.append(str(Path(os.path.dirname(os.path.abspath(__file__))).parent.parent))
+
 from med_libs.GoExecutionScript import GoExecutionScript, parse_arguments
+from med_libs.server_utils import go_print
 
 json_params_dict, id_ = parse_arguments()
 go_print("running script.py:" + id_)

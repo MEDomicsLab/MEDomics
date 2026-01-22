@@ -18,6 +18,7 @@ import { Tooltip } from "primereact/tooltip"
  * @param {Object} datasetHasWarning Object containing the dataset warning state and tooltip
  * @param {Function} setDatasetHasWarning Function to set the dataset warning state and tooltip
  * @param {Function} updateConfigClick Function to update the config on click
+ * @param {Function} checkForEmptyInput Function to check if model or dataset inputs are not set
  *
  * @returns the configuation page of the evaluation page
  */
@@ -32,16 +33,12 @@ const PageConfig = ({
   datasetHasWarning,
   setDatasetHasWarning,
   updateConfigClick,
-  useMedStandard
+  useMedStandard,
+  checkForEmptyInput
 }) => {
   // on load check if there is a config
 
   const [selectedDatasets, setSelectedDatasets] = useState([])
-
-  useEffect(() => {
-    setChosenDataset({ selectedDatasets })
-    updateWarnings(useMedStandard)
-  }, [])
 
   useEffect(() => {
     setChosenDataset({ selectedDatasets })
@@ -58,7 +55,7 @@ const PageConfig = ({
   // footer template
   const footer = (
     <>
-      <Button label="Create evaluation" icon="pi pi-arrow-right" iconPos="right" disabled={modelHasWarning.state || datasetHasWarning.state} onClick={updateConfigClick} />
+      <Button label="Create evaluation" icon="pi pi-arrow-right" iconPos="right" disabled={checkForEmptyInput() || modelHasWarning.state || datasetHasWarning.state} onClick={updateConfigClick} />
     </>
   )
 
@@ -78,7 +75,7 @@ const PageConfig = ({
             <Input
               name="Choose model to evaluate"
               settingInfos={{ type: "models-input", tooltip: "" }}
-              currentValue={config.model}
+              currentValue={config.model?.id}
               onInputChange={(data) => setChosenModel(data.value)}
               setHasWarning={setModelHasWarning}
             />

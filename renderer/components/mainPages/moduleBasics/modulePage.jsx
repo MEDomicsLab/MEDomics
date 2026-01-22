@@ -9,21 +9,19 @@ import ReactLoading from "react-loading"
 /**
  *
  * @param {String} pageId Id of the page for multi-tabs support
- * @param {String} configPath Path to the config file
  * @param {ReactNode} children Children of the component
  *
  * @description This component is the base for all the flow pages. It contains the sidebar, the workflow and the backdrop.
  *
  */
-const ModulePageWithProvider = ({ children, pageId, configPath = "null", shadow = false, additionnalClassName = "", scrollable = true }) => {
+const ModulePageWithProvider = ({ children, pageId, shadow = false, additionnalClassName = "", scrollable = true }) => {
   // here is the use of the context to update the flowInfos
-  const { setPageId, setConfigPath } = useContext(PageInfosContext)
+  const { setPageId } = useContext(PageInfosContext)
   const { loader } = useContext(LoaderContext)
   // this useEffect is used to update the flowInfos when the pageId or the workflowType changes
   useEffect(() => {
     setPageId(pageId)
-    setConfigPath(configPath)
-  }, [pageId, configPath])
+  }, [pageId])
 
   return (
     <>
@@ -49,7 +47,6 @@ const ModulePageWithProvider = ({ children, pageId, configPath = "null", shadow 
 /**
  *
  * @param {String} pageId Id of the page for multi-tabs support
- * @param {String} configPath Path to the config file
  * @param {ReactNode} children Children of the component
  *
  * @description This component is composed of the FlowPageBaseWithFlowInfos component and the FlowInfosProvider component.

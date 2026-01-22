@@ -68,7 +68,7 @@ et-xmlfile==1.1.0
 evidently==0.2.6
 exceptiongroup==1.1.0
 executing==1.2.0
-explainerdashboard==0.4.0
+explainerdashboard==0.4.2.1
 fastapi==0.104.1
 fastjsonschema==2.18.1
 ffmpy==0.3.1
@@ -211,6 +211,7 @@ pydicom==1.2.2
 pydub==0.25.1
 Pygments==2.14.0
 PyJWT==2.6.0
+pymongo==4.7.3
 pyod==1.1.0
 pyparsing==3.0.9
 pyrsistent==0.19.3
@@ -248,7 +249,7 @@ scipy==1.10.1
 seaborn==0.12.2
 semantic-version==2.10.0
 Send2Trash==1.8.2
-shap==0.41.0
+shap==0.44.1
 shellingham==1.5.4
 SimpleITK==2.2.0
 simplejson==3.19.2
@@ -280,7 +281,7 @@ statsmodels==0.13.5
 streamlit==1.27.0
 strsimpy==0.2.1
 stumpy==1.12.0
-sweetviz==2.1.4
+sweetviz==2.3.1
 sympy==1.12
 tabulate==0.9.0
 tangled-up-in-unicode==0.2.0
@@ -335,6 +336,7 @@ wrapt==1.14.1
 WTForms==3.0.1
 wurlitzer==3.0.3
 xarray==2022.12.0
+xgboost==3.0.5
 xlrd==2.0.1
 xxhash==3.4.1
 ydata-profiling==4.6.1

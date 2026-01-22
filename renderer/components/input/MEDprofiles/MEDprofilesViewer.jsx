@@ -1,17 +1,20 @@
-import ModulePage from "../../mainPages/moduleBasics/modulePage"
+import { randomUUID } from "crypto"
+import { ProgressSpinner } from "primereact/progressspinner"
 import React, { useContext, useEffect, useState } from "react"
-import { requestBackend } from "../../../utilities/requests"
 import { toast } from "react-toastify"
+import { requestBackend } from "../../../utilities/requests"
+import ModulePage from "../../mainPages/moduleBasics/modulePage"
+import { connectToMongoDB, insertMEDDataObjectIfNotExists } from "../../mongoDB/mongoDBUtils"
+import { MEDDataObject } from "../../workspace/NewMedDataObject"
 import { WorkspaceContext } from "../../workspace/workspaceContext"
 import MEDcohortFigure from "./MEDcohortFigure"
-import { ProgressSpinner } from "primereact/progressspinner"
+
 
 /**
  *
  * @param {String} pageId Page identifier
- * @param {String} configPath Path of the config file
- * @param {MedDataObject} MEDclassesFolder Folder containing the generated MEDclasses
- * @param {MedDataObject} MEDprofilesBinaryFile Binary file containing the instantiated MEDprofiles
+ * @param {MEDDataObject} MEDclassesFolder Folder containing the generated MEDclasses
+ * @param {MEDDataObject} MEDprofilesBinaryFile Binary file containing the instantiated MEDprofiles
  *
  * @returns {JSX.Element} a page
  *
@@ -20,8 +23,8 @@ import { ProgressSpinner } from "primereact/progressspinner"
  * elements to display and interact with the figure(s) displayed.
  *
  */
-const MEDprofilesViewer = ({ pageId, configPath = "", MEDclassesFolder, MEDprofilesBinaryFile }) => {
-  const [jsonFilePath, setJsonFilePath] = useState(null)
+const MEDprofilesViewer = ({ pageId, MEDclassesFolder, MEDprofilesBinaryFile }) => {
+  const [jsonID, setJsonID] = useState(null)
   const { port } = useContext(WorkspaceContext) // we get the port for server connexion
   const [jsonDataIsLoaded, setJsonDataIsLoaded] = useState(false)
 
@@ -30,21 +33,44 @@ const MEDprofilesViewer = ({ pageId, configPath = "", MEDclassesFolder, MEDprofi
    * This function is called while the page elements are loaded in order
    * to load the MEDprofiles' data (ie. MEDcohort) as JSON data
    */
-  const loadCohort = () => {
+  const loadCohort = async () => {
+
+    // check if the MEDprofiles.json data already exists in the database
+    const db = await connectToMongoDB()
+    let collection = db.collection("medDataObjects")
+    let object = await collection.findOne({ name: "MEDprofiles.json", type: "json", parentID: MEDprofilesBinaryFile.parentID })
+
+    // If object not in the DB we create and insert it
+    if (!object) {
+      object = new MEDDataObject({
+        id: randomUUID(),
+        name: "MEDprofiles.json",
+        type: "json",
+        parentID: MEDprofilesBinaryFile.parentID,
+        childrenIDs: [],
+        inWorkspace: false
+      })
+    } else {
+      // In case the object already in the DB delete its content
+      collection = db.collection(object.id)
+      await collection.deleteMany({})
+    }
+
     requestBackend(
       port,
       "/MEDprofiles/load_pickle_cohort/" + pageId,
       {
         MEDclassesFolder: MEDclassesFolder.path,
+        MEDprofilesBinaryFileID: MEDprofilesBinaryFile.id,
         MEDprofilesBinaryFile: MEDprofilesBinaryFile.path,
-        pageId: pageId
+        MEDprofilesJsonFileID: object.id,
       },
       (jsonResponse) => {
         console.log("received results:", jsonResponse)
         if (!jsonResponse.error) {
-          setJsonFilePath(jsonResponse.jsonFilePath)
+          setJsonID(object.id)
         } else {
-          toast.error(`Reading failed: ${jsonResponse.error.message}`)
+          toast.error(`Reading failed: ${jsonResponse.error}`)
         }
       },
       function (err) {
@@ -52,6 +78,7 @@ const MEDprofilesViewer = ({ pageId, configPath = "", MEDclassesFolder, MEDprofi
         toast.error(`Reading failed: ${err}`)
       }
     )
+    await insertMEDDataObjectIfNotExists(object)
   }
 
   // Called when the page open, in order to load data
@@ -63,14 +90,14 @@ const MEDprofilesViewer = ({ pageId, configPath = "", MEDclassesFolder, MEDprofi
 
   return (
     <>
-      <ModulePage pageId={pageId} configPath={configPath}>
-      <h1 className="center">MEDprofiles Viewer</h1>
+      <ModulePage pageId={pageId}>
+        <h1 className="center">MEDprofiles Viewer</h1>
         {!jsonDataIsLoaded && (
           <div className="centered-container">
             <ProgressSpinner />
           </div>
         )}
-        {jsonFilePath && <MEDcohortFigure jsonFilePath={jsonFilePath} setJsonDataIsLoaded={setJsonDataIsLoaded} />}
+        {jsonID && <MEDcohortFigure jsonID={jsonID} setJsonDataIsLoaded={setJsonDataIsLoaded} />}
       </ModulePage>
     </>
   )

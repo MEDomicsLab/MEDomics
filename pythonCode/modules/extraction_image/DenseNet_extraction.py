@@ -1,6 +1,4 @@
 import cv2
-import dask.dataframe as dd
-import json
 import os
 import pandas as pd
 import skimage
@@ -8,6 +6,8 @@ import sys
 import torch
 import torch.nn.functional as F
 import torchxrayvision as xrv
+import pymongo
+import re
 
 from pathlib import Path
 
@@ -111,17 +111,28 @@ class GoExecScriptDenseNetExtraction(GoExecutionScript):
         #go_print(json.dumps(json_config, indent=4))
         # Set local variables
         file_path_list = json_config["filePathList"]
-        csv_result_path = json_config["csvResultsPath"]
         depth = json_config["depth"]
         weights = json_config["relativeToExtractionType"]["selectedWeights"]
         features_to_generate = json_config["relativeToExtractionType"]["selectedFeaturesToGenerate"]
         column_prefix = json_config["relativeToExtractionType"]["columnPrefix"] + '_'
+        master_table_compatible = json_config["relativeToExtractionType"]["masterTableCompatible"]
+
+        # MongoDB setup
+        mongo_client = pymongo.MongoClient("mongodb://localhost:54017/")
+        database = mongo_client[json_config["DBName"]]
+        result_collection = database[json_config["resultCollectionName"]]
+
+        # Load data from MongoDB for master table formatting
+        if master_table_compatible:
+            info_collection = database[json_config["relativeToExtractionType"]["collectionName"]]
+            df_info = pd.DataFrame(list(info_collection.find()))
+            selected_columns = json_config["relativeToExtractionType"]["selectedColumns"]
+            filename_col = selected_columns["filename"]
+            date_col = selected_columns["date"]
+            df_info = df_info[[filename_col, date_col]].rename(columns={filename_col: "filename"})
 
         # Proceed to the image extraction
-        extracted_data = []
-
         for file in file_path_list:
-            
             patient_extracted_data = {}
 
             # Get filename and folder infos
@@ -136,25 +147,55 @@ class GoExecScriptDenseNetExtraction(GoExecutionScript):
             # Convert types
             if "denseFeatures" in features_to_generate:
                 for i in range(len(densefeatures)):
-                    patient_extracted_data[column_prefix + "densefeatures_" + str(i)] = densefeatures[i]
+                    patient_extracted_data[column_prefix + "densefeatures_" + str(i)] = float(densefeatures[i])
             if "predictions" in features_to_generate:
                 for i in range(len(predictions)):
-                    patient_extracted_data[column_prefix + "predictions_" + str(i)] = predictions[i]
+                    patient_extracted_data[column_prefix + "predictions_" + str(i)] = float(predictions[i])
 
-            extracted_data.append(patient_extracted_data)
+            # Format to master table and upsert into MongoDB
+            if master_table_compatible:
+                self.format_to_master_table(patient_extracted_data, df_info, result_collection, json_config)
+            else:
+                result_collection.insert_one(patient_extracted_data)
 
-        # Save data
-        if os.path.getsize(csv_result_path) > 2:
-            all_extracted_data = pd.read_csv(csv_result_path)
-        else:
-            all_extracted_data = pd.DataFrame([])
-        all_extracted_data = pd.concat([all_extracted_data, pd.DataFrame(extracted_data)], ignore_index=True)
-        all_extracted_data.to_csv(csv_result_path, index=False)
-
+        json_config["collection_length"] = len(list(result_collection.find()))
         self.results = json_config
-
         return self.results
+    
 
+    def format_to_master_table(self, patient_extracted_data, df_info, result_collection, json_config):
+        """
+        Format extracted data to master table from image extraction using DenseNet model.
+
+        Returns: None
+        """
+        depth = json_config["depth"]
+        patient_id_level = json_config["relativeToExtractionType"]["patientIdentifierLevel"]
+
+        # Merge df_info on extracted data
+        tmp = df_info[df_info["filename"] == patient_extracted_data["filename"]].copy()
+        if tmp.empty:
+            return
+
+        extracted_data = pd.DataFrame([patient_extracted_data])
+        extracted_data = tmp.merge(extracted_data, on="filename", how='inner')
+        for i in range(1, depth + 1):
+            if i != patient_id_level:
+                extracted_data.drop(["level_" + str(i)], axis=1, inplace=True)
+        extracted_data.drop(["filename"], axis=1, inplace=True)
+
+        # Ensure there are no duplicate columns before reindexing
+        columns = extracted_data.columns
+        new_columns = [columns[1]] + [columns[0]] + list(columns[2:])
+        new_columns = list(dict.fromkeys(new_columns))  # Remove duplicates while preserving order
+        extracted_data = extracted_data.reindex(columns=new_columns)
+        if json_config["relativeToExtractionType"]["parsePatientIdAsInt"]:
+            parsed_col = extracted_data[extracted_data.columns[0]].apply(lambda x: int(re.findall(r'\d+', str(x))[0]))
+            extracted_data[extracted_data.columns[0]] = parsed_col
+
+        # Upsert each record into MongoDB
+        for record in extracted_data.to_dict("records"):
+            result_collection.insert_one(record)
 
 script = GoExecScriptDenseNetExtraction(json_params_dict, id_)
 script.start()

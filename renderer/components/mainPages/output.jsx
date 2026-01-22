@@ -212,11 +212,10 @@ const ActiveElement = ({ activeElement }) => {
 /**
  *
  * @param {String} pageId the id of the page
- * @param {String} configPath the path of the config file
  *
  * @returns the output page
  */
-const OutputPage = ({ pageId = "output", configPath = undefined }) => {
+const OutputPage = ({ pageId = "output" }) => {
   const { port } = useContext(WorkspaceContext) // we get the port for server connexion
   const [activeElements, setActiveElements] = useState([])
   const [isUpdating, setIsUpdating] = useState(true)
@@ -299,7 +298,7 @@ const OutputPage = ({ pageId = "output", configPath = undefined }) => {
 
   return (
     <>
-      <ModulePage pageId={pageId} configPath={configPath} additionnalClassName="outputPage" shadow scrollable={false}>
+      <ModulePage pageId={pageId} additionnalClassName="outputPage" shadow scrollable={false}>
         <div>
           <div className="header">
             <h1>Active processes - {MEDconfig.serverChoice} server</h1>

@@ -9,11 +9,11 @@ import { Stack } from "react-bootstrap"
 import { ChevronRight, FiletypeCsv, FiletypeJson, FiletypeXlsx } from "react-bootstrap-icons"
 import { PiFloppyDisk } from "react-icons/pi"
 import { toast } from "react-toastify"
-import { DataFrame, Utils as danfoUtils } from "danfojs-node"
+import { DataFrame, Utils as danfoUtils } from "../../utilities/danfo.js"
 import { DataTablePopoverBP } from "./dataTablePopoverBPClass"
 import { deepCopy } from "../../utilities/staticFunctions"
 
-const dfd = require("danfojs-node")
+const dfd = require("../../utilities/danfo.js")
 const dfUtils = new danfoUtils()
 
 export type CellLookup = (rowIndex: number, columnIndex: number) => any // function that returns the cell data

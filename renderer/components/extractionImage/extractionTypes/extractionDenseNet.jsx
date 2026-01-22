@@ -1,13 +1,13 @@
 import { Carousel } from "primereact/carousel"
 import { Checkbox } from "primereact/checkbox"
-import { DataFrame } from "danfojs"
-import { DataContext } from "../../workspace/dataContext"
 import { Dropdown } from "primereact/dropdown"
 import { InputNumber } from "primereact/inputnumber"
 import { InputSwitch } from "primereact/inputswitch"
 import { InputText } from "primereact/inputtext"
-import { loadCSVPath } from "../../../utilities/fileManagementUtils"
 import React, { useContext, useEffect, useState } from "react"
+import { getCollectionColumnTypes } from "../../dbComponents/utils"
+import { DataContext } from "../../workspace/dataContext"
+import { MEDDataObject } from "../../workspace/NewMedDataObject"
 
 /**
  *
@@ -22,8 +22,8 @@ import React, { useContext, useEffect, useState } from "react"
  */
 const ExtractionDenseNet = ({ folderDepth, setExtractionJsonData, setOptionsSelected }) => {
   const [columnPrefix, setColumnPrefix] = useState("img") // column prefix to set in the generated dataframe from extracted features
-  const [dataframe, setDataframe] = useState(null) // danfojs dataframe from the selected csv
-  const [datasetList, setDatasetList] = useState([]) // list of available datasets
+  const [columnsTypes, setColumnsTypes] = useState({}) // the selected dataset column types
+  const [datasetsList, setDatasetsList] = useState([]) // list of datasets we can select to proceed to extraction
   const [masterTableCompatible, setMasterTableCompatible] = useState(true) // boolean true if the generated dataframe from extracted features must follow the submaster table specifications
   const [parsePatientIdAsInt, setParsePatientIdAsInt] = useState(false) // boolean true if the patients identifiers given by folder names must be parsed as integer in the result dataframe
   const [patientIdentifierLevel, setPatientIdentifierLevel] = useState(1) // integer indicating at which folder level are specified the patients identifiers
@@ -35,8 +35,16 @@ const ExtractionDenseNet = ({ folderDepth, setExtractionJsonData, setOptionsSele
   })
   const [selectedDataset, setSelectedDataset] = useState(null) // dataset choosen that must associate dates to filenames if masterTableCompatible is true
   const [selectedWeights, setSelectedWeights] = useState("densenet121-res224-chex") // string indicating weights to use for the features generation
-  const [weightsList] = useState(["densenet121-res224-chex", "densenet121-res224-pc", "densenet121-res224-nih", "densenet121-res224-rsna", "densenet121-res224-all", "densenet121-res224-mimic_nb", "densenet121-res224-mimic_ch"]) // list of available weigths for feature generation
-  const { globalData } = useContext(DataContext) // we get the global data from the context to retrieve the directory tree of the workspace, thus retrieving the data files
+  const [weightsList] = useState([
+    "densenet121-res224-chex",
+    "densenet121-res224-pc",
+    "densenet121-res224-nih",
+    "densenet121-res224-rsna",
+    "densenet121-res224-all",
+    "densenet121-res224-mimic_nb",
+    "densenet121-res224-mimic_ch"
+  ]) // list of available weigths for feature generation
+  const { globalData } = useContext(DataContext) // get global data
 
   // display options for the carousel
   const responsiveOptions = [
@@ -56,25 +64,6 @@ const ExtractionDenseNet = ({ folderDepth, setExtractionJsonData, setOptionsSele
       numScroll: 1
     }
   ]
-
-  /**
-   *
-   * @param {DataContext} dataContext
-   *
-   * @description
-   * This functions get all files from the DataContext and update datasetList.
-   *
-   */
-  function getDatasetListFromDataContext(dataContext) {
-    let keys = Object.keys(dataContext)
-    let datasetListToShow = []
-    keys.forEach((key) => {
-      if (dataContext[key].type !== "folder") {
-        datasetListToShow.push(dataContext[key])
-      }
-    })
-    setDatasetList(datasetListToShow)
-  }
 
   /**
    *
@@ -121,17 +110,20 @@ const ExtractionDenseNet = ({ folderDepth, setExtractionJsonData, setOptionsSele
 
   /**
    *
-   * @param {event} e
+   * @param {CSV File} dataset
    *
    * @description
-   * Called when dataset is selected
+   * Called when the user select a dataset.
+   *
    */
-  const onDatasetSelected = (e) => {
-    let medobject = e.value
-    setSelectedDataset(medobject)
-    loadCSVPath(medobject.path, (data) => {
-      setDataframe(new DataFrame(data))
-    })
+  async function datasetSelected(dataset) {
+    try {
+      const columnsData = await getCollectionColumnTypes(dataset.id)
+      setColumnsTypes(columnsData)
+      setSelectedDataset(dataset)
+    } catch (error) {
+      console.error("Error:", error)
+    }
   }
 
   /**
@@ -157,7 +149,16 @@ const ExtractionDenseNet = ({ folderDepth, setExtractionJsonData, setOptionsSele
     } else {
       setOptionsSelected(false)
     }
-    setExtractionJsonData({ selectedWeights: selectedWeights, selectedFeaturesToGenerate: selectedFeaturesToGenerate, masterTableCompatible: masterTableCompatible, patientIdentifierLevel: patientIdentifierLevel, selectedColumns: selectedColumns, selectedDataset: selectedDataset?.path, parsePatientIdAsInt: parsePatientIdAsInt, columnPrefix: columnPrefix })
+    setExtractionJsonData({
+      selectedWeights: selectedWeights,
+      selectedFeaturesToGenerate: selectedFeaturesToGenerate,
+      masterTableCompatible: masterTableCompatible,
+      patientIdentifierLevel: patientIdentifierLevel,
+      selectedColumns: selectedColumns,
+      collectionName: selectedDataset?.id,
+      parsePatientIdAsInt: parsePatientIdAsInt,
+      columnPrefix: columnPrefix
+    })
   }, [selectedWeights, selectedFeaturesToGenerate, masterTableCompatible, patientIdentifierLevel, selectedColumns, selectedDataset, parsePatientIdAsInt, columnPrefix])
 
   // Update the patient identifier level to minimum while folder depth is updated
@@ -165,9 +166,14 @@ const ExtractionDenseNet = ({ folderDepth, setExtractionJsonData, setOptionsSele
     setPatientIdentifierLevel(1)
   }, [folderDepth])
 
-  // Called while the datacontext is updated in order to reload csv files
+  /* Hook called when the global data changes to get the list of dataset to display */
   useEffect(() => {
-    getDatasetListFromDataContext(globalData)
+    if (globalData) {
+      let matchingDatasets = MEDDataObject.getMatchingTypesInDict(globalData, ["csv"])
+      setDatasetsList(matchingDatasets)
+    } else {
+      setDatasetsList([])
+    }
   }, [globalData])
 
   // The options for extraction are displayed in a Carousel component
@@ -211,7 +217,12 @@ const ExtractionDenseNet = ({ folderDepth, setExtractionJsonData, setOptionsSele
           <b>Format the dataset as master table &nbsp;</b>
           <hr></hr>
           <div className="margin-top-15">
-            <InputSwitch inputId="masterTableCompatible" checked={masterTableCompatible} onChange={(e) => setMasterTableCompatible(e.value)} tooltip="The master table format may contain less/different columns in order to enter the MEDprofiles' process." />
+            <InputSwitch
+              inputId="masterTableCompatible"
+              checked={masterTableCompatible}
+              onChange={(e) => setMasterTableCompatible(e.value)}
+              tooltip="The master table format may contain less/different columns in order to enter the MEDprofiles' process."
+            />
             <label htmlFor="masterTableCompatible">&nbsp; Master Table Compatible &nbsp;</label>
           </div>
           {masterTableCompatible && (
@@ -225,17 +236,43 @@ const ExtractionDenseNet = ({ folderDepth, setExtractionJsonData, setOptionsSele
                 <label htmlFor="parse">&nbsp; Parse patients ID as integers &nbsp;</label>
               </div>
               <div className="margin-top-15">
-                Select a CSV file associating image filenames to dates : &nbsp;
-                {datasetList.length > 0 ? <Dropdown value={selectedDataset} options={datasetList.filter((value) => value.extension === "csv")} optionLabel="name" onChange={(event) => onDatasetSelected(event)} placeholder="Select a dataset" /> : <Dropdown placeholder="No CSV file to show" disabled />}
+                Select a file associating image filenames to dates : &nbsp;
+                {datasetsList.length > 0 ? (
+                  <Dropdown value={selectedDataset} options={datasetsList} optionLabel="name" onChange={(event) => datasetSelected(event.value)} placeholder="Select a dataset" />
+                ) : (
+                  <Dropdown placeholder="No dataset to show" disabled />
+                )}
               </div>
               <div className="margin-top-15">
                 <div className="margin-top-15">
                   Filename column : &nbsp;
-                  {dataframe && dataframe.$data ? <Dropdown value={selectedColumns.filename} onChange={(event) => handleColumnSelect("filename", event)} options={dataframe.$columns.filter((column, index) => dataframe.$dtypes[index] == "string" && dataframe[column].dt.$dateObjectArray[0] == "Invalid Date")} placeholder="Filename" /> : <Dropdown placeholder="Filename" disabled />}
+                  {columnsTypes && Object.keys(columnsTypes).length > 0 ? (
+                    <Dropdown
+                      value={selectedColumns.filename}
+                      onChange={(event) => handleColumnSelect("filename", event)}
+                      options={Object.entries(columnsTypes)
+                        .filter(([, value]) => value.includes("string"))
+                        .map(([key]) => ({ label: key, value: key }))}
+                      placeholder="Filename"
+                    />
+                  ) : (
+                    <Dropdown placeholder="Filename" disabled />
+                  )}
                 </div>
                 <div className="margin-top-15">
                   Date column : &nbsp;
-                  {dataframe && dataframe.$data ? <Dropdown value={selectedColumns.date} onChange={(event) => handleColumnSelect("date", event)} options={dataframe.$columns.filter((column, index) => dataframe.$dtypes[index] == "string" && dataframe[column].dt.$dateObjectArray[0] != "Invalid Date")} placeholder="Date" /> : <Dropdown placeholder="Date" disabled />}
+                  {columnsTypes && Object.keys(columnsTypes).length > 0 ? (
+                    <Dropdown
+                      value={selectedColumns.date}
+                      onChange={(event) => handleColumnSelect("date", event)}
+                      options={Object.entries(columnsTypes)
+                        .filter(([, value]) => value.includes("date"))
+                        .map(([key]) => ({ label: key, value: key }))}
+                      placeholder="Date"
+                    />
+                  ) : (
+                    <Dropdown placeholder="Date" disabled />
+                  )}
                 </div>
               </div>
             </>

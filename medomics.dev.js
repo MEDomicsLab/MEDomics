@@ -7,6 +7,7 @@ const config = {
   runServerAutomatically: true,
   useReactDevTools: false,
   defaultPort: 54288,
+  mongoPort: 54017,
   portFindingMethod: PORT_FINDING_METHOD.FIX
 }
 

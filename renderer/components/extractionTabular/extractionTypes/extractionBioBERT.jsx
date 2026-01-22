@@ -1,19 +1,17 @@
 import { Card } from "primereact/card"
 import { Carousel } from "primereact/carousel"
-import { DataContext } from "../../workspace/dataContext"
 import { Dropdown } from "primereact/dropdown"
 import { InputNumber } from "primereact/inputnumber"
 import { InputSwitch } from "primereact/inputswitch"
 import { InputText } from "primereact/inputtext"
-import MedDataObject from "../../workspace/medDataObject"
-import { Message } from "primereact/message"
 import { RadioButton } from "primereact/radiobutton"
-import React, { useContext, useEffect, useState } from "react"
-import { Series } from "danfojs"
+import { ipcRenderer } from "electron"
+import { Button } from "primereact/button"
+import React, { useEffect, useState } from "react"
 
 /**
  *
- * @param {Djanfojs Dataframe} dataframe data to extract
+ * @param {Json} columnsTypes types associated to the dataframe
  * @param {Function} setExtractionJsonData function setting data to send to the extraction_ts server
  * @param {Function} setMayProceed function setting the boolean variable mayProceed, telling if the process can be executed
  * @returns {JSX.Element} sub-component of the ExtractionTabularData component
@@ -23,11 +21,9 @@ import { Series } from "danfojs"
  * extraction type. It is used to prepare text notes extraction using BioBERT pre-trained model.
  *
  */
-const ExtractionBioBERT = ({ dataframe, setExtractionJsonData, setMayProceed }) => {
-  const [biobertPath, setBiobertPath] = useState(null) // path to the BioBERT pretrained model
+const ExtractionBioBERT = ({ columnsTypes, setExtractionJsonData, setMayProceed }) => {
+  const [biobertPath, setBiobertPath] = useState("") // path to the BioBERT pretrained model
   const [columnPrefix, setColumnPrefix] = useState("notes") // column prefix to set in the generated dataframe from extracted features
-  const [typesNotNa, setTypesNotNa] = useState([]) // dataframes dtypes if we remove NaN values
-  const [isDate, setIsDate] = useState([]) // true if first not na value of a column is date
   const [frequency, setFrequency] = useState("Note") // frequency choosen for the features generation
   const [hourRange, setHourRange] = useState(24) // hour range in which to generated the features if the frequency is "Hour"
   const [masterTableCompatible, setMasterTableCompatible] = useState(true) // boolean set to true if the extracted features dataset must respect the submaster table format
@@ -39,8 +35,6 @@ const ExtractionBioBERT = ({ dataframe, setExtractionJsonData, setMayProceed }) 
     notes: "",
     time: ""
   })
-
-  const { globalData } = useContext(DataContext) // we get the global data from the context to retrieve the directory tree of the workspace, thus retrieving the data files
 
   // display options for the carousel
   const responsiveOptions = [
@@ -105,20 +99,18 @@ const ExtractionBioBERT = ({ dataframe, setExtractionJsonData, setMayProceed }) 
   }
 
   /**
-   *
-   * @param {DataContext} dataContext
-   *
    * @description
-   * This functions is used to check if the model is contained in the DATA folder
-   *
+   * Function used to set the BioBERT path
    */
-  function isBioBERTAvailable(dataContext) {
-    let keys = Object.keys(dataContext)
-    keys.forEach((key) => {
-      if (dataContext[key].name !== "config.json" && dataContext[key].path.includes("DATA") && dataContext[key].path.includes("pretrained_bert_tf") && dataContext[key].path.includes("biobert_pretrain_output_all_notes_150000")) {
-        setBiobertPath(dataContext[key].path)
-      }
-    })
+  const handleSelectBiobertPath = () => {
+    ipcRenderer
+      .invoke("select-folder-path")
+      .then((result) => {
+        if (result.canceled) return
+        const selectedFolderPath = result.filePaths[0]
+        setBiobertPath(selectedFolderPath)
+      })
+      .catch((err) => console.error(err))
   }
 
   /**
@@ -130,66 +122,34 @@ const ExtractionBioBERT = ({ dataframe, setExtractionJsonData, setMayProceed }) 
    */
   useEffect(() => {
     if (frequency == "Patient" && masterTableCompatible) {
-      setMayProceed(biobertPath && selectedColumns.patientIdentifier !== "" && selectedColumns.notes !== "" && selectedColumns.time !== "")
+      setMayProceed(biobertPath !== "" && selectedColumns.patientIdentifier !== "" && selectedColumns.notes !== "" && selectedColumns.time !== "")
       setExtractionJsonData({ biobertPath: biobertPath, selectedColumns: selectedColumns, columnPrefix: columnPrefix, frequency: frequency, masterTableCompatible: masterTableCompatible })
     } else if (frequency == "Patient") {
-      setMayProceed(biobertPath && selectedColumns.patientIdentifier !== "" && selectedColumns.notes !== "")
+      setMayProceed(biobertPath !== "" && selectedColumns.patientIdentifier !== "" && selectedColumns.notes !== "")
       setExtractionJsonData({ biobertPath: biobertPath, selectedColumns: selectedColumns, columnPrefix: columnPrefix, frequency: frequency, masterTableCompatible: masterTableCompatible })
     } else if (frequency == "Admission") {
-      setMayProceed(biobertPath && selectedColumns.patientIdentifier !== "" && selectedColumns.notes !== "" && selectedColumns.admissionIdentifier !== "" && selectedColumns.admissionTime !== "")
+      setMayProceed(
+        biobertPath !== "" && selectedColumns.patientIdentifier !== "" && selectedColumns.notes !== "" && selectedColumns.admissionIdentifier !== "" && selectedColumns.admissionTime !== ""
+      )
       setExtractionJsonData({ biobertPath: biobertPath, selectedColumns: selectedColumns, columnPrefix: columnPrefix, frequency: frequency, masterTableCompatible: masterTableCompatible })
     } else if (frequency == "HourRange") {
-      setMayProceed(biobertPath && selectedColumns.patientIdentifier !== "" && selectedColumns.notes !== "" && selectedColumns.time !== "")
-      setExtractionJsonData({ biobertPath: biobertPath, selectedColumns: selectedColumns, columnPrefix: columnPrefix, frequency: frequency, hourRange: hourRange, masterTableCompatible: masterTableCompatible })
+      setMayProceed(biobertPath !== "" && selectedColumns.patientIdentifier !== "" && selectedColumns.notes !== "" && selectedColumns.time !== "")
+      setExtractionJsonData({
+        biobertPath: biobertPath,
+        selectedColumns: selectedColumns,
+        columnPrefix: columnPrefix,
+        frequency: frequency,
+        hourRange: hourRange,
+        masterTableCompatible: masterTableCompatible
+      })
     } else if (frequency == "Note" && masterTableCompatible) {
-      setMayProceed(biobertPath && selectedColumns.patientIdentifier !== "" && selectedColumns.notes !== "" && selectedColumns.time !== "")
+      setMayProceed(biobertPath !== "" && selectedColumns.patientIdentifier !== "" && selectedColumns.notes !== "" && selectedColumns.time !== "")
       setExtractionJsonData({ biobertPath: biobertPath, selectedColumns: selectedColumns, columnPrefix: columnPrefix, frequency: frequency, masterTableCompatible: masterTableCompatible })
     } else if (frequency == "Note") {
-      setMayProceed(biobertPath && selectedColumns.patientIdentifier !== "" && selectedColumns.notes !== "")
+      setMayProceed(biobertPath !== "" && selectedColumns.patientIdentifier !== "" && selectedColumns.notes !== "")
       setExtractionJsonData({ biobertPath: biobertPath, selectedColumns: selectedColumns, columnPrefix: columnPrefix, frequency: frequency, masterTableCompatible: masterTableCompatible })
     }
-  }, [selectedColumns, frequency, hourRange, masterTableCompatible, columnPrefix])
-
-  // Called when data in DataContext is updated, in order to updated datasetList
-  useEffect(() => {
-    if (globalData !== undefined) {
-      isBioBERTAvailable(globalData)
-    }
-  }, [globalData])
-
-  /**
-   * Used to get types of columns from the dataframe without NaN values
-   */
-  useEffect(() => {
-    console.log("dataframe:", dataframe)
-    if (dataframe && dataframe.$columns) {
-      let types = []
-      let dates = []
-      Object.keys(dataframe.$columns).forEach((column) => {
-        let series = new Series(dataframe.$dataIncolumnFormat[column])
-        let notNaSeries = series.dropNa()
-        types.push(notNaSeries.$dtypes[0])
-        if (notNaSeries.$dtypes[0] == "string" && notNaSeries.dt.$dateObjectArray[0] != "Invalid Date") {
-          dates.push(true)
-        } else {
-          dates.push(false)
-        }
-      })
-      setTypesNotNa(types)
-      setIsDate(dates)
-    }
-  }, [dataframe])
-
-  /**
-   *
-   * @description
-   * This function update the workspace data object while we load
-   * the extractionBioBERT page.
-   *
-   */
-  useEffect(() => {
-    MedDataObject.updateWorkspaceDataObject()
-  }, [])
+  }, [selectedColumns, frequency, hourRange, masterTableCompatible, columnPrefix, biobertPath])
 
   // The options for extraction are displayed in a Carousel component
   const carouselItems = [
@@ -231,7 +191,12 @@ const ExtractionBioBERT = ({ dataframe, setExtractionJsonData, setMayProceed }) 
             </Card>
           </div>
           <div className="margin-top-30">
-            <InputSwitch inputId="masterTableCompatible" checked={masterTableCompatible} onChange={(e) => setMasterTableCompatible(e.value)} tooltip="The master table format may contain less columns in order to enter the MEDprofiles' process." />
+            <InputSwitch
+              inputId="masterTableCompatible"
+              checked={masterTableCompatible}
+              onChange={(e) => setMasterTableCompatible(e.value)}
+              tooltip="The master table format may contain less columns in order to enter the MEDprofiles' process."
+            />
             <label htmlFor="masterTableCompatible">&nbsp; Master Table Compatible &nbsp;</label>
           </div>
         </div>
@@ -246,29 +211,84 @@ const ExtractionBioBERT = ({ dataframe, setExtractionJsonData, setMayProceed }) 
           <hr></hr>
           <div className="margin-top-15">
             Patient Identifier : &nbsp;
-            {dataframe && dataframe.$data ? <Dropdown value={selectedColumns.patientIdentifier} onChange={(event) => handleColumnSelect("patientIdentifier", event)} options={dataframe.$columns.filter((column, index) => typesNotNa[index] == "int32" || (typesNotNa[index] == "string" && isDate[index] == false))} placeholder="Patient Identifier" /> : <Dropdown placeholder="Patient Identifier" disabled />}
+            {columnsTypes && Object.keys(columnsTypes).length > 0 ? (
+              <Dropdown
+                value={selectedColumns.patientIdentifier}
+                onChange={(event) => handleColumnSelect("patientIdentifier", event)}
+                options={Object.entries(columnsTypes)
+                  .filter(([, value]) => value.includes("integer") || value.includes("string"))
+                  .map(([key]) => ({ label: key, value: key }))}
+                placeholder="Patient Identifier"
+              />
+            ) : (
+              <Dropdown placeholder="Patient Identifier" disabled />
+            )}
           </div>
           {frequency == "Admission" && (
             <div>
               <div className="margin-top-15">
                 Admission Identifier : &nbsp;
-                {dataframe && dataframe.$data ? <Dropdown value={selectedColumns.admissionIdentifier} onChange={(event) => handleColumnSelect("admissionIdentifier", event)} options={dataframe.$columns.filter((column, index) => typesNotNa[index] == "int32" || (typesNotNa[index] == "string" && isDate[index] == false))} placeholder="Admission Identifier" /> : <Dropdown placeholder="Admission Identifier" disabled />}
+                {columnsTypes && Object.keys(columnsTypes).length > 0 ? (
+                  <Dropdown
+                    value={selectedColumns.admissionIdentifier}
+                    onChange={(event) => handleColumnSelect("admissionIdentifier", event)}
+                    options={Object.entries(columnsTypes)
+                      .filter(([, value]) => value.includes("integer") || value.includes("string"))
+                      .map(([key]) => ({ label: key, value: key }))}
+                    placeholder="Admission Identifier"
+                  />
+                ) : (
+                  <Dropdown placeholder="Admission Identifier" disabled />
+                )}
               </div>
               <div className="margin-top-15">
                 Admission Time : &nbsp;
-                {dataframe && dataframe.$data ? <Dropdown value={selectedColumns.admissionTime} onChange={(event) => handleColumnSelect("admissionTime", event)} options={dataframe.$columns.filter((column, index) => typesNotNa[index] == "string" && isDate[index] == true)} placeholder="Admission Time" /> : <Dropdown placeholder="Admission Time" disabled />}
+                {columnsTypes && Object.keys(columnsTypes).length > 0 ? (
+                  <Dropdown
+                    value={selectedColumns.admissionTime}
+                    onChange={(event) => handleColumnSelect("admissionTime", event)}
+                    options={Object.entries(columnsTypes)
+                      .filter(([, value]) => value.includes("date"))
+                      .map(([key]) => ({ label: key, value: key }))}
+                    placeholder="Admission Time"
+                  />
+                ) : (
+                  <Dropdown placeholder="Admission Time" disabled />
+                )}
               </div>
             </div>
           )}
           {(frequency == "HourRange" || (frequency == "Note" && masterTableCompatible) || (frequency == "Patient" && masterTableCompatible)) && (
             <div className="margin-top-15">
               Time : &nbsp;
-              {dataframe.$data ? <Dropdown value={selectedColumns.time} onChange={(event) => handleColumnSelect("time", event)} options={dataframe.$columns.filter((column, index) => typesNotNa[index] == "string" && isDate[index] == true)} placeholder="Time" /> : <Dropdown placeholder="Time" disabled />}
+              {columnsTypes && Object.keys(columnsTypes).length > 0 ? (
+                <Dropdown
+                  value={selectedColumns.time}
+                  onChange={(event) => handleColumnSelect("time", event)}
+                  options={Object.entries(columnsTypes)
+                    .filter(([, value]) => value.includes("date"))
+                    .map(([key]) => ({ label: key, value: key }))}
+                  placeholder="Time"
+                />
+              ) : (
+                <Dropdown placeholder="Time" disabled />
+              )}
             </div>
           )}
           <div className="margin-top-15">
             Notes : &nbsp;
-            {dataframe.$data ? <Dropdown value={selectedColumns.notes} onChange={(event) => handleColumnSelect("notes", event)} options={dataframe.$columns.filter((column, index) => typesNotNa[index] == "string" && isDate[index] == false)} placeholder="Notes" /> : <Dropdown placeholder="Notes" disabled />}
+            {columnsTypes && Object.keys(columnsTypes).length > 0 ? (
+              <Dropdown
+                value={selectedColumns.notes}
+                onChange={(event) => handleColumnSelect("notes", event)}
+                options={Object.entries(columnsTypes)
+                  .filter(([, value]) => value.includes("string"))
+                  .map(([key]) => ({ label: key, value: key }))}
+                placeholder="Notes"
+              />
+            ) : (
+              <Dropdown placeholder="Notes" disabled />
+            )}
           </div>
         </div>
       )
@@ -277,9 +297,17 @@ const ExtractionBioBERT = ({ dataframe, setExtractionJsonData, setMayProceed }) 
       key: "3",
       content: (
         <div>
-          {/* Text input for column names */}
-          <b>Column name prefix : &nbsp;</b>
-          <InputText value={columnPrefix} onChange={(e) => handleColumnPrefixChange(e.target.value)} />
+          <b>Advanced options</b>
+          <hr></hr>
+          <div className="margin-top-15 margin-bottom-15">
+            {/* Text input for column names */}
+            Column name prefix : &nbsp;
+            <InputText value={columnPrefix} onChange={(e) => handleColumnPrefixChange(e.target.value)} />
+          </div>
+          <div style={{ display: "flex", alignItems: "center" }}>
+            <Button label="" icon="pi pi-folder-open" onClick={handleSelectBiobertPath} />
+            &nbsp;BioBERT path : &nbsp; {biobertPath && <p style={{ maxWidth: "300px", wordBreak: "break-all" }}>{biobertPath}</p>}
+          </div>
         </div>
       )
     }
@@ -287,7 +315,6 @@ const ExtractionBioBERT = ({ dataframe, setExtractionJsonData, setMayProceed }) 
 
   return (
     <>
-      <div>{!biobertPath && <Message severity="warn" text="You must have download the pretrained_bert_tf folder in workspace DATA to proceed" />}</div>
       <Carousel value={carouselItems} numVisible={1} numScroll={1} responsiveOptions={responsiveOptions} itemTemplate={carouselTemplate} />
     </>
   )

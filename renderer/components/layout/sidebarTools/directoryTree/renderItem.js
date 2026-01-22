@@ -1,13 +1,16 @@
-import React from "react"
-import DropzoneComponent from "../../../mainPages/dataComponents/dropzoneComponent"
-import medomicsImg from "../../../../../resources/medomics.svg"
-import * as Icon from "react-bootstrap-icons"
 import Image from "next/image"
+import React from "react"
+import * as Icon from "react-bootstrap-icons"
+import { FaPython } from "react-icons/fa"
 import { PiGraph } from "react-icons/pi"
+import medomicsImg from "../../../../../resources/medomics.svg"
+import DropzoneComponent from "../../../mainPages/dataComponents/dropzoneComponent"
+import { collectionExists } from "../../../mongoDB/mongoDBUtils"
 
 const iconExtension = {
   folder: (isExpanded) => (isExpanded ? <span style={{ paddingBottom: "0.15rem" }}>📂</span> : <span style={{ paddingBottom: "0.15rem" }}>📁</span>),
   csv: <span className="emoji">🛢️</span>,
+  view: <span className="emoji">👁️</span>,
   json: (
     <span>
       <Icon.Braces className="icon-offset" style={{ color: "yellow" }} />
@@ -16,6 +19,11 @@ const iconExtension = {
   txt: (
     <span>
       <Icon.TextLeft className="icon-offset" />
+    </span>
+  ),
+  md: (
+    <span>
+      <Icon.FiletypeMd className="icon-offset" style={{ color: "white" }} />
     </span>
   ),
   pdf: <span className="emoji">📕</span>,
@@ -64,6 +72,16 @@ const iconExtension = {
     <span>
       <Icon.Image className="icon-offset" style={{ color: "#5b95ff" }} />
     </span>
+  ),
+  rar: (
+    <span>
+      <Icon.ArchiveFill className="icon-offset" style={{ color: "#5b95ff" }} />
+    </span>
+  ),
+  py: (
+    <span>
+      <FaPython className="icon-offset" style={{ color: "#5b95ff" }} />
+    </span>
   )
 
   // 📗📙📘📒📑📈📊🧮🎯💊🧬🔬🧰💾📄🗒️💥🎛️⚙️
@@ -93,6 +111,7 @@ const cx = (...classNames) => classNames.filter((cn) => !!cn).join(" ")
 const renderItem = ({ item, depth, children, title, context, arrow }, additionalParams) => {
   const InteractiveComponent = context.isRenaming ? "div" : "button"
   const type = context.isRenaming ? undefined : "button"
+  const itemInMongoDB = collectionExists(item.index)
 
   const folderItemContent = (
     <li
@@ -163,7 +182,9 @@ const renderItem = ({ item, depth, children, title, context, arrow }, additional
       {item.isFolder && (
         <>
           {additionalParams.isHovering && !additionalParams.isDropping ? (
-            <div className="sidebar-dropzone-dirtree" style={{display:"block", boxSizing:"border-box"}}>{folderItemContent}</div>
+            <div className="sidebar-dropzone-dirtree" style={{ display: "block", boxSizing: "border-box" }}>
+              {folderItemContent}
+            </div>
           ) : (
             <DropzoneComponent className="sidebar-dropzone-dirtree" item={item} noClick={true} setIsDropping={additionalParams.setIsDropping}>
               {folderItemContent}
@@ -219,13 +240,20 @@ const renderItem = ({ item, depth, children, title, context, arrow }, additional
                   additionalParams.displayMenu(e, item)
                 }}
                 onDoubleClick={(e) => {
-                  console.log("onDoubleClick", title)
+                  console.log("onDoubleClick", title, item)
                   additionalParams.onDBClickItem(e, item)
                 }}
               >
                 <div>
                   {iconExtension[item.type]}
                   <span className="label">{title}</span>
+                  {item.isLocked && (
+                    <span className="emoji" title={`This item is used in ${additionalParams.dirTree[item.usedIn] ? additionalParams.dirTree[item.usedIn].data : "a generated notebook"}`}>
+                      🔒
+                    </span>
+                  )}
+                  {additionalParams.showMongoDetails && itemInMongoDB && <img src="https://cdn3.emoji.gg/emojis/21146-mongodb.png" width="16px" height="16px" alt="mongodb" />}
+                  {additionalParams.showMongoDetails && item.path && <img src="https://www.freeiconspng.com/uploads/floppy-save-icon--23.png" width="16px" height="16px" alt="local" />}
                 </div>
               </InteractiveComponent>
             </div>

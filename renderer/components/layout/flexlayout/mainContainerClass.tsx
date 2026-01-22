@@ -2,8 +2,6 @@
 /* eslint-disable no-undef */
 /* eslint-disable camelcase */
 
-import * as React from "react"
-import * as Prism from "prismjs"
 import {
   Action,
   Actions,
@@ -22,45 +20,72 @@ import {
   TabNode,
   TabSetNode
 } from "flexlayout-react"
+import fs from "fs"
+import Image from "next/image"
+import * as Prism from "prismjs"
+import "prismjs/themes/prism-coy.css"
+import * as React from "react"
+import * as Icons from "react-bootstrap-icons"
+import Iframe from "react-iframe"
+import { toast } from "react-toastify"
+import { getPathSeparator, loadCSVFromPath, loadJSONFromPath, loadJsonPath, loadXLSXFromPath } from "../../../utilities/fileManagementUtils"
+import DataTableWrapperBPClass from "../../dataTypeVisualisation/dataTableWrapperBPClass"
+import DataTableFromDB from "../../dbComponents/dataTableFromDB"
+import InputToolsComponent from "../../dbComponents/InputToolsComponent"
+import MEDprofilesViewer from "../../input/MEDprofiles/MEDprofilesViewer"
+import ApplicationPage from "../../mainPages/application"
+import EvaluationPage from "../../mainPages/evaluation"
+import ExploratoryPage from "../../mainPages/exploratory"
+import ExtractionImagePage from "../../mainPages/extractionImage"
+import ExtractionMEDimagePage from "../../mainPages/extractionMEDimage"
+import ExtractionTextPage from "../../mainPages/extractionText"
+import ExtractionLandingPage from "../../mainPages/extractionLandingPage"
+import ExtractionTSPage from "../../mainPages/extractionTS"
+import HomePage from "../../mainPages/home"
+import HtmlViewer from "../../mainPages/htmlViewer"
+import LearningPage from "../../mainPages/learning"
+import MED3paPage from "../../mainPages/med3pa"
+import MEDflPage from "../../mainPages/medfl"
+import ModelViewer from "../../mainPages/modelViewer"
+import ModulePage from "../../mainPages/moduleBasics/modulePage"
+import OutputPage from "../../mainPages/output"
+import SettingsPage from "../../mainPages/settings"
+import LoggingPage from "../../mainPages/logging"
+import Superset from "../../mainPages/superset/supersetEmbedder"
+import SupersetFrame from "../../mainPages/superset/SupersetFrame"
+import TerminalPage from "../../mainPages/terminal"
+import IPythonPage from "../../mainPages/ipython"
+import { getCollectionSize, updateMEDDataObjectName, updateMEDDataObjectPath, updateMEDDataObjectType } from "../../mongoDB/mongoDBUtils"
+import { DataContext } from "../../workspace/dataContext"
+import { MEDDataObject } from "../../workspace/NewMedDataObject"
+import { LayoutModelContext } from "../layoutContext"
 import { showPopup } from "./popupMenu"
 import { TabStorage } from "./tabStorage"
 import { Utils } from "./utils"
-import "prismjs/themes/prism-coy.css"
-import LearningPage from "../../mainPages/learning"
-import { loadCSVFromPath, loadJsonPath, loadJSONFromPath, loadXLSXFromPath } from "../../../utilities/fileManagementUtils"
-import { LayoutModelContext } from "../layoutContext"
-import { DataContext } from "../../workspace/dataContext"
-import MedDataObject from "../../workspace/medDataObject"
-import InputPage from "../../mainPages/input"
-import ExploratoryPage from "../../mainPages/exploratory"
-import EvaluationPage from "../../mainPages/evaluation"
-import ExtractionTextPage from "../../mainPages/extractionText"
-import ExtractionImagePage from "../../mainPages/extractionImage"
-import ExtractionMEDimagePage from "../../mainPages/extractionMEDimage"
-import ExtractionTSPage from "../../mainPages/extractionTS"
-import MEDflPage from "../../mainPages/medfl"
-import MED3paPage from "../../mainPages/med3pa"
-import MEDprofilesViewer from "../../input/MEDprofiles/MEDprofilesViewer"
-import HomePage from "../../mainPages/home"
-import TerminalPage from "../../mainPages/terminal"
-import OutputPage from "../../mainPages/output"
-import ApplicationPage from "../../mainPages/application"
-import SettingsPage from "../../mainPages/settings"
-import ModulePage from "../../mainPages/moduleBasics/modulePage"
-import * as Icons from "react-bootstrap-icons"
-import Image from "next/image"
 import ZoomPanPinchComponent from "./zoomPanPinchComponent"
-import DataTableWrapperBPClass from "../../dataTypeVisualisation/dataTableWrapperBPClass"
-import HtmlViewer from "../../mainPages/htmlViewer"
-import ModelViewer from "../../mainPages/modelViewer"
-import NotebookEditor from "../../mainPages/notebookEditor"
-import Iframe from "react-iframe"
+import CodeEditor from "../../flow/codeEditor"
+import { WorkspaceContext } from "../../workspace/workspaceContext"
+import { confirmDialog } from "primereact/confirmdialog"
+import JupyterNotebookViewer from "../../flow/JupyterNoteBookViewer"
+import { ipcRenderer } from "electron"
+
+const util = require("util")
+const exec = util.promisify(require("child_process").exec)
+const { spawn } = require('child_process')
+import { SiApachesuperset  } from "react-icons/si"
+import { PiGraph } from "react-icons/pi"
 
 var fields = ["Name", "Field1", "Field2", "Field3", "Field4", "Field5"]
+
+export const defaultJupyterPort = 8900
 
 interface LayoutContextType {
   layoutRequestQueue: any[]
   setLayoutRequestQueue: (value: any[]) => void
+  isEditorOpen: boolean
+  setIsEditorOpen: (value: boolean) => void
+  jupyterStatus: { running: boolean; error: string | null }
+  setJupyterStatus: (value: { running: boolean; error: string | null }) => void
 }
 
 interface DataContextType {
@@ -83,9 +108,22 @@ interface MyComponentState {
  * @returns the main container
  */
 const MainContainer = (props) => {
-  const { layoutRequestQueue, setLayoutRequestQueue } = React.useContext(LayoutModelContext) as unknown as LayoutContextType
+  const { layoutRequestQueue, setLayoutRequestQueue, isEditorOpen, setIsEditorOpen, jupyterStatus, setJupyterStatus } = React.useContext(LayoutModelContext) as unknown as LayoutContextType
   const { globalData, setGlobalData } = React.useContext(DataContext) as unknown as DataContextType
-  return <MainInnerContainer layoutRequestQueue={layoutRequestQueue} setLayoutRequestQueue={setLayoutRequestQueue} globalData={globalData} setGlobalData={setGlobalData} />
+  const { workspace } = React.useContext(WorkspaceContext) as unknown as { workspace: any }
+  return (
+    <MainInnerContainer
+      layoutRequestQueue={layoutRequestQueue}
+      setLayoutRequestQueue={setLayoutRequestQueue}
+      isEditorOpen={isEditorOpen}
+      setIsEditorOpen={setIsEditorOpen}
+      jupyterStatus={jupyterStatus}
+      setJupyterStatus={setJupyterStatus}
+      globalData={globalData}
+      setGlobalData={setGlobalData}
+      workspace={workspace}
+    />
+  )
 }
 
 /**
@@ -98,7 +136,9 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
   showingPopupMenu: boolean = false
   htmlTimer?: any = null
   layoutRef?: React.RefObject<Layout>
+  saved: { [key: string]: boolean } = {}
   static contextType = LayoutModelContext
+  jupyterStarting: boolean = false
 
   constructor(props: any) {
     super(props)
@@ -118,6 +158,21 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
     }
   }
 
+  async stopJuypterServerEvent(e: Event) {
+    e.preventDefault()
+    await this.stopJupyterServer()
+  }
+
+  handleSaveTab = (event) => {
+    if ((event.ctrlKey || event.metaKey) && event.key === 's') {
+      event.preventDefault() // Prevent browser's save dialog
+      const tabToSave = this.state.model?.getActiveTabset()?.getSelectedNode() as TabNode
+      if (tabToSave) {
+        document.body.dispatchEvent(new CustomEvent("saveFileEvent", { detail: { tabId: tabToSave.getId() } }))
+      }
+    }
+  }
+
   /**
    * Callback when the component is mounted
    * @returns nothing
@@ -126,6 +181,8 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
   componentDidMount() {
     this.loadLayout("default", false)
     document.body.addEventListener("touchmove", this.preventIOSScrollingWhenDragging, { passive: false })
+    document.body.addEventListener("close", this.stopJuypterServerEvent, { passive: false })
+    document.body.addEventListener('keydown', this.handleSaveTab)
     const { layoutRequestQueue, setLayoutRequestQueue } = this.context as LayoutContextType
     if (layoutRequestQueue.length > 0) {
       layoutRequestQueue.forEach((action) => {
@@ -137,6 +194,235 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
       })
       setLayoutRequestQueue([])
     }
+  }
+
+  getJupyterPid = async (port) => {
+    if (!port) {
+      throw new Error("Port is required to get Jupyter PID")
+    }
+    const { exec } = require('child_process')
+    const { promisify } = require('util')
+    const execAsync = promisify(exec)
+
+    const platform = process.platform
+    const command = platform === 'win32' 
+      ? `netstat -ano | findstr :${port}`
+      : `lsof -ti :${port} | head -n 1`
+
+    try {
+      const { stdout, stderr } = await execAsync(command)
+      if (stderr) throw new Error(stderr)
+      
+      return platform === 'win32'
+        ? stdout.trim().split('\n')[0]?.split(/\s+/).filter(Boolean).pop() || null
+        : stdout.trim()
+    } catch (error) {
+      throw new Error(`PID lookup failed: ${error.message}`)
+    }
+  }
+
+
+  startJupyterServer = async () => {
+    const { jupyterStatus, setJupyterStatus } = this.props as LayoutContextType
+    // Get Python path
+    const pythonPath = await this.getPythonPath()
+    if (!pythonPath) {
+      toast.error("Python path is not set. Jupyter server cannot be started.")
+      setJupyterStatus({ running: false, error: "Python path is not set. Jupyter server cannot be started." })
+      return
+    }
+    
+    await this.setJupyterConfig()
+    const workspacePath = this.props.workspace?.workingDirectory?.path
+    if (!workspacePath) {
+      toast.error("No workspace path found. Jupyter server cannot be started.")
+      setJupyterStatus({ running: false, error: "No workspace path found. Jupyter server cannot be started." })
+      return
+    }
+
+    // Check jypyter status again
+    const isRunning = await this.checkJupyterIsRunning()
+    if (!isRunning) {
+      const jupyter = spawn(pythonPath, [
+        '-m', 'jupyter', 'notebook',
+        `--NotebookApp.token=''`,
+        `--NotebookApp.password=''`,
+        '--no-browser',
+        `--port=${defaultJupyterPort}`,
+        `${workspacePath}`
+      ])
+      this.jupyterStarting = false
+      setJupyterStatus({running: true, error: null })
+      toast.success("Jupyter server started successfully.")
+    }
+  }
+
+  getPythonPath = async () => {
+    const { setJupyterStatus } = this.props as LayoutContextType
+    let pythonPath = ""
+    await ipcRenderer.invoke("getBundledPythonEnvironment").then((res) => {
+      pythonPath = res
+    })
+    // Check if pythonPath is set
+    if (pythonPath === "") {
+      toast.error("Python path is not set. Jupyter server cannot be started.")
+      setJupyterStatus({ running: false, error: "Python path is not set. Jupyter server cannot be started." })
+      return null
+    }
+    return pythonPath
+  }
+
+  checkJupyterIsRunning = async () => {
+    const { setJupyterStatus } = this.props as LayoutContextType
+    try {
+      const pythonPath = await this.getPythonPath()
+      if (!pythonPath) {
+        setJupyterStatus({ running: false, error: "Python path is not set. Cannot check Jupyter server status." })
+        console.error("Python path is not set. Cannot check Jupyter server status.")
+        return false
+      }
+      const result = await exec(`${pythonPath} -m jupyter notebook list`)
+      if (result.stderr) {
+        setJupyterStatus({ running: false, error: "Jupyter server is not running. You can start it from the settings page." })
+        console.error("Error checking Jupyter server status:", result.stderr)
+        return false
+      }
+      const isRunning = result.stdout.includes(defaultJupyterPort.toString())
+      setJupyterStatus({ running: isRunning, error: isRunning ? null : "Jupyter server is not running. You can start it from the settings page." })
+      return isRunning
+    } catch (error) {
+      setJupyterStatus({ running: false, error: "Error while checking Jupyter server status." })
+      console.error("Error checking Jupyter server status:", error)
+      return false
+    }
+  }
+
+  setJupyterConfig = async () => {
+    const { setJupyterStatus } = this.props as LayoutContextType
+    let pythonPath = await this.getPythonPath()
+    if (!pythonPath) {
+      setJupyterStatus({ running: false, error: "Python path is not set. Cannot configure Jupyter." })
+      console.error("Python path is not set. Cannot configure Jupyter.")
+      return
+    }
+    // Check if jupyter is installed
+    try {
+      await exec(`${pythonPath} -m jupyter --version`).then((result) => {
+        const trimmedVersion = result.stdout.split("\n")
+        const includesJupyter = trimmedVersion.some((line) => line.startsWith("jupyter"))
+        if (!includesJupyter) {
+          throw new Error("Jupyter is not installed")
+        }
+      })
+    } catch (error) {
+      toast.error("Jupyter is not installed. Please install Jupyter to use this feature.")
+      console.error("Jupyter is not installed", error)
+      return
+    }
+    // Check if jupyter_notebook_config.py exists and update it
+    try {
+      const result = await exec(`${pythonPath} -m jupyter --paths`)
+      if (result.stderr) {
+        setJupyterStatus({ running: false, error: "Failed to get Jupyter paths." })
+        console.error("Error getting Jupyter paths:", result.stderr)
+        toast.error("Failed to locate Jupyter config directory.")
+        return
+      }
+      const configPath = result.stdout.split("\n").find(line => line.includes(".jupyter"))
+      
+      if (configPath) {
+        const configFilePath = configPath.trim() + "/jupyter_notebook_config.py"
+        
+        // Check if the file exists
+        if (!fs.existsSync(configFilePath)) {
+          try {
+            // Await the config generation
+            const output = await exec(`${pythonPath} -m jupyter notebook --generate-config`)            
+            if (output.stderr) {
+              console.error("Error generating Jupyter config:", output.stderr)
+              toast.error("Error generating Jupyter config. Please check the console for more details.")
+              return
+            }
+          } catch (error) {
+            console.error("Error generating config:", error)
+            toast.error("Failed to generate Jupyter config")
+            return
+          }
+        }
+        
+        // Get last line of configfilepath
+        const lastLine = fs.readFileSync(configFilePath, "utf8").split("\n").filter(Boolean).slice(-1)[0]
+        if (!lastLine.includes("c.NotebookApp.tornado_settings")) {
+          // Add config settings
+          fs.appendFileSync(configFilePath, `\nc.ServerApp.allow_unauthenticated_access = True`)
+          fs.appendFileSync(configFilePath, `\nc.ServerApp.token = ''`)
+          fs.appendFileSync(configFilePath, `\nc.ServerApp.password = '' `)
+          fs.appendFileSync(configFilePath, `\nc.ServerApp.allow_unauthenticated_access = True`)
+          fs.appendFileSync(configFilePath, `\nc.NotebookApp.tornado_settings={'headers': {'Content-Security-Policy': "frame-ancestors 'self' http://localhost:8888 http://localhost:3000 http://localhost:8080 http://localhost:8900 'unsafe-eval'"}}\n`)
+        }
+      }
+    } catch (error) {
+      setJupyterStatus({ running: false, error: "Failed to configure Jupyter." })
+      console.error("Error in Jupyter config setup:", error)
+      toast.error("Failed to configure Jupyter")
+    }
+  }
+
+  stopJupyterServer = async () => {
+    const { setJupyterStatus } = this.props as LayoutContextType
+    const pythonPath = await this.getPythonPath()
+    
+    if (!pythonPath) {
+      setJupyterStatus({ running: false, error: "Python path is not set. Cannot stop Jupyter server." })
+      console.error("Python path is not set. Cannot stop Jupyter server.")
+      return
+    }
+
+    try {
+      // Get the PID first
+      const pid = await this.getJupyterPid(defaultJupyterPort)
+      
+      if (!pid) {
+        console.log("No running Jupyter server found")
+        setJupyterStatus({ running: false, error: null })
+        return
+      }
+
+      // Platform-specific kill command
+      const killCommand = process.platform === 'win32'
+        ? `taskkill /PID ${pid} /F`
+        : `kill ${pid}`
+
+      await exec(killCommand)
+      console.log(`Successfully stopped Jupyter server (PID: ${pid})`)
+      setJupyterStatus({ running: false, error: null })
+    } catch (error) {
+      console.error("Error stopping Jupyter server:", error)
+      // Fallback to original method if PID method fails
+      try {
+        await exec(`${pythonPath} -m jupyter notebook stop ${defaultJupyterPort}`)
+        setJupyterStatus({ running: false, error: null })
+      } catch (fallbackError) {
+        console.error("Fallback stop method also failed:", fallbackError)
+        setJupyterStatus({ 
+          running: false, 
+          error: "Failed to stop server" 
+        })
+      }
+    } finally {
+      this.jupyterStarting = false
+    }
+  }
+
+
+  /**
+   * Callback when the component is unmounted
+   * @returns nothing
+   * @summary Removes the save shortcut event listener
+   */
+  componentWillUnmount(): void {
+    document.body.removeEventListener('keydown', this.handleSaveTab)
+    this.stopJupyterServer()
   }
 
   /**
@@ -154,7 +440,7 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
       let uuidToCheck = idMap[key]._attributes.config?.uuid
       // let dataObject = uuidToCheck?.uuid
       console.log("dataObject", dataObject)
-      if (uuidToCheck !== undefined && uuidToCheck === dataObject._UUID) {
+      if (uuidToCheck !== undefined && uuidToCheck === dataObject.uuid) {
         tabsToDelete.push(idMap[key])
       }
     })
@@ -498,21 +784,97 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
   }
 
   /**
+   * Update savedCode state
+   * @param savedCode the new value of savedCode
+   */
+  updateSavedCode = (savedCode: boolean, nodeId: string) => {
+    const fileName = this.state.model?.getNodeById(nodeId)?.getHelpText() ?? this.state.model?.getNodeById(nodeId)?.getId()
+    this.saved[nodeId] = savedCode
+    if (fileName) this.state.model!.doAction(Actions.renameTab(nodeId, fileName + (savedCode ? "" : "*")))
+  }
+
+  /**
    * Callback when an action is dispatched by flexlayout.
    * @param action action that was dispatched
    * @returns optionally return a Action to replace the action or null to not dispatch action
    * @description here we catch RENAME_TAB actions and update the medDataObject name
    */
   onAction = (action: Action) => {
-    console.log("MainContainer action: ", action, this.layoutRef, this.state.model)
+    const { isEditorOpen, setIsEditorOpen } = this.props as LayoutContextType
+    console.log("MainContainer action: ", action, this.layoutRef, this.state.model, this.saved)
     if (action.type === Actions.RENAME_TAB) {
+      if (isEditorOpen) {
+        console.error("Please close the editor before renaming")
+        toast.error("Please close the editor before renaming")
+        return Actions.RENAME_TAB
+      }
       const { globalData, setGlobalData } = this.props as DataContextType
       let newName = action.data.text
       let medObject = globalData[action.data.node]
       console.log("medObject", medObject)
       if (medObject) {
-        MedDataObject.handleNameChange(medObject, newName, globalData, setGlobalData)
+        // Check name is not empty
+        if (newName == "") {
+          toast.error("Error: Name cannot be empty")
+          return Actions.RENAME_TAB
+        }
+        // Check if the name keeps the original extension
+        if (medObject.type != "directory") {
+          const newNameParts = newName.split(".")
+          if (medObject.type != newNameParts[newNameParts.length - 1]) {
+            toast.error("Invalid Name")
+            return Actions.RENAME_TAB
+          }
+        }
+        // Check if the new name is different from the original
+        if (medObject.name == newName) {
+          toast.warning("Warning: same name")
+          return Actions.RENAME_TAB
+        }
+        // Check if the name is not DATA or EXPERIMENTS
+        if (["ROOT", "DATA", "EXPERIMENTS"].includes(newName)) {
+          toast.error("Error: This name is reserved and cannot be used")
+          return Actions.RENAME_TAB
+        }
+        // update the medDataObject name
+        let success = updateMEDDataObjectName(medObject.id, newName)
+        if (!success) {
+          toast.error("Failed to update MEDDataObject name of the file")
+          console.error("Failed to update MEDDataObject name")
+          return action
+        }
+        // Update the path
+        let oldPath = medObject.path
+        let newPath = oldPath.split(getPathSeparator()).slice(0, -1).join(getPathSeparator()) + getPathSeparator() + newName
+        success = updateMEDDataObjectPath(medObject.id, newPath)
+        if (!success) {
+          toast.error("Failed to update MEDDataObject path of the file")
+          console.error("Failed to update MEDDataObject path")
+          return null
+        }
+        // Update the local filename
+        if (medObject.inWorkspace) {
+          fs.renameSync(oldPath, newPath)
+          // Update the workspace data object
+          MEDDataObject.updateWorkspaceDataObject()
+        }
       }
+    } else if (action.type === Actions.DELETE_TAB && this.saved[action.data.node] === false) {
+      return confirmDialog({
+        closable: false,
+        message: `You have unsaved changes in the code editor. Are you sure you want to close the tab?`,
+        header: "Unsaved changes",
+        icon: "pi pi-exclamation-triangle",
+        accept: () => {
+          this.updateSavedCode(true, action.data.node)
+          this.state.model!.doAction(action)
+        },
+        reject: () => {
+          return null // Return null to cancel the action
+        }
+      })
+    } else if (action.type === Actions.DELETE_TAB) {
+      setIsEditorOpen(false)
     }
     return action
   }
@@ -527,6 +889,7 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
    * @returns the react component to display
    */
   factory = (node: TabNode) => {
+    const { isEditorOpen, setIsEditorOpen } = this.props as LayoutContextType
     var component = node.getComponent()
 
     /**
@@ -593,14 +956,14 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
       const jsonText = JSON.stringify(node.getExtraData().data, null, "\t")
       const html = Prism.highlight(jsonText, Prism.languages.javascript, "javascript")
       return (
-        <ModulePage pageId={"jsonViewer-" + config.path} configPath={config.path} shadow>
+        <ModulePage pageId={"jsonViewer-" + config.path} shadow>
           <pre style={{ tabSize: "20px" }} dangerouslySetInnerHTML={{ __html: html }} />
         </ModulePage>
       )
     } else if (component === "dataTable") {
       const config = node.getConfig()
       if (node.getExtraData().data == null) {
-        const dfd = require("danfojs-node")
+        const dfd = require("../../../utilities/danfo.js")
         const whenDataLoaded = (data) => {
           const { globalData, setGlobalData } = this.props as DataContextType
           let globalDataCopy = globalData
@@ -638,21 +1001,56 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
           />
         </>
       )
+    } else if (component === "dataTableFromDB") {
+      const config = node.getConfig()
+      if (!config.fileSize || typeof config.fileSize.then === "function") {
+        getCollectionSize(config.id)
+          .then((size) => {
+            config.fileSize = size
+
+            this.forceUpdate() // Force a re-render to update the component with the new fileSize
+          })
+          .catch((error) => {
+            console.error("Error getting collection size:", error)
+          })
+      }
+
+      // toast message saying the file will be read only
+      if (config.extension === "view") {
+        toast.info("File opened in read-only mode.")
+      }
+
+      if (node.getExtraData().data == null) {
+        const whenDataLoaded = (data) => {
+          node.getExtraData().data = data
+        }
+        // const { M, setGlobalData } = this.props as DataContextType
+      }
+
+      return (
+        <>
+          <DataTableFromDB data={config} isReadOnly={config.extension === "view"} />
+        </>
+      )
     } else if (component === "learningPage") {
       if (node.getExtraData().data == null) {
         const config = node.getConfig()
 
-        return <LearningPage pageId={config.uuid} configPath={config.path} />
+        return <LearningPage pageId={config.id} />
+      }
+    } else if (component === "InputToolsDB") {
+      if (node.getExtraData().data == null) {
+        const config = node.getConfig().thoseProps
+        if (config.thoseProps !== null) {
+          return <InputToolsComponent {...config} />
+        } else {
+          return <InputToolsComponent {...config} />
+        }
       }
     } else if (component === "inputPage") {
       if (node.getExtraData().data == null) {
-        const config = node.getConfig()
-
-        if (config.path !== null) {
-          return <InputPage pageId={config.uuid} configPath={config.path} />
-        } else {
-          return <InputPage pageId={"InputPage"} />
-        }
+        const config = node.getConfig().thoseProps
+        return <InputToolsComponent {...config} />
       }
     } else if (component === "iFramePage") {
       if (node.getExtraData().data == null) {
@@ -664,7 +1062,7 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
       if (node.getExtraData().data == null) {
         const config = node.getConfig()
         if (config.path !== null) {
-          return <ExploratoryPage pageId={config.uuid} configPath={config.path} />
+          return <ExploratoryPage pageId={config.uuid} />
         } else {
           return <ExploratoryPage pageId={"ExploratoryPage"} />
         }
@@ -672,32 +1070,31 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
     } else if (component === "imageViewer") {
       if (node.getExtraData().data == null) {
         const config = node.getConfig()
-        if (config.path !== null) {
-          console.log("config.path", config.path)
+        console.log("imageViewer config", config)
+        if (config.path) {
           const nativeImage = require("electron").nativeImage
           const image = nativeImage.createFromPath(config.path)
-          console.log("image", image)
 
           let height = image.getSize().height / 3
           let width = image.getSize().width / 3
 
           return <ZoomPanPinchComponent imagePath={config.path} image={image.toDataURL()} width={width} height={height} options={""} />
+        } else if (config.uuid) {
+          return <ZoomPanPinchComponent imageID={config.uuid} />
+        } else {
+          return <h4>IMAGE VIEWER - Could not load image</h4>
         }
       }
     } else if (component === "evaluationPage") {
       if (node.getExtraData().data == null) {
         const config = node.getConfig()
-        if (config.path !== null) {
-          return <EvaluationPage pageId={config.uuid} configPath={config.path} />
-        } else {
-          return <EvaluationPage pageId={"EvaluationPage"} />
-        }
+        return <EvaluationPage pageId={config.id} />
       }
     } else if (component === "extractionTextPage") {
       if (node.getExtraData().data == null) {
         const config = node.getConfig()
         if (config.path !== null) {
-          return <ExtractionTextPage pageId={config.uuid} configPath={config.path} />
+          return <ExtractionTextPage pageId={config.uuid} />
         } else {
           return <ExtractionTextPage pageId={"ExtractionTextPage"} />
         }
@@ -706,7 +1103,7 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
       if (node.getExtraData().data == null) {
         const config = node.getConfig()
         if (config.path !== null) {
-          return <MEDprofilesViewer pageId={config.uuid} configPath={config.path} MEDclassesFolder={config?.MEDclassesFolder} MEDprofilesBinaryFile={config?.MEDprofilesBinaryFile} />
+          return <MEDprofilesViewer pageId={config.uuid} MEDclassesFolder={config?.MEDclassesFolder} MEDprofilesBinaryFile={config?.MEDprofilesBinaryFile} />
         } else {
           return <MEDprofilesViewer pageId={"MEDprofilesViewer"} MEDclassesFolder={config?.MEDclassesFolder} MEDprofilesBinaryFile={config?.MEDprofilesBinaryFile} />
         }
@@ -715,16 +1112,18 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
       if (node.getExtraData().data == null) {
         const config = node.getConfig()
         if (config.path !== null) {
-          return <ExtractionImagePage pageId={config.uuid} configPath={config.path} />
+          return <ExtractionImagePage pageId={config.uuid} />
         } else {
           return <ExtractionImagePage pageId={"ExtractionImagePage"} />
         }
       }
+    } else if (component === "extractionLandingPage") {
+      return <ExtractionLandingPage/>
     } else if (component === "extractionMEDimagePage") {
       if (node.getExtraData().data == null) {
         const config = node.getConfig()
         if (config.path !== null) {
-          return <ExtractionMEDimagePage pageId={config.uuid} configPath={config.path} />
+          return <ExtractionMEDimagePage pageId={config.uuid} />
         } else {
           return <ExtractionMEDimagePage pageId={"ExtractionMEDimagePage"} />
         }
@@ -733,7 +1132,7 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
       if (node.getExtraData().data == null) {
         const config = node.getConfig()
         if (config.path !== null) {
-          return <ExtractionTSPage pageId={config.uuid} configPath={config.path} />
+          return <ExtractionTSPage pageId={config.uuid} />
         } else {
           return <ExtractionTSPage pageId={"ExtractionTSPage"} />
         }
@@ -742,7 +1141,7 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
       if (node.getExtraData().data == null) {
         const config = node.getConfig()
         if (config.path !== null) {
-          return <MEDflPage pageId={config.uuid} configPath={config.path} />
+          return <MEDflPage pageId={config.uuid} />
         } else {
           return <MEDflPage pageId={"MEDflPage"} />
         }
@@ -751,7 +1150,7 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
       if (node.getExtraData().data == null) {
         const config = node.getConfig()
         if (config.path !== null) {
-          return <MED3paPage pageId={config.uuid} configPath={config.path} />
+          return <MED3paPage pageId={config.uuid} />
         } else {
           return <MED3paPage pageId={"MED3paPage"} />
         }
@@ -760,16 +1159,43 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
       if (node.getExtraData().data == null) {
         const config = node.getConfig()
         if (config.path !== null) {
-          return <ApplicationPage pageId={config.uuid} configPath={config.path} />
+          return <ApplicationPage pageId={config.uuid} />
         } else {
           return <ApplicationPage pageId={"EvaluationPage"} />
+        }
+      }
+    } else if (component === "logging") {
+      if (node.getExtraData().data == null) {
+        const config = node.getConfig()
+        return <LoggingPage />
+      }
+    } else if (component === "supersetPage") {
+      if (node.getExtraData().data == null) {
+        const config = node.getConfig()
+        if (config.path !== null) {
+          return <Superset pageId={config.uuid} />
+        } else {
+          return <Superset pageId={"supersetPage"} />
+        }
+      }
+    } else if (component === "SupersetFramePage") {
+      if (node.getExtraData().data == null) {
+        const config = node.getConfig()
+        if (config.path !== null) {
+          return <SupersetFrame pageId={config.uuid} />
+        } else {
+          return <SupersetFrame pageId={"supersetPage"} />
         }
       }
     } else if (component === "terminal") {
       if (node.getExtraData().data == null) {
         const config = node.getConfig()
-
         return <TerminalPage />
+      }
+    } else if (component === "ipython") {
+      if (node.getExtraData().data == null) {
+        const config = node.getConfig()
+        return <IPythonPage />
       }
     } else if (component === "output") {
       if (node.getExtraData().data == null) {
@@ -781,13 +1207,11 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
       if (node.getExtraData().data == null) {
         const config = node.getConfig()
         console.log("config", config)
-        return <ModelViewer pageId={config.uuid} configPath={config.path} />
+        return <ModelViewer pageId={config.id} />
       }
     } else if (component === "htmlViewer") {
       if (node.getExtraData().data == null) {
-        const config = node.getConfig()
-        console.log("config", config)
-        return <HtmlViewer configPath={config.path} />
+        return <HtmlViewer config={node.getConfig()} />
       }
     } else if (component === "iframeViewer") {
       if (node.getExtraData().data == null) {
@@ -795,14 +1219,19 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
         console.log("config", config)
         return <Iframe url={config.path} width="100%" height="100%" />
       }
-    } else if (component === "codeEditor") {
+    } else if (component === "codeEditor" || component === "Code Editor") {
       if (node.getExtraData().data == null) {
         const config = node.getConfig()
-        console.log("config", config)
-        return <NotebookEditor url={config.path} />
+        setIsEditorOpen(true)
+        return <CodeEditor id={config.uuid} path={config.path} updateSavedCode={this.updateSavedCode}  />
+      }
+    } else if (component === "jupyterNotebook") {
+      if (node.getExtraData().data == null) {
+        const config = node.getConfig()
+        return <JupyterNotebookViewer filePath={config.path} startJupyterServer={this.startJupyterServer}/>
       }
     } else if (component === "Settings") {
-      return <SettingsPage />
+      return <SettingsPage checkJupyterIsRunning={this.checkJupyterIsRunning} startJupyterServer={this.startJupyterServer} stopJupyterServer={this.stopJupyterServer} />
     } else if (component !== "") {
       if (node.getExtraData().data == null) {
         const config = node.getConfig()
@@ -856,6 +1285,8 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
           return <Icons.FiletypeJson />
         case "txt":
           return <Icons.FiletypeTxt />
+        case "md":
+          return <Icons.FiletypeMd />
         case "pdf":
           return <Icons.FiletypePdf />
         case "png":
@@ -867,7 +1298,7 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
         case "py":
           return <Icons.FiletypePy />
         case "ipynb":
-          return <Icons.FiletypePy />
+          return <Icons.JournalCode />
         case "html":
           return <Icons.FiletypeHtml />
         case "xlsx":
@@ -878,7 +1309,7 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
       let icon = <span style={{ marginRight: 3 }}>{iconToReturn}</span>
       return icon
     } else {
-      if (component === "inputPage") {
+      if (component === "InputToolsDB" || component === "inputPage" || component === "dataTableFromDB") {
         return <span style={{ marginRight: 3 }}>🛢️</span>
       }
       if (component === "exploratoryPage") {
@@ -893,6 +1324,9 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
       if (component === "learningPage") {
         return <span style={{ marginRight: 3 }}>📖</span>
       }
+      if (component === "extractionLandingPage") {
+        return <span style={{ marginRight: 3 }}>❯❯❯❯</span>
+      }
       if (component === "extractionTextPage") {
         return <span style={{ marginRight: 3 }}>📄</span>
       }
@@ -905,7 +1339,7 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
       if (component === "extractionTSPage") {
         return <span style={{ marginRight: 3 }}>📈</span>
       }
-      if (component === "medflPage") {
+      if (component === "medflPage" || component === "htmlViewer") {
         return <span style={{ marginRight: 3 }}>🌐</span>
       }
       if (component === "med3paPage") {
@@ -914,8 +1348,15 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
       if (component === "MEDprofilesViewer") {
         return <span style={{ marginRight: 3 }}>📊</span>
       }
-      if (component === "terminal") {
+      if (component === "terminal" || component === "logging") {
         return <span style={{ marginRight: 3 }}>🖥️</span>
+      }
+      if (component === "ipython") {
+        return (
+          <span style={{ marginRight: 3 }}>
+            <img src="/images/python.svg" alt="Python" style={{ width: "1.15em", height: "1.15em" }} />
+          </span>
+        )
       }
       if (component === "output") {
         return <span style={{ marginRight: 3 }}>🏁</span>
@@ -925,6 +1366,15 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
       }
       if (component === "Settings") {
         return <span style={{ marginRight: 3 }}>⚙️</span>
+      }
+      if (component === "supersetPage") {
+        return <SiApachesuperset style={{ marginRight: 3 }} />
+      }
+      if (component === "SupersetFramePage") {
+        return <SiApachesuperset style={{ marginRight: 3 }} />
+      }
+      if (component === "modelViewer") {
+        return <span><PiGraph className="icon-offset" style={{ color: "#97edfb" }} /></span>
       }
     }
   }
@@ -1040,6 +1490,7 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
       this.state.model!.doAction(Actions.selectTab(tabParams.id))
     } else {
       // We add the tab to the active tabset
+      this.saved[tabParams.id] = true
       this.layoutRef!.current!.addTabToActiveTabSet(tabParams)
     }
   }
@@ -1099,6 +1550,7 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
           onContextMenu={this.onContextMenu}
           onAuxMouseClick={this.onAuxMouseClick}
           onTabSetPlaceHolder={this.onTabSetPlaceHolder}
+          supportsPopout={false}
         />
       )
     }
@@ -1203,5 +1655,6 @@ function showImage(url, scale) {
 
   img.src = url
 }
+
 
 export { MainContainer }
