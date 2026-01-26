@@ -48,6 +48,12 @@ const HyperParameterInput = ({
   const [hasError, setHasError] = useState(false)
   const [errorMessage, setErrorMessage] = useState("")
 
+  // Determine the effective type (for multi parameters)
+  const effectiveType =
+  paramInfo.type === "multi"
+    ? (paramInfo.effectiveType || "string")
+    : paramInfo.type
+
   // Initialize component state based on currentValue prop
   useEffect(() => {
   const isEmptyDict =
@@ -87,17 +93,11 @@ const HyperParameterInput = ({
     setRangeEnd(paramInfo.max || 10);
     setRangeStep(getDefaultStep(effectiveType));
   }
-}, []);
+}, [currentValue, currentGridValues, effectiveType]);
 
-
-  // Determine the effective type (for multi parameters)
-  const effectiveType =
-    paramInfo.type === "multi"
-      ? paramInfo.effectiveType   // DOIT être fourni par le parent
-      : paramInfo.type
-
+  // maybe to delete
   useEffect(() => {
-  if (paramInfo.type === "multi") {
+  if (paramInfo.type === "multi" && inputMode === null) {
     if (effectiveType === "int" || effectiveType === "float") {
       setInputMode("range")
     } else {
@@ -105,6 +105,7 @@ const HyperParameterInput = ({
     }
   }
 }, [effectiveType])
+
 
 
   // Helper function to get default step based on parameter type

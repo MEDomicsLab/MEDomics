@@ -34,15 +34,29 @@ def sanitize_hyperparam(name, value):
 def sanitize_custom_grid(custom_grid: dict) -> dict:
     """
     Sanitize all hyperparameters coming from frontend
+    - cast values
+    - remove None
+    - drop empty parameters
     """
     clean_grid = {}
 
     for param, values in custom_grid.items():
-        clean_grid[param] = [
-            sanitize_hyperparam(param, v) for v in values
-        ]
+        if not isinstance(values, list):
+            continue
+
+        sanitized_values = []
+        for v in values:
+            sv = sanitize_hyperparam(param, v)
+            if sv is not None:
+                sanitized_values.append(sv)
+
+        # IMPORTANT : on ne garde le paramètre que s'il reste des valeurs
+        if sanitized_values:
+            clean_grid[param] = sanitized_values
 
     return clean_grid
+
+
 
 class ModelHandler(Node):
     """
@@ -236,7 +250,7 @@ class ModelHandler(Node):
                 if self.useTuningGrid and self.model_id in list(self.config_json['data']['internal'].keys()) and 'custom_grid' in list(self.config_json['data']['internal'][self.model_id].keys()):
                     raw_grid = self.config_json['data']['internal'][self.model_id]['custom_grid']
                     self.settingsTuning['custom_grid'] = sanitize_custom_grid(raw_grid)
-                    
+          
                     # Convert hidden_layer_sizes if it is a string
                     if "hidden_layer_sizes" in self.settingsTuning['custom_grid']:
                         val = self.settingsTuning['custom_grid']["hidden_layer_sizes"]
@@ -460,7 +474,7 @@ class ModelHandler(Node):
                 if self.useTuningGrid and self.model_id in list(self.config_json['data']['internal'].keys()) and 'custom_grid' in list(self.config_json['data']['internal'][self.model_id].keys()):
                     raw_grid = self.config_json['data']['internal'][self.model_id]['custom_grid']
                     self.settingsTuning['custom_grid'] = sanitize_custom_grid(raw_grid)
-                    
+
                     # Convert hidden_layer_sizes if it is a string
                     if "hidden_layer_sizes" in self.settingsTuning['custom_grid']:
                         val = self.settingsTuning['custom_grid']["hidden_layer_sizes"]

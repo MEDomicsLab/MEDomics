@@ -367,18 +367,40 @@ const TrainModelNode = ({ id, data }) => {
                     return (
                       <Panel header={header} key={model} collapsed toggleable>
                         {Object.keys(data.internal.tuningGrid[model].options).filter((setting => data.internal.tuningGrid[model].hasOwnProperty(setting))).map((setting) => {
+                        const baseParamInfo = data.internal.tuningGrid[model].options[setting]
+
+                        let resolvedType = baseParamInfo.type
+
+                        if (baseParamInfo.type === "multi") {
+                          const currentVal =
+                            data.internal.settings?.[setting] ??
+                            baseParamInfo.default_val
+
+                          if (typeof currentVal === "number") {
+                            resolvedType = Number.isInteger(currentVal) ? "int" : "float"
+                          } else if (typeof currentVal === "string") {
+                            resolvedType = "string"
+                          }
+                        }
+
                         return (
                           <HyperParameterInput
+                            key={setting}
                             name={setting}
                             model={model}
-                            paramInfo={data.internal.tuningGrid[model].options[setting]}
-                            currentValue={data.internal.tuningGrid[model].options[setting].default_val}
-                            currentGridValues={data.internal[model] ? data.internal[model]?.custom_grid[setting] : null}
+                            paramInfo={{
+                              ...baseParamInfo,
+                              resolvedType  
+                            }}
+                            currentValue={baseParamInfo.default_val}
+                            currentGridValues={
+                              data.internal[model]?.custom_grid?.[setting] ?? null
+                            }
                             onParamChange={onTuningParamChange}
                           />
                         )
-                        
-                      })}
+                      })
+                      }
 
                     </Panel>
                   )

@@ -1,3 +1,4 @@
+
 /* eslint-disable */
 import React, { useState, useEffect, useContext } from "react"
 import CreatableSelect from "react-select/creatable" // https://react-select.com/creatable
@@ -349,111 +350,110 @@ const Input = ({ name, settingInfos, currentValue, onInputChange, disabled = fal
           </>
         )
 
-        case "multi": {
-  const subType = detectMultiType(currentValue);
-  const [selectedSubType, setSelectedSubType] = useState(subType);
+                case "multi": {
+          const subType = detectMultiType(currentValue);
+          const [selectedSubType, setSelectedSubType] = useState(subType);
 
-  const defaultValueFromSubtype = (sub) => {
-    const subInfo = settingInfos.allowedTypes?.[sub];
-    if (!subInfo) return null;
-    return subInfo.default_val ?? null;
-  };
+          const defaultValueFromSubtype = (sub) => {
+            const subInfo = settingInfos.allowedTypes?.[sub];
+            if (!subInfo) return null;
+            return subInfo.default_val ?? null;
+          };
 
-  const tooltipId = `${name}_multi_info`;
+          const tooltipId = `${name}_multi_info`;
 
-  const allowed = settingInfos.allowedTypes || {};
-  const subInfo = allowed[selectedSubType] || {};
+          const allowed = settingInfos.allowedTypes || {};
+          const subInfo = allowed[selectedSubType] || {};
 
-  // On mappe le sous-type vers un vrai type existant ("string", "int", etc.)
-  const effectiveType = subInfo.mapTo || selectedSubType;
+          const effectiveType = subInfo.mapTo || selectedSubType;
 
-  return (
-    <>
-      <div
-        style={{
-          border: "1px solid #dcdcdc",
-          borderRadius: "8px",
-          backgroundColor: "#fafafa",
-          padding: "12px",
-          marginBottom: "12px",
-          marginTop: "8px"
-        }}
-      >
-        {/* Header + info */}
-        <div style={{ display: "flex", alignItems: "center", marginBottom: "6px" }}>
-          <label className="block text-sm font-medium text-gray-700" style={{ marginRight: "8px" }}>
-            {settingInfos.label || name}
-          </label>
+          return (
+            <>
+              <div
+                style={{
+                  border: "1px solid #dcdcdc",
+                  borderRadius: "8px",
+                  backgroundColor: "#fafafa",
+                  padding: "12px",
+                  marginBottom: "12px",
+                  marginTop: "8px"
+                }}
+              >
+                {/* Header + info */}
+                <div style={{ display: "flex", alignItems: "center", marginBottom: "6px" }}>
+                  <label className="block text-sm font-medium text-gray-700" style={{ marginRight: "8px" }}>
+                    {settingInfos.label || name}
+                  </label>
 
-          <span
-            id={tooltipId}
-            style={{
-              cursor: "pointer",
-              color: "#666",
-              fontSize: "16px",
-              userSelect: "none"
-            }}
-          >
-            ℹ️
-          </span>
+                  <span
+                    id={tooltipId}
+                    style={{
+                      cursor: "pointer",
+                      color: "#666",
+                      fontSize: "16px",
+                      userSelect: "none"
+                    }}
+                  >
+                    ℹ️
+                  </span>
 
-          <Tooltip anchorSelect={`#${tooltipId}`} place="right" style={{ maxWidth: "260px" }}>
-            <Markup
-              content={subInfo.description || "Select a subtype for this parameter."}
-            />
-          </Tooltip>
-        </div>
+                  <Tooltip anchorSelect={`#${tooltipId}`} place="right" style={{ maxWidth: "260px" }}>
+                    <Markup
+                      content={subInfo.description || "Select a subtype for this parameter."}
+                    />
+                  </Tooltip>
+                </div>
 
-        {/* TYPE SELECTOR */}
-        <select
-          className="form-select mb-2"
-          disabled={disabled}
-          value={selectedSubType}
-          onChange={(e) => {
-            const newType = e.target.value;
-            const info = allowed[newType] || {};
-            setSelectedSubType(newType);
+                {/* TYPE SELECTOR */}
+                <select
+                  className="form-select mb-2"
+                  disabled={disabled}
+                  value={selectedSubType}
+                  onChange={(e) => {
+                    const newType = e.target.value;
+                    const info = allowed[newType] || {};
+                    setSelectedSubType(newType);
 
-            setInputUpdate({
-              name,
-              value: defaultValueFromSubtype(newType),
-              type: "multi"
-            });
-          }}
-        >
-          {Object.entries(allowed).map(([key, info]) => (
-            <option key={key} value={key}>
-              {info.label || key}
-            </option>
-          ))}
-        </select>
+                    setInputUpdate({
+                      name,
+                      value: defaultValueFromSubtype(newType),
+                      type: "multi"
+                    });
+                  }}
+                >
+                  {Object.entries(allowed).map(([key, info]) => (
+                    <option key={key} value={key}>
+                      {info.label || key}
+                    </option>
+                  ))}
+                </select>
 
-        {/* REAL INPUT */}
-        {selectedSubType &&
-          <Input
-            name={name}
-            settingInfos={{
-              ...subInfo,
-              type: effectiveType,     // 🔥 string, int, dict…
-              tooltip: settingInfos.tooltip
-            }}
-            currentValue={currentValue}
-            disabled={disabled}
-            onInputChange={(u) =>
-              onInputChange({
-                name,
-                value: u.value,
-                type: "multi"
-              })
-            }
-          />
+                {/* REAL INPUT */}
+                {selectedSubType &&
+                  <Input
+                    name={name}
+                    settingInfos={{
+                      ...subInfo,
+                      type: effectiveType,    
+                      tooltip: settingInfos.tooltip
+                    }}
+                    currentValue={currentValue}
+                    disabled={disabled}
+                    onInputChange={(u) =>
+                      onInputChange({
+                        name,
+                        value: u.value,
+                        type: "multi"
+                      })
+                    }
+                  />
+                }
+              </div>
+
+              {createTooltip(settingInfos.tooltip, name)}
+            </>
+          );
         }
-      </div>
-
-      {createTooltip(settingInfos.tooltip, name)}
-    </>
-  );
-}
 
       // for list input (form select of all the options, multiple selection possible)
       case "list-multiple":

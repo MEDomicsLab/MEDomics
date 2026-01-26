@@ -748,47 +748,42 @@ const classificationModelSettings = {
                 "default_val": 0.0,
                 "tooltip": "float, default=0.0. The minimum weighted fraction of the sum total of weights (of all the input samples) required to be at a leaf node. Samples have equal weight when sample_weight is not provided."
             },
-            "max_features": {
+            max_features: {
             "type": "multi",
             "label": "Max features",
-            "default_val": "sqrt",
-            "tooltip": "Number of features to consider when looking for the best split. Can be a string (sqrt, log2), an integer, a fraction, or None.",
+            "tooltip": "Number of features to consider when looking for the best split.",
             "allowedTypes": {
-                "sqrt": {
-                "label": "Square root",
+                "string": {
+                "label": "String",
                 "mapTo": "string",
+                "choices": ["sqrt", "log2"],
                 "default_val": "sqrt",
-                "description": "Uses sqrt(n_features) features at each split."
-                },
-                "log2": {
-                "label": "Log2",
-                "mapTo": "string",
-                "default_val": "log2",
-                "description": "Uses log2(n_features) features at each split."
-                },
-                "none": {
-                "label": "All features",
-                "mapTo": "none",
-                "default_val": null,
-                "description": "Uses all available features (no feature subsampling)."
+                "description": "sqrt(n_features) or log2(n_features)"
                 },
                 "int": {
                 "label": "Integer",
                 "mapTo": "int",
-                "default_val": 10,
+                "default_val": 1,
                 "min": 1,
-                "description": "Uses an exact number of features at each split."
+                "description": "Fixed number of features"
                 },
                 "float": {
-                "label": "Float",
+                "label": "Fraction",
                 "mapTo": "float",
                 "default_val": 0.5,
-                "min": 0.01,
+                "min": 0.0,
                 "max": 1.0,
                 "step": 0.05,
-                "description": "Uses a fraction of the total number of features."
+                "description": "Fraction of features (0 < f ≤ 1)"
+                },
+                "none": {
+                "label": "All features",
+                "mapTo": "string",
+                "default_val": "None",
+                "description": "Use all features"
                 }
-            }
+            },
+            "default_val": "sqrt"
             },
             "max_leaf_nodes": {
                 "type": "NoneType",
