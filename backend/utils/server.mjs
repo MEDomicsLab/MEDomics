@@ -13,6 +13,7 @@ import { getPythonEnvironment, getBundledPythonEnvironment } from "./pythonEnv.j
 import { exec, execFile } from "child_process"
 import os from "os"
 import path from "path"
+import fs from "fs"
 
 export function findAvailablePort(startPort, endPort = 8000) {
   let killProcess = MEDconfig.portFindingMethod === PORT_FINDING_METHOD.FIX || !MEDconfig.runServerAutomatically
@@ -202,25 +203,51 @@ export async function runServer(isProd, serverPort, serverProcess, serverState, 
         chosenPort = port
         console.log("_dirname: ", __dirname)
         console.log("process.resourcesPath: ", process.resourcesPath)
+        console.log("process.execPath: ", process.execPath)
         // ensure the spawned process receives the actual chosen port as first argument
         if (Array.isArray(args) && args.length > 0) args[0] = serverPort
 
+        // In production, the GO executable is located relative to the
+        // packaged medomics-server executable, e.g. "./go_executables/server_go_win32.exe".
+        const exeDir = path.dirname(process.execPath)
+
         if (process.platform == "win32") {
-          serverProcess = execFile(path.join(process.resourcesPath, "go_executables\\server_go_win32.exe"), args, {
-            windowsHide: false,
-            env: env
-          })
-          serverState.serverIsRunning = true
+          const goPathWin = path.join(exeDir, "go_executables", "server_go_win32.exe")
+          console.log("Resolved GO executable path (win32):", goPathWin)
+
+          if (!fs.existsSync(goPathWin)) {
+            console.error("GO executable not found at:", goPathWin)
+          } else {
+            serverProcess = execFile(goPathWin, args, {
+              windowsHide: false,
+              env: env
+            })
+            serverState.serverIsRunning = true
+          }
         } else if (process.platform == "linux") {
-          serverProcess = execFile(path.join(process.resourcesPath, "go_executables/server_go"), args, {
-            windowsHide: false
-          })
-          serverState.serverIsRunning = true
+          const goPathLinux = path.join(exeDir, "go_executables", "server_go")
+          console.log("Resolved GO executable path (linux):", goPathLinux)
+
+          if (!fs.existsSync(goPathLinux)) {
+            console.error("GO executable not found at:", goPathLinux)
+          } else {
+            serverProcess = execFile(goPathLinux, args, {
+              windowsHide: false
+            })
+            serverState.serverIsRunning = true
+          }
         } else if (process.platform == "darwin") {
-          serverProcess = execFile(path.join(process.resourcesPath, "go_executables/server_go"), args, {
-            windowsHide: false
-          })
-          serverState.serverIsRunning = true
+          const goPathDarwin = path.join(exeDir, "go_executables", "server_go")
+          console.log("Resolved GO executable path (darwin):", goPathDarwin)
+
+          if (!fs.existsSync(goPathDarwin)) {
+            console.error("GO executable not found at:", goPathDarwin)
+          } else {
+            serverProcess = execFile(goPathDarwin, args, {
+              windowsHide: false
+            })
+            serverState.serverIsRunning = true
+          }
         }
         if (serverProcess) {
           serverProcess.stdout.on("data", function (data) {

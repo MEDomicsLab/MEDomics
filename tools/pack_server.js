@@ -190,6 +190,7 @@ async function main() {
       '    powershell Start-Process "%~f0" -Verb RunAs',
       '    exit /b',
       ')',
+      ':main',
       'medomics-server.exe ensure --json --go --mongo --jupyter',
       'medomics-server.exe start --json',
       ''

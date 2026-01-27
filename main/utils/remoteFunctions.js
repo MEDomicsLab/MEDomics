@@ -74,12 +74,18 @@ let tunnelInfo = {
   goStatus: 'unknown',
   mongoStatus: 'unknown',
   expressLogPath: null,
+  // Generic list of active tunnels
+  tunnels: [] // [{ name: string, localPort: number, remotePort: number, status: 'forwarding'|'closed' }]
 }
 
 export function setTunnelState(info) {
   // Exclude password
   const { password, privateKey, ...safeInfo } = info
-  tunnelInfo = { ...tunnelInfo, ...safeInfo, tunnelActive: safeInfo.tunnelActive }
+  const hasFlag = Object.prototype.hasOwnProperty.call(safeInfo, 'tunnelActive')
+  const nextTunnelActive = hasFlag
+    ? !!safeInfo.tunnelActive
+    : (typeof tunnelInfo.tunnelActive === 'boolean' ? tunnelInfo.tunnelActive : false)
+  tunnelInfo = { ...tunnelInfo, ...safeInfo, tunnelActive: nextTunnelActive }
 }
 
 export function clearTunnelState() {
@@ -996,6 +1002,21 @@ export async function startSSHTunnel({ host, username, privateKey, password, rem
 
         setActiveTunnel(conn)
         setActiveTunnelServer({})
+        // Mark tunnel active and emit a consolidated state update
+        try {
+          setTunnelState({
+            ...getTunnelState(),
+            host,
+            username,
+            remotePort: Number(remotePort),
+            localDBPort: localDBPort ? Number(localDBPort) : null,
+            remoteDBPort: remoteDBPort ? Number(remoteDBPort) : null,
+            localJupyterPort: localJupyterPort ? Number(localJupyterPort) : null,
+            remoteJupyterPort: remoteJupyterPort ? Number(remoteJupyterPort) : null,
+            tunnelActive: true
+          })
+          mainWindow.webContents.send('tunnelStateChanged', getTunnelState())
+        } catch {}
         resolve({ success: true })
       })
       .on("error", (err) => {
@@ -1007,85 +1028,24 @@ export async function startSSHTunnel({ host, username, privateKey, password, rem
 
 // IPC to rebind the Express forward to a newly discovered remote port
 ipcMain.handle('rebindExpressForward', async (_event, { newRemoteExpressPort, newLocalExpressPort } = {}) => {
-  try {
-    const conn = getActiveTunnel()
-    if (!conn) return { success: false, error: 'No active SSH tunnel' }
-    const servers = getActiveTunnelServer()
-    const state = getTunnelState()
-    const localPort = Number(newLocalExpressPort || state.localExpressPort)
-    const remotePort = Number(newRemoteExpressPort)
-    if (!remotePort || isNaN(remotePort)) return { success: false, error: 'invalid-remote-port' }
-    if (!localPort || isNaN(localPort)) return { success: false, error: 'invalid-local-port' }
-
-    // Close existing express forward listener if present
-    if (servers && servers.expressServer) {
-      try {
-        await new Promise((resolve) => servers.expressServer.close(() => resolve()))
-      } catch {}
-    }
-
-    // Create a new forward listener targeting the new remote port
-    const netServer = net.createServer((socket) => {
-      conn.forwardOut(socket.localAddress || '127.0.0.1', socket.localPort || 0, '127.0.0.1', remotePort, (err, stream) => {
-        if (err) { socket.destroy(); return }
-        socket.pipe(stream).pipe(socket)
-      })
-    })
-    await new Promise((resolve, reject) => {
-      netServer.once('error', reject)
-      netServer.listen(localPort, '127.0.0.1', () => resolve())
-    })
-
-    // Update active servers and tunnel state
-    setActiveTunnelServer({ ...(servers || {}), expressServer: netServer })
-    const updates = { remoteExpressPort: remotePort }
-    setTunnelState({ ...getTunnelState(), ...updates })
-    try { mainWindow.webContents.send('tunnelStateUpdate', updates) } catch {}
-    return { success: true, localPort, remotePort }
-  } catch (e) {
-    return { success: false, error: e && e.message ? e.message : String(e) }
-  }
+  return rebindPortTunnel({ name: 'express', newRemotePort: Number(newRemoteExpressPort), newLocalPort: Number(newLocalExpressPort) })
 })
 
 // New: Explicit starters for Express and Go forwarding, invoked after /status confirmation
 export async function startExpressForward({ localExpressPort, remoteExpressPort }) {
   try {
-    const conn = getActiveTunnel()
-    if (!conn) return { success: false, error: 'No active SSH tunnel' }
-    const servers = getActiveTunnelServer() || {}
     const state = getTunnelState()
     const localPort = Number(localExpressPort || state.localExpressPort)
     const remotePort = Number(remoteExpressPort || state.remoteExpressPort)
-    if (!localPort || isNaN(localPort)) return { success: false, error: 'invalid-local-port' }
-    if (!remotePort || isNaN(remotePort)) return { success: false, error: 'invalid-remote-port' }
-
-    // If there's already an express forward for this local/remote pair, reuse it.
-    const existingLocal = Number(state.localExpressPort)
-    const existingRemote = Number(state.remoteExpressPort)
-    if (servers.expressServer && existingLocal === localPort && existingRemote === remotePort) {
-      return { success: true, localPort, remotePort, reused: true }
-    }
-
-    // Close any existing express listener
-    if (servers.expressServer) {
-      try { await new Promise((resolve) => servers.expressServer.close(() => resolve())) } catch {}
-    }
-
-    const netServer = net.createServer((socket) => {
-      conn.forwardOut(socket.localAddress || '127.0.0.1', socket.localPort || 0, '127.0.0.1', remotePort, (err, stream) => {
-        if (err) { socket.destroy(); return }
-        socket.pipe(stream).pipe(socket)
-      })
-    })
-    await new Promise((resolve, reject) => {
-      netServer.once('error', reject)
-      netServer.listen(localPort, '127.0.0.1', () => resolve())
-    })
-
-    setActiveTunnelServer({ ...servers, expressServer: netServer })
+    const res = await startPortTunnel({ name: 'express', localPort, remotePort, ensureRemoteOpen: true })
+    if (!res.success) return res
     const updates = { localExpressPort: localPort, remoteExpressPort: remotePort, expressStatus: 'forwarding' }
     setTunnelState({ ...getTunnelState(), ...updates })
-    try { mainWindow.webContents.send('tunnelStateUpdate', updates) } catch {}
+    try {
+      const full = getTunnelState()
+      mainWindow.webContents.send('tunnelStateChanged', full)
+      mainWindow.webContents.send('tunnelStateUpdate', full)
+    } catch {}
     return { success: true, localPort, remotePort }
   } catch (e) {
     return { success: false, error: e && e.message ? e.message : String(e) }
@@ -1094,56 +1054,196 @@ export async function startExpressForward({ localExpressPort, remoteExpressPort 
 
 export async function startGoForward({ localGoPort, remoteGoPort }) {
   try {
-    const conn = getActiveTunnel()
-    if (!conn) return { success: false, error: 'No active SSH tunnel' }
-    const servers = getActiveTunnelServer() || {}
     const state = getTunnelState()
     const localPort = Number(localGoPort || state.localGoPort)
     const remotePort = Number(remoteGoPort || state.remoteGoPort)
-    if (!localPort || isNaN(localPort)) return { success: false, error: 'invalid-local-port' }
-    if (!remotePort || isNaN(remotePort)) return { success: false, error: 'invalid-remote-port' }
-
-    // If there's already a GO forward for this local/remote pair, reuse it.
-    const existingLocal = Number(state.localGoPort)
-    const existingRemote = Number(state.remoteGoPort)
-    if (servers.goServer && existingLocal === localPort && existingRemote === remotePort) {
-      return { success: true, localPort, remotePort, reused: true }
-    }
-
-    // Verify remote port is open before forwarding
-    const open = await checkRemotePortOpen(conn, remotePort)
-    if (!open) {
-      const updates = { goStatus: 'closed' }
-      setTunnelState({ ...getTunnelState(), ...updates })
-      try { mainWindow.webContents.send('tunnelStateUpdate', updates) } catch {}
-      return { success: false, error: 'remote-go-closed' }
-    }
-
-    // Close existing GO listener if present
-    if (servers.goServer) {
-      try { await new Promise((resolve) => servers.goServer.close(() => resolve())) } catch {}
-    }
-
-    const netServer = net.createServer((socket) => {
-      conn.forwardOut(socket.localAddress || '127.0.0.1', socket.localPort || 0, '127.0.0.1', remotePort, (err, stream) => {
-        if (err) { socket.destroy(); return }
-        socket.pipe(stream).pipe(socket)
-      })
-    })
-    await new Promise((resolve, reject) => {
-      netServer.once('error', reject)
-      netServer.listen(localPort, '127.0.0.1', () => resolve())
-    })
-
-    setActiveTunnelServer({ ...servers, goServer: netServer })
+    const res = await startPortTunnel({ name: 'go', localPort, remotePort, ensureRemoteOpen: true })
+    if (!res.success) return res
     const updates = { localGoPort: localPort, remoteGoPort: remotePort, goStatus: 'forwarding' }
     setTunnelState({ ...getTunnelState(), ...updates })
-    try { mainWindow.webContents.send('tunnelStateUpdate', updates) } catch {}
+    try {
+      const full = getTunnelState()
+      mainWindow.webContents.send('tunnelStateChanged', full)
+      mainWindow.webContents.send('tunnelStateUpdate', full)
+    } catch {}
     return { success: true, localPort, remotePort }
   } catch (e) {
     return { success: false, error: e && e.message ? e.message : String(e) }
   }
 }
+
+// Generic port tunnel management
+export async function startPortTunnel({ name, localPort, remotePort, ensureRemoteOpen = false }) {
+  try {
+    const conn = getActiveTunnel()
+    if (!conn) return { success: false, error: 'No active SSH tunnel' }
+    const servers = getActiveTunnelServer() || {}
+    const state = getTunnelState()
+    let lp = Number(localPort)
+    const rp = Number(remotePort)
+    if (!lp || isNaN(lp)) return { success: false, error: 'invalid-local-port' }
+    if (!rp || isNaN(rp)) return { success: false, error: 'invalid-remote-port' }
+
+    // Default ensure for canonical names; include retries
+    const canonical = ['express', 'go', 'mongo', 'jupyter']
+    const shouldEnsure = typeof ensureRemoteOpen === 'boolean' ? ensureRemoteOpen : canonical.includes(String(name || '').toLowerCase())
+    if (shouldEnsure) {
+      let open = false
+      const maxAttempts = 3
+      const delayMs = 3000
+      for (let i = 0; i < maxAttempts && !open; i++) {
+        try { open = await checkRemotePortOpen(conn, rp) } catch { open = false }
+        if (!open && i < maxAttempts - 1) { await sleep(delayMs) }
+      }
+      if (!open) return { success: false, error: 'remote-port-closed' }
+    }
+
+    // Close existing server under this name
+    if (servers[name]) {
+      try { await new Promise((resolve) => servers[name].close(() => resolve())) } catch {}
+    }
+
+    const createForwardServer = () => {
+      const server = net.createServer((socket) => {
+        conn.forwardOut(socket.localAddress || '127.0.0.1', socket.localPort || 0, '127.0.0.1', rp, (err, stream) => {
+          if (err) { socket.destroy(); return }
+          socket.pipe(stream).pipe(socket)
+        })
+      })
+      return server
+    }
+
+    let netServer = createForwardServer()
+    // Try requested local port; on EADDRINUSE, fall back to ephemeral port
+    try {
+      await new Promise((resolve, reject) => {
+        netServer.once('error', reject)
+        netServer.listen(lp, '127.0.0.1', () => resolve())
+      })
+    } catch (err) {
+      if (err && err.code === 'EADDRINUSE') {
+        try { netServer.close() } catch {}
+        netServer = createForwardServer()
+        await new Promise((resolve, reject) => {
+          netServer.once('error', reject)
+          netServer.listen(0, '127.0.0.1', () => resolve())
+        })
+        const addr = netServer.address()
+        if (addr && typeof addr === 'object' && addr.port) {
+          lp = Number(addr.port)
+        }
+      } else {
+        return { success: false, error: err && err.message ? err.message : String(err) }
+      }
+    }
+
+    // Track server by name
+    setActiveTunnelServer({ ...servers, [name]: netServer })
+
+    // Update generic tunnels list in state
+    const tunnels = Array.isArray(state.tunnels) ? state.tunnels.slice() : []
+    const idx = tunnels.findIndex(t => t.name === name || t.localPort === lp)
+    const entry = { name, localPort: lp, remotePort: rp, status: 'forwarding' }
+    if (idx >= 0) tunnels[idx] = entry
+    else tunnels.push(entry)
+
+    // Also reflect canonical service fields for UI/requests helpers
+    const updates = { tunnels }
+    const n = String(name || '').toLowerCase()
+    if (n === 'express') Object.assign(updates, { localExpressPort: lp, remoteExpressPort: rp, expressStatus: 'forwarding' })
+    if (n === 'go') Object.assign(updates, { localGoPort: lp, remoteGoPort: rp, goStatus: 'forwarding' })
+    if (n === 'mongo') Object.assign(updates, { localDBPort: lp, remoteDBPort: rp, mongoStatus: 'forwarding' })
+    if (n === 'jupyter') Object.assign(updates, { localJupyterPort: lp, remoteJupyterPort: rp })
+
+    setTunnelState({ ...state, ...updates })
+    try {
+      const full = getTunnelState()
+      mainWindow.webContents.send('tunnelStateChanged', full)
+      mainWindow.webContents.send('tunnelStateUpdate', full)
+    } catch {}
+    return { success: true, name, localPort: lp, remotePort: rp }
+  } catch (e) {
+    return { success: false, error: e && e.message ? e.message : String(e) }
+  }
+}
+
+export async function stopPortTunnel({ name, localPort }) {
+  try {
+    const servers = getActiveTunnelServer() || {}
+    const state = getTunnelState()
+    let serverName = name
+    if (!serverName && localPort) {
+      const lp = Number(localPort)
+      const match = (state.tunnels || []).find(t => Number(t.localPort) === lp)
+      serverName = match ? match.name : undefined
+    }
+    if (!serverName || !servers[serverName]) return { success: false, error: 'tunnel-not-found' }
+    await new Promise((resolve) => servers[serverName].close(() => resolve()))
+    const nextServers = { ...servers }
+    delete nextServers[serverName]
+    setActiveTunnelServer(nextServers)
+
+    const tunnels = Array.isArray(state.tunnels) ? state.tunnels.slice() : []
+    const idx = tunnels.findIndex(t => t.name === serverName)
+    if (idx >= 0) tunnels[idx] = { ...tunnels[idx], status: 'closed' }
+    setTunnelState({ ...state, tunnels })
+    try { mainWindow.webContents.send('tunnelStateChanged', getTunnelState()) } catch {}
+    return { success: true, name: serverName }
+  } catch (e) {
+    return { success: false, error: e && e.message ? e.message : String(e) }
+  }
+}
+
+ipcMain.handle('startPortTunnel', async (_event, payload = {}) => {
+  return startPortTunnel(payload)
+})
+ipcMain.handle('stopPortTunnel', async (_event, payload = {}) => {
+  return stopPortTunnel(payload)
+})
+ipcMain.handle('listPortTunnels', async () => {
+  return { success: true, tunnels: (getTunnelState().tunnels || []) }
+})
+
+// Generic rebind helper: stop existing tunnel by name and recreate with new ports
+export async function rebindPortTunnel({ name, newRemotePort, newLocalPort }) {
+  try {
+    const state = getTunnelState()
+    const tunnels = Array.isArray(state.tunnels) ? state.tunnels : []
+    const entry = tunnels.find(t => t.name === name)
+    const localPort = Number(newLocalPort || (entry ? entry.localPort : undefined) || state[
+      name === 'express' ? 'localExpressPort' :
+      name === 'go' ? 'localGoPort' :
+      name === 'mongo' ? 'localDBPort' :
+      name === 'jupyter' ? 'localJupyterPort' :
+      'localExpressPort'
+    ])
+    const remotePort = Number(newRemotePort)
+    if (!remotePort || isNaN(remotePort)) return { success: false, error: 'invalid-remote-port' }
+    await stopPortTunnel({ name })
+    const res = await startPortTunnel({ name, localPort, remotePort, ensureRemoteOpen: true })
+    if (!res.success) return res
+    const updates = {}
+    if (name === 'express') Object.assign(updates, { remoteExpressPort: remotePort, localExpressPort: localPort, expressStatus: 'forwarding' })
+    if (name === 'go') Object.assign(updates, { remoteGoPort: remotePort, localGoPort: localPort, goStatus: 'forwarding' })
+    if (name === 'mongo') Object.assign(updates, { remoteDBPort: remotePort, localDBPort: localPort })
+    if (name === 'jupyter') Object.assign(updates, { remoteJupyterPort: remotePort, localJupyterPort: localPort })
+    if (Object.keys(updates).length) {
+      setTunnelState({ ...getTunnelState(), ...updates })
+      try {
+        const full = getTunnelState()
+        mainWindow.webContents.send('tunnelStateChanged', full)
+        mainWindow.webContents.send('tunnelStateUpdate', full)
+      } catch {}
+    }
+    return { success: true, name, localPort, remotePort }
+  } catch (e) {
+    return { success: false, error: e && e.message ? e.message : String(e) }
+  }
+}
+
+ipcMain.handle('rebindPortTunnel', async (_event, payload = {}) => {
+  return rebindPortTunnel(payload)
+})
 
 // IPC wrappers for starting forwards explicitly
 ipcMain.handle('startExpressForward', async (_event, payload = {}) => {
@@ -1151,6 +1251,62 @@ ipcMain.handle('startExpressForward', async (_event, payload = {}) => {
 })
 ipcMain.handle('startGoForward', async (_event, payload = {}) => {
   return startGoForward(payload)
+})
+
+// Probe GO service reachability: checks remote port open via SSH and local forward HTTP reachability
+ipcMain.handle('probeGo', async () => {
+  try {
+    const state = getTunnelState()
+    const conn = getActiveTunnel()
+    if (!state || !state.tunnelActive) {
+      // Still allow local forward reachability check even if tunnelActive is false
+      const localPort = Number(state && state.localGoPort)
+      const result = { success: false, error: 'no-tunnel', tunnelActive: !!(state && state.tunnelActive), localPort: localPort || null }
+      if (localPort && Number.isFinite(localPort)) {
+        try {
+          const url = `http://127.0.0.1:${localPort}/connection/connection_test_request`
+          const resp = await axios.post(url, { message: JSON.stringify({ data: "" }) }, { timeout: 3000, headers: { 'Content-Type': 'application/json' } })
+          result.localReachable = !!resp
+          result.localResponse = resp && resp.data ? resp.data : null
+          result.success = true
+        } catch (e) {
+          result.localReachable = false
+          result.localError = e && e.message ? e.message : String(e)
+        }
+      }
+      return result
+    }
+    const remotePort = Number(state.remoteGoPort)
+    const localPort = Number(state.localGoPort)
+    const result = { success: true, tunnelActive: true, remotePort: remotePort || null, localPort: localPort || null }
+
+    // Remote port open check via SSH
+    let remoteOpen = null
+    if (remotePort && Number.isFinite(remotePort)) {
+      try { remoteOpen = await checkRemotePortOpen(conn, remotePort) }
+      catch { remoteOpen = false }
+    }
+    result.remoteOpen = !!remoteOpen
+
+    // Local forward reachability by hitting the GO verify endpoint (best-effort)
+    let localReachable = null
+    if (localPort && Number.isFinite(localPort)) {
+      try {
+        const url = `http://127.0.0.1:${localPort}/connection/connection_test_request`
+        const resp = await axios.post(url, { message: JSON.stringify({ data: "" }) }, { timeout: 3000, headers: { 'Content-Type': 'application/json' } })
+        result.localResponse = resp && resp.data ? resp.data : null
+        localReachable = !!resp
+      } catch (e) {
+        result.localError = e && e.message ? e.message : String(e)
+        localReachable = false
+      }
+    }
+    result.localReachable = !!localReachable
+    result.running = !!(result.remoteOpen || result.localReachable)
+    return result
+  } catch (e) {
+    return { success: false, error: e && e.message ? e.message : String(e) }
+  }
 })
 
 /**
@@ -1197,6 +1353,41 @@ export async function checkRemotePortOpen(conn, port, loadBlocking = false) {
       })
     })
   })
+}
+
+// Detect the remote OS via SSH. Returns one of: 'win32' | 'linux' | 'darwin' | 'unix'
+export async function detectRemoteOS() {
+  const conn = getActiveTunnel()
+  if (!conn) return 'win32'
+  const tryExec = (cmd) => new Promise((resolve) => {
+    conn.exec(cmd, (err, stream) => {
+      if (err) return resolve({ code: -1, stdout: '', stderr: String(err && err.message || err) })
+      let stdout = ''
+      let stderr = ''
+      stream.on('data', (d) => { stdout += d.toString() })
+      stream.stderr.on('data', (d) => { stderr += d.toString() })
+      stream.on('close', (code) => resolve({ code: Number(code), stdout, stderr }))
+    })
+  })
+  // Prefer POSIX detection via bash/uname; fallback to Windows PowerShell; last resort: cmd ver
+  const candidates = [
+    "bash -lc 'uname -s'",
+    'uname -s',
+    'powershell -NoProfile -Command "$PSVersionTable.OS.ToString(); [System.Environment]::OSVersion.Platform"',
+    'cmd /c ver'
+  ]
+  for (const cmd of candidates) {
+    try {
+      const r = await tryExec(cmd)
+      const out = (r.stdout || r.stderr || '').trim().toLowerCase()
+      if (!out) continue
+      if (out.includes('linux')) return 'linux'
+      if (out.includes('darwin') || out.includes('mac')) return 'darwin'
+      if (out.includes('bsd') || out.includes('unix')) return 'unix'
+      if (out.includes('windows') || out.includes('microsoft') || out.includes('version') || out.includes('win')) return 'win32'
+    } catch {}
+  }
+  return 'win32'
 }
 
 /**
@@ -1344,6 +1535,17 @@ export async function stopSSHTunnel() {
     setActiveTunnel(null)
     success = true
   }
+  // Emit state change reflecting closed forwards and inactive tunnel
+  try {
+    setTunnelState({
+      ...getTunnelState(),
+      tunnelActive: false,
+      expressStatus: 'closed',
+      goStatus: 'closed',
+      mongoStatus: 'closed'
+    })
+    mainWindow.webContents.send('tunnelStateChanged', getTunnelState())
+  } catch {}
   if (success) return { success: true }
   return { success: false, error: error || "No active tunnel" }
 }
@@ -1423,248 +1625,48 @@ export async function startJupyterTunnel() {
  * @returns {string>} - Status of the file existence check: "exists", "does not exist", "sftp error", or "tunnel inactive"
  */
 export async function checkRemoteFileExists(filePath) {
-  // Ensure tunnel is active and SSH client is available
-  const activeTunnel = getActiveTunnel()
-  if (!activeTunnel) {
-    const errMsg = 'No active SSH tunnel for remote file check.'
-    console.error(errMsg)
-    return "tunnel inactive"
-  }
-
+  const conn = getActiveTunnel()
+  if (!conn) return "tunnel inactive"
   const getSftp = () => new Promise((resolve, reject) => {
-    activeTunnel.sftp((err, sftp) => {
-      if (err) return reject(err)
-      resolve(sftp)
+    conn.sftp((err, sftp) => err ? reject(err) : resolve(sftp))
+  })
+  const statFile = (sftp, p) => new Promise((resolve) => {
+    sftp.stat(p, (err, stats) => {
+      if (err) return resolve(false)
+      resolve(Boolean(stats))
     })
   })
-
-  const statFile = (sftp, filePath) => new Promise((resolve, reject) => {
-    sftp.stat(filePath, (err, stats) => {
-      if (err) return resolve(false) // File does not exist
-      const exists = stats && ((stats.isFile && stats.isFile()) || (stats.isDirectory && stats.isDirectory()))
-      resolve(exists)
-    })
-  })
-
   try {
     const sftp = await getSftp()
     const exists = await statFile(sftp, filePath)
-    sftp.end && sftp.end()
-    if (exists) {
-      return "exists"
-    } else {
-      return "does not exist"
-    }
+    if (typeof sftp.end === 'function') { try { sftp.end() } catch {} }
+    else if (typeof sftp.close === 'function') { try { sftp.close() } catch {} }
+    return exists ? "exists" : "does not exist"
   } catch (error) {
     console.error("SFTP error:", error)
     return "sftp error"
   }
 }
 
-/**
- * @description This function uses SFTP to call lstat on a remote file path.
- * @param {string} filePath - The remote path of the file to check
- * @returns {{ isDir: boolean, isFile: boolean, stats: Object } | string} - Returns an object with file stats or "sftp error" if an error occurs.
- */
 export async function getRemoteLStat(filePath) {
-  // Ensure tunnel is active and SSH client is available
-  const activeTunnel = getActiveTunnel()
-  if (!activeTunnel) {
-    const errMsg = 'No active SSH tunnel for remote lstat.'
-    console.error(errMsg)
-    return null
-  }
-    const getSftp = () => new Promise((resolve, reject) => {
-    activeTunnel.sftp((err, sftp) => {
-      if (err) return reject(err)
-      resolve(sftp)
-    })
+  const conn = getActiveTunnel()
+  if (!conn) return "tunnel inactive"
+  const getSftp = () => new Promise((resolve, reject) => {
+    conn.sftp((err, sftp) => err ? reject(err) : resolve(sftp))
   })
-
-  const lstatFile = (sftp, filePath) => new Promise((resolve, reject) => {
-    sftp.stat(filePath, (err, stats) => {
-      if (err) return reject(err) // File does not exist
-      resolve(stats)
-    })
+  const lstat = (sftp, p) => new Promise((resolve, reject) => {
+    sftp.lstat(p, (err, stats) => err ? reject(err) : resolve(stats))
   })
-
   try {
     const sftp = await getSftp()
-    const fileStats = await lstatFile(sftp, filePath)
-    sftp.end && sftp.end()
-    return { isDir: fileStats.isDirectory(), isFile: fileStats.isFile(), stats: fileStats }
+    const stats = await lstat(sftp, filePath)
+    if (typeof sftp.end === 'function') { try { sftp.end() } catch {} }
+    else if (typeof sftp.close === 'function') { try { sftp.close() } catch {} }
+    return { isDir: stats && stats.isDirectory ? stats.isDirectory() : false, isFile: stats && stats.isFile ? stats.isFile() : false, stats }
   } catch (error) {
     console.error("SFTP error:", error)
     return "sftp error"
   }
-}
-
-/**
- * @description This function uses SFTP to rename a remote file.
- * @param {string} oldPath - The remote path of the file to rename
- * @param {string} newPath - The new remote path of the file
- * @returns {{ success: boolean, error: string }} - Returns an object indicating success or failure with an error message.
- */
-ipcMain.handle('renameRemoteFile', async (_event, { oldPath, newPath }) => {
-  function sftpRename(sftp, oldPath, newPath) {
-    return new Promise((resolve, reject) => {
-      sftp.rename(oldPath, newPath, (err) => {
-        if (err) reject(err)
-        else resolve()
-      })
-    })
-  }
-
-  const activeTunnel = getActiveTunnel()
-  if (!activeTunnel) return { success: false, error: 'No active SSH tunnel' }
-  return new Promise((resolve) => {
-    activeTunnel.sftp(async (err, sftp) => {
-      if (err) return resolve({ success: false, error: err.message })
-      try {
-        await sftpRename(sftp, oldPath, newPath)
-        if (typeof sftp.end === 'function') sftp.end()
-        resolve({ success: true })
-      } catch (e) {
-        if (typeof sftp.end === 'function') sftp.end()
-        resolve({ success: false, error: e.message })
-      }
-    })
-  })
-})
-
-/**
- * @description This function uses SFTP to delete a remote file.
- * @param {string} path - The remote path of the file to delete
- * @param {boolean} recursive - Whether do also delete all contents if the path is a directory
- * @returns {{ success: boolean, error: string }} - Returns an object indicating success or failure with an error message.
- */
-ipcMain.handle('deleteRemoteFile', async (_event, { path, recursive = true }) => {
-  const activeTunnel = getActiveTunnel()
-  if (!activeTunnel) return { success: false, error: 'No active SSH tunnel' }
-
-  function getSftp(callback) {
-    if (!activeTunnel) return callback(new Error('No active SSH tunnel'))
-    if (activeTunnel.sftp) {
-      return activeTunnel.sftp(callback)
-    } else if (activeTunnel.sshClient && activeTunnel.sshClient.sftp) {
-      return activeTunnel.sshClient.sftp(callback)
-    } else {
-      return callback(new Error('No SFTP available'))
-    }
-  }
-
-  // Helper: recursively delete files and folders
-  async function sftpDeleteRecursive(sftp, targetPath) {
-    // Stat the path to determine if file or directory
-    const stats = await new Promise((res, rej) => {
-      sftp.stat(targetPath, (err, stat) => {
-        if (err) return rej(err)
-        res(stat)
-      })
-    })
-    if (stats.isDirectory()) {
-      // List directory contents
-      const entries = await new Promise((res, rej) => {
-        sftp.readdir(targetPath, (err, list) => {
-          if (err) return rej(err)
-          res(list)
-        })
-      })
-      // Recursively delete each entry
-      for (const entry of entries) {
-        if (entry.filename === '.' || entry.filename === '..') continue
-        const entryPath = targetPath.replace(/[\\/]$/, '') + '/' + entry.filename
-        await sftpDeleteRecursive(sftp, entryPath)
-      }
-      // Remove the directory itself
-      await new Promise((res, rej) => {
-        sftp.rmdir(targetPath, (err) => {
-          if (err) return rej(err)
-          res()
-        })
-      })
-    } else {
-      // Remove file
-      await new Promise((res, rej) => {
-        sftp.unlink(targetPath, (err) => {
-          if (err) return rej(err)
-          res()
-        })
-      })
-    }
-  }
-
-  return new Promise((resolve) => {
-    getSftp(async (err, sftp) => {
-      if (err) return resolve({ success: false, error: err.message })
-      let sftpClosed = false
-      function closeSftp() {
-        if (sftp && !sftpClosed) {
-          if (typeof sftp.end === 'function') {
-            try { sftp.end() } catch (e) {}
-          } else if (typeof sftp.close === 'function') {
-            try { sftp.close() } catch (e) {}
-          }
-          sftpClosed = true
-        }
-      }
-      try {
-        if (recursive) {
-          await sftpDeleteRecursive(sftp, path)
-        } else {
-          // Non-recursive: try to delete as file, then as empty dir
-          try {
-            await new Promise((res, rej) => {
-              sftp.unlink(path, (err) => err ? rej(err) : res())
-            })
-          } catch (e) {
-            // If not a file, try as empty directory
-            await new Promise((res, rej) => {
-              sftp.rmdir(path, (err) => err ? rej(err) : res())
-            })
-          }
-        }
-        closeSftp()
-        resolve({ success: true })
-      } catch (e) {
-        closeSftp()
-        resolve({ success: false, error: e.message })
-      }
-    })
-  })
-})
-
-/**
- * @description This function uses a terminal command to detect the operating system of the remote server.
- * @returns {Promise<string>}
- */
-export async function detectRemoteOS() {
-  return new Promise((resolve, reject) => {
-    activeTunnel.exec("uname -s", (err, stream) => {
-      if (err) {
-        // Assume Windows if uname fails
-        resolve("win32")
-        return
-      }
-      let output = ""
-      stream.on("data", (outputData) => {
-        output += outputData.toString()
-      })
-      stream.on("close", () => {
-        const out = output.trim().toLowerCase()
-        if (out.includes("linux")) {
-          resolve("linux")
-        } else if (out.includes("darwin")) {
-          resolve("darwin")
-        } else if (out.includes("bsd")) {
-          resolve("unix")
-        } else {
-          resolve("win32")
-        }
-      })
-      stream.stderr.on("data", () => resolve("win32"))
-    })
-  })
 }
 
 /**

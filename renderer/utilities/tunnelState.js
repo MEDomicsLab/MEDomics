@@ -25,7 +25,11 @@ let tunnelInfo = {
 export function setTunnelState(info) {
   // Exclude password
   const { password, privateKey, ...safeInfo } = info
-  tunnelInfo = { ...tunnelInfo, ...safeInfo, tunnelActive: safeInfo.tunnelActive }
+  const hasFlag = Object.prototype.hasOwnProperty.call(safeInfo, 'tunnelActive')
+  const nextTunnelActive = hasFlag
+    ? !!safeInfo.tunnelActive
+    : (typeof tunnelInfo.tunnelActive === 'boolean' ? tunnelInfo.tunnelActive : false)
+  tunnelInfo = { ...tunnelInfo, ...safeInfo, tunnelActive: nextTunnelActive }
 }
 
 export function clearTunnelState() {

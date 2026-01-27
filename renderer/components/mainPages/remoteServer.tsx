@@ -21,13 +21,8 @@ export default function RemoteServerPage() {
     expressStatus,
     goStatus,
     mongoStatus,
-    localExpressPort,
-    remoteExpressPort,
-    localGoPort,
-    remoteGoPort,
-    localDBPort,
-    remoteDBPort,
     expressLogPath,
+    tunnels
   } = tunnel
 
   const [log, setLog] = React.useState<string>("")
@@ -93,16 +88,27 @@ export default function RemoteServerPage() {
           <StatusPill label="Mongo" value={mongoStatus || "unknown"} />
         </div>
         <div>
-          <h4 style={{ margin: "4px 0 8px", fontSize: 14 }}>Ports</h4>
-          <div style={{ marginBottom: 6 }}>
-            <b>Express:</b> {localExpressPort ?? "-"} → {remoteExpressPort ?? "-"}
-          </div>
-          <div style={{ marginBottom: 6 }}>
-            <b>GO:</b> {localGoPort ?? "-"} → {remoteGoPort ?? "-"}
-          </div>
-          <div style={{ marginBottom: 6 }}>
-            <b>Mongo:</b> {localDBPort ?? "-"} → {remoteDBPort ?? "-"}
-          </div>
+          {Array.isArray(tunnels) && tunnels.length > 0 && (
+            <div style={{ marginTop: 10 }}>
+              <h5 style={{ margin: "4px 0 6px", fontSize: 13 }}>Active Tunnels</h5>
+              <div style={{ border: '1px solid #e2e8f0', borderRadius: 6, overflow: 'hidden' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 90px 90px 110px', gap: 8, padding: '6px 8px', background: '#f8fafc', color: '#334155', fontWeight: 600 }}>
+                  <div>Name</div>
+                  <div>Local</div>
+                  <div>Remote</div>
+                  <div>Status</div>
+                </div>
+                {tunnels.map((t: any, i: number) => (
+                  <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 90px 90px 110px', gap: 8, padding: '6px 8px', borderTop: '1px solid #e2e8f0' }}>
+                    <div style={{ fontWeight: 500 }}>{t.name || '-'}</div>
+                    <div>{t.localPort ?? '-'}</div>
+                    <div>{t.remotePort ?? '-'}</div>
+                    <div style={{ textTransform: 'capitalize', color: (t.status === 'forwarding' ? '#16a34a' : '#64748b') }}>{t.status || 'unknown'}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </div>
 

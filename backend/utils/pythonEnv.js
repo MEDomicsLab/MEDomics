@@ -92,6 +92,9 @@ function getCondaPath(parentPath) {
  * @returns {String} The path to the directory that exists
  */
 function checkDirectories(parentPath, directories) {
+  if (!parentPath) {
+    return null
+  }
   let directoryPath = null
   directories.forEach((directory) => {
     if (directoryPath === null) {
