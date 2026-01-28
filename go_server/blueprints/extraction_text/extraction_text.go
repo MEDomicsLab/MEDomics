@@ -10,6 +10,7 @@ var prePath = "extraction_text"
 // AddHandleFunc adds the specific module handle function to the server
 func AddHandleFunc() {
 	Utils.CreateHandleFunc(prePath+"/BioBERT_extraction/", handleBioBERTExtraction)
+	Utils.CreateHandleFunc(prePath+"/TransformerText_extraction/", handleTransformerExtraction)
 	Utils.CreateHandleFunc(prePath+"/progress/", handleProgress)
 }
 
@@ -18,6 +19,18 @@ func AddHandleFunc() {
 func handleBioBERTExtraction(jsonConfig string, id string) (string, error) {
 	log.Println("Running BioBERT extraction", id)
 	response, err := Utils.StartPythonScripts(jsonConfig, "../pythonCode/modules/extraction_text/BioBERT_extraction.py", id)
+	Utils.RemoveIdFromScripts(id)
+	if err != nil {
+		return "", err
+	}
+	return response, nil
+}
+
+// handleTransformerExtraction handles the request to run generic Transformer text extraction
+// It returns the response from the python script
+func handleTransformerExtraction(jsonConfig string, id string) (string, error) {
+	log.Println("Running Transformer text extraction", id)
+	response, err := Utils.StartPythonScripts(jsonConfig, "../pythonCode/modules/extraction_text/text_feature_extraction.py", id)
 	Utils.RemoveIdFromScripts(id)
 	if err != nil {
 		return "", err

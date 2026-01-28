@@ -39,6 +39,7 @@ import ExploratoryPage from "../../mainPages/exploratory"
 import ExtractionImagePage from "../../mainPages/extractionImage"
 import ExtractionMEDimagePage from "../../mainPages/extractionMEDimage"
 import ExtractionTextPage from "../../mainPages/extractionText"
+import ExtractionTransformerTextPage from "../../mainPages/extractionTransformerTextPage"
 import ExtractionLandingPage from "../../mainPages/extractionLandingPage"
 import ExtractionTSPage from "../../mainPages/extractionTS"
 import HomePage from "../../mainPages/home"
@@ -71,8 +72,8 @@ import { ipcRenderer } from "electron"
 
 const util = require("util")
 const exec = util.promisify(require("child_process").exec)
-const { spawn } = require('child_process')
-import { SiApachesuperset  } from "react-icons/si"
+const { spawn } = require("child_process")
+import { SiApachesuperset } from "react-icons/si"
 import { PiGraph } from "react-icons/pi"
 
 var fields = ["Name", "Field1", "Field2", "Field3", "Field4", "Field5"]
@@ -164,7 +165,7 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
   }
 
   handleSaveTab = (event) => {
-    if ((event.ctrlKey || event.metaKey) && event.key === 's') {
+    if ((event.ctrlKey || event.metaKey) && event.key === "s") {
       event.preventDefault() // Prevent browser's save dialog
       const tabToSave = this.state.model?.getActiveTabset()?.getSelectedNode() as TabNode
       if (tabToSave) {
@@ -182,7 +183,7 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
     this.loadLayout("default", false)
     document.body.addEventListener("touchmove", this.preventIOSScrollingWhenDragging, { passive: false })
     document.body.addEventListener("close", this.stopJuypterServerEvent, { passive: false })
-    document.body.addEventListener('keydown', this.handleSaveTab)
+    document.body.addEventListener("keydown", this.handleSaveTab)
     const { layoutRequestQueue, setLayoutRequestQueue } = this.context as LayoutContextType
     if (layoutRequestQueue.length > 0) {
       layoutRequestQueue.forEach((action) => {
@@ -200,27 +201,22 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
     if (!port) {
       throw new Error("Port is required to get Jupyter PID")
     }
-    const { exec } = require('child_process')
-    const { promisify } = require('util')
+    const { exec } = require("child_process")
+    const { promisify } = require("util")
     const execAsync = promisify(exec)
 
     const platform = process.platform
-    const command = platform === 'win32' 
-      ? `netstat -ano | findstr :${port}`
-      : `lsof -ti :${port} | head -n 1`
+    const command = platform === "win32" ? `netstat -ano | findstr :${port}` : `lsof -ti :${port} | head -n 1`
 
     try {
       const { stdout, stderr } = await execAsync(command)
       if (stderr) throw new Error(stderr)
-      
-      return platform === 'win32'
-        ? stdout.trim().split('\n')[0]?.split(/\s+/).filter(Boolean).pop() || null
-        : stdout.trim()
+
+      return platform === "win32" ? stdout.trim().split("\n")[0]?.split(/\s+/).filter(Boolean).pop() || null : stdout.trim()
     } catch (error) {
       throw new Error(`PID lookup failed: ${error.message}`)
     }
   }
-
 
   startJupyterServer = async () => {
     const { jupyterStatus, setJupyterStatus } = this.props as LayoutContextType
@@ -231,7 +227,7 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
       setJupyterStatus({ running: false, error: "Python path is not set. Jupyter server cannot be started." })
       return
     }
-    
+
     await this.setJupyterConfig()
     const workspacePath = this.props.workspace?.workingDirectory?.path
     if (!workspacePath) {
@@ -243,16 +239,9 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
     // Check jypyter status again
     const isRunning = await this.checkJupyterIsRunning()
     if (!isRunning) {
-      const jupyter = spawn(pythonPath, [
-        '-m', 'jupyter', 'notebook',
-        `--NotebookApp.token=''`,
-        `--NotebookApp.password=''`,
-        '--no-browser',
-        `--port=${defaultJupyterPort}`,
-        `${workspacePath}`
-      ])
+      const jupyter = spawn(pythonPath, ["-m", "jupyter", "notebook", `--NotebookApp.token=''`, `--NotebookApp.password=''`, "--no-browser", `--port=${defaultJupyterPort}`, `${workspacePath}`])
       this.jupyterStarting = false
-      setJupyterStatus({running: true, error: null })
+      setJupyterStatus({ running: true, error: null })
       toast.success("Jupyter server started successfully.")
     }
   }
@@ -328,16 +317,16 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
         toast.error("Failed to locate Jupyter config directory.")
         return
       }
-      const configPath = result.stdout.split("\n").find(line => line.includes(".jupyter"))
-      
+      const configPath = result.stdout.split("\n").find((line) => line.includes(".jupyter"))
+
       if (configPath) {
         const configFilePath = configPath.trim() + "/jupyter_notebook_config.py"
-        
+
         // Check if the file exists
         if (!fs.existsSync(configFilePath)) {
           try {
             // Await the config generation
-            const output = await exec(`${pythonPath} -m jupyter notebook --generate-config`)            
+            const output = await exec(`${pythonPath} -m jupyter notebook --generate-config`)
             if (output.stderr) {
               console.error("Error generating Jupyter config:", output.stderr)
               toast.error("Error generating Jupyter config. Please check the console for more details.")
@@ -349,7 +338,7 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
             return
           }
         }
-        
+
         // Get last line of configfilepath
         const lastLine = fs.readFileSync(configFilePath, "utf8").split("\n").filter(Boolean).slice(-1)[0]
         if (!lastLine.includes("c.NotebookApp.tornado_settings")) {
@@ -358,7 +347,10 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
           fs.appendFileSync(configFilePath, `\nc.ServerApp.token = ''`)
           fs.appendFileSync(configFilePath, `\nc.ServerApp.password = '' `)
           fs.appendFileSync(configFilePath, `\nc.ServerApp.allow_unauthenticated_access = True`)
-          fs.appendFileSync(configFilePath, `\nc.NotebookApp.tornado_settings={'headers': {'Content-Security-Policy': "frame-ancestors 'self' http://localhost:8888 http://localhost:3000 http://localhost:8080 http://localhost:8900 'unsafe-eval'"}}\n`)
+          fs.appendFileSync(
+            configFilePath,
+            `\nc.NotebookApp.tornado_settings={'headers': {'Content-Security-Policy': "frame-ancestors 'self' http://localhost:8888 http://localhost:3000 http://localhost:8080 http://localhost:8900 'unsafe-eval'"}}\n`
+          )
         }
       }
     } catch (error) {
@@ -371,7 +363,7 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
   stopJupyterServer = async () => {
     const { setJupyterStatus } = this.props as LayoutContextType
     const pythonPath = await this.getPythonPath()
-    
+
     if (!pythonPath) {
       setJupyterStatus({ running: false, error: "Python path is not set. Cannot stop Jupyter server." })
       console.error("Python path is not set. Cannot stop Jupyter server.")
@@ -381,7 +373,7 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
     try {
       // Get the PID first
       const pid = await this.getJupyterPid(defaultJupyterPort)
-      
+
       if (!pid) {
         console.log("No running Jupyter server found")
         setJupyterStatus({ running: false, error: null })
@@ -389,9 +381,7 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
       }
 
       // Platform-specific kill command
-      const killCommand = process.platform === 'win32'
-        ? `taskkill /PID ${pid} /F`
-        : `kill ${pid}`
+      const killCommand = process.platform === "win32" ? `taskkill /PID ${pid} /F` : `kill ${pid}`
 
       await exec(killCommand)
       console.log(`Successfully stopped Jupyter server (PID: ${pid})`)
@@ -404,9 +394,9 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
         setJupyterStatus({ running: false, error: null })
       } catch (fallbackError) {
         console.error("Fallback stop method also failed:", fallbackError)
-        setJupyterStatus({ 
-          running: false, 
-          error: "Failed to stop server" 
+        setJupyterStatus({
+          running: false,
+          error: "Failed to stop server"
         })
       }
     } finally {
@@ -414,14 +404,13 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
     }
   }
 
-
   /**
    * Callback when the component is unmounted
    * @returns nothing
    * @summary Removes the save shortcut event listener
    */
   componentWillUnmount(): void {
-    document.body.removeEventListener('keydown', this.handleSaveTab)
+    document.body.removeEventListener("keydown", this.handleSaveTab)
     this.stopJupyterServer()
   }
 
@@ -1099,6 +1088,15 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
           return <ExtractionTextPage pageId={"ExtractionTextPage"} />
         }
       }
+    } else if (component === "extractionTransformerTextPage") {
+      if (node.getExtraData().data == null) {
+        const config = node.getConfig()
+        if (config.path !== null) {
+          return <ExtractionTransformerTextPage pageId={config.uuid} />
+        } else {
+          return <ExtractionTransformerTextPage pageId={"ExtractionTransformerTextPage"} />
+        }
+      }
     } else if (component === "MEDprofilesViewer") {
       if (node.getExtraData().data == null) {
         const config = node.getConfig()
@@ -1118,7 +1116,7 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
         }
       }
     } else if (component === "extractionLandingPage") {
-      return <ExtractionLandingPage/>
+      return <ExtractionLandingPage />
     } else if (component === "extractionMEDimagePage") {
       if (node.getExtraData().data == null) {
         const config = node.getConfig()
@@ -1223,12 +1221,12 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
       if (node.getExtraData().data == null) {
         const config = node.getConfig()
         setIsEditorOpen(true)
-        return <CodeEditor id={config.uuid} path={config.path} updateSavedCode={this.updateSavedCode}  />
+        return <CodeEditor id={config.uuid} path={config.path} updateSavedCode={this.updateSavedCode} />
       }
     } else if (component === "jupyterNotebook") {
       if (node.getExtraData().data == null) {
         const config = node.getConfig()
-        return <JupyterNotebookViewer filePath={config.path} startJupyterServer={this.startJupyterServer}/>
+        return <JupyterNotebookViewer filePath={config.path} startJupyterServer={this.startJupyterServer} />
       }
     } else if (component === "Settings") {
       return <SettingsPage checkJupyterIsRunning={this.checkJupyterIsRunning} startJupyterServer={this.startJupyterServer} stopJupyterServer={this.stopJupyterServer} />
@@ -1374,7 +1372,11 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
         return <SiApachesuperset style={{ marginRight: 3 }} />
       }
       if (component === "modelViewer") {
-        return <span><PiGraph className="icon-offset" style={{ color: "#97edfb" }} /></span>
+        return (
+          <span>
+            <PiGraph className="icon-offset" style={{ color: "#97edfb" }} />
+          </span>
+        )
       }
     }
   }
@@ -1655,6 +1657,5 @@ function showImage(url, scale) {
 
   img.src = url
 }
-
 
 export { MainContainer }

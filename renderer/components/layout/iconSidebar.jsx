@@ -189,7 +189,7 @@ const IconSidebar = ({ onSidebarItemSelect }) => {
                 data-tooltip-id="tooltip-extraction"
                 onDoubleClick={(event) => handleDoubleClickLanding(event, "extraction")}
                 onClick={() => {
-                  //setExtractionBtnstate(!extractionBtnstate)
+                  setExtractionBtnstate(!extractionBtnstate)
                 }}
                 disabled={isDisabled}
                 onBlur={(event) => {
@@ -236,6 +236,22 @@ const IconSidebar = ({ onSidebarItemSelect }) => {
                       handleDoubleClickModule(event, "ExtractionText")
                     }}
                     onDoubleClick={(event) => handleDoubleClickModule(event, "ExtractionText")}
+                  />
+                  <Button
+                    className="ext-transformer-btn"
+                    icon="pi pi-bolt"
+                    data-pr-at="right center"
+                    data-pr-my="left center"
+                    data-pr-tooltip="Transformer Text"
+                    data-is-ext-btn
+                    onClick={(event) => {
+                      console.log("clicked extraction transformer", event)
+                      event.stopPropagation()
+                      event.preventDefault()
+                      setExtractionBtnstate(!extractionBtnstate)
+                      handleDoubleClickModule(event, "ExtractionTransformerText")
+                    }}
+                    onDoubleClick={(event) => handleDoubleClickModule(event, "ExtractionTransformerText")}
                   />
                   <Button
                     className="ext-ts-btn"
