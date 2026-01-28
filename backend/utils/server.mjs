@@ -201,7 +201,6 @@ export async function runServer(isProd, serverPort, serverProcess, serverState, 
       .then((port) => {
         serverPort = port
         chosenPort = port
-        console.log("_dirname: ", __dirname)
         console.log("process.resourcesPath: ", process.resourcesPath)
         console.log("process.execPath: ", process.execPath)
         // ensure the spawned process receives the actual chosen port as first argument
