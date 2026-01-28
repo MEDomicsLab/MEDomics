@@ -191,6 +191,7 @@ async function main() {
       '    exit /b',
       ')',
       ':main',
+      'set NODE_ENV=production',
       'medomics-server.exe ensure --json --go --mongo --jupyter',
       'medomics-server.exe start --json',
       ''
@@ -204,6 +205,7 @@ async function main() {
     await fsp.writeFile(path.join(outBase, 'start.sh'), [
       '#!/usr/bin/env bash',
       'set -e',
+      'export NODE_ENV=production',
       './medomics-server ensure --json --go --mongo --jupyter',
       './medomics-server start --json',
       ''
