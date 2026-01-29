@@ -5,6 +5,63 @@ import fs from "fs"
 import { execSync, exec as execCb } from "child_process"
 const exec = util.promisify(execCb)
 
+function getServerBundleRoot() {
+  // In Electron builds, process.resourcesPath is a good anchor.
+  // In the standalone server (nexe), process.resourcesPath can be undefined.
+  // Fall back to the executable directory and its parent, then cwd.
+  const execDir = (() => {
+    try {
+      return process.execPath ? path.dirname(process.execPath) : null
+    } catch {
+      return null
+    }
+  })()
+
+  const candidates = [
+    (typeof process.resourcesPath === "string" && process.resourcesPath) ? process.resourcesPath : null,
+    execDir,
+    execDir ? path.dirname(execDir) : null,
+    process.cwd(),
+  ].filter(Boolean)
+
+  // Prefer a directory that looks like the server bundle root.
+  for (const candidate of candidates) {
+    try {
+      if (
+        fs.existsSync(path.join(candidate, "pythonEnv")) ||
+        fs.existsSync(path.join(candidate, "pythonCode")) ||
+        fs.existsSync(path.join(candidate, "go_executables")) ||
+        fs.existsSync(path.join(candidate, "backend"))
+      ) {
+        return candidate
+      }
+    } catch {
+      // ignore
+    }
+  }
+  return candidates[0] || process.cwd()
+}
+
+function getMergedRequirementsPath() {
+  const requirementsFileName = "merged_requirements.txt"
+  const bundleRoot = getServerBundleRoot()
+  const candidates = [
+    path.join(bundleRoot, "pythonEnv", requirementsFileName),
+    path.join(bundleRoot, "resources", "pythonEnv", requirementsFileName),
+    path.join(process.cwd(), "pythonEnv", requirementsFileName),
+    path.join(process.cwd(), "resources", "pythonEnv", requirementsFileName),
+  ]
+  for (const p of candidates) {
+    try {
+      if (fs.existsSync(p)) return p
+    } catch {
+      // ignore
+    }
+  }
+  // Fall back to the most likely default; caller can handle missing file.
+  return candidates[0]
+}
+
 function getPythonEnvironment(medCondaEnv = "med_conda_env") {
   let pythonEnvironment = process.env.MED_ENV
 
@@ -187,12 +244,12 @@ function getBundledPythonEnvironment() {
 }
 
 async function installRequiredPythonPackages(notify, pythonExecutablePath) {
-  let requirementsFileName = "merged_requirements.txt"
-  if (process.env.NODE_ENV === "production") {
-    installPythonPackage(notify, pythonExecutablePath, null, path.join(process.cwd(), "resources", "pythonEnv", requirementsFileName))
-  } else {
-    installPythonPackage(notify, pythonExecutablePath, null, path.join(process.cwd(), "pythonEnv", requirementsFileName))
+  const requirementsPath = getMergedRequirementsPath()
+  if (!fs.existsSync(requirementsPath)) {
+    throw new Error(`Requirements file not found: ${requirementsPath}`)
   }
+  // Ensure the async install is awaited.
+  await installPythonPackage(notify, pythonExecutablePath, null, requirementsPath)
 }
 
 function comparePythonInstalledPackages(pythonPackages, requirements) {
@@ -231,11 +288,15 @@ function checkPythonRequirements(pythonPath = null, requirementsFilePath = null)
     pythonPath = getBundledPythonEnvironment()
   }
   if (requirementsFilePath === null) {
-    if (process.env.NODE_ENV === "production") {
-      requirementsFilePath = path.join(process.resourcesPath, "pythonEnv", "merged_requirements.txt")
-    } else {
-      requirementsFilePath = path.join(process.cwd(), "pythonEnv", "merged_requirements.txt")
-    }
+    requirementsFilePath = getMergedRequirementsPath()
+  }
+  if (!pythonPath || !fs.existsSync(pythonPath)) {
+    console.warn("Python executable not found for requirements check:", pythonPath)
+    return false
+  }
+  if (!requirementsFilePath || !fs.existsSync(requirementsFilePath)) {
+    console.warn("Requirements file not found for requirements check:", requirementsFilePath)
+    return false
   }
   let pythonPackages = getInstalledPythonPackages(pythonPath)
   let requirements = fs.readFileSync(requirementsFilePath, "utf8").split("\n")
@@ -454,6 +515,8 @@ export {
   getInstalledPythonPackages,
   installPythonPackage,
   execCallbacksForChildWithNotifications,
-  installBundledPythonExecutable
+  installBundledPythonExecutable,
+  getMergedRequirementsPath,
+  getServerBundleRoot
 }
 

@@ -172,6 +172,27 @@ function normalizePathForPlatform(p) {
 async function startGoServer(preferredPort = null) {
 	// Kick the Go server using existing helper; capture process handle and update state
 	try {
+		// Ensure bundled python exists and has required packages (e.g. pandas)
+		// so GO-launched scripts don't fail at import time.
+		try {
+			const pythonExe = getBundledPythonEnvironment()
+			if (!pythonExe) {
+				throw new Error('Bundled Python environment not found')
+			}
+			const reqOk = checkPythonRequirements(pythonExe)
+			if (!reqOk) {
+				console.log('[python] requirements missing; installing into', pythonExe)
+				await installRequiredPythonPackages(null, pythonExe)
+				const reqOk2 = checkPythonRequirements(pythonExe)
+				if (!reqOk2) {
+					throw new Error('Python requirements are still missing after install')
+				}
+			}
+		} catch (pyErr) {
+			console.error('[python] ensure requirements failed:', pyErr && pyErr.message ? pyErr.message : pyErr)
+			throw pyErr
+		}
+
 		const { process: proc, port } = await runServer(isProd, preferredPort, goServerProcess, goServerState, null)
 		goServerProcess = proc
 		serviceState.go.running = true
