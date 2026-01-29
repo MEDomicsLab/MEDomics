@@ -131,6 +131,12 @@ export async function runServer(isProd, serverPort, serverProcess, serverState, 
   let env = process.env
   let bundledPythonPath = getBundledPythonEnvironment()
 
+  // The Go server expects MED_ENV to be the Python executable to run.
+  // Prefer bundled Python (if present), else configured pythonEnvironment, else provided condaPath.
+  // Fall back to plain `python` so PATH resolution can work.
+  const pythonForGo = (bundledPythonPath || pythonEnvironment || condaPath || "python")
+  env.MED_ENV = pythonForGo
+
   if (bundledPythonPath !== null) {
     bundledPythonPath = bundledPythonPath.replace("python.exe", "")
 
@@ -190,12 +196,30 @@ export async function runServer(isProd, serverPort, serverProcess, serverState, 
       })
   } else {
     //**** PRODUCTION ****//
-    let args = [serverPort, "prod", process.resourcesPath]
+    // In production we must pass a base directory where pythonCode/ exists.
+    // In standalone server bundles, this is the directory containing medomics-server.exe.
+    // `process.resourcesPath` is Electron-specific and may be undefined under nexe.
+    const exeDir = path.dirname(process.execPath)
+    const baseRootCandidates = [
+      (typeof process.resourcesPath === 'string' && process.resourcesPath) ? process.resourcesPath : null,
+      exeDir,
+      path.dirname(exeDir),
+    ].filter(Boolean)
+
+    const baseRoot = baseRootCandidates.find((candidate) => {
+      try {
+        // Prefer a directory that looks like the server bundle root.
+        return fs.existsSync(path.join(candidate, 'pythonCode')) || fs.existsSync(path.join(candidate, 'go_executables')) || fs.existsSync(path.join(candidate, 'backend'))
+      } catch {
+        return false
+      }
+    }) || exeDir
+    let args = [serverPort, "prod", baseRoot]
     // Get the temporary directory path
     args.push(os.tmpdir())
-    if (condaPath !== null) {
-      args.push(condaPath)
-    }
+    // Always pass python executable path as last argument so Go can run python scripts.
+    // (If not present, it will be the string "python" and rely on PATH.)
+    args.push(pythonForGo)
 
     await findAvailablePort(MEDconfig.defaultPort)
       .then((port) => {
@@ -203,15 +227,16 @@ export async function runServer(isProd, serverPort, serverProcess, serverState, 
         chosenPort = port
         console.log("process.resourcesPath: ", process.resourcesPath)
         console.log("process.execPath: ", process.execPath)
+        console.log("[go] baseRoot:", baseRoot)
+        console.log("[go] MED_ENV (python):", env.MED_ENV)
         // ensure the spawned process receives the actual chosen port as first argument
         if (Array.isArray(args) && args.length > 0) args[0] = serverPort
 
         // In production, the GO executable is located relative to the
-        // packaged medomics-server executable, e.g. "./go_executables/server_go_win32.exe".
-        const exeDir = path.dirname(process.execPath)
+        // server bundle root (same folder that contains pythonCode/ and go_executables/).
 
         if (process.platform == "win32") {
-          const goPathWin = path.join(exeDir, "go_executables", "server_go_win32.exe")
+          const goPathWin = path.join(baseRoot, "go_executables", "server_go_win32.exe")
           console.log("Resolved GO executable path (win32):", goPathWin)
 
           if (!fs.existsSync(goPathWin)) {
@@ -224,7 +249,7 @@ export async function runServer(isProd, serverPort, serverProcess, serverState, 
             serverState.serverIsRunning = true
           }
         } else if (process.platform == "linux") {
-          const goPathLinux = path.join(exeDir, "go_executables", "server_go")
+          const goPathLinux = path.join(baseRoot, "go_executables", "server_go")
           console.log("Resolved GO executable path (linux):", goPathLinux)
 
           if (!fs.existsSync(goPathLinux)) {
@@ -236,7 +261,7 @@ export async function runServer(isProd, serverPort, serverProcess, serverState, 
             serverState.serverIsRunning = true
           }
         } else if (process.platform == "darwin") {
-          const goPathDarwin = path.join(exeDir, "go_executables", "server_go")
+          const goPathDarwin = path.join(baseRoot, "go_executables", "server_go")
           console.log("Resolved GO executable path (darwin):", goPathDarwin)
 
           if (!fs.existsSync(goPathDarwin)) {
