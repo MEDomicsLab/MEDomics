@@ -726,3 +726,62 @@ export async function getAllCollections() {
   const db = await connectToMongoDB()
   return await db.listCollections().toArray()
 }
+
+/**
+ * @description Compute class imbalance statistics for a dataset
+ * @param {String} collectionId MongoDB collection id
+ * @param {String} target Target column name
+ * @returns {Object|null} classStats
+ */
+export async function getDatasetClassStats(collectionId, target) {
+  try {
+    const db = await connectToMongoDB()
+    const collection = db.collection(collectionId)
+
+    // Read only the target column to keep it lightweight
+    const cursor = collection.find({}, { projection: { _id: 0, [target]: 1 } })
+
+    const counts = new Map()
+
+    for await (const doc of cursor) {
+      const value = doc[target]
+      if (value === undefined || value === null) continue
+      counts.set(value, (counts.get(value) || 0) + 1)
+    }
+
+    // Only binary classification
+    if (counts.size !== 2) {
+      return null
+    }
+
+    // Minority class = positive class
+    let posLabel = null
+    let nPos = Infinity
+    let nNeg = 0
+
+    for (const [label, count] of counts.entries()) {
+      if (count < nPos) {
+        posLabel = label
+        nPos = count
+      }
+    }
+
+    for (const [label, count] of counts.entries()) {
+      if (label !== posLabel) {
+        nNeg = count
+      }
+    }
+
+    if (!nPos || nPos === 0) return null
+
+    return {
+      pos_label: String(posLabel),
+      n_pos: nPos,
+      n_neg: nNeg,
+      fraction_neg_pos: nNeg / nPos
+    }
+  } catch (error) {
+    console.error("Error computing dataset class stats:", error)
+    return null
+  }
+}
