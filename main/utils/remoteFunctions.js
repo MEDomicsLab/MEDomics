@@ -242,31 +242,51 @@ async function startRemoteBackend(conn, remoteOS, exePath, remotePort) {
         try { mainWindow.webContents.send('tunnelStateUpdate', { expressLogPath: logPath }) } catch {}
       } catch {}
     }
+
+    // If we're launching a packaged server binary, prefer using the shipped
+    // start script (start.bat/start.sh) so it can set NODE_ENV=production and
+    // any other required environment/config.
+    if (!isScript) {
+      try { setRemoteBackendExecutablePath(exePath) } catch {}
+      try {
+        const viaScript = await startRemoteExpress(conn, remoteOS, remotePort)
+        if (viaScript && viaScript.success) {
+          return { success: true, status: 'express-running', port: remotePort }
+        }
+        // If the script exists but failed, bubble that up.
+        if (viaScript && viaScript.status && viaScript.status !== 'script-not-found') {
+          return viaScript
+        }
+      } catch (e) {
+        // Fall back to direct executable start below.
+        console.warn('[remote] startRemoteBackend startRemoteExpress failed; falling back:', e && e.message ? e.message : e)
+      }
+    }
     let cmd
     console.log('[remote] startRemoteBackend called', { remoteOS, exePath, remotePort, isScript })
     if (remoteOS === 'win32') {
       if (isScript) {
-        cmd = `powershell -NoProfile -Command "$env:MEDOMICS_EXPRESS_PORT=${remotePort}; Start-Process -FilePath 'node' -ArgumentList '${exePath.replace(/'/g, "''")}' -WindowStyle Hidden -PassThru | Out-Null"`
+        cmd = `powershell -NoProfile -Command "$env:NODE_ENV='production'; $env:MEDOMICS_EXPRESS_PORT=${remotePort}; Start-Process -FilePath 'node' -ArgumentList '${exePath.replace(/'/g, "''")}' -WindowStyle Hidden -PassThru | Out-Null"`
       } else {
         // If launching medomics-server.exe, pass explicit CLI args: start --json
         const workDir = (versionDir || path.dirname(exePath)).replace(/\\/g, '\\')
         const exeBase = path.basename(exePath).replace(/\\/g, '\\')
         if (logsDir && logPath) {
-          cmd = `cmd.exe /c "cd /d \"${workDir}\" && set MEDOMICS_EXPRESS_PORT=${remotePort} && \"${exeBase}\" start --json >> \"${logPath.replace(/\\/g,'\\')}\" 2>&1"`
+          cmd = `cmd.exe /c "cd /d \"${workDir}\" && set NODE_ENV=production && set MEDOMICS_EXPRESS_PORT=${remotePort} && \"${exeBase}\" start --json >> \"${logPath.replace(/\\/g,'\\')}\" 2>&1"`
         } else {
           // Fallback without log redirection
-          cmd = `cmd.exe /c "cd /d \"${workDir}\" && set MEDOMICS_EXPRESS_PORT=${remotePort} && \"${exeBase}\" start --json"`
+          cmd = `cmd.exe /c "cd /d \"${workDir}\" && set NODE_ENV=production && set MEDOMICS_EXPRESS_PORT=${remotePort} && \"${exeBase}\" start --json"`
         }
       }
     } else {
       if (isScript) {
-        cmd = `bash -lc 'export MEDOMICS_EXPRESS_PORT=${remotePort}; nohup node "${exePath.replace(/"/g, '\\"')}" >/dev/null 2>&1 < /dev/null & echo $!'`
+        cmd = `bash -lc 'export NODE_ENV=production; export MEDOMICS_EXPRESS_PORT=${remotePort}; nohup node "${exePath.replace(/"/g, '\\"')}" >/dev/null 2>&1 < /dev/null & echo $!'`
       } else {
         const exeEsc = exePath.replace(/"/g, '\\"')
         if (logPath) {
-          cmd = `bash -lc 'export MEDOMICS_EXPRESS_PORT=${remotePort}; nohup "${exeEsc}" start --json >> "${logPath.replace(/"/g, '\\"')}" 2>&1 < /dev/null & echo $!'`
+          cmd = `bash -lc 'export NODE_ENV=production; export MEDOMICS_EXPRESS_PORT=${remotePort}; nohup "${exeEsc}" start --json >> "${logPath.replace(/"/g, '\\"')}" 2>&1 < /dev/null & echo $!'`
         } else {
-          cmd = `bash -lc 'export MEDOMICS_EXPRESS_PORT=${remotePort}; nohup "${exeEsc}" start --json >/dev/null 2>&1 < /dev/null & echo $!'`
+          cmd = `bash -lc 'export NODE_ENV=production; export MEDOMICS_EXPRESS_PORT=${remotePort}; nohup "${exeEsc}" start --json >/dev/null 2>&1 < /dev/null & echo $!'`
         }
       }
     }
@@ -415,7 +435,7 @@ async function startRemoteExpress(conn, remoteOS, remotePort) {
       const workDir = versionDir.replace(/\\/g, '\\')
       const batName = path.basename(scriptPath)
       const winLogPath = logPath.replace(/\\/g, '\\')
-      cmd = `cmd.exe /c "cd /d \"${workDir}\" && set MEDOMICS_EXPRESS_PORT=${remotePort} && \"${batName}\" >> \"${winLogPath}\" 2>&1"`
+      cmd = `cmd.exe /c "cd /d \"${workDir}\" && set NODE_ENV=production && set MEDOMICS_EXPRESS_PORT=${remotePort} && echo [launcher] NODE_ENV=%NODE_ENV% MEDOMICS_EXPRESS_PORT=%MEDOMICS_EXPRESS_PORT% >> \"${winLogPath}\" && \"${batName}\" >> \"${winLogPath}\" 2>&1"`
       console.log('[remote] startRemoteExpress exec cmd', cmd)
       // Fire-and-forget: do not await completion of the batch; it runs the server and can stay running.
       try {
@@ -439,7 +459,7 @@ async function startRemoteExpress(conn, remoteOS, remotePort) {
         console.log('[remote] startRemoteExpress exec exception', e && e.message ? e.message : String(e))
       }
     } else {
-      cmd = `bash -lc "MEDOMICS_EXPRESS_PORT='${remotePort}' nohup '${scriptPath}' >> '${logPath.replace(/'/g, "'\\''")}' 2>&1 &"`
+      cmd = `bash -lc "export NODE_ENV=production; export MEDOMICS_EXPRESS_PORT='${remotePort}'; echo '[launcher] NODE_ENV='\"$NODE_ENV\"' MEDOMICS_EXPRESS_PORT='\"$MEDOMICS_EXPRESS_PORT\" >> '${logPath.replace(/'/g, "'\\''")}'; nohup '${scriptPath}' >> '${logPath.replace(/'/g, "'\\''")}' 2>&1 &"`
       console.log('[remote] startRemoteExpress exec cmd', cmd)
       const r2 = await execRemote(conn, cmd)
       console.log('[remote] startRemoteExpress exec result', r2)
@@ -690,6 +710,8 @@ ipcMain.handle('startRemoteBackendUsingPath', async (_event, { path: exePath, po
   const remoteOS = await detectRemoteOS()
   const state = getTunnelState()
   const targetPort = port || state.remoteExpressPort
+  // Persist the chosen path so startRemoteExpress can resolve start scripts relative to it.
+  try { setRemoteBackendExecutablePath(exePath) } catch {}
   const res = await startRemoteBackend(conn, remoteOS, exePath, targetPort)
   if (res && res.success) {
     // Mark Express as running, started via app, and ensure forward is active
@@ -1668,6 +1690,41 @@ export async function getRemoteLStat(filePath) {
     return "sftp error"
   }
 }
+
+
+/**
+ * @description This function uses SFTP to rename a remote file.
+ * @param {string} oldPath - The remote path of the file to rename
+ * @param {string} newPath - The new remote path of the file
+ * @returns {{ success: boolean, error: string }} - Returns an object indicating success or failure with an error message.
+ */
+ipcMain.handle('renameRemoteFile', async (_event, { oldPath, newPath }) => {
+  function sftpRename(sftp, oldPath, newPath) {
+    return new Promise((resolve, reject) => {
+      sftp.rename(oldPath, newPath, (err) => {
+        if (err) reject(err)
+        else resolve()
+      })
+    })
+  }
+
+  const activeTunnel = getActiveTunnel()
+  if (!activeTunnel) return { success: false, error: 'No active SSH tunnel' }
+  return new Promise((resolve) => {
+    activeTunnel.sftp(async (err, sftp) => {
+      if (err) return resolve({ success: false, error: err.message })
+      try {
+        await sftpRename(sftp, oldPath, newPath)
+        if (typeof sftp.end === 'function') sftp.end()
+        resolve({ success: true })
+      } catch (e) {
+        if (typeof sftp.end === 'function') sftp.end()
+        resolve({ success: false, error: e.message })
+      }
+    })
+  })
+})
+
 
 /**
  * @description This function uses SFTP to delete a remote file.
