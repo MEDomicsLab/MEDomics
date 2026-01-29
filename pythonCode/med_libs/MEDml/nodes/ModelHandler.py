@@ -17,10 +17,11 @@ DATAFRAME_LIKE = Union[dict, list, tuple, np.ndarray, pd.DataFrame]
 TARGET_LIKE = Union[int, str, list, tuple, np.ndarray, pd.Series]
 
 def sanitize_hyperparam(name, value):
-    # --- max_features
+    if value is None:
+        return None
+
+    # --- special case: max_features
     if name == "max_features":
-        if value is None:
-            return None
         if isinstance(value, str):
             if value.isdigit():
                 return int(value)
@@ -29,6 +30,9 @@ def sanitize_hyperparam(name, value):
             except ValueError:
                 return value
         return value
+
+    # --- default behavior for ALL other hyperparameters
+    return value
 
 
 def sanitize_custom_grid(custom_grid: dict) -> dict:
