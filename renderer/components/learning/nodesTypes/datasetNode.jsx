@@ -9,7 +9,6 @@ import { getCollectionColumns } from "../../mongoDB/mongoDBUtils"
 import { getDatasetClassStats } from "../../mongoDB/mongoDBUtils"
 import Input from "../input"
 import ModalSettingsChooser from "../modalSettingsChooser"
-import { OverlayPanel } from 'primereact/overlaypanel'
 import { toast } from 'react-toastify'
 import { Panel } from 'primereact/panel'
 import { Tag } from 'primereact/tag'
@@ -33,6 +32,35 @@ const DatasetNode = ({ id, data }) => {
   const { setLoader } = useContext(LoaderContext)
   const [tagId, setTagId] = useState(localStorage.getItem("myUUID"))
 
+  const updateClassStats = (data) => {
+    const rawFiles = data.internal.settings.files
+    const target = data.internal.settings.target
+
+    const file = Array.isArray(rawFiles) ? rawFiles[0] : rawFiles
+    if (!file?.id || !target) return
+
+    const existing = data.internal.classStats
+    if (existing?.target === target) return
+
+    getDatasetClassStats(file.id, target).then((stats) => {
+      if (!stats) return
+
+      updateNode({
+        id,
+        updatedData: {
+          ...data.internal,
+          settings: {
+            ...data.internal.settings,
+          },
+          classStats: {
+            ...stats,
+            target
+          }
+        }
+      })
+    })
+  }
+
   useEffect(() => {
     if (!tagId) {
       let uuid = "column_tags"
@@ -49,6 +77,14 @@ const DatasetNode = ({ id, data }) => {
         }
       }
     })
+
+    // Class stats check
+    if (Object.hasOwn(data.internal.settings, 'classStats')) {
+      delete data.internal.settings.classStats
+    }
+    if (!Object.hasOwn(data.internal, 'classStats') || data.internal.classStats.length === 0) {
+      updateClassStats(data)
+    }
   }, [data])
 
   // update the node internal data when the selection changes
@@ -78,13 +114,15 @@ const DatasetNode = ({ id, data }) => {
   const onSelectionChange = (e) => {
   setSelection(e.target.value)
 
+  data.internal.classStats = undefined
   data.internal.settings = {
     ...data.internal.settings,
     files: undefined,
     target: undefined,
-    classStats: undefined
   }
-
+  if (Object.hasOwn(data.internal.settings, 'classStats')) {
+    delete data.internal.settings.classStats
+  }
   data.internal.checkedOptions = []
   data.internal.hasWarning = {
     state: true,
@@ -129,33 +167,8 @@ const DatasetNode = ({ id, data }) => {
   }
 
   useEffect(() => {
-  const rawFiles = data.internal.settings.files
-  const target = data.internal.settings.target
-
-  const file = Array.isArray(rawFiles) ? rawFiles[0] : rawFiles
-  if (!file?.id || !target) return
-
-  const existing = data.internal.settings.classStats
-  if (existing?.target === target) return
-
-  getDatasetClassStats(file.id, target).then((stats) => {
-    if (!stats) return
-
-    updateNode({
-      id,
-      updatedData: {
-        ...data.internal,
-        settings: {
-          ...data.internal.settings,
-          classStats: {
-            ...stats,
-            target
-          }
-        }
-      }
-    })
-  })
-}, [data.internal.settings.files, data.internal.settings.target])
+    updateClassStats(data)
+  }, [data.internal.settings.files, data.internal.settings.target])
 
 
 
@@ -328,7 +341,7 @@ const DatasetNode = ({ id, data }) => {
   const op = useRef(null)
 
   const renderDefaultInversePanel = () => {
-  const stats = data.internal.settings.classStats
+  const stats = data.internal.classStats
   const target = data.internal.settings.target
 
   if (!stats || !target) return null
