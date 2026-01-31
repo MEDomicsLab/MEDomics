@@ -242,7 +242,6 @@ const TrainModelNode = ({ id, data }) => {
             <div style={{
               border: "1px solid #e0e0e0",          // bordure grise très claire
               borderRadius: "10px",                 // coins arrondis
-              backgroundColor: "#fcfcfc",           // fond légèrement différent
               padding: "10px 12px",
               marginBottom: "12px",
               boxShadow: "0 1px 2px rgba(0,0,0,0.05)" // petite ombre douce
@@ -250,7 +249,7 @@ const TrainModelNode = ({ id, data }) => {
             {/* === TRAINING OPTIONS SECTION === */}
             <div className="p-2 mb-1 d-flex justify-content-between align-items-center"
                 style={{ border: "1px solid #ccc", borderRadius: "8px" }}>
-              <span className="text-muted" style={{ fontSize: "0.9rem" }}>General Options</span>
+              <span style={{ fontSize: "0.9rem" }}>General Options</span>
               <Button
                 variant="light"
                 className="btn-contour ms-2"
