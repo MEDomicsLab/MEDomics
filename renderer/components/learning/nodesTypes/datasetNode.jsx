@@ -82,7 +82,7 @@ const DatasetNode = ({ id, data }) => {
     if (Object.hasOwn(data.internal.settings, 'classStats')) {
       delete data.internal.settings.classStats
     }
-    if (!Object.hasOwn(data.internal, 'classStats') || data.internal.classStats.length === 0) {
+    if (!Object.hasOwn(data.internal, 'classStats') || data.internal.classStats?.length === 0) {
       updateClassStats(data)
     }
   }, [data])

@@ -350,7 +350,7 @@ const Input = ({ name, settingInfos, currentValue, onInputChange, disabled = fal
           </>
         )
 
-                case "multi": {
+        case "multi": {
           const subType = detectMultiType(currentValue);
           const [selectedSubType, setSelectedSubType] = useState(subType);
 
@@ -373,7 +373,6 @@ const Input = ({ name, settingInfos, currentValue, onInputChange, disabled = fal
                 style={{
                   border: "1px solid #dcdcdc",
                   borderRadius: "8px",
-                  backgroundColor: "#fafafa",
                   padding: "12px",
                   marginBottom: "12px",
                   marginTop: "8px"
