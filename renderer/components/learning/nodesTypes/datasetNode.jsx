@@ -568,7 +568,7 @@ const DatasetNode = ({ id, data }) => {
           </>
         }
         // Link to documentation
-        nodeLink={"https://medomics-udes.gitbook.io/medomicslab-docs/tutorials/development/learning-module#id-1.-available-nodes"}
+        nodeLink={"https://medomicslab.gitbook.io/medomics-docs/tutorials/development/learning-module#id-1.-available-nodes"}
       />
     </>
   )

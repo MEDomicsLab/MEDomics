@@ -16,7 +16,7 @@ const ExtractionTSPage = ({ pageId }) => {
           <p className="gitbook-link">
           📖 Learn more about this process in our
           <u
-            onClick={() => shell.openExternal("https://medomics-udes.gitbook.io/medomicslab-docs/tutorials/design/extraction-modules/time-series-extraction-page")}
+            onClick={() => shell.openExternal("https://medomicslab.gitbook.io/medomics-docs/tutorials/design/extraction-modules/time-series-extraction-page")}
             style={{ color: "#4991dfff", textDecoration: "none", cursor: "pointer" }}
           > documentation. 🔗
           </u>
