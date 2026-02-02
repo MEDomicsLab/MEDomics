@@ -121,7 +121,7 @@ const SelectionNode = ({ id, data, type }) => {
               id={id}
             />
             {(data.internal.name === "Model" && data.internal.checkedOptions.length > 0) && (
-              <p className="text-muted" style={{ fontSize: "0.85em" }}>
+              <p style={{ fontSize: "0.85em" }}>
                 You can enable fine-tuning for the settings listed below in the Train Model node.
               </p>
             )}

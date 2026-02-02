@@ -306,7 +306,7 @@ const TrainModelNode = ({ id, data }) => {
                     className="p-2 mb-2 d-flex justify-content-between align-items-center"
                     style={{ border: "1px solid #ccc", borderRadius: "8px" }}
                   >
-                    <span className="text-muted" style={{ fontSize: "0.9rem" }}>
+                    <span style={{ fontSize: "0.9rem" }}>
                       Tuning Options
                     </span>
                     <Button
@@ -345,7 +345,7 @@ const TrainModelNode = ({ id, data }) => {
                 {!usePycaretSearchSpace && (
                   <>
                   <div style={{ 
-                    backgroundColor: "#e7f3ff",  // bleu clair doux
+                    backgroundColor: "#82abd4",  // bleu clair doux
                     border: "1px solid #b6daff", // bordure bleu clair
                     borderRadius: "8px", 
                     padding: "12px", 
