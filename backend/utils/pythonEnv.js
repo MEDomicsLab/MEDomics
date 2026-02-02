@@ -333,31 +333,54 @@ function getInstalledPythonPackages(pythonPath = null) {
 
 async function installPythonPackage(notify, pythonPath, packageName = null, requirementsFilePath = null) {
   console.log("Installing python package: ", packageName, requirementsFilePath, " with pythonPath: ", pythonPath)
-  let execSyncResult = null
-  let pipUpgradePromise = exec(`${pythonPath} -m pip install --upgrade pip`)
-  execCallbacksForChildWithNotifications(pipUpgradePromise.child, "Python pip Upgrade", notify)
-  await pipUpgradePromise
-  if (requirementsFilePath !== null) {
-    let installPythonPackagePromise = exec(`${pythonPath} -m pip install -r ${requirementsFilePath}`)
-    execCallbacksForChildWithNotifications(installPythonPackagePromise.child, "Python Package Installation from requirements", notify)
-    await installPythonPackagePromise
-  } else {
-    let installPythonPackagePromise = exec(`${pythonPath} -m pip install ${packageName}`)
-    execCallbacksForChildWithNotifications(installPythonPackagePromise.child, "Python Package Installation", notify)
-    await installPythonPackagePromise
+  const quotedPython = `"${pythonPath}"`
+  const quotedReq = requirementsFilePath ? `"${requirementsFilePath}"` : null
+  try {
+    const pipUpgradePromise = exec(`${quotedPython} -m pip install --upgrade pip`)
+    execCallbacksForChildWithNotifications(pipUpgradePromise.child, "Python pip Upgrade", notify)
+    await pipUpgradePromise
+  } catch (e) {
+    // Promisified exec rejects, but its error can contain stdout/stderr.
+    console.error('[python] pip upgrade failed:', e && e.message ? e.message : e)
+    if (e && e.stdout) console.error('[python] pip upgrade stdout:', String(e.stdout))
+    if (e && e.stderr) console.error('[python] pip upgrade stderr:', String(e.stderr))
+    throw e
+  }
+
+  try {
+    if (requirementsFilePath !== null) {
+      const installPythonPackagePromise = exec(`${quotedPython} -m pip install -r ${quotedReq}`)
+      execCallbacksForChildWithNotifications(installPythonPackagePromise.child, "Python Package Installation from requirements", notify)
+      await installPythonPackagePromise
+    } else {
+      const installPythonPackagePromise = exec(`${quotedPython} -m pip install ${packageName}`)
+      execCallbacksForChildWithNotifications(installPythonPackagePromise.child, "Python Package Installation", notify)
+      await installPythonPackagePromise
+    }
+  } catch (e) {
+    console.error('[python] pip install failed:', e && e.message ? e.message : e)
+    if (e && e.stdout) console.error('[python] pip install stdout:', String(e.stdout))
+    if (e && e.stderr) console.error('[python] pip install stderr:', String(e.stderr))
+    throw e
   }
 }
 
 function execCallbacksForChildWithNotifications(child, id, notify) {
   if (!notify) notify = () => {}
+  // Always log to console (captured by express.log in packaged server), even
+  // when no UI notifier is provided.
+  console.log(`[python] ${id}: starting...`)
   notify({ id: id, message: `Starting...`, header: `${id} in progress` })
   child.stdout.on("data", (data) => {
+    console.log(`[python] ${id} stdout: ${String(data)}`)
     notify({ id: id, message: `stdout: ${data}`, header: `${id} in progress` })
   })
   child.stderr.on("data", (data) => {
+    console.log(`[python] ${id} stderr: ${String(data)}`)
     notify({ id: id, message: `stderr: ${data}`, header: `${id} Error` })
   })
   child.on("close", (code) => {
+    console.log(`[python] ${id}: exited with code ${code}`)
     notify({ id: id, message: `${id} exited with code ${code}`, header: `${id} Finished` })
   })
 }
@@ -421,12 +444,12 @@ async function installBundledPythonExecutable(notify) {
 
       execCallbacksForChildWithNotifications(downloadPromise.child, "Python Downloading", notify)
 
-      const { stdout, stderr } = await downloadPromise
+      await downloadPromise
       let extractCommand = `tar -xvf ${outputFileName} ${pythonParentFolderExtractString}`
       let extractionPromise = exec(extractCommand, { shell: "powershell.exe" })
       execCallbacksForChildWithNotifications(extractionPromise.child, "Python Exec. Extracting", notify)
 
-      const { stdout: extrac, stderr: extracErr } = await extractionPromise
+      await extractionPromise
 
       // Install the required python packages
       if (process.env.NODE_ENV === "production") {
@@ -437,7 +460,7 @@ async function installBundledPythonExecutable(notify) {
       let removeCommand = `rm ${outputFileName}`
       let removePromise = exec(removeCommand, { shell: "powershell.exe" })
       execCallbacksForChildWithNotifications(removePromise.child, "Python Exec. Removing", notify)
-      const { stdout: remove, stderr: removeErr } = await removePromise
+      await removePromise
     } else if (process.platform == "darwin") {
       // Download the right python executable (arm64 or x86_64)
       let isArm64 = process.arch === "arm64"
@@ -450,18 +473,18 @@ async function installBundledPythonExecutable(notify) {
       let extractCommand = `tar -xvf ${file} ${pythonParentFolderExtractString}`
       let downloadPromise = exec(`/bin/bash -c "$(curl -fsSLO ${url})"`)
       execCallbacksForChildWithNotifications(downloadPromise.child, "Python Downloading", notify)
-      const { stdout, stderr } = await downloadPromise
+      await downloadPromise
 
       // Extract the python executable
       let extractionPromise = exec(extractCommand)
       execCallbacksForChildWithNotifications(extractionPromise.child, "Python Exec. Extracting", notify)
-      const { stdout: extrac, stderr: extracErr } = await extractionPromise
+      await extractionPromise
 
       // Remove the downloaded file
       let removeCommand = `rm ${file}`
       let removePromise = exec(removeCommand)
       execCallbacksForChildWithNotifications(removePromise.child, "Python Exec. Removing", notify)
-      const { stdout: remove, stderr: removeErr } = await removePromise
+      await removePromise
 
       // Install the required python packages
       if (process.env.NODE_ENV === "production") {
@@ -482,17 +505,17 @@ async function installBundledPythonExecutable(notify) {
 
       let downloadPromise = exec(`wget ${url}`)
       execCallbacksForChildWithNotifications(downloadPromise.child, "Python Downloading", notify)
-      const { stdout: download, stderr: downlaodErr } = await downloadPromise
+      await downloadPromise
       // Extract the python executable
       let extractionPromise = exec(extractCommand)
       execCallbacksForChildWithNotifications(extractionPromise.child, "Python Exec. Extracting", notify)
-      const { stdout: extrac, stderr: extracErr } = await extractionPromise
+      await extractionPromise
 
       // Remove the downloaded file
       let removeCommand = `rm ${file}`
       let removePromise = exec(removeCommand)
       execCallbacksForChildWithNotifications(removePromise.child, "Python Exec. Removing", notify)
-      const { stdout: remove, stderr: removeErr } = await removePromise
+      await removePromise
 
       console.log("pythonExecutablePath: ", pythonExecutablePath)
       console.log("process.cwd(): ", process)
