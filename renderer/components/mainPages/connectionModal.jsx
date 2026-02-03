@@ -162,7 +162,7 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
       setTunnelStatus(`Reconnecting... (attempt ${reconnectAttempts} of ${maxReconnectAttempts})`)
       toast.warn(`Attempt ${reconnectAttempts} of ${maxReconnectAttempts} to reconnect SSH tunnel.`)
       const timer = setTimeout(() => {
-  handleConnectSSH(connectionInfo, true)
+        handleConnectSSH(connectionInfo, true)
       }, reconnectDelay)
       return () => clearTimeout(timer)
     }
@@ -296,9 +296,10 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
 
   // Subscribe to tunnel state changes from main process and auto-sync UI/context
   useEffect(() => {
-    const handler = async (_event, payload) => {
+    const handler = async (_event, _payload) => {
       try {
-        const state = payload && typeof payload === 'object' ? payload : await ipcRenderer.invoke('getTunnelState')
+        // Always fetch the authoritative full tunnel state to avoid partial payload issues
+        const state = await ipcRenderer.invoke('getTunnelState')
         if (!state) return
         // Basic tunnel status
         setTunnelActive(!!state.tunnelActive)
@@ -311,8 +312,11 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
         if (state.remoteDBPort !== undefined) setRemoteDBPort(String(state.remoteDBPort))
         if (state.localJupyterPort !== undefined) setLocalJupyterPort(String(state.localJupyterPort))
         if (state.remoteJupyterPort !== undefined) setRemoteJupyterPort(String(state.remoteJupyterPort))
-        // Reflect express server running state if provided
-        if (state.expressStatus) setRemoteServerRunning(state.expressStatus === 'running')
+        // Reflect express server running state: treat 'running' or 'forwarding' as running
+        if (state.expressStatus) {
+          const s = String(state.expressStatus).toLowerCase()
+          setRemoteServerRunning(s === 'running' || s === 'forwarding')
+        }
         if (DEBUG_TUNNEL) {
           try {
             console.debug('[ConnectionModal] tunnel event', {
@@ -1066,51 +1070,56 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
     setGoVerifyLoading(true)
     setGoVerifyStatus('checking')
     try {
-      // Step 1: Ensure GO is running on remote via Express-forwarded /ensure-go
-      try {
-        const tunnelState = await ipcRenderer.invoke('getTunnelState')
-        const forwardedPort = tunnelState?.localExpressPort || Number(localExpressPort)
-        if (forwardedPort) {
-          await window.backend.requestExpress({
-            method: 'post',
-            path: '/ensure-go',
-            host: '127.0.0.1',
-            port: Number(forwardedPort),
-            body: {}
-          })
-          // Step 2: Read /status again and rebind GO tunnel if port changed
-          try {
-            const resp = await window.backend.requestExpress({
-              method: 'get',
-              path: '/status',
-              host: '127.0.0.1',
-              port: Number(forwardedPort),
-              timeout: 4000
-            })
-            const data = resp?.data || {}
-            const discoveredGo = typeof data.go?.port === 'number' ? data.go.port : null
-            if (discoveredGo) {
-              const currentRemoteGo = Number(remoteGoPort)
-              if (!currentRemoteGo || discoveredGo !== currentRemoteGo) {
-                setRemoteGoPort(String(discoveredGo))
-                try {
-                  await ipcRenderer.invoke('rebindPortTunnel', { name: 'go', newRemotePort: Number(discoveredGo) })
-                  try {
-                    tunnelContext.setTunnelInfo(await ipcRenderer.invoke('getTunnelState'))
-                  } catch (e) {
-                    console.warn('GO tunnel context sync after rebind failed:', e)
-                  }
-                } catch (e) {
-                  console.warn('GO rebind after ensure-go failed:', e)
-                }
-              }
+      // Status-first: try to read GO state and port
+      const tunnelState = await ipcRenderer.invoke('getTunnelState')
+      const forwardedPort = tunnelState?.localExpressPort || Number(localExpressPort)
+      if (!forwardedPort) throw new Error('No forwarded Express port available')
+
+      const readStatus = async (timeout = 6000) => {
+        try {
+          const resp = await window.backend.requestExpress({ method: 'get', path: '/status', host: '127.0.0.1', port: Number(forwardedPort), timeout })
+          return resp?.data || {}
+        } catch { return {} }
+      }
+
+      let data = await readStatus(6000)
+      let discoveredGo = typeof data.go?.port === 'number' ? data.go.port : null
+      const goRunning = !!data.go?.running
+
+      // If not running, start idempotently then re-read status
+      if (!goRunning || !discoveredGo) {
+        try {
+          await window.backend.requestExpress({ method: 'post', path: '/ensure-go', host: '127.0.0.1', port: Number(forwardedPort) })
+          data = await readStatus(8000)
+          discoveredGo = typeof data.go?.port === 'number' ? data.go.port : null
+        } catch (e) {
+          console.warn('ensure-go failed:', e)
+        }
+      }
+
+      // Bind/rebind forward if we have a port
+      if (discoveredGo) {
+        const currentRemoteGo = Number(remoteGoPort)
+        // Always ensure a GO forward exists by starting the generic tunnel;
+        // startPortTunnel will close any existing 'go' server and recreate if needed.
+        try {
+          setRemoteGoPort(String(discoveredGo))
+          const ts = await ipcRenderer.invoke('getTunnelState')
+          const lp = Number(ts?.localGoPort || localGoPort)
+          await ipcRenderer.invoke('startPortTunnel', { name: 'go', localPort: lp, remotePort: Number(discoveredGo), ensureRemoteOpen: true })
+          try { tunnelContext.setTunnelInfo(await ipcRenderer.invoke('getTunnelState')) } catch { /* ignore */ }
+        } catch (e) {
+          console.warn('GO forward start failed:', e && e.message ? e.message : e)
+          // Fallback: if remote port changed vs current, attempt a rebind
+          if (!currentRemoteGo || discoveredGo !== currentRemoteGo) {
+            try {
+              await ipcRenderer.invoke('rebindPortTunnel', { name: 'go', newRemotePort: Number(discoveredGo) })
+              try { tunnelContext.setTunnelInfo(await ipcRenderer.invoke('getTunnelState')) } catch { /* ignore */ }
+            } catch (rebErr) {
+              console.warn('GO rebind failed:', rebErr && rebErr.message ? rebErr.message : rebErr)
             }
-          } catch (e) {
-            console.warn('GO /status check after ensure-go failed:', e)
           }
         }
-      } catch (e) {
-        console.warn('ensure-go before verify failed:', e)
       }
 
       // Clear any previous probe hint at start of verification
@@ -1322,8 +1331,27 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
         checkRemoteServer()
       }, 300)
     } else if (activeStep === 2) {
-      timer = setTimeout(() => {
-        refreshRemoteDirectory()
+      timer = setTimeout(async () => {
+        // On entering Workspace page: refresh directory, then ensure GO forward if status reports a port
+        try { refreshRemoteDirectory() } catch (e) { console.warn('Workspace directory refresh failed on page enter', e) }
+        try {
+          const ts = await ipcRenderer.invoke('getTunnelState')
+          const forwardedPort = ts?.localExpressPort || Number(localExpressPort)
+          if (forwardedPort) {
+            const resp = await window.backend.requestExpress({ method: 'get', path: '/status', host: '127.0.0.1', port: Number(forwardedPort), timeout: 5000 })
+            const data = resp?.data || {}
+            const goPort = typeof data?.go?.port === 'number' ? data.go.port : null
+            const goRunning = !!data?.go?.running
+            if (goRunning && goPort) {
+              try {
+                const lp = Number(ts?.localGoPort || localGoPort)
+                await ipcRenderer.invoke('startPortTunnel', { name: 'go', localPort: lp, remotePort: Number(goPort), ensureRemoteOpen: true })
+                setRemoteGoPort(String(goPort))
+                try { tunnelContext.setTunnelInfo(await ipcRenderer.invoke('getTunnelState')) } catch {}
+              } catch (e) { /* non-fatal */ }
+            }
+          }
+        } catch(e) { console.warn('GO forward ensure on Workspace enter failed:', e) }
       }, 300)
     }
     return () => {
@@ -1365,8 +1393,20 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
           await ipcRenderer.invoke('rebindPortTunnel', { name: 'express', newRemotePort: Number(discoveredExpress) })
           setRemoteExpressPort(String(discoveredExpress))
         }
-        // GO
-        if (discoveredGo && Number(remoteGoPort) && discoveredGo !== Number(remoteGoPort)) {
+        // GO: if running and a port is reported, ensure a forward exists/start it; else rebind if remote changed
+        if (goRunning && discoveredGo) {
+          try {
+            const lp = Number(tunnelState?.localGoPort || localGoPort)
+            await ipcRenderer.invoke('startPortTunnel', { name: 'go', localPort: lp, remotePort: Number(discoveredGo), ensureRemoteOpen: true })
+            setRemoteGoPort(String(discoveredGo))
+          } catch {
+            // Fallback to rebind when start fails
+            if (Number(remoteGoPort) && discoveredGo !== Number(remoteGoPort)) {
+              await ipcRenderer.invoke('rebindPortTunnel', { name: 'go', newRemotePort: Number(discoveredGo) })
+              setRemoteGoPort(String(discoveredGo))
+            }
+          }
+        } else if (discoveredGo && Number(remoteGoPort) && discoveredGo !== Number(remoteGoPort)) {
           await ipcRenderer.invoke('rebindPortTunnel', { name: 'go', newRemotePort: Number(discoveredGo) })
           setRemoteGoPort(String(discoveredGo))
         }

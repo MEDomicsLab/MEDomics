@@ -138,7 +138,7 @@ import {
   getRemoteWorkspacePath,
   checkRemotePortOpen,
   startExpressForward,
-  startGoForward
+  startPortTunnel
 } from './utils/remoteFunctions.js'
 // MongoDB and Jupyter functions are accessed via HTTP wrappers (startMongoDB, stopMongoDB, getMongoDBPath, startJupyterServer, stopJupyterServer, checkJupyterIsRunning)
 
@@ -701,7 +701,9 @@ ipcMain.handle('backendStatus', async (_event, { target = 'local' } = {}) => {
           try {
             const goPort = Number(found.data?.go?.port)
             if (found.data?.go?.running && goPort) {
-              await startGoForward({ remoteGoPort: goPort })
+              const st = getTunnelState()
+              const lp = Number(st && st.localGoPort)
+              await startPortTunnel({ name: 'go', localPort: lp, remotePort: goPort, ensureRemoteOpen: true })
             }
           } catch {}
           // Augment response with discovered ports for visibility

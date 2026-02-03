@@ -1069,37 +1069,36 @@ export async function startExpressForward({ localExpressPort, remoteExpressPort 
   }
 }
 
+// Deprecated wrapper: route to the generic startPortTunnel for GO
 export async function startGoForward({ localGoPort, remoteGoPort }) {
-  try {
-    const state = getTunnelState()
-    const localPort = Number(localGoPort || state.localGoPort)
-    const remotePort = Number(remoteGoPort || state.remoteGoPort)
-    const res = await startPortTunnel({ name: 'go', localPort, remotePort, ensureRemoteOpen: true })
-    if (!res.success) return res
-    const updates = { localGoPort: localPort, remoteGoPort: remotePort }
-    setTunnelState({ ...getTunnelState(), ...updates })
-    try {
-      const full = getTunnelState()
-      mainWindow.webContents.send('tunnelStateChanged', full)
-      mainWindow.webContents.send('tunnelStateUpdate', full)
-    } catch {}
-    return { success: true, localPort, remotePort }
-  } catch (e) {
-    return { success: false, error: e && e.message ? e.message : String(e) }
-  }
+  const state = getTunnelState()
+  const localPort = Number(localGoPort || state.localGoPort)
+  const remotePort = Number(remoteGoPort || state.remoteGoPort)
+  return startPortTunnel({ name: 'go', localPort, remotePort, ensureRemoteOpen: true })
 }
 
 // Generic port tunnel management
 export async function startPortTunnel({ name, localPort, remotePort, ensureRemoteOpen = false }) {
   try {
     const conn = getActiveTunnel()
-    if (!conn) return { success: false, error: 'No active SSH tunnel' }
+    if (!conn) {
+      console.log('[startPortTunnel] No active SSH tunnel')
+      return { success: false, error: 'No active SSH tunnel' }
+    }
     const servers = getActiveTunnelServer() || {}
     const state = getTunnelState()
     let lp = Number(localPort)
     const rp = Number(remotePort)
-    if (!lp || isNaN(lp)) return { success: false, error: 'invalid-local-port' }
-    if (!rp || isNaN(rp)) return { success: false, error: 'invalid-remote-port' }
+    console.log('[startPortTunnel] request', { name, localPort: lp, remotePort: rp, ensureRemoteOpen })
+    // If local port is invalid/missing, fall back to ephemeral (port 0)
+    if (!lp || isNaN(lp)) {
+      console.log('[startPortTunnel] localPort invalid, using ephemeral port')
+      lp = 0
+    }
+    if (!rp || isNaN(rp)) {
+      console.log('[startPortTunnel] invalid remote port', remotePort)
+      return { success: false, error: 'invalid-remote-port' }
+    }
 
     // Default ensure for canonical names; include retries
     const canonical = ['express', 'go', 'mongo', 'jupyter']
@@ -1109,21 +1108,39 @@ export async function startPortTunnel({ name, localPort, remotePort, ensureRemot
       const maxAttempts = 3
       const delayMs = 3000
       for (let i = 0; i < maxAttempts && !open; i++) {
-        try { open = await checkRemotePortOpen(conn, rp) } catch { open = false }
+        try {
+          open = await checkRemotePortOpen(conn, rp)
+          console.log('[startPortTunnel] ensure check', { attempt: i + 1, remotePort: rp, open })
+        } catch (err) {
+          console.log('[startPortTunnel] ensure check error', err && err.message ? err.message : String(err))
+          open = false
+        }
         if (!open && i < maxAttempts - 1) { await sleep(delayMs) }
       }
-      if (!open) return { success: false, error: 'remote-port-closed' }
+      if (!open) {
+        console.log('[startPortTunnel] remote port not open', rp)
+        return { success: false, error: 'remote-port-closed' }
+      }
     }
 
     // Close existing server under this name
     if (servers[name]) {
-      try { await new Promise((resolve) => servers[name].close(() => resolve())) } catch {}
+      try {
+        console.log('[startPortTunnel] closing existing server for', name)
+        await new Promise((resolve) => servers[name].close(() => resolve()))
+      } catch (err) {
+        console.log('[startPortTunnel] error closing existing server', err && err.message ? err.message : String(err))
+      }
     }
 
     const createForwardServer = () => {
       const server = net.createServer((socket) => {
         conn.forwardOut(socket.localAddress || '127.0.0.1', socket.localPort || 0, '127.0.0.1', rp, (err, stream) => {
-          if (err) { socket.destroy(); return }
+          if (err) {
+            console.log('[startPortTunnel] forwardOut error', err && err.message ? err.message : String(err))
+            socket.destroy();
+            return
+          }
           socket.pipe(stream).pipe(socket)
         })
       })
@@ -1150,9 +1167,11 @@ export async function startPortTunnel({ name, localPort, remotePort, ensureRemot
           lp = Number(addr.port)
         }
       } else {
+        console.log('[startPortTunnel] listen error', err && err.message ? err.message : String(err))
         return { success: false, error: err && err.message ? err.message : String(err) }
       }
     }
+    console.log('[startPortTunnel] listening', { name, localPort: lp, remotePort: rp })
 
     // Track server by name
     setActiveTunnelServer({ ...servers, [name]: netServer })
@@ -1178,8 +1197,10 @@ export async function startPortTunnel({ name, localPort, remotePort, ensureRemot
       mainWindow.webContents.send('tunnelStateChanged', full)
       mainWindow.webContents.send('tunnelStateUpdate', full)
     } catch {}
+    console.log('[startPortTunnel] success', { name, localPort: lp, remotePort: rp })
     return { success: true, name, localPort: lp, remotePort: rp }
   } catch (e) {
+    console.log('[startPortTunnel] exception', e && e.message ? e.message : String(e))
     return { success: false, error: e && e.message ? e.message : String(e) }
   }
 }
@@ -1267,7 +1288,11 @@ ipcMain.handle('startExpressForward', async (_event, payload = {}) => {
   return startExpressForward(payload)
 })
 ipcMain.handle('startGoForward', async (_event, payload = {}) => {
-  return startGoForward(payload)
+  // Compatibility: route to generic startPortTunnel for GO
+  const state = getTunnelState()
+  const localPort = Number(payload.localGoPort || state.localGoPort)
+  const remotePort = Number(payload.remoteGoPort || state.remoteGoPort)
+  return startPortTunnel({ name: 'go', localPort, remotePort, ensureRemoteOpen: true })
 })
 
 // Probe GO service reachability: checks remote port open via SSH and local forward HTTP reachability
