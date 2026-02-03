@@ -71,8 +71,6 @@ let tunnelInfo = {
   // Additional statuses/flags
   serverStartedRemotely: false,
   expressStatus: 'unknown',
-  goStatus: 'unknown',
-  mongoStatus: 'unknown',
   expressLogPath: null,
   // Generic list of active tunnels
   tunnels: [] // [{ name: string, localPort: number, remotePort: number, status: 'forwarding'|'closed' }]
@@ -105,8 +103,6 @@ export function clearTunnelState() {
     username: null,
     serverStartedRemotely: false,
     expressStatus: 'unknown',
-    goStatus: 'unknown',
-    mongoStatus: 'unknown',
   }
 }
 
@@ -1014,11 +1010,10 @@ export async function startSSHTunnel({ host, username, privateKey, password, rem
             remoteExpressPort: remoteExpressPort ? Number(remoteExpressPort) : null,
             localGoPort: localGoPort ? Number(localGoPort) : null,
             remoteGoPort: remoteGoPort ? Number(remoteGoPort) : null,
-            expressStatus: 'closed',
-            goStatus: 'closed'
+            expressStatus: 'closed'
           })
           mainWindow.webContents.send('tunnelStateUpdate', {
-            localExpressPort, remoteExpressPort, localGoPort, remoteGoPort, expressStatus: 'closed', goStatus: 'closed'
+            localExpressPort, remoteExpressPort, localGoPort, remoteGoPort, expressStatus: 'closed'
           })
         } catch {}
 
@@ -1081,7 +1076,7 @@ export async function startGoForward({ localGoPort, remoteGoPort }) {
     const remotePort = Number(remoteGoPort || state.remoteGoPort)
     const res = await startPortTunnel({ name: 'go', localPort, remotePort, ensureRemoteOpen: true })
     if (!res.success) return res
-    const updates = { localGoPort: localPort, remoteGoPort: remotePort, goStatus: 'forwarding' }
+    const updates = { localGoPort: localPort, remoteGoPort: remotePort }
     setTunnelState({ ...getTunnelState(), ...updates })
     try {
       const full = getTunnelState()
@@ -1173,8 +1168,8 @@ export async function startPortTunnel({ name, localPort, remotePort, ensureRemot
     const updates = { tunnels }
     const n = String(name || '').toLowerCase()
     if (n === 'express') Object.assign(updates, { localExpressPort: lp, remoteExpressPort: rp, expressStatus: 'forwarding' })
-    if (n === 'go') Object.assign(updates, { localGoPort: lp, remoteGoPort: rp, goStatus: 'forwarding' })
-    if (n === 'mongo') Object.assign(updates, { localDBPort: lp, remoteDBPort: rp, mongoStatus: 'forwarding' })
+    if (n === 'go') Object.assign(updates, { localGoPort: lp, remoteGoPort: rp })
+    if (n === 'mongo') Object.assign(updates, { localDBPort: lp, remoteDBPort: rp })
     if (n === 'jupyter') Object.assign(updates, { localJupyterPort: lp, remoteJupyterPort: rp })
 
     setTunnelState({ ...state, ...updates })
@@ -1246,7 +1241,7 @@ export async function rebindPortTunnel({ name, newRemotePort, newLocalPort }) {
     if (!res.success) return res
     const updates = {}
     if (name === 'express') Object.assign(updates, { remoteExpressPort: remotePort, localExpressPort: localPort, expressStatus: 'forwarding' })
-    if (name === 'go') Object.assign(updates, { remoteGoPort: remotePort, localGoPort: localPort, goStatus: 'forwarding' })
+    if (name === 'go') Object.assign(updates, { remoteGoPort: remotePort, localGoPort: localPort })
     if (name === 'mongo') Object.assign(updates, { remoteDBPort: remotePort, localDBPort: localPort })
     if (name === 'jupyter') Object.assign(updates, { remoteJupyterPort: remotePort, localJupyterPort: localPort })
     if (Object.keys(updates).length) {
@@ -1478,11 +1473,15 @@ export async function startMongoTunnel() {
       ...(activeTunnelServer || {}),
       mongoServer: mongoServer
     })
-    // Update status for Mongo forwarding
+    // Update tunnels list to reflect Mongo forwarding
     try {
-      const info = { mongoStatus: 'forwarding' }
-      setTunnelState({ ...getTunnelState(), ...info })
-      mainWindow.webContents.send('tunnelStateUpdate', info)
+      const state = getTunnelState()
+      const tunnels = Array.isArray(state.tunnels) ? state.tunnels.slice() : []
+      const idx = tunnels.findIndex(t => t.name === 'mongo')
+      const entry = { name: 'mongo', localPort: mongoDBLocalPort, remotePort: mongoDBRemotePort, status: 'forwarding' }
+      if (idx >= 0) tunnels[idx] = entry; else tunnels.push(entry)
+      setTunnelState({ ...state, tunnels })
+      mainWindow.webContents.send('tunnelStateUpdate', { tunnels })
     } catch {}
     resolve({ success: true })
   })
@@ -1562,9 +1561,7 @@ export async function stopSSHTunnel() {
     setTunnelState({
       ...getTunnelState(),
       tunnelActive: false,
-      expressStatus: 'closed',
-      goStatus: 'closed',
-      mongoStatus: 'closed'
+      expressStatus: 'closed'
     })
     mainWindow.webContents.send('tunnelStateChanged', getTunnelState())
   } catch {}

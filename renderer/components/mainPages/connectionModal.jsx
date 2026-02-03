@@ -1,4 +1,4 @@
-import { useState, useEffect, useContext } from "react"
+import { useState, useEffect, useContext, useRef } from "react"
 import { Dialog } from "primereact/dialog"
 import { toast } from "react-toastify"
 import { InputText } from "primereact/inputtext"
@@ -76,6 +76,8 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
   const [remoteInstallText, setRemoteInstallText] = useState('')
   const [remoteStartPort, setRemoteStartPort] = useState('5010')
   const [remoteServerRunning, setRemoteServerRunning] = useState(false)
+  const [lastStartAt, setLastStartAt] = useState(null)
+  const heartbeatBusyRef = useRef(false)
   const [shouldRecheck, setShouldRecheck] = useState(false)
   const [requirementsChecking, setRequirementsChecking] = useState(false)
   const [requirementsMetRemote, setRequirementsMetRemote] = useState(false)
@@ -195,15 +197,9 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
         setLocalGoPort(tunnel.localGoPort || "54380")
         setRemoteGoPort(tunnel.remoteGoPort || "54288")
         setLocalDBPort(tunnel.localDBPort || "54020")
-        setRemoteDBPort(tunnel.remoteDBPort || "54017")
-        setLocalJupyterPort(tunnel.localJupyterPort || "8890")
-        setRemoteJupyterPort(tunnel.remoteJupyterPort || "8900")
         setTunnelStatus("SSH tunnel is already established.")
         setActiveStep(1)
         tunnelContext.setTunnelInfo(tunnel) // Sync React context
-      } else {
-        setTunnelActive(false)
-        setTunnelStatus("")
       }
     }
   }, [visible])
@@ -318,9 +314,15 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
         try { tunnelContext.setTunnelInfo(state) } catch (_) { /* ignore */ }
       } catch (_) { /* ignore */ }
     }
-    try { ipcRenderer.on('tunnelStateChanged', handler) } catch (_) { /* ignore */ }
+    try {
+      ipcRenderer.on('tunnelStateChanged', handler)
+      ipcRenderer.on('tunnelStateUpdate', handler)
+    } catch (_) { /* ignore */ }
     return () => {
-      try { ipcRenderer.removeListener('tunnelStateChanged', handler) } catch (_) { /* ignore */ }
+      try {
+        ipcRenderer.removeListener('tunnelStateChanged', handler)
+        ipcRenderer.removeListener('tunnelStateUpdate', handler)
+      } catch (_) { /* ignore */ }
     }
   }, [])
 
@@ -552,10 +554,14 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
             toast.success(`Rebound Express forward to remote port ${discovered}.`)
             // After rebind, try a quick status confirm
             try {
-              const resp = await window.backend.requestExpress({ method: 'get', path: '/status', host, port: Number(localExpressPort), timeout: 3000 })
-              if (resp?.data?.success) {
-                setRemoteBackendStatus(`Express server confirmed via /status on port ${discovered}`)
-                setRemoteServerRunning(true)
+              const ts = await ipcRenderer.invoke('getTunnelState')
+              const fwd = ts?.localExpressPort || Number(localExpressPort)
+              if (fwd) {
+                const resp = await window.backend.requestExpress({ method: 'get', path: '/status', host: '127.0.0.1', port: Number(fwd), timeout: 3000 })
+                if (resp?.data?.success) {
+                  setRemoteBackendStatus(`Express server confirmed via /status on port ${discovered}`)
+                  setRemoteServerRunning(true)
+                }
               }
             } catch(e) { console.warn('Post-rebind /status confirm failed:', e) }
           } else {
@@ -572,19 +578,15 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
         return
       }
 
-      // If backendStatus already confirmed via /status (not just state file), use it directly
-      if (status && status.success && status.source !== 'state-file') {
+      // If backendStatus already returned a valid snapshot, use it directly
+      if (status && status.success) {
         const data = status
         const expressStatus = 'running'
-        const goStatus = (data.go && data.go.running) ? 'running' : 'stopped'
-        const mongoStatus = (data.mongo && data.mongo.running) ? 'running' : 'stopped'
         if (typeof data.expressPort === 'number') {
           setRemoteExpressPort(String(data.expressPort))
         }
         await ipcRenderer.invoke('setTunnelState', {
           expressStatus,
-          goStatus,
-          mongoStatus,
           serverStartedRemotely: false
         })
         try {
@@ -598,13 +600,13 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
 
       // Confirm it's our Express server by hitting forwarded /status and update tunnel panel
       try {
-        const resp = await window.backend.requestExpress({ method: 'get', path: '/status', host, port: Number(localExpressPort), timeout: 4000 })
+        const ts = await ipcRenderer.invoke('getTunnelState')
+        const fwd = ts?.localExpressPort || Number(localExpressPort)
+        const resp = fwd ? await window.backend.requestExpress({ method: 'get', path: '/status', host: '127.0.0.1', port: Number(fwd), timeout: 4000 }) : null
         const data = resp?.data || {}
         if (data && data.success) {
           // Normalize statuses
           const expressStatus = 'running'
-          const goStatus = (data.go && data.go.running) ? 'running' : 'stopped'
-          const mongoStatus = (data.mongo && data.mongo.running) ? 'running' : 'stopped'
           // Sync express port from server snapshot if provided
           if (typeof data.expressPort === 'number') {
             setRemoteExpressPort(String(data.expressPort))
@@ -612,8 +614,6 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
           // Update the Remote Server tab state
           await ipcRenderer.invoke('setTunnelState', {
             expressStatus,
-            goStatus,
-            mongoStatus,
             // We didn’t start it here, just confirming
             serverStartedRemotely: false
           })
@@ -631,8 +631,10 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
 
       // If confirmation failed, report based on installation/presence without claiming reachability
       if (installed) {
-        setRemoteBackendStatus('Remote server installed but unreachable.')
-        setRemoteServerRunning(false)
+        // Grace period after a recent start: avoid flipping running=false on transient timeouts
+        const withinGrace = lastStartAt && (Date.now() - lastStartAt < 20000)
+        setRemoteBackendStatus(withinGrace ? 'Server starting up; will recheck shortly.' : 'Remote server installed but unreachable.')
+        if (!withinGrace) setRemoteServerRunning(false)
         setShouldRecheck(true)
       } else {
         setRemoteBackendStatus('Remote server not found. Install or locate it.')
@@ -751,18 +753,26 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
       if (started && started.success) {
         setRemoteBackendStatus(`Remote server running on port ${remoteStartPort}`)
         setRemoteServerRunning(true)
+        setLastStartAt(Date.now())
         setLastStartDetails('Start OK')
         // Sync selected express port with running one
         setRemoteExpressPort(String(remoteStartPort))
-        // Optionally verify by hitting /status (guard if API not available)
+        // Optionally verify by hitting /status via forwarded localhost port
         try {
-          if (window && window.backend && typeof window.backend.requestExpress === 'function') {
-            await window.backend.requestExpress({ method: 'get', path: '/status', host, port: Number(localExpressPort) })
+          const tunnelState = await ipcRenderer.invoke('getTunnelState')
+          const forwardedPort = tunnelState?.localExpressPort || Number(localExpressPort)
+          if (window && window.backend && typeof window.backend.requestExpress === 'function' && forwardedPort) {
+            await window.backend.requestExpress({ method: 'get', path: '/status', host: '127.0.0.1', port: Number(forwardedPort) })
           }
         } catch (verifyErr) {
           // Non-fatal: log and continue; status UI will be updated by checkRemoteServer
           console.warn('Status verify failed:', verifyErr && verifyErr.message ? verifyErr.message : verifyErr)
         }
+        // Reflect running state back into tunnel state so listeners update consistently
+        try {
+          await ipcRenderer.invoke('setTunnelState', { expressStatus: 'running' })
+          try { tunnelContext.setTunnelInfo(await ipcRenderer.invoke('getTunnelState')) } catch (_) { /* ignore */ }
+        } catch (_) { /* ignore */ }
         // After server starts, immediately check requirements to update UI
         await checkRequirementsRemote()
         setShouldRecheck(true)
@@ -867,8 +877,8 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
 
 
   const checkRequirementsRemote = async () => {
-    if (!tunnelActive || !remoteServerRunning) {
-      console.warn('Cannot check remote requirements: tunnel inactive or server not running.')
+    if (!tunnelActive) {
+      console.warn('Cannot check remote requirements: tunnel inactive.')
       return
     }
     try {
@@ -1309,11 +1319,16 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
 
   // Heartbeat: periodically check /status and auto-rebind tunnels if remote ports change
   useEffect(() => {
-    if (!tunnelActive || !visible) return
+    if (!tunnelActive || !visible || !remoteServerRunning) return
     let interval
     const beat = async () => {
+      if (heartbeatBusyRef.current) return
       try {
-        const resp = await window.backend.requestExpress({ method: 'get', path: '/status', host, port: Number(localExpressPort), timeout: 2500 })
+        heartbeatBusyRef.current = true
+        const tunnelState = await ipcRenderer.invoke('getTunnelState')
+        const forwardedPort = tunnelState?.localExpressPort
+        if (!forwardedPort) return
+        const resp = await window.backend.requestExpress({ method: 'get', path: '/status', host: '127.0.0.1', port: Number(forwardedPort), timeout: 5000 })
         const data = resp?.data || {}
         if (!data || !data.success) return
         const discoveredExpress = typeof data.expressPort === 'number' ? data.expressPort : null
@@ -1340,12 +1355,13 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
           await ipcRenderer.invoke('rebindPortTunnel', { name: 'jupyter', newRemotePort: Number(discoveredJup) })
           setRemoteJupyterPort(String(discoveredJup))
         }
-        try { tunnelContext.setTunnelInfo(await ipcRenderer.invoke('getTunnelState')) } catch (e) { console.warn(e) }
-      } catch(e) { console.warn(e) }
+        try { tunnelContext.setTunnelInfo(await ipcRenderer.invoke('getTunnelState')) } catch (e) { /* quiet */ }
+      } catch(e) { /* quiet */ }
+      finally { heartbeatBusyRef.current = false }
     }
-    interval = setInterval(beat, 10000)
+    interval = setInterval(beat, 20000)
     return () => { if (interval) clearInterval(interval) }
-  }, [tunnelActive, visible, localExpressPort, remoteExpressPort, remoteGoPort, remoteDBPort, remoteJupyterPort])
+  }, [tunnelActive, visible, remoteServerRunning, remoteExpressPort, remoteGoPort, remoteDBPort, remoteJupyterPort])
 
   return (
     <Dialog className="modal" visible={visible} style={{ width: "60vw" }} closable={closable} onHide={onClose}>

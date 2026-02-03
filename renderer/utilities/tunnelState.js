@@ -17,8 +17,6 @@ let tunnelInfo = {
   // Service statuses and flags
   serverStartedRemotely: false,
   expressStatus: "unknown",
-  goStatus: "unknown",
-  mongoStatus: "unknown",
   expressLogPath: null,
 };
 
@@ -49,8 +47,6 @@ export function clearTunnelState() {
     username: null,
     serverStartedRemotely: false,
     expressStatus: "unknown",
-    goStatus: "unknown",
-    mongoStatus: "unknown",
     expressLogPath: null,
   };
 }

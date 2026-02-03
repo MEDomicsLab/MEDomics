@@ -17,8 +17,6 @@ export const TunnelContext = createContext({
   username: null,
   serverStartedRemotely: false,
   expressStatus: "unknown",
-  goStatus: "unknown",
-  mongoStatus: "unknown",
   expressLogPath: null,
   setTunnelInfo: () => {},
   clearTunnelInfo: () => {},
@@ -41,8 +39,6 @@ export const TunnelProvider = ({ children }) => {
     username: null,
     serverStartedRemotely: false,
     expressStatus: "unknown",
-    goStatus: "unknown",
-    mongoStatus: "unknown",
     expressLogPath: null,
   })
 
@@ -70,8 +66,6 @@ export const TunnelProvider = ({ children }) => {
       username: null,
       serverStartedRemotely: false,
       expressStatus: "unknown",
-      goStatus: "unknown",
-      mongoStatus: "unknown",
       expressLogPath: null,
     })
   }

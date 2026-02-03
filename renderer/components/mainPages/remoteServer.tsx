@@ -19,11 +19,19 @@ export default function RemoteServerPage() {
     username,
     serverStartedRemotely,
     expressStatus,
-    goStatus,
-    mongoStatus,
     expressLogPath,
     tunnels
   } = tunnel
+
+  // Derive GO/Mongo statuses from tunnels list to avoid brittle flags
+  const goDerived = React.useMemo(() => {
+    const t = Array.isArray(tunnels) ? tunnels.find((x: any) => String(x?.name).toLowerCase() === 'go') : null
+    return t && t.status ? t.status : 'unknown'
+  }, [tunnels])
+  const mongoDerived = React.useMemo(() => {
+    const t = Array.isArray(tunnels) ? tunnels.find((x: any) => String(x?.name).toLowerCase() === 'mongo') : null
+    return t && t.status ? t.status : 'unknown'
+  }, [tunnels])
 
   const [log, setLog] = React.useState<string>("")
   const [streaming, setStreaming] = React.useState<boolean>(false)
@@ -84,8 +92,8 @@ export default function RemoteServerPage() {
         <div>
           <h4 style={{ margin: "4px 0 8px", fontSize: 14 }}>Statuses</h4>
           <StatusPill label="Express" value={expressStatus || "unknown"} />
-          <StatusPill label="GO" value={goStatus || "unknown"} />
-          <StatusPill label="Mongo" value={mongoStatus || "unknown"} />
+          <StatusPill label="GO" value={goDerived} />
+          <StatusPill label="Mongo" value={mongoDerived} />
         </div>
         <div>
           {Array.isArray(tunnels) && tunnels.length > 0 && (

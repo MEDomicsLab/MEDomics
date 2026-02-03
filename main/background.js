@@ -644,37 +644,6 @@ ipcMain.handle('backendStatus', async (_event, { target = 'local' } = {}) => {
       while ((m = re.exec(listening)) !== null) {
         const p = Number(m[1])
         if (p >= 5000 && p <= 8000 && !ports.includes(p)) ports.push(p)
-          // First attempt: read remote state file to get last-known express port and started flag
-          try {
-            const conn = getActiveTunnel && getActiveTunnel()
-            if (conn) {
-              const remoteOS = await detectRemoteOS()
-              const readCmd = remoteOS === 'win32'
-                ? `powershell -NoProfile -Command "$p=Join-Path $env:USERPROFILE '.medomics\\medomics-server\\state.json'; if (Test-Path $p) { Get-Content -Raw -Path $p }"`
-                : `bash -lc 'p="$HOME/.medomics/medomics-server/state.json"; [ -f "$p" ] && cat "$p" || printf ""'`
-              const stateJsonStr = await new Promise((resolve) => {
-                try {
-                  conn.exec(readCmd, (err, stream) => {
-                    if (err) return resolve("")
-                    let out = ""
-                    stream.on('data', (d) => { out += d.toString() })
-                    stream.stderr.on('data', () => {})
-                    stream.on('close', () => resolve(out.trim()))
-                  })
-                } catch { resolve("") }
-              })
-              if (stateJsonStr) {
-                try {
-                  const state = JSON.parse(stateJsonStr)
-                  const portFromState = state?.expressPort || state?.state?.expressPort
-                  const startedFromState = typeof state?.started === 'boolean' ? state.started : (state?.state?.started)
-                  if (portFromState) {
-                    return { success: true, expressPort: Number(portFromState), started: !!startedFromState, source: 'state-file', discoveredRemotePort: Number(portFromState) }
-                  }
-                } catch {}
-              }
-            }
-          } catch {}
       }
 
       // Sort ascending for determinism
@@ -1717,10 +1686,12 @@ ipcMain.handle("request", async (_, axios_request) => {
 // General backend request handler used by the renderer via preload
 ipcMain.handle('express-request', async (_event, req) => {
   if (!req || typeof req.path !== 'string' || !req.path.startsWith('/')) {
-    throw { code: 'BAD_REQUEST', message: 'Invalid request shape' }
+    const err = new Error('express-request: invalid request shape')
+    err.code = 'BAD_REQUEST'
+    throw err
   }
 
-  const host = req.host || '127.0.0.1'
+  const host = '127.0.0.1'
   const port = req.port || expressPort || serverPort || MEDconfig.defaultPort
   const url = `http://${host}:${port}${req.path}`
 
@@ -1735,8 +1706,22 @@ ipcMain.handle('express-request', async (_event, req) => {
     })
     return { status: axiosResp.status, data: axiosResp.data, headers: axiosResp.headers }
   } catch (err) {
-    const message = err.response ? (err.response.data || err.response.statusText) : err.message
-    throw { code: 'BACKEND_ERROR', message, details: err.response ? { status: err.response.status } : undefined }
+    const status = err?.response?.status
+    const dataSnippet = (() => {
+      try {
+        const d = err?.response?.data
+        if (typeof d === 'string') return d.slice(0, 500)
+        return JSON.stringify(d).slice(0, 500)
+      } catch { return '' }
+    })()
+    const method = (req.method || 'GET').toUpperCase()
+    const msg = status
+      ? `express-request ${method} ${url} failed with status ${status}${dataSnippet ? `: ${dataSnippet}` : ''}`
+      : `express-request ${method} ${url} failed: ${err && err.message ? err.message : 'unknown error'}`
+    const e = new Error(msg)
+    e.code = 'BACKEND_ERROR'
+    e.status = status
+    throw e
   }
 })
 

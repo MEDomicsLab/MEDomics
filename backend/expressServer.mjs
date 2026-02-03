@@ -232,7 +232,7 @@ expressApp.post("/run-go-server", async (req, res) => {
 expressApp.post("/stop-express", async (req, res) => {
 	try {
 		if (!httpServer) {
-			return res.status(400).json({ success: false, error: "Express server is not running" })
+			return res.status(200).json({ success: true, message: 'Express not running' })
 		}
 		httpServer.close(() => {
 			try { writeStateFile(false) } catch (e) { /* ignore */ }
@@ -244,6 +244,42 @@ expressApp.post("/stop-express", async (req, res) => {
 		console.error("Error stopping Express server:", err)
 		res.status(500).json({ success: false, error: err.message })
 	}
+	// Stop GO server if running
+	try {
+		if (goServerProcess) {
+			console.log('[express:stop] stopping GO server...')
+			try { goServerProcess.kill('SIGTERM') } catch (_) { /* ignore */ }
+			// Best-effort wait, then force kill if needed
+			await new Promise(r => setTimeout(r, 500))
+			try { goServerProcess.kill('SIGKILL') } catch (_) { /* ignore */ }
+			goServerProcess = null
+			goServerState.serverIsRunning = false
+			serviceState.go.running = false
+			serviceState.go.port = null
+		}
+	} catch (e) {
+		console.warn('[express:stop] GO stop warning:', e && e.message ? e.message : e)
+	}
+
+	// Stop MongoDB if running
+	try {
+		if (serviceState.mongo.running) {
+			console.log('[express:stop] stopping MongoDB...')
+			try { await stopMongoDB() } catch (e) { console.warn('[express:stop] stopMongoDB warning:', e && e.message ? e.message : e) }
+			serviceState.mongo.running = false
+			serviceState.mongo.port = null
+		}
+	} catch (e) { console.warn('[express:stop] Mongo stop warning:', e && e.message ? e.message : e) }
+
+	// Stop Jupyter if running
+	try {
+		if (serviceState.jupyter.running) {
+			console.log('[express:stop] stopping Jupyter...')
+			try { await stopJupyterServer() } catch (e) { console.warn('[express:stop] stopJupyter warning:', e && e.message ? e.message : e) }
+			serviceState.jupyter.running = false
+			serviceState.jupyter.port = null
+		}
+	} catch (e) { console.warn('[express:stop] Jupyter stop warning:', e && e.message ? e.message : e) }
 })
 
 
