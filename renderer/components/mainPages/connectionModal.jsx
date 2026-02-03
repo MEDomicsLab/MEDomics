@@ -25,6 +25,9 @@ import RemoteServerPage from "./remoteServer"
 import { Steps } from 'primereact/steps'
 import { ProgressBar } from 'primereact/progressbar'
 
+// Minimal, opt-in debug logging for tunnel events/heartbeat
+const DEBUG_TUNNEL = false
+
 const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
   const [showAdvanced, setShowAdvanced] = useState(false)
   const [activeStep, setActiveStep] = useState(0) // 0=SSH, 1=Server Setup, 2=Workspace
@@ -310,6 +313,17 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
         if (state.remoteJupyterPort !== undefined) setRemoteJupyterPort(String(state.remoteJupyterPort))
         // Reflect express server running state if provided
         if (state.expressStatus) setRemoteServerRunning(state.expressStatus === 'running')
+        if (DEBUG_TUNNEL) {
+          try {
+            console.debug('[ConnectionModal] tunnel event', {
+              expressStatus: state.expressStatus,
+              tunnelActive: !!state.tunnelActive,
+              localExpressPort: state.localExpressPort,
+              remoteExpressPort: state.remoteExpressPort,
+              runningNext: state.expressStatus === 'running'
+            })
+          } catch (_) { /* ignore logging errors */ }
+        }
         // Keep React context in sync for other panels
         try { tunnelContext.setTunnelInfo(state) } catch (_) { /* ignore */ }
       } catch (_) { /* ignore */ }
@@ -1335,6 +1349,17 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
         const discoveredGo = typeof data.go?.port === 'number' ? data.go.port : null
         const discoveredMongo = typeof data.mongo?.port === 'number' ? data.mongo.port : null
         const discoveredJup = typeof data.jupyter?.port === 'number' ? data.jupyter.port : null
+        if (DEBUG_TUNNEL) {
+          try {
+            console.debug('[ConnectionModal] heartbeat status', {
+              forwardedPort,
+              discoveredExpress,
+              discoveredGo,
+              discoveredMongo,
+              discoveredJup
+            })
+          } catch (_) { /* ignore logging errors */ }
+        }
         // Express
         if (discoveredExpress && Number(remoteExpressPort) && discoveredExpress !== Number(remoteExpressPort)) {
           await ipcRenderer.invoke('rebindPortTunnel', { name: 'express', newRemotePort: Number(discoveredExpress) })
