@@ -376,26 +376,34 @@ const DatasetNode = ({ id, data }) => {
   return (
     <>
     <Tooltip
-      target=".default-inverse-tooltip"
-      position="right"
-    >
-      <div style={{ maxWidth: "260px", lineHeight: "1.4" }}>
-        <b>Default inverse</b> = N(negative) / N(positive). We recommand recalibrating through hyperparameters if this fraction exceeds 3.
-        <br /><br />
-        <b>Used for:</b>
-        <ul style={{ paddingLeft: "18px", margin: "6px 0" }}>
-          <li>class_weight (Random Forest)</li>
-          <li>scale_pos_weight (XGBoost)</li>
-          <li>Calibration & metric selection</li>
-        </ul>
-          <b>Interpretation</b>
+  target=".default-inverse-tooltip"
+  position="right"
+>
+  <div style={{ maxWidth: "260px", lineHeight: "1.4" }}>
+    <b>Class imbalance — general guideline</b>
+    <br /><br />
+
+    <b>Default inverse</b> = N(negative) / N(positive).  
+    We recommend <b>adjusting model settings</b> if this fraction exceeds <b>3</b>.
+    
+    <br /><br />
+
+    <b>Used for:</b>
+    <ul style={{ paddingLeft: "18px", margin: "6px 0" }}>
+      <li>class_weight (Random Forest)</li>
+      <li>scale_pos_weight (XGBoost)</li>
+      <li>Calibration & metric selection</li>
+    </ul>
+
+    <b>Interpretation:</b>
     <ul style={{ paddingLeft: "18px", margin: "6px 0" }}>
       <li><b>≤ 3</b> → Balanced</li>
       <li><b>3 – 6</b> → Imbalanced</li>
       <li><b>&gt; 6</b> → Highly imbalanced</li>
     </ul>
-      </div>
-    </Tooltip>
+  </div>
+</Tooltip>
+
 
       <Node
         key={id}
