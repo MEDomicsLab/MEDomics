@@ -144,7 +144,10 @@ def get_pickled_model_from_collection(collection_name):
             model_path = model_path.split(".pkl")[0]  # Remove .pkl if exists
             model = load_model(model_path)
         return model
-
+    elif 'pklContent' in model_document:
+        pickled_model = model_document['pklContent']
+        model = pickle.loads(pickled_model)
+        return model
     return None
 
 def get_dataset_as_pd_df(collection_name):

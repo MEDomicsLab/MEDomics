@@ -242,7 +242,6 @@ const TrainModelNode = ({ id, data }) => {
             <div style={{
               border: "1px solid #e0e0e0",          // bordure grise très claire
               borderRadius: "10px",                 // coins arrondis
-              backgroundColor: "#fcfcfc",           // fond légèrement différent
               padding: "10px 12px",
               marginBottom: "12px",
               boxShadow: "0 1px 2px rgba(0,0,0,0.05)" // petite ombre douce
@@ -250,7 +249,7 @@ const TrainModelNode = ({ id, data }) => {
             {/* === TRAINING OPTIONS SECTION === */}
             <div className="p-2 mb-1 d-flex justify-content-between align-items-center"
                 style={{ border: "1px solid #ccc", borderRadius: "8px" }}>
-              <span className="text-muted" style={{ fontSize: "0.9rem" }}>General Options</span>
+              <span style={{ fontSize: "0.9rem" }}>General Options</span>
               <Button
                 variant="light"
                 className="btn-contour ms-2"
@@ -307,7 +306,7 @@ const TrainModelNode = ({ id, data }) => {
                     className="p-2 mb-2 d-flex justify-content-between align-items-center"
                     style={{ border: "1px solid #ccc", borderRadius: "8px" }}
                   >
-                    <span className="text-muted" style={{ fontSize: "0.9rem" }}>
+                    <span style={{ fontSize: "0.9rem" }}>
                       Tuning Options
                     </span>
                     <Button
@@ -346,7 +345,7 @@ const TrainModelNode = ({ id, data }) => {
                 {!usePycaretSearchSpace && (
                   <>
                   <div style={{ 
-                    backgroundColor: "#e7f3ff",  // bleu clair doux
+                    backgroundColor: "#82abd4",  // bleu clair doux
                     border: "1px solid #b6daff", // bordure bleu clair
                     borderRadius: "8px", 
                     padding: "12px", 
@@ -597,7 +596,7 @@ const TrainModelNode = ({ id, data }) => {
           </>
         }
         // Link to documentation
-        nodeLink={"https://medomics-udes.gitbook.io/medomicslab-docs/tutorials/development/learning-module"}
+        nodeLink={"https://medomicslab.gitbook.io/medomics-docs/tutorials/development/learning-module"}
       />
     </>
   )

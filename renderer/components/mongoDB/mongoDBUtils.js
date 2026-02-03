@@ -166,6 +166,15 @@ export async function insertMEDDataObjectIfNotExists(medData, path = null, jsonD
       case "jpg":
         await insertJPGIntoCollection(path, medData.id)
         break
+      case "json":
+        const fileContent = fs.readFileSync(path, "utf8")
+        const jsonContent = JSON.parse(fileContent)
+        const dataCollection = db.collection(medData.id)
+        const result = await dataCollection.insertMany(Array.isArray(jsonContent) ? jsonContent : [jsonContent])
+        if (!result.insertedCount > 0) {
+          console.error(`No JSON data inserted for MEDDataObject with id ${medData.id}`)
+        }
+        break
       default:
         break
     }
