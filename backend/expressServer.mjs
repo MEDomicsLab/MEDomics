@@ -5,7 +5,20 @@ import bodyParser from "body-parser"
 import * as serverWorkspace from "./utils/serverWorkspace.js"
 const { createServerMedomicsDirectory, createServerWorkingDirectory, getServerWorkingDirectory } = serverWorkspace
 import * as mongoDBServer from "./utils/mongoDBServer.js"
-const { startMongoDB, stopMongoDB, getMongoDBPath, checkMongoIsRunning } = mongoDBServer
+const { startMongoDB, stopMongoDB, getMongoDBPath, checkMongoIsRunning, getMongoDebugInfo } = mongoDBServer
+
+async function waitForMongoUp(port, timeoutMs = 12000) {
+	const start = Date.now()
+	while (Date.now() - start < timeoutMs) {
+		try {
+			if (await checkMongoIsRunning(port)) return true
+		} catch (_) {
+			// ignore
+		}
+		await new Promise(r => setTimeout(r, 250))
+	}
+	return false
+}
 import cors from "cors"
 import dirTree from "directory-tree"
 import { exec, execSync } from "child_process"
@@ -369,12 +382,32 @@ expressApp.post("/ensure-mongo", async (req, res) => {
 
 		// Start MongoDB and record default port from config
 		startMongoDB(workspacePath)
-		serviceState.mongo.running = true
+		// Wait briefly for port to open so the caller gets a reliable signal
+		const up = await waitForMongoUp(MEDconfig.mongoPort, 12000)
+		serviceState.mongo.running = !!up
 		serviceState.mongo.port = MEDconfig.mongoPort
+		if (!up) {
+			return res.status(500).json({
+				success: false,
+				running: false,
+				error: "MongoDB did not start listening within timeout",
+				port: MEDconfig.mongoPort,
+				mongoDebug: getMongoDebugInfo()
+			})
+		}
 		return res.json({ success: true, running: true, port: serviceState.mongo.port })
 	} catch (err) {
 		console.error("ensure-mongo error:", err)
-		return res.status(500).json({ success: false, running: false, error: err.message })
+		return res.status(500).json({ success: false, running: false, error: err.message, mongoDebug: getMongoDebugInfo() })
+	}
+})
+
+// Debug: retrieve last MongoDB spawn/exit/stdout/stderr info
+expressApp.get("/mongo-debug", (req, res) => {
+	try {
+		return res.json({ success: true, mongoDebug: getMongoDebugInfo() })
+	} catch (err) {
+		return res.status(500).json({ success: false, error: err.message })
 	}
 })
 

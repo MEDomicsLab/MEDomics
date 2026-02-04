@@ -296,7 +296,7 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
 
   // Subscribe to tunnel state changes from main process and auto-sync UI/context
   useEffect(() => {
-    const handler = async (_event, _payload) => {
+    const handler = async () => {
       try {
         // Always fetch the authoritative full tunnel state to avoid partial payload issues
         const state = await ipcRenderer.invoke('getTunnelState')
@@ -1018,19 +1018,28 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
       setConnectionProcessing(true)
       const tunnelState = await ipcRenderer.invoke('getTunnelState')
       const forwardedPort = tunnelState?.localExpressPort || Number(localExpressPort)
-      // Ensure GO and Mongo on remote
-      await window.backend.requestExpress({ method: 'post', path: '/ensure-go', host: '127.0.0.1', port: Number(forwardedPort), body: {} })
-      await window.backend.requestExpress({ method: 'post', path: '/ensure-mongo', host: '127.0.0.1', port: Number(forwardedPort), body: { workspacePath: remoteDirPath } })
-      // Set workspace
-      const resp = await window.backend.requestExpress({ method: 'post', path: '/set-working-directory', host: '127.0.0.1', port: Number(forwardedPort), body: { workspacePath: remoteDirPath } })
-      if (resp?.data?.success) {
-        toast.success('Workspace set on remote app.')
-        if (resp.data.workspace !== workspace) setWorkspace(resp.data.workspace)
-        // Close modal and disable editing
-        if (typeof onClose === 'function') onClose()
-      } else {
-        toast.error('Failed to set workspace on remote app: ' + (resp?.data?.error || 'Unknown error'))
-      }
+
+		// 1) Set workspace first (server side may restart Mongo for the new workspace)
+		const resp = await window.backend.requestExpress({
+			method: 'post',
+			path: '/set-working-directory',
+			host: '127.0.0.1',
+			port: Number(forwardedPort),
+			body: { workspacePath: remoteDirPath }
+		})
+		if (!resp?.data?.success) {
+			toast.error('Failed to set workspace on remote app: ' + (resp?.data?.error || 'Unknown error'))
+			return
+		}
+		toast.success('Workspace set on remote app.')
+		if (resp.data.workspace !== workspace) setWorkspace(resp.data.workspace)
+
+		// 2) Ensure GO + Mongo on remote (idempotent)
+		await window.backend.requestExpress({ method: 'post', path: '/ensure-go', host: '127.0.0.1', port: Number(forwardedPort), body: {} })
+		await window.backend.requestExpress({ method: 'post', path: '/ensure-mongo', host: '127.0.0.1', port: Number(forwardedPort), body: { workspacePath: remoteDirPath } })
+
+		// Close modal on full success
+		if (typeof onClose === 'function') onClose()
     } catch (e) {
       toast.error('Failed to connect workspace: ' + (e?.message || String(e)))
     } finally {
@@ -1347,7 +1356,7 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
                 const lp = Number(ts?.localGoPort || localGoPort)
                 await ipcRenderer.invoke('startPortTunnel', { name: 'go', localPort: lp, remotePort: Number(goPort), ensureRemoteOpen: true })
                 setRemoteGoPort(String(goPort))
-                try { tunnelContext.setTunnelInfo(await ipcRenderer.invoke('getTunnelState')) } catch {}
+                try { tunnelContext.setTunnelInfo(await ipcRenderer.invoke('getTunnelState')) } catch(e) { console.warn('GO forward ensure tunnel context sync failed:', e) }
               } catch (e) { /* non-fatal */ }
             }
           }
@@ -1377,6 +1386,7 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
         const discoveredGo = typeof data.go?.port === 'number' ? data.go.port : null
         const discoveredMongo = typeof data.mongo?.port === 'number' ? data.mongo.port : null
         const discoveredJup = typeof data.jupyter?.port === 'number' ? data.jupyter.port : null
+        const goRunning = !!data?.go?.running
         if (DEBUG_TUNNEL) {
           try {
             console.debug('[ConnectionModal] heartbeat status', {
@@ -1800,43 +1810,67 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
               className="set-workspace-btn"
               icon="folder-open"
               onClick={async () => {
-                const tunnelState = getTunnelState()
+                if (!remoteDirPath) {
+                  toast.error('Select a workspace directory first.')
+                  return
+                }
+
+                // If the remote server is ready, merge behavior: connect (ensure services + set directory + close modal)
+                if (remoteServerRunning && requirementsMetRemote) {
+                  setNavigationProcessing(true)
+                  try {
+                    await connectWorkspace()
+                  } finally {
+                    setNavigationProcessing(false)
+                  }
+                  return
+                }
+
+                // Otherwise: just set the working directory (keeps behavior of the old button)
+                if (!tunnelActive) {
+                  toast.error('SSH tunnel is not active. Connect first.')
+                  return
+                }
+                if (!remoteServerRunning) {
+                  toast.error('Remote server not ready. Start the server first.')
+                  return
+                }
+
                 setConnectionProcessing(true)
                 setNavigationProcessing(true)
-                window.backend.requestExpress({ method: 'post', path: '/set-working-directory', host: tunnelState.host, port: tunnelState.localExpressPort, body: { workspacePath: remoteDirPath } })
-                  .then((response) => {
-                    if (response.data.success) {
-                      toast.success("Workspace set successfully on remote app.")
-                      if (response.data.workspace !== workspace) {
-                        setWorkspace(response.data.workspace)
-                      }
-                      setConnectionProcessing(false)
-                      setNavigationProcessing(false)
-                    } else {
-                      toast.error("Failed to set workspace on remote app: " + (response.data.error || "Unknown error"))
-                      setConnectionProcessing(false)
-                      setNavigationProcessing(false)
+                try {
+                  const tunnelState = await ipcRenderer.invoke('getTunnelState')
+                  const forwardedPort = tunnelState?.localExpressPort || Number(localExpressPort)
+                  if (!forwardedPort) throw new Error('No forwarded Express port available')
+
+                  const response = await window.backend.requestExpress({
+                    method: 'post',
+                    path: '/set-working-directory',
+                    host: '127.0.0.1',
+                    port: Number(forwardedPort),
+                    body: { workspacePath: remoteDirPath }
+                  })
+
+                  if (response?.data?.success) {
+                    toast.success('Workspace set successfully on remote app.')
+                    if (response.data.workspace !== workspace) {
+                      setWorkspace(response.data.workspace)
                     }
-                  })
-                  .catch((error) => {
-                    toast.error("Error setting workspace on remote app: " + error)
-                    setConnectionProcessing(false)
-                    setNavigationProcessing(false)
-                  })
+                  } else {
+                    toast.error('Failed to set workspace on remote app: ' + (response?.data?.error || 'Unknown error'))
+                  }
+                } catch (error) {
+                  const msg = error && error.message ? error.message : String(error)
+                  toast.error('Error setting workspace on remote app: ' + msg)
+                } finally {
+                  setConnectionProcessing(false)
+                  setNavigationProcessing(false)
+                }
               }}
-              title="Set this directory as workspace on remote app"
-              disabled={!tunnelActive || navigationProcessing || !remoteDirPath}
+              title="Set this directory as workspace (and connect when ready)"
+              disabled={!tunnelActive || navigationProcessing || connectionProcessing || !remoteDirPath}
             >
               Set as Workspace
-            </Button>
-            <Button
-              className="connect-workspace-btn"
-              onClick={connectWorkspace}
-              title="Establish services and connect to this workspace"
-              disabled={!tunnelActive || !remoteDirPath || connectionProcessing || !remoteServerRunning || !requirementsMetRemote}
-              style={{ background: 'var(--button-bg)', color: 'var(--button-text)' }}
-            >
-              Connect Workspace
             </Button>
             <Button
               className="leave-workspace-btn"
