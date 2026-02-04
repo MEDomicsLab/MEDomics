@@ -110,9 +110,9 @@ class Dataset(Node):
             self.CodeHandler.add_line("code", f"df_ids_list = {str([d['id'] for d in self.settings['files']])}")
             self.CodeHandler.add_line("code", "df_list = []")
             self.CodeHandler.add_line("code", "for fid in df_ids_list:")
-            self.CodeHandler.add_line("code", "    collection = database[fid]", indent=1)
-            self.CodeHandler.add_line("code", "    data = collection.find({}, {'_id': False})", indent=1)
-            self.CodeHandler.add_line("code", "    df_list.append(pd.DataFrame(list(data)))", indent=1)
+            self.CodeHandler.add_line("code", "collection = database[fid]", indent=1)
+            self.CodeHandler.add_line("code", "data = collection.find({}, {'_id': False})", indent=1)
+            self.CodeHandler.add_line("code", "df_list.append(pd.DataFrame(list(data)))", indent=1)
             self.CodeHandler.add_line("code", "first_df = next((d for d in df_list if d is not None and not d.empty), None)")
             self.CodeHandler.add_line("code", "if first_df is None: raise ValueError('All loaded DataFrames are empty or None.')")
             self.CodeHandler.add_line("code", f"first_col = '{first_col}'")
@@ -188,6 +188,17 @@ class Dataset(Node):
 
         if not aligned:
             raise ValueError("No valid DataFrames after alignment.")
+        
+        self.CodeHandler.add_line("code", "# Ensure every DF contains first_col and target")
+        self.CodeHandler.add_line("code", "aligned = []")
+        self.CodeHandler.add_line("code", "for d in df_list:")
+        self.CodeHandler.add_line("code", "if d is None: continue", indent=1)
+        self.CodeHandler.add_line("code", "df = d.copy()", indent=1)
+        self.CodeHandler.add_line("code", f"if '{first_col}' not in df.columns: df['{first_col}'] = pd.NA", indent=1)
+        self.CodeHandler.add_line("code", f"if '{target}' not in df.columns: df['{target}'] = pd.NA", indent=1)
+        self.CodeHandler.add_line("code", f"other_cols = [c for c in df.columns if c not in ('{first_col}', '{target}')]", indent=1)
+        self.CodeHandler.add_line("code", f"df = df[['{first_col}', '{target}'] + other_cols]", indent=1)
+        self.CodeHandler.add_line("code", "aligned.append(df)", indent=1)
 
         # 3) Merge outer on (first_col, target)
         df_merged: pd.DataFrame = aligned[0]
@@ -197,7 +208,7 @@ class Dataset(Node):
         self.CodeHandler.add_line("code", "# Merge on [first_col, target] with outer join")
         self.CodeHandler.add_line("code", "df_merged = aligned[0]")
         self.CodeHandler.add_line("code", "for i in range(len(aligned) - 1):")
-        self.CodeHandler.add_line("code", "    df_merged = df_merged.merge(aligned[i + 1], on=[first_col, target], how='outer')", indent=1)
+        self.CodeHandler.add_line("code", "df_merged = df_merged.merge(aligned[i + 1], on=[first_col, target], how='outer')", indent=1)
         self.CodeHandler.add_seperator()
 
         # 4) Build keep-set using base names (safe with or without '_|_')
@@ -225,15 +236,15 @@ class Dataset(Node):
         self.CodeHandler.add_line("code", f"tags_list = {repr(tags_list)}")
         self.CodeHandler.add_line("code", f"vars_list = {repr(vars_list)}")
         self.CodeHandler.add_line("code", "def _base(col):")
-        self.CodeHandler.add_line("code", "    s = str(col)", indent=1)
-        self.CodeHandler.add_line("code", "    return s.split('_|_', 1)[1] if '_|_' in s else s", indent=1)
+        self.CodeHandler.add_line("code", "s = str(col)", indent=1)
+        self.CodeHandler.add_line("code", "return s.split('_|_', 1)[1] if '_|_' in s else s", indent=1)
         self.CodeHandler.add_line("code", "base_keep = set(vars_list) | set(tags_list)")
         self.CodeHandler.add_line("code", "cols_2_keep = [first_col, target]")
         self.CodeHandler.add_line("code", "if base_keep:")
-        self.CodeHandler.add_line("code", "    for col in df_merged.columns:", indent=1)
-        self.CodeHandler.add_line("code", "        if col in (first_col, target): continue", indent=2)
-        self.CodeHandler.add_line("code", "        if _base(col) in base_keep: cols_2_keep.append(col)", indent=2)
-        self.CodeHandler.add_line("code", "    df_merged = df_merged[cols_2_keep]")
+        self.CodeHandler.add_line("code", "for col in df_merged.columns:", indent=1)
+        self.CodeHandler.add_line("code", "if col in (first_col, target): continue", indent=2)
+        self.CodeHandler.add_line("code", "if _base(col) in base_keep: cols_2_keep.append(col)", indent=2)
+        self.CodeHandler.add_line("code", "df_merged = df_merged[cols_2_keep]", indent=1)
         self.CodeHandler.add_seperator()
 
         return df_merged
