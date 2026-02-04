@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 )
@@ -154,11 +155,43 @@ func StartPythonScripts(jsonParam string, filename string, id string) (string, e
 	log.Println("filename: " + filename)
 	script, _ := filepath.Abs(filepath.Join(cwd, filename))
 	condaEnv := os.Getenv("MED_ENV")
+	if condaEnv == "" {
+		// Fall back to PATH lookup. This prevents "exec: no command" when MED_ENV isn't provided.
+		if runtime.GOOS == "windows" {
+			condaEnv = "python"
+		} else {
+			// Prefer python3 on Unix, but python is also common.
+			condaEnv = "python3"
+		}
+		log.Println("MED_ENV was empty; falling back to: " + condaEnv)
+	}
 	Mu.Lock()
 	if runMode == "prod" {
-		prodDir := os.Args[3]
-		filename = strings.ReplaceAll(filename, "..", "")
-		script, _ = filepath.Abs(filepath.Join(prodDir, filename))
+		prodDir := ""
+		if len(os.Args) > 3 {
+			prodDir = os.Args[3]
+		}
+		// Guard against JS passing undefined (e.g., `${process.resourcesPath}` under nexe).
+		if prodDir == "" || strings.EqualFold(prodDir, "undefined") {
+			if exePath, err := os.Executable(); err == nil {
+				exeDir := filepath.Dir(exePath)
+				// Go binary is typically in <root>/go_executables/, so root is one level up.
+				prodDir = filepath.Dir(exeDir)
+				log.Println("prodDir was empty/undefined; inferred bundle root: " + prodDir)
+			} else {
+				prodDir = cwd
+				log.Println("prodDir was empty/undefined; falling back to cwd: " + prodDir)
+			}
+		}
+		// Convert ../pythonCode/... into a safe relative path pythonCode/... so Join can't escape prodDir.
+		rel := filepath.ToSlash(filename)
+		for strings.HasPrefix(rel, "../") {
+			rel = strings.TrimPrefix(rel, "../")
+		}
+		rel = strings.TrimPrefix(rel, "./")
+		rel = strings.TrimLeft(rel, "/")
+		rel = filepath.FromSlash(rel)
+		script, _ = filepath.Abs(filepath.Join(prodDir, rel))
 		log.Println("running script in prod: " + script)
 	}
 	log.Println("Conda env: " + condaEnv)

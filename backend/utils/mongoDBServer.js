@@ -3,62 +3,153 @@ import path from "path"
 import { exec, spawn, execSync } from "child_process"
 let mongoProcess = null
 
+let lastMongo = {
+  startedAt: null,
+  mongodPath: null,
+  args: null,
+  workspacePath: null,
+  configPath: null,
+  pid: null,
+  stopRequestedAt: null,
+  lastExit: null, // { code, signal, at }
+  lastError: null, // { message, stack, at }
+  stdoutTail: [],
+  stderrTail: []
+}
+
+const MAX_TAIL_LINES = 200
+
+function pushTail(arr, line) {
+  if (!line) return
+  arr.push(line)
+  if (arr.length > MAX_TAIL_LINES) arr.splice(0, arr.length - MAX_TAIL_LINES)
+}
+
+function bufferToLines(data) {
+  try {
+    return String(data).split(/\r?\n/).filter(Boolean)
+  } catch {
+    return []
+  }
+}
+
 
 function startMongoDB(workspacePath) {
   const mongoConfigPath = path.join(workspacePath, ".medomics", "mongod.conf")
   if (fs.existsSync(mongoConfigPath)) {
     console.log("Starting MongoDB with config: " + mongoConfigPath)
     let mongod = getMongoDBPath()
+    if (!mongod) {
+      const err = new Error("mongod executable not found")
+      lastMongo.lastError = { message: err.message, stack: err.stack, at: new Date().toISOString() }
+      console.error("Failed to start MongoDB:", err.message)
+      return
+    }
+
+    lastMongo.startedAt = new Date().toISOString()
+    lastMongo.mongodPath = mongod
+    lastMongo.args = ["--config", mongoConfigPath]
+    lastMongo.workspacePath = workspacePath
+    lastMongo.configPath = mongoConfigPath
+    lastMongo.pid = null
+    lastMongo.stopRequestedAt = null
+    lastMongo.lastExit = null
+    lastMongo.lastError = null
+    lastMongo.stdoutTail = []
+    lastMongo.stderrTail = []
+
     if (process.platform !== "darwin") {
-      mongoProcess = spawn(mongod, ["--config", mongoConfigPath])
+      mongoProcess = spawn(mongod, ["--config", mongoConfigPath], { windowsHide: true })
     } else {
       if (fs.existsSync(getMongoDBPath())) {
-        mongoProcess = spawn(getMongoDBPath(), ["--config", mongoConfigPath])
+        mongoProcess = spawn(getMongoDBPath(), ["--config", mongoConfigPath], { windowsHide: true })
       } else {
         mongoProcess = spawn("/opt/homebrew/Cellar/mongodb-community/7.0.12/bin/mongod", ["--config", mongoConfigPath], { shell: true })
       }
     }
+
+    lastMongo.pid = mongoProcess?.pid || null
+
     mongoProcess.stdout.on("data", (data) => {
+      for (const line of bufferToLines(data)) {
+        pushTail(lastMongo.stdoutTail, line)
+      }
       console.log(`MongoDB stdout: ${data}`)
     })
 
     mongoProcess.stderr.on("data", (data) => {
+      for (const line of bufferToLines(data)) {
+        pushTail(lastMongo.stderrTail, line)
+      }
       console.error(`MongoDB stderr: ${data}`)
     })
 
-    mongoProcess.on("close", (code) => {
-      console.log(`MongoDB process exited with code ${code}`)
+    mongoProcess.on("exit", (code, signal) => {
+      lastMongo.lastExit = { code, signal, at: new Date().toISOString() }
+    })
+
+    mongoProcess.on("close", (code, signal) => {
+      const stopNote = lastMongo.stopRequestedAt ? ` (stop requested at ${lastMongo.stopRequestedAt})` : ""
+      console.log(`MongoDB process exited with code ${code} signal ${signal || "null"}${stopNote}`)
     })
 
     mongoProcess.on("error", (err) => {
+      lastMongo.lastError = { message: err?.message || String(err), stack: err?.stack || null, at: new Date().toISOString() }
       console.error("Failed to start MongoDB: ", err)
-      // reject(err)
     })
   } else {
     const errorMsg = `MongoDB config file does not exist: ${mongoConfigPath}`
+    lastMongo.lastError = { message: errorMsg, stack: null, at: new Date().toISOString() }
     console.error(errorMsg)
   }
 }
 
 
 async function stopMongoDB() {
-  return new Promise((resolve, reject) => {
-    if (mongoProcess) {
-      mongoProcess.on("exit", () => {
-        mongoProcess = null
-        resolve()
-      })
-      try {
-        mongoProcess.kill()
-        resolve()
-      } catch (error) {
-        console.log("Error while stopping MongoDB ", error)
-        // reject()
-      }
-    } else {
+  return new Promise((resolve) => {
+    if (!mongoProcess) return resolve()
+
+    lastMongo.stopRequestedAt = new Date().toISOString()
+
+    const proc = mongoProcess
+    let settled = false
+    const finish = () => {
+      if (settled) return
+      settled = true
+      mongoProcess = null
       resolve()
     }
+
+    proc.once("close", () => finish())
+    proc.once("error", () => finish())
+
+    try {
+      proc.kill()
+    } catch (error) {
+      console.log("Error while stopping MongoDB ", error)
+      finish()
+    }
+
+    // Safety: don't hang forever if close never fires
+    setTimeout(() => finish(), 5000).unref?.()
   })
+}
+
+function getMongoDebugInfo() {
+  return {
+    running: !!(mongoProcess && mongoProcess.exitCode === null),
+    pid: mongoProcess?.pid || lastMongo.pid || null,
+    startedAt: lastMongo.startedAt,
+    stopRequestedAt: lastMongo.stopRequestedAt,
+    mongodPath: lastMongo.mongodPath,
+    args: lastMongo.args,
+    workspacePath: lastMongo.workspacePath,
+    configPath: lastMongo.configPath,
+    lastExit: lastMongo.lastExit,
+    lastError: lastMongo.lastError,
+    stdoutTail: lastMongo.stdoutTail,
+    stderrTail: lastMongo.stderrTail
+  }
 }
 
 function getMongoDBPath() {
@@ -141,7 +232,7 @@ function getMongoDBPath() {
   }
 }
 
-export { startMongoDB, stopMongoDB, getMongoDBPath }
+export { startMongoDB, stopMongoDB, getMongoDBPath, getMongoDebugInfo }
 
 // Cross-platform check to see if a given TCP port is in use (LISTENING)
 async function checkMongoIsRunning(port) {

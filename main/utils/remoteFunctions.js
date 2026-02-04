@@ -40,7 +40,12 @@ export function getRemoteWorkspacePath() {
 }
 
 export function setRemoteBackendExecutablePath(p) {
-  remoteBackendExecutablePath = p
+  // Always store a plain string path
+  if (p && typeof p === 'object' && p.path) {
+    remoteBackendExecutablePath = p.path
+  } else {
+    remoteBackendExecutablePath = p
+  }
 }
 export function getRemoteBackendExecutablePath() {
   return remoteBackendExecutablePath
@@ -63,12 +68,22 @@ let tunnelInfo = {
   remoteJupyterPort: null,
   remotePort: null,
   username: null,
+  // Additional statuses/flags
+  serverStartedRemotely: false,
+  expressStatus: 'unknown',
+  expressLogPath: null,
+  // Generic list of active tunnels
+  tunnels: [] // [{ name: string, localPort: number, remotePort: number, status: 'forwarding'|'closed' }]
 }
 
 export function setTunnelState(info) {
   // Exclude password
   const { password, privateKey, ...safeInfo } = info
-  tunnelInfo = { ...tunnelInfo, ...safeInfo, tunnelActive: safeInfo.tunnelActive }
+  const hasFlag = Object.prototype.hasOwnProperty.call(safeInfo, 'tunnelActive')
+  const nextTunnelActive = hasFlag
+    ? !!safeInfo.tunnelActive
+    : (typeof tunnelInfo.tunnelActive === 'boolean' ? tunnelInfo.tunnelActive : false)
+  tunnelInfo = { ...tunnelInfo, ...safeInfo, tunnelActive: nextTunnelActive }
 }
 
 export function clearTunnelState() {
@@ -86,6 +101,8 @@ export function clearTunnelState() {
     remoteJupyterPort: null,
     remotePort: null,
     username: null,
+    serverStartedRemotely: false,
+    expressStatus: 'unknown',
   }
 }
 
@@ -107,7 +124,7 @@ ipcMain.handle('clearTunnelState', () => {
   mainWindow.webContents.send('tunnelStateClear')
 })
 
-// Helpers for managing remote backend (GO) server lifecycle
+// Helpers for managing remote backend (Express) server lifecycle
 async function execRemote(conn, cmd) {
   return new Promise((resolve, reject) => {
     conn.exec(cmd, (err, stream) => {
@@ -135,37 +152,54 @@ async function getRemoteHome(conn, remoteOS) {
 
 async function findRemoteBackendExecutable(conn, remoteOS) {
   try {
+    // If a path is already stored, verify it exists and is executable
     if (remoteBackendExecutablePath) {
-      // Verify it exists
       if (remoteOS === 'win32') {
         const r = await execRemote(conn, `powershell -NoProfile -Command "If (Test-Path '${remoteBackendExecutablePath.replace(/'/g, "''")}') { Write-Output '${remoteBackendExecutablePath.replace(/'/g, "''")}' }"`)
-        if (r.stdout) return { path: remoteBackendExecutablePath }
+        if ((r.stdout||'').trim()) return { path: remoteBackendExecutablePath }
       } else {
-        const r = await execRemote(conn, `[ -x '${remoteBackendExecutablePath.replace(/'/g, "'\\''")}' ] && echo '${remoteBackendExecutablePath.replace(/'/g, "'\\''")}' || true`)
-        if (r.stdout) return { path: remoteBackendExecutablePath }
+        const r = await execRemote(conn, `[ -x '${remoteBackendExecutablePath.replace(/'/g, "'\\''")}'] && echo '${remoteBackendExecutablePath.replace(/'/g, "'\\''")}' || true`)
+        if ((r.stdout||'').trim()) return { path: remoteBackendExecutablePath }
       }
     }
+
+    // Look for medomics-server under the versions directory of ~/.medomics/medomics-server
     const home = await getRemoteHome(conn, remoteOS)
+    const baseDir = remoteOS === 'win32' ? `${home}\\.medomics\\medomics-server` : `${home}/.medomics/medomics-server`
+    const versionsDir = remoteOS === 'win32' ? `${baseDir}\\versions` : `${baseDir}/versions`
+
     if (remoteOS === 'win32') {
-      const candidates = [
-        `${home}\\.medomics\\MEDomicsLab\\go_executables\\server_go_win32.exe`,
-        `${home}\\.medomics\\go_executables\\server_go_win32.exe`,
-        `C:\\Program Files\\MEDomicsLab\\go_executables\\server_go_win32.exe`
-      ]
-      const ps = `powershell -NoProfile -Command "${candidates.map(p=>`If (Test-Path '${p.replace(/'/g, "''")}') { Write-Output '${p.replace(/'/g, "''")}'; exit }`).join(' ')}"`
+      // Prefer newest medomics-server.exe found under versions/**/bin
+      const ps = `powershell -NoProfile -Command "if (Test-Path '${versionsDir.replace(/'/g, "''")}') { Get-ChildItem -Path '${versionsDir.replace(/'/g, "''")}' -Recurse -Filter medomics-server.exe | Sort-Object LastWriteTime -Descending | Select-Object -First 1 -ExpandProperty FullName }"`
       const r = await execRemote(conn, ps)
-      if (r.stdout) return { path: r.stdout }
-      const whereCmd = await execRemote(conn, 'where server_go_win32.exe')
-      if (whereCmd.stdout) return { path: whereCmd.stdout.split(/\r?\n/)[0] }
+      const found = (r.stdout||'').trim()
+      if (found) return { path: found }
+      // Fallback: check typical bin path for latest version directory
+      const ls = await execRemote(conn, `powershell -NoProfile -Command "If (Test-Path '${versionsDir.replace(/'/g, "''")}') { Get-ChildItem -Path '${versionsDir.replace(/'/g, "''")}' -Directory | Sort-Object LastWriteTime -Descending | Select-Object -First 1 -ExpandProperty FullName }"`)
+      const latestDir = (ls.stdout||'').trim()
+      if (latestDir) {
+        const candidate = `${latestDir}\\bin\\medomics-server.exe`
+        const chk = await execRemote(conn, `powershell -NoProfile -Command "If (Test-Path '${candidate.replace(/'/g, "''")}') { Write-Output '${candidate.replace(/'/g, "''")}' }"`)
+        if ((chk.stdout||'').trim()) return { path: candidate }
+      }
     } else {
-      const candidates = [
-        `${home}/.medomics/MEDomicsLab/go_executables/server_go`,
-        `${home}/.medomics/go_executables/server_go`,
-        `${home}/MEDomicsLab/go_executables/server_go`
-      ]
-      const testCmd = candidates.map(p=>`[ -x '${p.replace(/'/g, "'\\''")}' ] && { echo '${p.replace(/'/g, "'\\''")}'; exit 0; }`).join(' ') + '; command -v server_go || true'
-      const r = await execRemote(conn, `bash -lc "${testCmd}"`)
-      if (r.stdout) return { path: r.stdout.split(/\r?\n/)[0] }
+      // POSIX: prefer current/bin/medomics-server, else search under versions
+      const currentBin = `${baseDir}/current/bin/medomics-server`
+      const curChk = await execRemote(conn, `bash -lc "[ -x '${currentBin.replace(/'/g, "'\\''")}' ] && echo '${currentBin.replace(/'/g, "'\\''")}' || true"`)
+      const curFound = (curChk.stdout||'').trim()
+      if (curFound) return { path: currentBin }
+      const findCmd = `bash -lc "if [ -d '${versionsDir.replace(/'/g, "'\\''")}' ]; then find '${versionsDir.replace(/'/g, "'\\''")}' -type f -name 'medomics-server' -perm +111 -print -quit; fi || true"`
+      const r = await execRemote(conn, findCmd)
+      const found = (r.stdout||'').trim()
+      if (found) return { path: found }
+      // Fallback: check bin under latest version dir
+      const ls = await execRemote(conn, `bash -lc "ls -1dt '${versionsDir.replace(/'/g, "'\\''")}'/* 2>/dev/null | head -n1"`)
+      const latestDir = (ls.stdout||'').trim()
+      if (latestDir) {
+        const candidate = `${latestDir}/bin/medomics-server`
+        const chk = await execRemote(conn, `bash -lc "[ -x '${candidate.replace(/'/g, "'\\''")}' ] && echo '${candidate.replace(/'/g, "'\\''")}' || true"`)
+        if ((chk.stdout||'').trim()) return { path: candidate }
+      }
     }
     return null
   } catch (e) {
@@ -179,32 +213,118 @@ async function startRemoteBackend(conn, remoteOS, exePath, remotePort) {
       return { success: false, status: 'not-found', error: 'No remote Express path provided' }
     }
     const isScript = exePath.endsWith('.js') || exePath.endsWith('.mjs')
+    // Derive versionDir and log path similarly to startRemoteExpress
+    let versionDir = getVersionDirFromExePath(exePath, remoteOS)
+    let baseDir = null
+    if (versionDir) {
+      const normalizedVersionDir = versionDir.replace(/\\/g, '/')
+      baseDir = normalizedVersionDir.includes('/versions/') ? normalizedVersionDir.split('/versions/')[0] : normalizedVersionDir
+    }
+    let logsDir = null
+    let logPath = null
+    if (baseDir) {
+      logsDir = remoteOS === 'win32' ? `${baseDir.replace(/\//g,'\\')}\\logs` : `${baseDir}/logs`
+      logPath = remoteOS === 'win32' ? `${logsDir}\\express.log` : `${logsDir}/express.log`
+      // Ensure logs dir exists and truncate previous log
+      if (remoteOS === 'win32') {
+        await execRemote(conn, `powershell -NoProfile -Command "New-Item -ItemType Directory -Force -Path '${logsDir.replace(/'/g, "''")}' | Out-Null; Clear-Content -Path '${logPath.replace(/'/g, "''")}' -ErrorAction SilentlyContinue; New-Item -ItemType File -Force -Path '${logPath.replace(/'/g, "''")}' | Out-Null"`)
+      } else {
+        await execRemote(conn, `bash -lc "mkdir -p '${logsDir.replace(/'/g, "'\\''")}' && : > '${logPath.replace(/'/g, "'\\''")}'"`)
+      }
+    }
+    if (logPath) {
+      try {
+        setTunnelState({ ...getTunnelState(), expressLogPath: logPath })
+        try { mainWindow.webContents.send('tunnelStateUpdate', { expressLogPath: logPath }) } catch {}
+      } catch {}
+    }
+
+    // If we're launching a packaged server binary, prefer using the shipped
+    // start script (start.bat/start.sh) so it can set NODE_ENV=production and
+    // any other required environment/config.
+    if (!isScript) {
+      try { setRemoteBackendExecutablePath(exePath) } catch {}
+      try {
+        const viaScript = await startRemoteExpress(conn, remoteOS, remotePort)
+        if (viaScript && viaScript.success) {
+          return { success: true, status: 'express-running', port: remotePort }
+        }
+        // If the script exists but failed, bubble that up.
+        if (viaScript && viaScript.status && viaScript.status !== 'script-not-found') {
+          return viaScript
+        }
+      } catch (e) {
+        // Fall back to direct executable start below.
+        console.warn('[remote] startRemoteBackend startRemoteExpress failed; falling back:', e && e.message ? e.message : e)
+      }
+    }
     let cmd
+    console.log('[remote] startRemoteBackend called', { remoteOS, exePath, remotePort, isScript })
     if (remoteOS === 'win32') {
       if (isScript) {
-        cmd = `powershell -NoProfile -Command "$env:PORT=${remotePort}; Start-Process -FilePath 'node' -ArgumentList '${exePath.replace(/'/g, "''")}' -WindowStyle Hidden -PassThru | Out-Null"`
+        cmd = `powershell -NoProfile -Command "$env:NODE_ENV='production'; $env:MEDOMICS_EXPRESS_PORT=${remotePort}; Start-Process -FilePath 'node' -ArgumentList '${exePath.replace(/'/g, "''")}' -WindowStyle Hidden -PassThru | Out-Null"`
       } else {
-        cmd = `powershell -NoProfile -Command "$env:PORT=${remotePort}; Start-Process -FilePath '${exePath.replace(/'/g, "''")}' -WindowStyle Hidden -PassThru | Out-Null"`
+        // If launching medomics-server.exe, pass explicit CLI args: start --json
+        const workDir = (versionDir || path.dirname(exePath)).replace(/\\/g, '\\')
+        const exeBase = path.basename(exePath).replace(/\\/g, '\\')
+        if (logsDir && logPath) {
+          cmd = `cmd.exe /c "cd /d \"${workDir}\" && set NODE_ENV=production && set MEDOMICS_EXPRESS_PORT=${remotePort} && \"${exeBase}\" start --json >> \"${logPath.replace(/\\/g,'\\')}\" 2>&1"`
+        } else {
+          // Fallback without log redirection
+          cmd = `cmd.exe /c "cd /d \"${workDir}\" && set NODE_ENV=production && set MEDOMICS_EXPRESS_PORT=${remotePort} && \"${exeBase}\" start --json"`
+        }
       }
     } else {
       if (isScript) {
-        cmd = `bash -lc 'export PORT=${remotePort}; nohup node "${exePath.replace(/"/g, '\\"')}" >/dev/null 2>&1 < /dev/null & echo $!'`
+        cmd = `bash -lc 'export NODE_ENV=production; export MEDOMICS_EXPRESS_PORT=${remotePort}; nohup node "${exePath.replace(/"/g, '\\"')}" >/dev/null 2>&1 < /dev/null & echo $!'`
       } else {
-        cmd = `bash -lc 'export PORT=${remotePort}; nohup "${exePath.replace(/"/g, '\\"')}" >/dev/null 2>&1 < /dev/null & echo $!'`
+        const exeEsc = exePath.replace(/"/g, '\\"')
+        if (logPath) {
+          cmd = `bash -lc 'export NODE_ENV=production; export MEDOMICS_EXPRESS_PORT=${remotePort}; nohup "${exeEsc}" start --json >> "${logPath.replace(/"/g, '\\"')}" 2>&1 < /dev/null & echo $!'`
+        } else {
+          cmd = `bash -lc 'export NODE_ENV=production; export MEDOMICS_EXPRESS_PORT=${remotePort}; nohup "${exeEsc}" start --json >/dev/null 2>&1 < /dev/null & echo $!'`
+        }
       }
     }
-    const r = await execRemote(conn, cmd)
-    if (r && r.stderr && r.stderr.trim() && !r.stdout) {
-      return { success: false, status: 'failed-to-start', error: r.stderr.trim() }
+    console.log('[remote] startRemoteBackend exec cmd', cmd)
+    let r = null
+    if (remoteOS === 'win32' && !isScript) {
+      // Fire-and-forget for the long-running medomics-server.exe so we can poll the port
+      try {
+        conn.exec(cmd, (err, stream) => {
+          if (err) {
+            console.log('[remote] startRemoteBackend exec error', err.message || String(err))
+            return
+          }
+          stream.on('data', (d) => {
+            try { console.log('[remote] startRemoteBackend stdout chunk', d.toString().slice(0, 200)) } catch {}
+          })
+          stream.stderr.on('data', (d) => {
+            try { console.log('[remote] startRemoteBackend stderr chunk', d.toString().slice(0, 200)) } catch {}
+          })
+          stream.on('close', (code) => {
+            console.log('[remote] startRemoteBackend cmd closed with code', code)
+          })
+        })
+      } catch (e) {
+        console.log('[remote] startRemoteBackend exec exception', e && e.message ? e.message : String(e))
+      }
+    } else {
+      r = await execRemote(conn, cmd)
+      console.log('[remote] startRemoteBackend exec result', r)
+      if (r && r.stderr && r.stderr.trim() && !r.stdout) {
+        return { success: false, status: 'failed-to-start', error: r.stderr.trim() }
+      }
     }
     // Poll for port to open
     await sleep(800)
-    const maxAttempts = 15
+    const maxAttempts = 30
     for (let i = 0; i < maxAttempts; i++) {
       const open = await checkRemotePortOpen(conn, remotePort)
       if (open) return { success: true, status: 'express-running' }
       await sleep(600)
     }
+    console.log('[remote] startRemoteBackend timeout waiting for port', remotePort)
     return { success: false, status: 'timeout', error: `Express did not open port ${remotePort} in time` }
   } catch (e) {
     return { success: false, status: 'failed-to-start', error: e && e.message ? e.message : String(e) }
@@ -213,24 +333,200 @@ async function startRemoteBackend(conn, remoteOS, exePath, remotePort) {
 
 function sleep(ms){ return new Promise(r=>setTimeout(r, ms)) }
 
-async function detectRemoteArch(conn, remoteOS) {
+// Derive extracted version directory from stored backend executable path
+function getVersionDirFromExePath(p, remoteOS) {
+  if (!p) return null
+  const normalized = p.replace(/\\/g, '/')
+  const parts = normalized.split('/')
+  // Typical: .../versions/<ver>/bin/medomics-server[.exe]
+  const binIdx = parts.lastIndexOf('bin')
+  if (binIdx > 0) {
+    const versionParts = parts.slice(0, binIdx)
+    return versionParts.join('/')
+  }
+  // If points directly to medomics-server, use parent directory
+  if (normalized.toLowerCase().includes('medomics-server')) {
+    const idx = normalized.lastIndexOf('/')
+    if (idx > 0) return normalized.slice(0, idx)
+  }
+  // Unknown layout (e.g., legacy GO path) → let caller fall back to baseDir/current
+  return null
+}
+
+// Start Express using extracted start scripts under version directory
+async function startRemoteExpress(conn, remoteOS, remotePort) {
   try {
-    if (remoteOS === 'win32') {
-      const r = await execRemote(conn, 'powershell -NoProfile -Command "$env:PROCESSOR_ARCHITECTURE"')
-      const a = (r.stdout || '').trim().toLowerCase()
-      if (a.includes('arm64') || a.includes('aarch64')) return 'arm64'
-      return 'x64'
-    } else {
-      const r = await execRemote(conn, 'uname -m || true')
-      const a = (r.stdout || '').trim().toLowerCase()
-      if (a.includes('arm64') || a.includes('aarch64')) return 'arm64'
-      if (a.includes('x86_64') || a.includes('amd64')) return 'x64'
-      return 'x64'
+    const exePath = getRemoteBackendExecutablePath()
+    console.log('[remote] startRemoteExpress called', { remoteOS, remotePort, exePath })
+    let versionDir = getVersionDirFromExePath(exePath, remoteOS)
+    // Fallback: use ~/.medomics/medomics-server/{current|latest version}
+    if (!versionDir) {
+      const home = await getRemoteHome(conn, remoteOS)
+      const baseDir = remoteOS === 'win32' ? `${home}\\.medomics\\medomics-server` : `${home}/.medomics/medomics-server`
+      const versionsDir = remoteOS === 'win32' ? `${baseDir}\\versions` : `${baseDir}/versions`
+      // Prefer 'current' symlink on POSIX or latest version directory
+      if (remoteOS !== 'win32') {
+        const curCheck = await execRemote(conn, `bash -lc "[ -d '${baseDir.replace(/'/g, "'\\''")}/current' ] && readlink -f '${baseDir.replace(/'/g, "'\\''")}/current' || echo"`)
+        const curDir = (curCheck.stdout||'').trim()
+        if (curDir) versionDir = curDir
+      }
+      if (!versionDir) {
+        if (remoteOS === 'win32') {
+          const ls = await execRemote(conn, `powershell -NoProfile -Command "Get-ChildItem -Path '${versionsDir.replace(/'/g, "''")}' -Directory | Sort-Object LastWriteTime -Descending | Select-Object -First 1 -ExpandProperty FullName"`)
+          versionDir = (ls.stdout||'').trim()
+        } else {
+          const ls = await execRemote(conn, `bash -lc "ls -1dt '${versionsDir.replace(/'/g, "'\\''")}'/* 2>/dev/null | head -n1"`)
+          versionDir = (ls.stdout||'').trim()
+        }
+      }
+      if (!versionDir) {
+        return { success: false, status: 'script-not-found', error: 'Cannot resolve server version directory (no current or versions found)' }
+      }
     }
-  } catch {
-    return 'x64'
+    // Determine baseDir from versionDir and construct logs dir + log file path
+    const normalizedVersionDir = versionDir.replace(/\\/g, '/');
+    const baseDir = normalizedVersionDir.includes('/versions/') ? normalizedVersionDir.split('/versions/')[0] : normalizedVersionDir;
+    const logsDir = remoteOS === 'win32' ? `${baseDir.replace(/\//g,'\\')}\\logs` : `${baseDir}/logs`;
+    const logPath = remoteOS === 'win32' ? `${logsDir}\\express.log` : `${logsDir}/express.log`;
+    console.log('[remote] startRemoteExpress resolved paths', { versionDir, baseDir, logsDir, logPath })
+    // Ensure logs dir exists and truncate previous log
+    if (remoteOS === 'win32') {
+      await execRemote(conn, `powershell -NoProfile -Command "New-Item -ItemType Directory -Force -Path '${logsDir.replace(/'/g, "''")}' | Out-Null; Clear-Content -Path '${logPath.replace(/'/g, "''")}' -ErrorAction SilentlyContinue; New-Item -ItemType File -Force -Path '${logPath.replace(/'/g, "''")}' | Out-Null"`)
+    } else {
+      await execRemote(conn, `bash -lc "mkdir -p '${logsDir.replace(/'/g, "'\\''")}' && : > '${logPath.replace(/'/g, "'\\''")}'"`)
+    }
+    let candidates
+    if (remoteOS === 'win32') {
+      candidates = [
+        `${versionDir}\\start.bat`,
+        `${versionDir}\\scripts\\start.bat`,
+        `${versionDir}\\bin\\start.bat`,
+      ]
+    } else {
+      candidates = [
+        `${versionDir}/start.sh`,
+        `${versionDir}/scripts/start.sh`,
+        `${versionDir}/bin/start.sh`,
+      ]
+    }
+    console.log("Candidates: ", candidates)
+    let scriptPath = null
+    for (const candidate of candidates) {
+      const checkCmd = remoteOS === 'win32'
+        // Use a well-formed PowerShell Test-Path invocation and keep backslashes
+        ? `powershell -NoProfile -Command "Test-Path '${candidate.replace(/'/g, "''")}'"`
+        : `bash -lc "[ -f '${candidate}' ] && echo yes || echo no"`
+      const r = await execRemote(conn, checkCmd)
+      const exists = remoteOS === 'win32' ? /True/i.test(r.stdout || '') : /yes/i.test(r.stdout || '')
+      if (exists) { scriptPath = candidate; break }
+    }
+    if (!scriptPath) {
+      return { success: false, status: 'script-not-found', error: 'start script not found in server directory' }
+    }
+    console.log('[remote] startRemoteExpress using scriptPath', scriptPath)
+    let cmd
+    if (remoteOS === 'win32') {
+      // Use cmd.exe directly: cd into the versionDir, set MEDOMICS_EXPRESS_PORT,
+      // and run the batch file, redirecting its output to express.log so we can see errors.
+      const workDir = versionDir.replace(/\\/g, '\\')
+      const batName = path.basename(scriptPath)
+      const winLogPath = logPath.replace(/\\/g, '\\')
+      cmd = `cmd.exe /c "cd /d \"${workDir}\" && set NODE_ENV=production && set MEDOMICS_EXPRESS_PORT=${remotePort} && echo [launcher] NODE_ENV=%NODE_ENV% MEDOMICS_EXPRESS_PORT=%MEDOMICS_EXPRESS_PORT% >> \"${winLogPath}\" && \"${batName}\" >> \"${winLogPath}\" 2>&1"`
+      console.log('[remote] startRemoteExpress exec cmd', cmd)
+      // Fire-and-forget: do not await completion of the batch; it runs the server and can stay running.
+      try {
+        conn.exec(cmd, (err, stream) => {
+          if (err) {
+            console.log('[remote] startRemoteExpress exec error', err.message || String(err))
+            return
+          }
+          stream.on('data', (d) => {
+            // Optionally log a small amount of stdout for debugging
+            try { console.log('[remote] startRemoteExpress stdout chunk', d.toString().slice(0, 200)) } catch {}
+          })
+          stream.stderr.on('data', (d) => {
+            try { console.log('[remote] startRemoteExpress stderr chunk', d.toString().slice(0, 200)) } catch {}
+          })
+          stream.on('close', (code) => {
+            console.log('[remote] startRemoteExpress cmd closed with code', code)
+          })
+        })
+      } catch (e) {
+        console.log('[remote] startRemoteExpress exec exception', e && e.message ? e.message : String(e))
+      }
+    } else {
+      cmd = `bash -lc "export NODE_ENV=production; export MEDOMICS_EXPRESS_PORT='${remotePort}'; echo '[launcher] NODE_ENV='\"$NODE_ENV\"' MEDOMICS_EXPRESS_PORT='\"$MEDOMICS_EXPRESS_PORT\" >> '${logPath.replace(/'/g, "'\\''")}'; nohup '${scriptPath}' >> '${logPath.replace(/'/g, "'\\''")}' 2>&1 &"`
+      console.log('[remote] startRemoteExpress exec cmd', cmd)
+      const r2 = await execRemote(conn, cmd)
+      console.log('[remote] startRemoteExpress exec result', r2)
+    }
+    // Poll for port open
+    await sleep(800)
+    const maxAttempts = 20
+    for (let i = 0; i < maxAttempts; i++) {
+      const open = await checkRemotePortOpen(conn, remotePort)
+      if (open) return { success: true, status: 'running', port: remotePort }
+      await sleep(500)
+    }
+    console.log('[remote] startRemoteExpress timeout waiting for port', remotePort)
+    return { success: false, status: 'timeout', error: `Express did not open port ${remotePort} in time` }
+  } catch (e) {
+    return { success: false, status: 'failed-to-start', error: e && e.message ? e.message : String(e) }
   }
 }
+
+// Live log streaming state
+let activeExpressLogStream = null
+
+ipcMain.handle('startRemoteServerLogStream', async () => {
+  const conn = getActiveTunnel()
+  if (!conn) return { success: false, error: 'No active SSH tunnel' }
+  if (activeExpressLogStream) return { success: true } // already streaming
+  try {
+    const { expressLogPath } = getTunnelState()
+    if (!expressLogPath) return { success: false, error: 'No expressLogPath available' }
+    const remoteOS = await detectRemoteOS()
+    let cmd
+    if (remoteOS === 'win32') {
+      cmd = `powershell -NoProfile -Command \"Get-Content -Path '${expressLogPath.replace(/'/g, "''")}' -Tail 200 -Wait\"`
+    } else {
+      cmd = `bash -lc "tail -n 200 -F '${expressLogPath.replace(/'/g, "'\\''")}'"`
+    }
+    return await new Promise((resolve) => {
+      conn.exec(cmd, (err, stream) => {
+        if (err) return resolve({ success: false, error: err.message })
+        activeExpressLogStream = stream
+        try { mainWindow.webContents.send('remoteServerLog:state', { streaming: true }) } catch {}
+        stream.on('data', (d) => {
+          try { mainWindow.webContents.send('remoteServerLog:data', d.toString()) } catch {}
+        })
+        stream.stderr.on('data', (d) => {
+          try { mainWindow.webContents.send('remoteServerLog:data', d.toString()) } catch {}
+        })
+        stream.on('close', () => {
+          activeExpressLogStream = null
+          try { mainWindow.webContents.send('remoteServerLog:state', { streaming: false }) } catch {}
+        })
+        resolve({ success: true })
+      })
+    })
+  } catch (e) {
+    return { success: false, error: e && e.message ? e.message : String(e) }
+  }
+})
+
+ipcMain.handle('stopRemoteServerLogStream', async () => {
+  try {
+    if (activeExpressLogStream) {
+      try { activeExpressLogStream.close && activeExpressLogStream.close() } catch {}
+      activeExpressLogStream = null
+    }
+    try { mainWindow.webContents.send('remoteServerLog:state', { streaming: false }) } catch {}
+    return { success: true }
+  } catch (e) {
+    return { success: false, error: e && e.message ? e.message : String(e) }
+  }
+})
 
 function mapOsKey(remoteOS) {
   // Map Node-like OS ids to manifest os keys
@@ -239,15 +535,24 @@ function mapOsKey(remoteOS) {
   return ['linux']
 }
 
-function selectAssetForRemote(manifest, remoteOS, remoteArch) {
+function selectAssetForRemote(manifest, remoteOS) {
   const assets = (manifest && manifest.assets) || []
   const osKeys = mapOsKey(remoteOS)
-  const first = assets.find(a => osKeys.includes(String(a.os||'').toLowerCase()) && (!a.arch || String(a.arch).toLowerCase() === remoteArch))
+  const first = assets.find(a => osKeys.includes(String(a.os||'').toLowerCase()))
   return first || null
 }
 
 function sendInstallProgress(payload) {
-  try { mainWindow && mainWindow.webContents && mainWindow.webContents.send('remoteBackendInstallProgress', payload) } catch {}
+  try {
+    console.log(payload)
+    // Try sending to exported mainWindow if available
+    const bg = (() => { try { return require('../background.js') } catch { return null } })()
+    const win = bg && bg.mainWindow ? bg.mainWindow : (require('electron').BrowserWindow.getAllWindows()[0] || null)
+    if (win && win.webContents) {
+      win.webContents.send('remoteBackendInstallProgress', payload)
+      return
+    }
+  } catch {}
 }
 
 ipcMain.handle('ensureRemoteBackend', async (_event, { port } = {}) => {
@@ -261,36 +566,42 @@ ipcMain.handle('ensureRemoteBackend', async (_event, { port } = {}) => {
     return { success: false, status: 'invalid-config', error: 'Missing local/remote backend port configuration' }
   }
   try {
-    // 1) Ensure Express is reachable on remote targetPort
+    // 1) Ensure Express is reachable on remote targetPort; if not, start it using start scripts
     let isOpen = await checkRemotePortOpen(conn, targetPort)
     if (!isOpen) {
       const remoteOS = await detectRemoteOS()
-      const exePath = getRemoteBackendExecutablePath()
-      if (!exePath) {
-        return { success: false, status: 'not-found', action: 'locate-or-install', error: 'Express not running and no remote path set' }
-      }
-      const startRes = await startRemoteBackend(conn, remoteOS, exePath, targetPort)
-      if (!startRes.success) {
-        return startRes
-      }
-      // Double-check
+      const startRes = await startRemoteExpress(conn, remoteOS, targetPort)
+      if (!startRes.success) return startRes
       isOpen = await checkRemotePortOpen(conn, targetPort)
-      if (!isOpen) {
-        return { success: false, status: 'timeout', error: `Express did not open port ${targetPort}` }
-      }
+      if (!isOpen) return { success: false, status: 'timeout', error: `Express did not open port ${targetPort}` }
     }
 
-    // 2) Ask Express (reachable through the tunnel at localPort) to start GO
+    // 2) Express is up; set status, infer log path under baseDir/logs/express.log
+    // Try to compute log path similarly to startRemoteExpress
+    let info = { expressStatus: 'running', serverStartedRemotely: true }
     try {
-      const url = `http://127.0.0.1:${localPort}/run-go-server`
-      const res = await axios.post(url, {})
-      if (res && res.status >= 200 && res.status < 300) {
-        return { success: true, status: 'running', message: 'Express running; GO start requested via backend', port: targetPort }
+      const exe = getRemoteBackendExecutablePath()
+      const normalized = (exe||'').replace(/\\/g,'/')
+      let baseDir = null
+      if (normalized.includes('/versions/')) baseDir = normalized.split('/versions/')[0]
+      if (!baseDir) {
+        const remoteOS = await detectRemoteOS()
+        const home = await getRemoteHome(getActiveTunnel(), remoteOS)
+        baseDir = remoteOS === 'win32' ? `${home}\\.medomics\\medomics-server` : `${home}/.medomics/medomics-server`
       }
-      return { success: false, status: 'go-start-failed', error: `Unexpected status ${res && res.status}` }
-    } catch (err) {
-      return { success: false, status: 'go-start-error', error: err && err.message ? err.message : 'Failed to call /run-go-server' }
+      const remoteOS = await detectRemoteOS()
+      const logPath = remoteOS === 'win32' ? `${baseDir}\\logs\\express.log` : `${baseDir}/logs/express.log`
+      info = { ...info, expressLogPath: logPath }
+    } catch {}
+    // 3) Ensure there is a local forward from localPort -> targetPort
+    try {
+      await startExpressForward({ localExpressPort: localPort, remoteExpressPort: targetPort })
+    } catch (e) {
+      console.warn('Failed to start Express forward after ensureRemoteBackend:', e && e.message ? e.message : e)
     }
+    setTunnelState({ ...getTunnelState(), ...info })
+    try { mainWindow.webContents.send('tunnelStateUpdate', info) } catch {}
+    return { success: true, status: 'running', port: targetPort }
   } catch (e) {
     return { success: false, status: 'error', error: e && e.message ? e.message : String(e) }
   }
@@ -358,11 +669,63 @@ ipcMain.handle('setRemoteBackendPath', async (_event, p) => {
   return { success: true, path: p }
 })
 
+// Locate remote backend executable under default install folders and persist the path
+ipcMain.handle('locateRemoteBackendExecutable', async () => {
+  const conn = getActiveTunnel()
+  if (!conn) return { success: false, error: 'No active SSH tunnel' }
+  try {
+    const remoteOS = await detectRemoteOS()
+    const exe = await findRemoteBackendExecutable(conn, remoteOS)
+    if (exe) {
+      const pathValue = (typeof exe === 'object' && exe.path) ? exe.path : exe
+      setRemoteBackendExecutablePath(pathValue)
+      // Optionally infer and set express log path for convenience
+      try {
+        const normalized = (pathValue||'').replace(/\\/g,'/')
+        let baseDir = null
+        if (normalized.includes('/versions/')) baseDir = normalized.split('/versions/')[0]
+        if (!baseDir) {
+          const home = await getRemoteHome(conn, remoteOS)
+          baseDir = remoteOS === 'win32' ? `${home}\\.medomics\\medomics-server` : `${home}/.medomics/medomics-server`
+        }
+        const logPath = remoteOS === 'win32' ? `${baseDir}\\logs\\express.log` : `${baseDir}/logs/express.log`
+        setTunnelState({ ...getTunnelState(), expressLogPath: logPath })
+        try { mainWindow.webContents.send('tunnelStateUpdate', { expressLogPath: logPath }) } catch {}
+      } catch {}
+      return { success: true, path: pathValue }
+    }
+    return { success: false, error: 'executable-not-found' }
+  } catch (e) {
+    return { success: false, error: e && e.message ? e.message : String(e) }
+  }
+})
+
 ipcMain.handle('startRemoteBackendUsingPath', async (_event, { path: exePath, port }) => {
   const conn = getActiveTunnel()
   if (!conn) return { success: false, error: 'No active SSH tunnel' }
   const remoteOS = await detectRemoteOS()
-  const res = await startRemoteBackend(conn, remoteOS, exePath, port || (getTunnelState().remoteExpressPort))
+  const state = getTunnelState()
+  const targetPort = port || state.remoteExpressPort
+  // Persist the chosen path so startRemoteExpress can resolve start scripts relative to it.
+  try { setRemoteBackendExecutablePath(exePath) } catch {}
+  const res = await startRemoteBackend(conn, remoteOS, exePath, targetPort)
+  if (res && res.success) {
+    // Mark Express as running, started via app, and ensure forward is active
+    try {
+      const info = {
+        expressStatus: 'running',
+        serverStartedRemotely: true,
+        remoteExpressPort: targetPort ? Number(targetPort) : state.remoteExpressPort,
+      }
+      setTunnelState({ ...getTunnelState(), ...info })
+      try { mainWindow.webContents.send('tunnelStateUpdate', info) } catch {}
+    } catch {}
+    try {
+      await startExpressForward({ localExpressPort: state.localExpressPort, remoteExpressPort: targetPort })
+    } catch (e) {
+      console.warn('Failed to start Express forward after startRemoteBackendUsingPath:', e && e.message ? e.message : e)
+    }
+  }
   return res
 })
 
@@ -370,19 +733,77 @@ ipcMain.handle('installRemoteBackendFromURL', async (_event, { manifestUrl, vers
   const conn = getActiveTunnel()
   if (!conn) return { success: false, error: 'No active SSH tunnel' }
   try {
-    if (!manifestUrl) return { success: false, error: 'missing-manifest-url' }
-    sendInstallProgress({ phase: 'fetch-manifest', manifestUrl })
-    const { data: manifest } = await axios.get(manifestUrl, { timeout: 30000 })
-    const manifestVersion = version || manifest?.version
-    if (!manifestVersion) return { success: false, error: 'no-version-in-manifest' }
-
     const remoteOS = await detectRemoteOS()
-    const remoteArch = await detectRemoteArch(conn, remoteOS)
-    const asset = selectAssetForRemote(manifest, remoteOS, remoteArch)
-    if (!asset) return { success: false, error: 'no-asset-for-remote', details: { remoteOS, remoteArch } }
-    const url = asset.url
-    const expectedSha = (asset.sha256||'').trim().toLowerCase()
-    if (!url) return { success: false, error: 'asset-has-no-url' }
+    let url, expectedSha = '', manifestVersion
+    if (manifestUrl) {
+      // Legacy manifest-based install
+      sendInstallProgress({ phase: 'fetch-manifest', manifestUrl })
+      const { data: manifest } = await axios.get(manifestUrl, { timeout: 20000 })
+      manifestVersion = version || manifest?.version
+      if (!manifestVersion) {
+        sendInstallProgress({ phase: 'error', step: 'manifest', error: 'no-version-in-manifest' })
+        return { success: false, error: 'no-version-in-manifest' }
+      }
+      const asset = selectAssetForRemote(manifest, remoteOS)
+      if (!asset) {
+        sendInstallProgress({ phase: 'error', step: 'manifest', error: 'no-asset-for-remote', details: { remoteOS } })
+        return { success: false, error: 'no-asset-for-remote', details: { remoteOS } }
+      }
+      url = asset.url
+      expectedSha = (asset.sha256||'').trim().toLowerCase()
+      if (!url) {
+        sendInstallProgress({ phase: 'error', step: 'manifest', error: 'asset-has-no-url' })
+        return { success: false, error: 'asset-has-no-url' }
+      }
+    } else {
+      // GitHub releases-based install (no manifest provided)
+      const defaultOwner = 'm-alexparent'
+      const defaultRepo = 'MEDomics-NodeServerDeploymentTests'
+      sendInstallProgress({ phase: 'github-fetch-releases', owner: defaultOwner, repo: defaultRepo })
+      const { data: releases } = await axios.get(`https://api.github.com/repos/${defaultOwner}/${defaultRepo}/releases`, {
+        headers: { 'Accept': 'application/vnd.github+json', 'User-Agent': 'medomicslab-remote-installer' },
+        timeout: 20000
+      })
+      if (!Array.isArray(releases) || releases.length === 0) {
+        sendInstallProgress({ phase: 'error', step: 'github', error: 'no-releases-found' })
+        return { success: false, error: 'no-releases-found' }
+      }
+      const serverReleases = releases.filter(r => {
+        const tag = (r.tag_name||'').toLowerCase()
+        const name = (r.name||'').toLowerCase()
+        return tag.includes('server') || name.includes('server')
+      })
+      const sorted = (serverReleases.length ? serverReleases : releases).sort((a,b) => {
+        const pa = new Date(a.published_at||a.created_at||0).getTime()
+        const pb = new Date(b.published_at||b.created_at||0).getTime()
+        return pb - pa
+      })
+      const chosen = sorted[0]
+      if (!chosen) {
+        sendInstallProgress({ phase: 'error', step: 'github', error: 'no-suitable-release' })
+        return { success: false, error: 'no-suitable-release' }
+      }
+      sendInstallProgress({ phase: 'github-pick-release', tag: chosen.tag_name, name: chosen.name })
+      // Select asset by fixed naming pattern: MEDomicsLab-Server-[version]-<os>.zip
+      const assets = chosen.assets || []
+      const suffix = remoteOS === 'win32' ? '-win32.zip' : (remoteOS === 'darwin' ? '-darwin.zip' : '-linux.zip')
+      let candidate = assets.find(a => (a.name||'').toLowerCase().endsWith(suffix))
+      if (!candidate) {
+        // Fallback: check browser_download_url
+        candidate = assets.find(a => (a.browser_download_url||'').toLowerCase().endsWith(suffix))
+      }
+      if (!candidate) {
+        sendInstallProgress({ phase: 'error', step: 'github', error: 'no-asset-for-platform', details: { remoteOS, expectedSuffix: suffix } })
+        return { success: false, error: 'no-asset-for-platform', details: { remoteOS, expectedSuffix: suffix } }
+      }
+      url = candidate.browser_download_url
+      if (!url) {
+        sendInstallProgress({ phase: 'error', step: 'github', error: 'asset-missing-download-url' })
+        return { success: false, error: 'asset-missing-download-url' }
+      }
+      manifestVersion = chosen.tag_name || chosen.name || 'latest'
+      sendInstallProgress({ phase: 'github-select-asset', asset: candidate.name, url })
+    }
 
     const home = await getRemoteHome(conn, remoteOS)
     const baseDir = remoteOS === 'win32' ? `${home}\\.medomics\\medomics-server` : `${home}/.medomics/medomics-server`
@@ -420,17 +841,30 @@ ipcMain.handle('installRemoteBackendFromURL', async (_event, { manifestUrl, vers
     // Download
     const fileName = url.split('/').pop().split('?')[0]
     const remoteDownloadPath = remoteOS === 'win32' ? `${downloadsDir}\\${fileName}` : `${downloadsDir}/${fileName}`
+    // Try to get expected size to enable percent & speed reporting (final-only)
+    let expectedBytes = null
+    try {
+      const head = await axios.head(url, { timeout: 15000 })
+      const len = head?.headers?.['content-length'] || head?.headers?.['Content-Length']
+      if (len && !isNaN(Number(len))) expectedBytes = Number(len)
+    } catch {}
+    const t0 = Date.now()
     sendInstallProgress({ phase: 'download-start', url, remoteDownloadPath })
     if (remoteOS === 'win32') {
       const ps = `powershell -NoProfile -Command "Invoke-WebRequest -Uri '${url.replace(/'/g, "''")}' -OutFile '${remoteDownloadPath.replace(/'/g, "''")}' -UseBasicParsing"`
       const r = await execRemote(conn, ps)
-      if (r.code !== 0 && r.stderr) return { success: false, error: 'download-failed', details: r.stderr }
+      if (r.code !== 0 && r.stderr) { sendInstallProgress({ phase: 'error', step: 'download', details: r.stderr }); return { success: false, error: 'download-failed', details: r.stderr } }
     } else {
       const sh = `bash -lc "curl -L --fail -o '${remoteDownloadPath.replace(/'/g, "'\\''")}' '${url.replace(/'/g, "'\\''")}'"`
       const r = await execRemote(conn, sh)
-      if (r.code !== 0 && r.stderr) return { success: false, error: 'download-failed', details: r.stderr }
+      if (r.code !== 0 && r.stderr) { sendInstallProgress({ phase: 'error', step: 'download', details: r.stderr }); return { success: false, error: 'download-failed', details: r.stderr } }
     }
-    sendInstallProgress({ phase: 'download-complete', remoteDownloadPath })
+    const dt = Math.max(1, Date.now() - t0) // ms
+    let speedBps = null
+    if (expectedBytes && dt > 0) {
+      speedBps = Math.round((expectedBytes / dt) * 1000) // bytes/sec
+    }
+    sendInstallProgress({ phase: 'download-complete', remoteDownloadPath, percent: 100, speed: speedBps || undefined })
 
     // Verify SHA256
     if (expectedSha) {
@@ -438,12 +872,12 @@ ipcMain.handle('installRemoteBackendFromURL', async (_event, { manifestUrl, vers
       if (remoteOS === 'win32') {
         const r = await execRemote(conn, `powershell -NoProfile -Command "(Get-FileHash -Algorithm SHA256 '${remoteDownloadPath.replace(/'/g, "''")}').Hash"`)
         const actual = (r.stdout||'').trim().toLowerCase()
-        if (!actual || actual !== expectedSha) return { success: false, error: 'checksum-mismatch', expectedSha, actual }
+        if (!actual || actual !== expectedSha) { sendInstallProgress({ phase: 'error', step: 'verify', expectedSha, actual }); return { success: false, error: 'checksum-mismatch', expectedSha, actual } }
       } else {
         // Prefer sha256sum, fallback to shasum
         const r = await execRemote(conn, `bash -lc "if command -v sha256sum >/dev/null 2>&1; then sha256sum '${remoteDownloadPath.replace(/'/g, "'\\''")}' | awk '{print $1}'; else shasum -a 256 '${remoteDownloadPath.replace(/'/g, "'\\''")}' | awk '{print $1}'; fi"`)
         const actual = (r.stdout||'').trim().toLowerCase()
-        if (!actual || actual !== expectedSha) return { success: false, error: 'checksum-mismatch', expectedSha, actual }
+        if (!actual || actual !== expectedSha) { sendInstallProgress({ phase: 'error', step: 'verify', expectedSha, actual }); return { success: false, error: 'checksum-mismatch', expectedSha, actual } }
       }
       sendInstallProgress({ phase: 'verify-ok' })
     } else {
@@ -455,20 +889,21 @@ ipcMain.handle('installRemoteBackendFromURL', async (_event, { manifestUrl, vers
     if (remoteOS === 'win32') {
       if (fileName.toLowerCase().endsWith('.zip')) {
         const r = await execRemote(conn, `powershell -NoProfile -Command "Expand-Archive -Path '${remoteDownloadPath.replace(/'/g, "''")}' -DestinationPath '${versionDir.replace(/'/g, "''")}' -Force"`)
-        if (r.code !== 0 && r.stderr) return { success: false, error: 'extract-failed', details: r.stderr }
+        if (r.code !== 0 && r.stderr) { sendInstallProgress({ phase: 'error', step: 'extract', details: r.stderr }); return { success: false, error: 'extract-failed', details: r.stderr } }
       } else {
         // Attempt tar if available (Windows 10+)
         const r = await execRemote(conn, `tar -xf "${remoteDownloadPath}" -C "${versionDir}" 2>&1 || powershell -NoProfile -Command "throw 'Unsupported archive format'"`)
-        if (r.code !== 0 && r.stderr) return { success: false, error: 'extract-failed', details: r.stderr }
+        if (r.code !== 0 && r.stderr) { sendInstallProgress({ phase: 'error', step: 'extract', details: r.stderr }); return { success: false, error: 'extract-failed', details: r.stderr } }
       }
     } else {
       if (fileName.toLowerCase().endsWith('.tar.gz') || fileName.toLowerCase().endsWith('.tgz')) {
         const r = await execRemote(conn, `bash -lc "tar -xzf '${remoteDownloadPath.replace(/'/g, "'\\''")}' -C '${versionDir.replace(/'/g, "'\\''")}'"`)
-        if (r.code !== 0 && r.stderr) return { success: false, error: 'extract-failed', details: r.stderr }
+        if (r.code !== 0 && r.stderr) { sendInstallProgress({ phase: 'error', step: 'extract', details: r.stderr }); return { success: false, error: 'extract-failed', details: r.stderr } }
       } else if (fileName.toLowerCase().endsWith('.zip')) {
         const r = await execRemote(conn, `bash -lc "unzip -o '${remoteDownloadPath.replace(/'/g, "'\\''")}' -d '${versionDir.replace(/'/g, "'\\''")}'"`)
-        if (r.code !== 0 && r.stderr) return { success: false, error: 'extract-failed', details: r.stderr }
+        if (r.code !== 0 && r.stderr) { sendInstallProgress({ phase: 'error', step: 'extract', details: r.stderr }); return { success: false, error: 'extract-failed', details: r.stderr } }
       } else {
+        sendInstallProgress({ phase: 'error', step: 'extract', error: 'unsupported-archive-format' })
         return { success: false, error: 'unsupported-archive-format' }
       }
     }
@@ -483,7 +918,7 @@ ipcMain.handle('installRemoteBackendFromURL', async (_event, { manifestUrl, vers
       const findExe = await execRemote(conn, `bash -lc "( [ -x '${candidateExePosix.replace(/'/g, "'\\''")}' ] && echo '${candidateExePosix.replace(/'/g, "'\\''")}' ) || find '${versionDir.replace(/'/g, "'\\''")}' -type f -name 'medomics-server' -perm +111 -print -quit || true"`)
       exePath = (findExe.stdout || '').trim()
     }
-    if (!exePath) return { success: false, error: 'executable-not-found' }
+    if (!exePath) { sendInstallProgress({ phase: 'error', step: 'locate-exe' }); return { success: false, error: 'executable-not-found' } }
     if (remoteOS !== 'win32') {
       await execRemote(conn, `bash -lc "chmod +x '${exePath.replace(/'/g, "'\\''")}'"`)
     }
@@ -498,6 +933,7 @@ ipcMain.handle('installRemoteBackendFromURL', async (_event, { manifestUrl, vers
     sendInstallProgress({ phase: 'done', version: manifestVersion, path: exePath })
     return { success: true, version: manifestVersion, path: exePath }
   } catch (e) {
+    try { sendInstallProgress({ phase: 'error', step: 'unexpected', details: e && e.message ? e.message : String(e) }) } catch {}
     return { success: false, error: e && e.message ? e.message : String(e) }
   }
 })
@@ -561,47 +997,43 @@ export async function startSSHTunnel({ host, username, privateKey, password, rem
     conn
       .on("ready", () => {
         console.log("SSH connection established to", host)
-        // Express (backend) port forwarding
-        // Backward compatibility mapping
+      // Backward compatibility mapping
         if (!localExpressPort && localBackendPort) localExpressPort = localBackendPort
         if (!remoteExpressPort && remoteBackendPort) remoteExpressPort = remoteBackendPort
-        const expressServer = net.createServer((socket) => {
-          conn.forwardOut(socket.localAddress || "127.0.0.1", socket.localPort || 0, "127.0.0.1", parseInt(remoteExpressPort), (err, stream) => {
-            if (err) {
-              console.error(err)
-              socket.destroy()
-              return
-            }
-            socket.pipe(stream).pipe(socket)
+
+        // Defer creating Express/Go forwards until remote /status confirms running.
+        // Initialize tunnel state with provided ports and mark services as closed.
+        try {
+          setTunnelState({
+            ...getTunnelState(),
+            localExpressPort: localExpressPort ? Number(localExpressPort) : null,
+            remoteExpressPort: remoteExpressPort ? Number(remoteExpressPort) : null,
+            localGoPort: localGoPort ? Number(localGoPort) : null,
+            remoteGoPort: remoteGoPort ? Number(remoteGoPort) : null,
+            expressStatus: 'closed'
           })
-        })
-        expressServer.listen(localExpressPort, "127.0.0.1")
-        expressServer.on("error", (e) => {
-          conn.end()
-          console.error("Connection to Express server error:", e)
-          reject(new Error("Express local server error: " + e.message))
-        })
-        // Optional GO forwarding if provided
-        let goServer = null
-        if (remoteGoPort && localGoPort) {
-          goServer = net.createServer((socket) => {
-            conn.forwardOut(socket.localAddress || "127.0.0.1", socket.localPort || 0, "127.0.0.1", parseInt(remoteGoPort), (err, stream) => {
-              if (err) {
-                console.error(err)
-                socket.destroy()
-                return
-              }
-              socket.pipe(stream).pipe(socket)
-            })
+          mainWindow.webContents.send('tunnelStateUpdate', {
+            localExpressPort, remoteExpressPort, localGoPort, remoteGoPort, expressStatus: 'closed'
           })
-          goServer.listen(localGoPort, "127.0.0.1")
-          goServer.on("error", (e) => {
-            console.warn("GO forwarding server error:", e.message)
-          })
-        }
+        } catch {}
 
         setActiveTunnel(conn)
-        setActiveTunnelServer({ expressServer, goServer })
+        setActiveTunnelServer({})
+        // Mark tunnel active and emit a consolidated state update
+        try {
+          setTunnelState({
+            ...getTunnelState(),
+            host,
+            username,
+            remotePort: Number(remotePort),
+            localDBPort: localDBPort ? Number(localDBPort) : null,
+            remoteDBPort: remoteDBPort ? Number(remoteDBPort) : null,
+            localJupyterPort: localJupyterPort ? Number(localJupyterPort) : null,
+            remoteJupyterPort: remoteJupyterPort ? Number(remoteJupyterPort) : null,
+            tunnelActive: true
+          })
+          mainWindow.webContents.send('tunnelStateChanged', getTunnelState())
+        } catch {}
         resolve({ success: true })
       })
       .on("error", (err) => {
@@ -610,6 +1042,314 @@ export async function startSSHTunnel({ host, username, privateKey, password, rem
       .connect(connConfig)
   })
 }
+
+// IPC to rebind the Express forward to a newly discovered remote port
+ipcMain.handle('rebindExpressForward', async (_event, { newRemoteExpressPort, newLocalExpressPort } = {}) => {
+  return rebindPortTunnel({ name: 'express', newRemotePort: Number(newRemoteExpressPort), newLocalPort: Number(newLocalExpressPort) })
+})
+
+// New: Explicit starters for Express and Go forwarding, invoked after /status confirmation
+export async function startExpressForward({ localExpressPort, remoteExpressPort }) {
+  try {
+    const state = getTunnelState()
+    const localPort = Number(localExpressPort || state.localExpressPort)
+    const remotePort = Number(remoteExpressPort || state.remoteExpressPort)
+    const res = await startPortTunnel({ name: 'express', localPort, remotePort, ensureRemoteOpen: true })
+    if (!res.success) return res
+    const updates = { localExpressPort: localPort, remoteExpressPort: remotePort, expressStatus: 'forwarding' }
+    setTunnelState({ ...getTunnelState(), ...updates })
+    try {
+      const full = getTunnelState()
+      mainWindow.webContents.send('tunnelStateChanged', full)
+      mainWindow.webContents.send('tunnelStateUpdate', full)
+    } catch {}
+    return { success: true, localPort, remotePort }
+  } catch (e) {
+    return { success: false, error: e && e.message ? e.message : String(e) }
+  }
+}
+
+// Deprecated wrapper: route to the generic startPortTunnel for GO
+export async function startGoForward({ localGoPort, remoteGoPort }) {
+  const state = getTunnelState()
+  const localPort = Number(localGoPort || state.localGoPort)
+  const remotePort = Number(remoteGoPort || state.remoteGoPort)
+  return startPortTunnel({ name: 'go', localPort, remotePort, ensureRemoteOpen: true })
+}
+
+// Generic port tunnel management
+export async function startPortTunnel({ name, localPort, remotePort, ensureRemoteOpen = false }) {
+  try {
+    const conn = getActiveTunnel()
+    if (!conn) {
+      console.log('[startPortTunnel] No active SSH tunnel')
+      return { success: false, error: 'No active SSH tunnel' }
+    }
+    const servers = getActiveTunnelServer() || {}
+    const state = getTunnelState()
+    let lp = Number(localPort)
+    const rp = Number(remotePort)
+    console.log('[startPortTunnel] request', { name, localPort: lp, remotePort: rp, ensureRemoteOpen })
+    // If local port is invalid/missing, fall back to ephemeral (port 0)
+    if (!lp || isNaN(lp)) {
+      console.log('[startPortTunnel] localPort invalid, using ephemeral port')
+      lp = 0
+    }
+    if (!rp || isNaN(rp)) {
+      console.log('[startPortTunnel] invalid remote port', remotePort)
+      return { success: false, error: 'invalid-remote-port' }
+    }
+
+    // Default ensure for canonical names; include retries
+    const canonical = ['express', 'go', 'mongo', 'jupyter']
+    const shouldEnsure = typeof ensureRemoteOpen === 'boolean' ? ensureRemoteOpen : canonical.includes(String(name || '').toLowerCase())
+    if (shouldEnsure) {
+      let open = false
+      const maxAttempts = 3
+      const delayMs = 3000
+      for (let i = 0; i < maxAttempts && !open; i++) {
+        try {
+          open = await checkRemotePortOpen(conn, rp)
+          console.log('[startPortTunnel] ensure check', { attempt: i + 1, remotePort: rp, open })
+        } catch (err) {
+          console.log('[startPortTunnel] ensure check error', err && err.message ? err.message : String(err))
+          open = false
+        }
+        if (!open && i < maxAttempts - 1) { await sleep(delayMs) }
+      }
+      if (!open) {
+        console.log('[startPortTunnel] remote port not open', rp)
+        return { success: false, error: 'remote-port-closed' }
+      }
+    }
+
+    // Close existing server under this name
+    if (servers[name]) {
+      try {
+        console.log('[startPortTunnel] closing existing server for', name)
+        await new Promise((resolve) => servers[name].close(() => resolve()))
+      } catch (err) {
+        console.log('[startPortTunnel] error closing existing server', err && err.message ? err.message : String(err))
+      }
+    }
+
+    const createForwardServer = () => {
+      const server = net.createServer((socket) => {
+        conn.forwardOut(socket.localAddress || '127.0.0.1', socket.localPort || 0, '127.0.0.1', rp, (err, stream) => {
+          if (err) {
+            console.log('[startPortTunnel] forwardOut error', err && err.message ? err.message : String(err))
+            socket.destroy();
+            return
+          }
+          socket.pipe(stream).pipe(socket)
+        })
+      })
+      return server
+    }
+
+    let netServer = createForwardServer()
+    // Try requested local port; on EADDRINUSE, fall back to ephemeral port
+    try {
+      await new Promise((resolve, reject) => {
+        netServer.once('error', reject)
+        netServer.listen(lp, '127.0.0.1', () => resolve())
+      })
+    } catch (err) {
+      if (err && err.code === 'EADDRINUSE') {
+        try { netServer.close() } catch {}
+        netServer = createForwardServer()
+        await new Promise((resolve, reject) => {
+          netServer.once('error', reject)
+          netServer.listen(0, '127.0.0.1', () => resolve())
+        })
+        const addr = netServer.address()
+        if (addr && typeof addr === 'object' && addr.port) {
+          lp = Number(addr.port)
+        }
+      } else {
+        console.log('[startPortTunnel] listen error', err && err.message ? err.message : String(err))
+        return { success: false, error: err && err.message ? err.message : String(err) }
+      }
+    }
+    console.log('[startPortTunnel] listening', { name, localPort: lp, remotePort: rp })
+
+    // Track server by name
+    setActiveTunnelServer({ ...servers, [name]: netServer })
+
+    // Update generic tunnels list in state
+    const tunnels = Array.isArray(state.tunnels) ? state.tunnels.slice() : []
+    const idx = tunnels.findIndex(t => t.name === name || t.localPort === lp)
+    const entry = { name, localPort: lp, remotePort: rp, status: 'forwarding' }
+    if (idx >= 0) tunnels[idx] = entry
+    else tunnels.push(entry)
+
+    // Also reflect canonical service fields for UI/requests helpers
+    const updates = { tunnels }
+    const n = String(name || '').toLowerCase()
+    if (n === 'express') Object.assign(updates, { localExpressPort: lp, remoteExpressPort: rp, expressStatus: 'forwarding' })
+    if (n === 'go') Object.assign(updates, { localGoPort: lp, remoteGoPort: rp })
+    if (n === 'mongo') Object.assign(updates, { localDBPort: lp, remoteDBPort: rp })
+    if (n === 'jupyter') Object.assign(updates, { localJupyterPort: lp, remoteJupyterPort: rp })
+
+    setTunnelState({ ...state, ...updates })
+    try {
+      const full = getTunnelState()
+      mainWindow.webContents.send('tunnelStateChanged', full)
+      mainWindow.webContents.send('tunnelStateUpdate', full)
+    } catch {}
+    console.log('[startPortTunnel] success', { name, localPort: lp, remotePort: rp })
+    return { success: true, name, localPort: lp, remotePort: rp }
+  } catch (e) {
+    console.log('[startPortTunnel] exception', e && e.message ? e.message : String(e))
+    return { success: false, error: e && e.message ? e.message : String(e) }
+  }
+}
+
+export async function stopPortTunnel({ name, localPort }) {
+  try {
+    const servers = getActiveTunnelServer() || {}
+    const state = getTunnelState()
+    let serverName = name
+    if (!serverName && localPort) {
+      const lp = Number(localPort)
+      const match = (state.tunnels || []).find(t => Number(t.localPort) === lp)
+      serverName = match ? match.name : undefined
+    }
+    if (!serverName || !servers[serverName]) return { success: false, error: 'tunnel-not-found' }
+    await new Promise((resolve) => servers[serverName].close(() => resolve()))
+    const nextServers = { ...servers }
+    delete nextServers[serverName]
+    setActiveTunnelServer(nextServers)
+
+    const tunnels = Array.isArray(state.tunnels) ? state.tunnels.slice() : []
+    const idx = tunnels.findIndex(t => t.name === serverName)
+    if (idx >= 0) tunnels[idx] = { ...tunnels[idx], status: 'closed' }
+    setTunnelState({ ...state, tunnels })
+    try { mainWindow.webContents.send('tunnelStateChanged', getTunnelState()) } catch {}
+    return { success: true, name: serverName }
+  } catch (e) {
+    return { success: false, error: e && e.message ? e.message : String(e) }
+  }
+}
+
+ipcMain.handle('startPortTunnel', async (_event, payload = {}) => {
+  return startPortTunnel(payload)
+})
+ipcMain.handle('stopPortTunnel', async (_event, payload = {}) => {
+  return stopPortTunnel(payload)
+})
+ipcMain.handle('listPortTunnels', async () => {
+  return { success: true, tunnels: (getTunnelState().tunnels || []) }
+})
+
+// Generic rebind helper: stop existing tunnel by name and recreate with new ports
+export async function rebindPortTunnel({ name, newRemotePort, newLocalPort }) {
+  try {
+    const state = getTunnelState()
+    const tunnels = Array.isArray(state.tunnels) ? state.tunnels : []
+    const entry = tunnels.find(t => t.name === name)
+    const localPort = Number(newLocalPort || (entry ? entry.localPort : undefined) || state[
+      name === 'express' ? 'localExpressPort' :
+      name === 'go' ? 'localGoPort' :
+      name === 'mongo' ? 'localDBPort' :
+      name === 'jupyter' ? 'localJupyterPort' :
+      'localExpressPort'
+    ])
+    const remotePort = Number(newRemotePort)
+    if (!remotePort || isNaN(remotePort)) return { success: false, error: 'invalid-remote-port' }
+    await stopPortTunnel({ name })
+    const res = await startPortTunnel({ name, localPort, remotePort, ensureRemoteOpen: true })
+    if (!res.success) return res
+    const updates = {}
+    if (name === 'express') Object.assign(updates, { remoteExpressPort: remotePort, localExpressPort: localPort, expressStatus: 'forwarding' })
+    if (name === 'go') Object.assign(updates, { remoteGoPort: remotePort, localGoPort: localPort })
+    if (name === 'mongo') Object.assign(updates, { remoteDBPort: remotePort, localDBPort: localPort })
+    if (name === 'jupyter') Object.assign(updates, { remoteJupyterPort: remotePort, localJupyterPort: localPort })
+    if (Object.keys(updates).length) {
+      setTunnelState({ ...getTunnelState(), ...updates })
+      try {
+        const full = getTunnelState()
+        mainWindow.webContents.send('tunnelStateChanged', full)
+        mainWindow.webContents.send('tunnelStateUpdate', full)
+      } catch {}
+    }
+    return { success: true, name, localPort, remotePort }
+  } catch (e) {
+    return { success: false, error: e && e.message ? e.message : String(e) }
+  }
+}
+
+ipcMain.handle('rebindPortTunnel', async (_event, payload = {}) => {
+  return rebindPortTunnel(payload)
+})
+
+// IPC wrappers for starting forwards explicitly
+ipcMain.handle('startExpressForward', async (_event, payload = {}) => {
+  return startExpressForward(payload)
+})
+ipcMain.handle('startGoForward', async (_event, payload = {}) => {
+  // Compatibility: route to generic startPortTunnel for GO
+  const state = getTunnelState()
+  const localPort = Number(payload.localGoPort || state.localGoPort)
+  const remotePort = Number(payload.remoteGoPort || state.remoteGoPort)
+  return startPortTunnel({ name: 'go', localPort, remotePort, ensureRemoteOpen: true })
+})
+
+// Probe GO service reachability: checks remote port open via SSH and local forward HTTP reachability
+ipcMain.handle('probeGo', async () => {
+  try {
+    const state = getTunnelState()
+    const conn = getActiveTunnel()
+    if (!state || !state.tunnelActive) {
+      // Still allow local forward reachability check even if tunnelActive is false
+      const localPort = Number(state && state.localGoPort)
+      const result = { success: false, error: 'no-tunnel', tunnelActive: !!(state && state.tunnelActive), localPort: localPort || null }
+      if (localPort && Number.isFinite(localPort)) {
+        try {
+          const url = `http://127.0.0.1:${localPort}/connection/connection_test_request`
+          const resp = await axios.post(url, { message: JSON.stringify({ data: "" }) }, { timeout: 3000, headers: { 'Content-Type': 'application/json' } })
+          result.localReachable = !!resp
+          result.localResponse = resp && resp.data ? resp.data : null
+          result.success = true
+        } catch (e) {
+          result.localReachable = false
+          result.localError = e && e.message ? e.message : String(e)
+        }
+      }
+      return result
+    }
+    const remotePort = Number(state.remoteGoPort)
+    const localPort = Number(state.localGoPort)
+    const result = { success: true, tunnelActive: true, remotePort: remotePort || null, localPort: localPort || null }
+
+    // Remote port open check via SSH
+    let remoteOpen = null
+    if (remotePort && Number.isFinite(remotePort)) {
+      try { remoteOpen = await checkRemotePortOpen(conn, remotePort) }
+      catch { remoteOpen = false }
+    }
+    result.remoteOpen = !!remoteOpen
+
+    // Local forward reachability by hitting the GO verify endpoint (best-effort)
+    let localReachable = null
+    if (localPort && Number.isFinite(localPort)) {
+      try {
+        const url = `http://127.0.0.1:${localPort}/connection/connection_test_request`
+        const resp = await axios.post(url, { message: JSON.stringify({ data: "" }) }, { timeout: 3000, headers: { 'Content-Type': 'application/json' } })
+        result.localResponse = resp && resp.data ? resp.data : null
+        localReachable = !!resp
+      } catch (e) {
+        result.localError = e && e.message ? e.message : String(e)
+        localReachable = false
+      }
+    }
+    result.localReachable = !!localReachable
+    result.running = !!(result.remoteOpen || result.localReachable)
+    return result
+  } catch (e) {
+    return { success: false, error: e && e.message ? e.message : String(e) }
+  }
+})
 
 /**
  * Checks if a port is open on the remote host via SSH.
@@ -625,16 +1365,18 @@ export async function checkRemotePortOpen(conn, port, loadBlocking = false) {
   const remoteOS = await detectRemoteOS()
   let checkCmd
   if (remoteOS === "win32") {
-    // Windows: use netstat and findstr
-    checkCmd = `netstat -an | findstr :${port}`
+    // Windows: only treat the port as open if it's in LISTENING state.
+    // This avoids counting TIME_WAIT/CLOSE_WAIT as "open" after a successful stop.
+    checkCmd = `netstat -an | findstr LISTENING | findstr :${port}`
   } else {
     // Linux/macOS: use ss or netstat/grep
     checkCmd = `bash -c "command -v ss >/dev/null 2>&1 && ss -ltn | grep :${port} || netstat -an | grep LISTEN | grep :${port}" || netstat -an | grep :${port}`
   }
+  console.log('[checkRemotePortOpen] remoteOS:', remoteOS, 'cmd:', checkCmd)
   return new Promise((resolve, reject) => {
     conn.exec(checkCmd, (err, stream) => {
       if (err) {
-        console.log("SSH exec error:", err)
+        console.log("[checkRemotePortOpen] SSH exec error:", err)
         return reject(err)
       }
       let found = false
@@ -648,10 +1390,46 @@ export async function checkRemotePortOpen(conn, port, loadBlocking = false) {
         stderr += data.toString()
       })
       stream.on("close", (code, signal) => {
+        console.log('[checkRemotePortOpen] close', { code, signal, found, stdout: stdout.trim(), stderr: stderr.trim() })
         resolve(found)
       })
     })
   })
+}
+
+// Detect the remote OS via SSH. Returns one of: 'win32' | 'linux' | 'darwin' | 'unix'
+export async function detectRemoteOS() {
+  const conn = getActiveTunnel()
+  if (!conn) return 'win32'
+  const tryExec = (cmd) => new Promise((resolve) => {
+    conn.exec(cmd, (err, stream) => {
+      if (err) return resolve({ code: -1, stdout: '', stderr: String(err && err.message || err) })
+      let stdout = ''
+      let stderr = ''
+      stream.on('data', (d) => { stdout += d.toString() })
+      stream.stderr.on('data', (d) => { stderr += d.toString() })
+      stream.on('close', (code) => resolve({ code: Number(code), stdout, stderr }))
+    })
+  })
+  // Prefer POSIX detection via bash/uname; fallback to Windows PowerShell; last resort: cmd ver
+  const candidates = [
+    "bash -lc 'uname -s'",
+    'uname -s',
+    'powershell -NoProfile -Command "$PSVersionTable.OS.ToString(); [System.Environment]::OSVersion.Platform"',
+    'cmd /c ver'
+  ]
+  for (const cmd of candidates) {
+    try {
+      const r = await tryExec(cmd)
+      const out = (r.stdout || r.stderr || '').trim().toLowerCase()
+      if (!out) continue
+      if (out.includes('linux')) return 'linux'
+      if (out.includes('darwin') || out.includes('mac')) return 'darwin'
+      if (out.includes('bsd') || out.includes('unix')) return 'unix'
+      if (out.includes('windows') || out.includes('microsoft') || out.includes('version') || out.includes('win')) return 'win32'
+    } catch {}
+  }
+  return 'win32'
 }
 
 /**
@@ -720,6 +1498,16 @@ export async function startMongoTunnel() {
       ...(activeTunnelServer || {}),
       mongoServer: mongoServer
     })
+    // Update tunnels list to reflect Mongo forwarding
+    try {
+      const state = getTunnelState()
+      const tunnels = Array.isArray(state.tunnels) ? state.tunnels.slice() : []
+      const idx = tunnels.findIndex(t => t.name === 'mongo')
+      const entry = { name: 'mongo', localPort: mongoDBLocalPort, remotePort: mongoDBRemotePort, status: 'forwarding' }
+      if (idx >= 0) tunnels[idx] = entry; else tunnels.push(entry)
+      setTunnelState({ ...state, tunnels })
+      mainWindow.webContents.send('tunnelStateUpdate', { tunnels })
+    } catch {}
     resolve({ success: true })
   })
 }
@@ -793,6 +1581,15 @@ export async function stopSSHTunnel() {
     setActiveTunnel(null)
     success = true
   }
+  // Emit state change reflecting closed forwards and inactive tunnel
+  try {
+    setTunnelState({
+      ...getTunnelState(),
+      tunnelActive: false,
+      expressStatus: 'closed'
+    })
+    mainWindow.webContents.send('tunnelStateChanged', getTunnelState())
+  } catch {}
   if (success) return { success: true }
   return { success: false, error: error || "No active tunnel" }
 }
@@ -872,81 +1669,50 @@ export async function startJupyterTunnel() {
  * @returns {string>} - Status of the file existence check: "exists", "does not exist", "sftp error", or "tunnel inactive"
  */
 export async function checkRemoteFileExists(filePath) {
-  // Ensure tunnel is active and SSH client is available
-  const activeTunnel = getActiveTunnel()
-  if (!activeTunnel) {
-    const errMsg = 'No active SSH tunnel for remote file check.'
-    console.error(errMsg)
-    return "tunnel inactive"
-  }
-
+  const conn = getActiveTunnel()
+  if (!conn) return "tunnel inactive"
   const getSftp = () => new Promise((resolve, reject) => {
-    activeTunnel.sftp((err, sftp) => {
-      if (err) return reject(err)
-      resolve(sftp)
+    conn.sftp((err, sftp) => err ? reject(err) : resolve(sftp))
+  })
+  const statFile = (sftp, p) => new Promise((resolve) => {
+    sftp.stat(p, (err, stats) => {
+      if (err) return resolve(false)
+      resolve(Boolean(stats))
     })
   })
-
-  const statFile = (sftp, filePath) => new Promise((resolve, reject) => {
-    sftp.stat(filePath, (err, stats) => {
-      if (err) return resolve(false) // File does not exist
-      const exists = stats && ((stats.isFile && stats.isFile()) || (stats.isDirectory && stats.isDirectory()))
-      resolve(exists)
-    })
-  })
-
   try {
     const sftp = await getSftp()
     const exists = await statFile(sftp, filePath)
-    sftp.end && sftp.end()
-    if (exists) {
-      return "exists"
-    } else {
-      return "does not exist"
-    }
+    if (typeof sftp.end === 'function') { try { sftp.end() } catch {} }
+    else if (typeof sftp.close === 'function') { try { sftp.close() } catch {} }
+    return exists ? "exists" : "does not exist"
   } catch (error) {
     console.error("SFTP error:", error)
     return "sftp error"
   }
 }
 
-/**
- * @description This function uses SFTP to call lstat on a remote file path.
- * @param {string} filePath - The remote path of the file to check
- * @returns {{ isDir: boolean, isFile: boolean, stats: Object } | string} - Returns an object with file stats or "sftp error" if an error occurs.
- */
 export async function getRemoteLStat(filePath) {
-  // Ensure tunnel is active and SSH client is available
-  const activeTunnel = getActiveTunnel()
-  if (!activeTunnel) {
-    const errMsg = 'No active SSH tunnel for remote lstat.'
-    console.error(errMsg)
-    return null
-  }
-    const getSftp = () => new Promise((resolve, reject) => {
-    activeTunnel.sftp((err, sftp) => {
-      if (err) return reject(err)
-      resolve(sftp)
-    })
+  const conn = getActiveTunnel()
+  if (!conn) return "tunnel inactive"
+  const getSftp = () => new Promise((resolve, reject) => {
+    conn.sftp((err, sftp) => err ? reject(err) : resolve(sftp))
   })
-
-  const lstatFile = (sftp, filePath) => new Promise((resolve, reject) => {
-    sftp.stat(filePath, (err, stats) => {
-      if (err) return reject(err) // File does not exist
-      resolve(stats)
-    })
+  const lstat = (sftp, p) => new Promise((resolve, reject) => {
+    sftp.lstat(p, (err, stats) => err ? reject(err) : resolve(stats))
   })
-
   try {
     const sftp = await getSftp()
-    const fileStats = await lstatFile(sftp, filePath)
-    sftp.end && sftp.end()
-    return { isDir: fileStats.isDirectory(), isFile: fileStats.isFile(), stats: fileStats }
+    const stats = await lstat(sftp, filePath)
+    if (typeof sftp.end === 'function') { try { sftp.end() } catch {} }
+    else if (typeof sftp.close === 'function') { try { sftp.close() } catch {} }
+    return { isDir: stats && stats.isDirectory ? stats.isDirectory() : false, isFile: stats && stats.isFile ? stats.isFile() : false, stats }
   } catch (error) {
     console.error("SFTP error:", error)
     return "sftp error"
   }
 }
+
 
 /**
  * @description This function uses SFTP to rename a remote file.
@@ -980,6 +1746,7 @@ ipcMain.handle('renameRemoteFile', async (_event, { oldPath, newPath }) => {
     })
   })
 })
+
 
 /**
  * @description This function uses SFTP to delete a remote file.
@@ -1082,39 +1849,6 @@ ipcMain.handle('deleteRemoteFile', async (_event, { path, recursive = true }) =>
     })
   })
 })
-
-/**
- * @description This function uses a terminal command to detect the operating system of the remote server.
- * @returns {Promise<string>}
- */
-export async function detectRemoteOS() {
-  return new Promise((resolve, reject) => {
-    activeTunnel.exec("uname -s", (err, stream) => {
-      if (err) {
-        // Assume Windows if uname fails
-        resolve("win32")
-        return
-      }
-      let output = ""
-      stream.on("data", (outputData) => {
-        output += outputData.toString()
-      })
-      stream.on("close", () => {
-        const out = output.trim().toLowerCase()
-        if (out.includes("linux")) {
-          resolve("linux")
-        } else if (out.includes("darwin")) {
-          resolve("darwin")
-        } else if (out.includes("bsd")) {
-          resolve("unix")
-        } else {
-          resolve("win32")
-        }
-      })
-      stream.stderr.on("data", () => resolve("win32"))
-    })
-  })
-}
 
 /**
  * Cross-platform equivalent to path.dirname(): works for both '/' and '\\' separators.

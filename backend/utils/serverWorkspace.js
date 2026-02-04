@@ -132,30 +132,47 @@ const createServerMedomicsDirectory = (directoryPath) => {
   const mongoDataDir = path.join(medomicsDir, "MongoDBdata")
   const mongoConfigPath = path.join(medomicsDir, "mongod.conf")
 
+  const toForwardSlashes = (p) => String(p).replace(/\\/g, "/")
+
   if (!fs.existsSync(medomicsDir)) {
     // Create .medomicsDir
-    fs.mkdirSync(medomicsDir)
+    fs.mkdirSync(medomicsDir, { recursive: true })
   }
 
   if (!fs.existsSync(mongoDataDir)) {
     // Create MongoDB data dir
-    fs.mkdirSync(mongoDataDir)
+    fs.mkdirSync(mongoDataDir, { recursive: true })
   }
 
-  if (!fs.existsSync(mongoConfigPath)) {
-    // Create mongod.conf
-    const mongoConfig = `
-    systemLog:
-      destination: file
-      path: ${path.join(medomicsDir, "mongod.log")}
-      logAppend: true
-    storage:
-      dbPath: ${mongoDataDir}
-    net:
-      bindIp: localhost
-      port: ${MEDconfig.mongoPort}
-    `
-    fs.writeFileSync(mongoConfigPath, mongoConfig)
+  const desiredMongoConfig = [
+    "systemLog:",
+    "  destination: file",
+    `  path: \"${toForwardSlashes(path.join(medomicsDir, "mongod.log"))}\"`,
+    "  logAppend: true",
+    "storage:",
+    `  dbPath: \"${toForwardSlashes(mongoDataDir)}\"`,
+    "net:",
+    "  bindIp: 127.0.0.1",
+    `  port: ${MEDconfig.mongoPort}`,
+    ""
+  ].join("\n")
+
+  let shouldWriteConfig = !fs.existsSync(mongoConfigPath)
+  if (!shouldWriteConfig) {
+    try {
+      const existing = fs.readFileSync(mongoConfigPath, "utf8")
+      // Migrate old configs that used bindIp localhost or unquoted Windows paths.
+      const hasLocalhostBind = /\bbindIp:\s*localhost\b/i.test(existing)
+      const hasUnquotedWinPath = /\bpath:\s*[A-Za-z]:\\/i.test(existing) || /\bdbPath:\s*[A-Za-z]:\\/i.test(existing)
+      const missingKey = !/\bdbPath:\b/i.test(existing) || !/\bport:\b/i.test(existing)
+      if (hasLocalhostBind || hasUnquotedWinPath || missingKey) shouldWriteConfig = true
+    } catch {
+      shouldWriteConfig = true
+    }
+  }
+
+  if (shouldWriteConfig) {
+    fs.writeFileSync(mongoConfigPath, desiredMongoConfig)
   }
 }
 

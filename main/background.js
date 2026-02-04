@@ -13,10 +13,10 @@ import { installExtension, REACT_DEVELOPER_TOOLS } from "electron-extension-inst
 import MEDconfig from "../medomics.dev"
 const crypto = require("crypto")
 const decompress = require("decompress")
+const https = require("https")
 // Backend access is done over HTTP requests to the backend Express server.
 // This avoids importing backend modules into the Electron main process.
 // We expose small wrapper functions below that call the backend endpoints.
-
 // Helper to build backend URL (uses expressPort if available, otherwise falls back to serverPort)
 function backendUrl(path) {
   const port = expressPort || serverPort || MEDconfig.defaultPort
@@ -136,7 +136,9 @@ import {
   getActiveTunnel,
   detectRemoteOS,
   getRemoteWorkspacePath,
-  checkRemotePortOpen
+  checkRemotePortOpen,
+  startExpressForward,
+  startPortTunnel
 } from './utils/remoteFunctions.js'
 // MongoDB and Jupyter functions are accessed via HTTP wrappers (startMongoDB, stopMongoDB, getMongoDBPath, startJupyterServer, stopJupyterServer, checkJupyterIsRunning)
 
@@ -205,6 +207,28 @@ console.log = function () {
 
 // **** BACKEND EXPRESS SERVER **** //
 let expressPort = null
+
+// ---- Local port blacklist to avoid accidental use in remote flows ----
+const portBlacklist = new Set()
+function blacklistPort(port) {
+  const p = Number(port)
+  if (Number.isFinite(p)) portBlacklist.add(p)
+}
+function isPortBlacklisted(port) {
+  const p = Number(port)
+  return Number.isFinite(p) && portBlacklist.has(p)
+}
+function setExpressPort(p) {
+  expressPort = p
+  blacklistPort(p)
+}
+
+// IPC helpers to query/manage blacklist from renderer if needed
+ipcMain.handle('getPortBlacklist', async () => Array.from(portBlacklist))
+ipcMain.handle('blacklistPort', async (_event, port) => {
+  blacklistPort(port)
+  return { success: true, port: Number(port) }
+})
 
 ipcMain.handle("get-express-port", async () => {
   return expressPort
@@ -367,6 +391,25 @@ function startBackendServer() {
   const isDev = Array.isArray(execPath)
   let cmd, args
 
+  // Validate that the executable/script exists before attempting to spawn
+  try {
+    if (isDev) {
+      const scriptPath = execPath[1]
+      if (!scriptPath || !fs.existsSync(scriptPath)) {
+        console.warn('Backend dev script not found; skipping backend start:', scriptPath)
+        return null
+      }
+    } else {
+      if (!execPath || typeof execPath !== 'string' || !fs.existsSync(execPath)) {
+        console.warn('Backend executable not found; skipping backend start:', execPath)
+        return null
+      }
+    }
+  } catch (e) {
+    console.warn('Error while checking backend executable; skipping backend start:', e && e.message)
+    return null
+  }
+
   // Prepare CLI state file under user home for consistent port discovery across Electron and CLI
   const stateDir = path.join(require('os').homedir(), '.medomics', 'medomics-server')
   try { if (!fs.existsSync(stateDir)) fs.mkdirSync(stateDir, { recursive: true }) } catch {}
@@ -382,7 +425,16 @@ function startBackendServer() {
     args = ['start', '--json', '--state-file', stateFilePath]
   }
 
-  child = spawn(cmd, args, { stdio: ['ignore', 'pipe', 'pipe'] })
+  try {
+    child = spawn(cmd, args, { stdio: ['ignore', 'pipe', 'pipe'] })
+  } catch (e) {
+    console.warn('Failed to spawn backend process:', e && e.message)
+    return null
+  }
+
+  child.on('error', (err) => {
+    try { console.warn('Backend process error:', err && err.message) } catch {}
+  })
 
   // Parse JSON lines from stdout to capture expressPort
   let buffer = ''
@@ -399,7 +451,7 @@ function startBackendServer() {
           if (obj && obj.success && (obj.state?.expressPort || obj.expressPort)) {
             const port = obj.state?.expressPort || obj.expressPort
             console.log(`Local Express server started on port: ${port}`)
-            expressPort = port
+            setExpressPort(port)
           }
         } catch (_) {
           // Non-JSON line; ignore
@@ -421,7 +473,7 @@ function startBackendServer() {
         if (message && message.type === "EXPRESS_PORT") {
           const port = message.expressPort || message.port
           console.log(`Local Express server started on port: ${port}`)
-          expressPort = port
+          setExpressPort(port)
         }
       } catch (err) {
         console.warn('Error handling message from backend process:', err)
@@ -434,9 +486,9 @@ function startBackendServer() {
   setTimeout(async () => {
     if (!expressPort) {
       try {
-        const found = await findExpressPortByProbing(3000, 8000, 48, 250)
+        const found = await findExpressPortByProbing(5000, 8000, 48, 250)
         if (found) {
-          expressPort = found
+          setExpressPort(found)
           console.log(`Discovered Express port via probe: ${found}`)
         } else {
           console.warn('Failed to discover Express port via probe within timeout')
@@ -451,13 +503,16 @@ function startBackendServer() {
   return child
 }
 
-async function findExpressPortByProbing(start = 3000, end = 8000, batchSize = 40, timeoutMs = 300) {
+async function findExpressPortByProbing(start = 5000, end = 8000, batchSize = 40, timeoutMs = 300) {
   const clamp = (n, min, max) => Math.max(min, Math.min(max, n))
   let p = start
   while (p <= end) {
     const to = clamp(p + batchSize - 1, p, end)
     const ports = []
-    for (let i = p; i <= to; i++) ports.push(i)
+    for (let i = p; i <= to; i++) {
+      // Skip blacklisted ports (i.e., local server port) to avoid false positives
+      if (!portBlacklist.has(i)) ports.push(i)
+    }
     const results = await Promise.allSettled(ports.map(port => axios.get(`http://127.0.0.1:${port}/status`, { timeout: timeoutMs })))
     for (let i = 0; i < results.length; i++) {
       const r = results[i]
@@ -488,26 +543,59 @@ function runCliCommand(baseArgs = [], timeoutMs = 15000) {
   return new Promise((resolve) => {
     try {
       const { cmd, args } = getCliCommandAndArgs(baseArgs)
-      const child = spawn(cmd, args, { stdio: ['ignore', 'pipe', 'pipe'] })
+
+      // Guard: ensure the CLI executable or dev script exists
+      try {
+        const isDevCmd = cmd === 'node' && Array.isArray(args) && args.length > 0
+        if (isDevCmd) {
+          const scriptPath = args[0]
+          if (!scriptPath || !fs.existsSync(scriptPath)) {
+            return resolve({ success: false, error: 'cli-not-found', details: { mode: 'dev', scriptPath } })
+          }
+        } else {
+          if (!cmd || typeof cmd !== 'string' || !fs.existsSync(cmd)) {
+            return resolve({ success: false, error: 'cli-not-found', details: { mode: 'prod', execPath: cmd } })
+          }
+        }
+      } catch (chkErr) {
+        return resolve({ success: false, error: 'cli-check-failed', details: chkErr && chkErr.message })
+      }
+
       let buffer = ''
+      let settled = false
+      const safeResolve = (obj) => { if (!settled) { settled = true; resolve(obj) } }
+
+      let child
+      try {
+        child = spawn(cmd, args, { stdio: ['ignore', 'pipe', 'pipe'] })
+      } catch (spawnErr) {
+        return safeResolve({ success: false, error: 'spawn-failed', details: spawnErr && spawnErr.message })
+      }
+
       let timer = setTimeout(() => {
         try { child.kill() } catch {}
-        resolve({ success: false, error: 'cli-timeout' })
+        safeResolve({ success: false, error: 'cli-timeout' })
       }, timeoutMs)
+
       child.stdout.on('data', (chunk) => {
         buffer += chunk.toString()
       })
       child.stderr.on('data', (chunk) => {
         // keep for debugging; do not reject
       })
+      child.on('error', (err) => {
+        clearTimeout(timer)
+        safeResolve({ success: false, error: 'cli-error', details: err && err.message })
+      })
       child.on('close', () => {
         clearTimeout(timer)
+        if (settled) return
         // Try parse last JSON line
         const lines = buffer.split(/\r?\n/).filter(Boolean)
         for (let i = lines.length - 1; i >= 0; i--) {
-          try { return resolve(JSON.parse(lines[i])) } catch {}
+          try { return safeResolve(JSON.parse(lines[i])) } catch {}
         }
-        resolve({ success: false, error: 'no-json-output' })
+        safeResolve({ success: false, error: 'no-json-output' })
       })
     } catch (e) {
       resolve({ success: false, error: e.message })
@@ -519,10 +607,111 @@ ipcMain.handle('backendStatus', async (_event, { target = 'local' } = {}) => {
   try {
     if (target === 'remote') {
       const tunnel = getTunnelState()
-      const lp = tunnel && tunnel.localExpressPort
-      if (!lp) return { success: false, error: 'no-remote-port' }
-      const res = await axios.get(`http://127.0.0.1:${lp}/status`, { timeout: 3000 })
-      return res.data
+      const localExpressPort = tunnel && tunnel.localExpressPort
+      // First try: use existing local→remote forwarding to /status
+      if (localExpressPort) {
+        try {
+          const res = await axios.get(`http://127.0.0.1:${localExpressPort}/status`, { timeout: 3000 })
+          if (res && res.data) return res.data
+        } catch {}
+      }
+
+      // Fallback: sweep remote ports 5000–8000 to discover an Express server
+      const conn = getActiveTunnel && getActiveTunnel()
+      if (!conn) return { success: false, error: 'no-active-ssh' }
+
+      // Single-shot list of listening ports on remote for performance
+      const remoteOS = await detectRemoteOS()
+      const listCmd = remoteOS === 'win32'
+        ? `netstat -an | findstr LISTEN`
+        : `bash -c "command -v ss >/dev/null 2>&1 && ss -ltn || netstat -an | grep LISTEN"`
+
+      const listening = await new Promise((resolve) => {
+        try {
+          conn.exec(listCmd, (err, stream) => {
+            if (err) return resolve("")
+            let out = ""
+            stream.on('data', (d) => { out += d.toString() })
+            stream.stderr.on('data', () => {})
+            stream.on('close', () => resolve(out))
+          })
+        } catch { resolve("") }
+      })
+
+      const ports = []
+      const re = /:(\d{2,5})/g
+      let m
+      while ((m = re.exec(listening)) !== null) {
+        const p = Number(m[1])
+        if (p >= 5000 && p <= 8000 && !ports.includes(p)) ports.push(p)
+      }
+
+      // Sort ascending for determinism
+      ports.sort((a,b) => a - b)
+      if (!ports.length) return { success: false, error: 'no-open-ports-in-range', range: [5000, 8000] }
+
+      // Try probing candidates by creating a temporary local forward and requesting /status
+      const tryPortStatus = async (remotePort) => {
+        return new Promise((resolve) => {
+          try {
+            const net = require('net')
+            const server = net.createServer((socket) => {
+              conn.forwardOut(
+                socket.localAddress || '127.0.0.1',
+                socket.localPort || 0,
+                '127.0.0.1',
+                parseInt(remotePort, 10),
+                (err, stream) => {
+                  if (err) { socket.destroy(); return }
+                  socket.pipe(stream).pipe(socket)
+                }
+              )
+            })
+            // Let the OS assign an ephemeral local port
+            server.listen(0, '127.0.0.1')
+            server.on('error', () => { try { server.close() } catch {}; resolve(null) })
+            server.on('listening', () => {
+              const addr = server.address()
+              const localPort = (addr && typeof addr === 'object') ? addr.port : null
+              if (!localPort) { try { server.close() } catch {}; return resolve(null) }
+              // Small delay to allow listener to bind fully
+              setTimeout(async () => {
+                try {
+                  const resp = await axios.get(`http://127.0.0.1:${localPort}/status`, { timeout: 1500 })
+                  try { server.close() } catch {}
+                  resolve(resp && resp.data ? { data: resp.data, localEp: localPort } : null)
+                } catch {
+                  try { server.close() } catch {}
+                  resolve(null)
+                }
+              }, 250)
+            })
+          } catch { resolve(null) }
+        })
+      }
+
+      for (const rp of ports) {
+        const found = await tryPortStatus(rp)
+        if (found && found.data) {
+          // Persistently start Express forward using discovered remote port
+          try {
+            await startExpressForward({ remoteExpressPort: rp })
+          } catch {}
+          // If GO service is reported running with a port, start GO forward too
+          try {
+            const goPort = Number(found.data?.go?.port)
+            if (found.data?.go?.running && goPort) {
+              const st = getTunnelState()
+              const lp = Number(st && st.localGoPort)
+              await startPortTunnel({ name: 'go', localPort: lp, remotePort: goPort, ensureRemoteOpen: true })
+            }
+          } catch {}
+          // Augment response with discovered ports for visibility
+          return { ...found.data, discoveredRemotePort: rp }
+        }
+      }
+
+      return { success: false, error: 'status-not-found', openPorts: ports }
     }
     // local
     if (expressPort) {
@@ -541,12 +730,12 @@ ipcMain.handle('backendEnsure', async (_event, { target = 'local', go = false, m
   try {
     if (target === 'remote') {
       const tunnel = getTunnelState()
-      const lp = tunnel && tunnel.localExpressPort
-      if (!lp) return { success: false, error: 'no-remote-port' }
+      const remotePort = tunnel && tunnel.localExpressPort
+      if (!remotePort) return { success: false, error: 'no-remote-port' }
       const ensured = {}
-      if (go) ensured.go = (await axios.post(`http://127.0.0.1:${lp}/ensure-go`, {}, { timeout: 10000 })).data
-      if (mongo) ensured.mongo = (await axios.post(`http://127.0.0.1:${lp}/ensure-mongo`, { workspacePath: workspace }, { timeout: 20000 })).data
-      if (jupyter) ensured.jupyter = (await axios.post(`http://127.0.0.1:${lp}/ensure-jupyter`, { workspacePath: workspace }, { timeout: 20000 })).data
+      if (go) ensured.go = (await axios.post(`http://127.0.0.1:${remotePort}/ensure-go`, {}, { timeout: 10000 })).data
+      if (mongo) ensured.mongo = (await axios.post(`http://127.0.0.1:${remotePort}/ensure-mongo`, { workspacePath: workspace }, { timeout: 20000 })).data
+      if (jupyter) ensured.jupyter = (await axios.post(`http://127.0.0.1:${remotePort}/ensure-jupyter`, { workspacePath: workspace }, { timeout: 20000 })).data
       return { success: true, ensured }
     }
     // local via CLI
@@ -565,15 +754,18 @@ ipcMain.handle('backendEnsure', async (_event, { target = 'local', go = false, m
 // Check if a remote port is open (listening) on the SSH-connected host
 ipcMain.handle('remoteCheckPort', async (_event, { port }) => {
   try {
+    console.log('[remoteCheckPort] request for port', port)
     const tunnel = getTunnelState()
     if (!tunnel || !tunnel.tunnelActive) return { success: false, error: 'no-tunnel' }
     if (!port || isNaN(Number(port))) return { success: false, error: 'invalid-port' }
     const conn = getActiveTunnel && getActiveTunnel()
     if (!conn) return { success: false, error: 'no-active-ssh' }
     const open = await checkRemotePortOpen(conn, Number(port))
+    console.log('[remoteCheckPort] result', { port: Number(port), open: !!open })
     return { success: true, port: Number(port), open: !!open }
   } catch (e) {
-    return { success: false, error: e.message }
+    console.warn('[remoteCheckPort] error', e && e.message ? e.message : e)
+    return { success: false, error: e && e.message ? e.message : String(e) }
   }
 })
 
@@ -614,6 +806,48 @@ ipcMain.handle('checkLocalBackend', async () => {
   return checkLocalBackendPresence()
 })
 
+// Unified presence check (local or remote) for whether the backend is installed/available on disk.
+// - local: uses filesystem-based checkLocalBackendPresence()
+// - remote: uses the SSH tunnel's forwarded Express port to call a remote endpoint
+//   Preferred endpoint: /check-local-backend (should return { installed, path?, source? })
+//   Fallback: /status (if reachable, we infer installed=true because the server is running)
+ipcMain.handle('backendPresence', async (_event, { target = 'local' } = {}) => {
+  try {
+    if (target === 'remote') {
+      const tunnel = getTunnelState()
+      const remotePort = tunnel && tunnel.localExpressPort
+      if (!remotePort) {
+        return { success: false, target: 'remote', installed: false, error: 'no-remote-port' }
+      }
+      // Try explicit remote presence endpoint first
+      try {
+        const pres = await axios.get(`http://127.0.0.1:${remotePort}/check-local-backend`, { timeout: 5000 })
+        if (pres && pres.data) {
+          // Normalize shape
+          const d = pres.data
+          const installed = !!(d.installed || d.success)
+          return { success: true, target: 'remote', installed, details: d }
+        }
+      } catch {}
+      // Fallback: if /status works, the server is clearly installed and running
+      try {
+        const res = await axios.get(`http://127.0.0.1:${remotePort}/status`, { timeout: 5000 })
+        if (res && res.data) {
+          return { success: true, target: 'remote', installed: true, details: res.data }
+        }
+      } catch (e) {
+        return { success: false, target: 'remote', installed: false, error: e && e.message }
+      }
+      return { success: false, target: 'remote', installed: false, error: 'unknown' }
+    }
+    // local
+    const local = checkLocalBackendPresence()
+    return { success: true, target: 'local', installed: !!local.installed, details: local }
+  } catch (e) {
+    return { success: false, target, installed: false, error: e && e.message }
+  }
+})
+
 ipcMain.handle('setLocalBackendPath', async (_event, exePath) => {
   try {
     if (!exePath) return { success: false, error: 'no-path' }
@@ -632,93 +866,275 @@ ipcMain.handle('setLocalBackendPath', async (_event, exePath) => {
   }
 })
 
+// IPC: Get latest backend release info from GitHub
+// Enhancement: fetch all releases and return the latest "server-" tagged one.
+ipcMain.handle('getLatestBackendReleaseInfo', async (_event, payload) => {
+  const owner = (payload && payload.owner) || 'm-alexparent' // TO REPLACE WITH MEDOMICS BASE REPO
+  const repo = (payload && payload.repo) || 'MEDomics-NodeServerDeploymentTests'
+  const serverOnly = payload && typeof payload.serverOnly === 'boolean' ? payload.serverOnly : true
+
+  // Helpers
+  const isServerTag = (s) => {
+    const tag = (s || '').toLowerCase()
+    // Prefer explicit server-vX pattern, but allow serverX as a fallback
+    return /^server[-_]?v\d+/i.test(tag) || tag.startsWith('server-') || tag.startsWith('server_')
+  }
+  const parseSemver = (s) => {
+    if (!s) return null
+    const m = (s.match(/v(\d+)(?:\.(\d+))?(?:\.(\d+))?/i))
+    if (!m) return null
+    return [parseInt(m[1]||'0',10), parseInt(m[2]||'0',10), parseInt(m[3]||'0',10)]
+  }
+  const cmpSemverDesc = (a,b) => {
+    for (let i=0;i<3;i++) { const d = (b[i]||0)-(a[i]||0); if (d!==0) return d }
+    return 0
+  }
+
+  const releasesUrl = `https://api.github.com/repos/${owner}/${repo}/releases?per_page=100`
+
+  const fetchJson = (url) => new Promise((resolve) => {
+    try {
+      const req = https.request(url, {
+        method: 'GET',
+        headers: {
+          'User-Agent': 'MEDomics-App',
+          'Accept': 'application/vnd.github+json'
+        }
+      }, (res) => {
+        let data = ''
+        res.on('data', (chunk) => { data += chunk })
+        res.on('end', () => {
+          try { resolve({ ok: true, json: JSON.parse(data) }) }
+          catch (e) { resolve({ ok: false, error: `Parse error: ${e && e.message ? e.message : String(e)}` }) }
+        })
+      })
+      req.on('error', (err) => resolve({ ok: false, error: err && err.message ? err.message : String(err) }))
+      req.end()
+    } catch (e) { resolve({ ok: false, error: e && e.message ? e.message : String(e) }) }
+  })
+
+  // Try full releases listing to pick the latest server-tagged release
+  const listRes = await fetchJson(releasesUrl)
+  if (listRes.ok && Array.isArray(listRes.json)) {
+    let rels = listRes.json
+    if (serverOnly) {
+      rels = rels.filter(r => isServerTag(r.tag_name || r.name))
+    }
+    if (rels.length > 0) {
+      // Prefer semver compare if parsable; else fall back to published_at
+      const withSem = rels.map(r => ({ r, v: parseSemver((r.tag_name || r.name) || '') }))
+      const semAvail = withSem.some(x => x.v)
+      let chosen
+      if (semAvail) {
+        const sortable = withSem.map(x => ({ ...x, v: x.v || [0,0,0] }))
+        sortable.sort((a,b) => cmpSemverDesc(a.v,b.v))
+        chosen = sortable[0].r
+      } else {
+        rels.sort((a,b) => new Date(b.published_at||b.created_at||0) - new Date(a.published_at||a.created_at||0))
+        chosen = rels[0]
+      }
+      return { success: true, tag: chosen.tag_name || chosen.name, raw: chosen }
+    }
+  }
+
+  // Fallback: GitHub latest (may be a client release)
+  const latestUrl = `https://api.github.com/repos/${owner}/${repo}/releases/latest`
+  const latestRes = await fetchJson(latestUrl)
+  if (latestRes.ok && latestRes.json) {
+    const json = latestRes.json
+    return { success: true, tag: json.tag_name || json.name, raw: json }
+  }
+  return { success: false, error: listRes.error || latestRes.error || 'Failed to fetch releases' }
+})
+
 ipcMain.handle('installLocalBackendFromURL', async (_event, { version, manifestUrl } = {}) => {
-  // Download and install the backend using a release manifest.
-  // Steps: fetch manifest -> pick asset -> download -> verify sha256 -> extract -> set settings.localBackendPath -> cleanup old versions.
+  // Download and install the backend using either a manifest or latest GitHub release tagged for server.
+  // Manifest path (legacy): fetch manifest -> pick asset -> download -> verify sha256 -> extract -> set settings.localBackendPath -> cleanup.
+  // GitHub path (new): fetch releases -> pick latest with tag containing 'server' -> select OS/arch asset -> download -> extract -> save path -> cleanup.
   const progress = (payload) => {
     try { _event?.sender?.send('localBackendInstallProgress', payload) } catch {}
   }
   try {
-    if (!manifestUrl) return { success: false, error: 'missing-manifest-url' }
-    progress({ phase: 'fetch-manifest', manifestUrl })
-    const { data: manifest } = await axios.get(manifestUrl, { timeout: 30000 })
-    const manifestVersion = version || manifest?.version
-    if (!manifestVersion) return { success: false, error: 'no-version-in-manifest' }
-
-    // Pick asset for current platform/arch
     const platform = process.platform // 'win32' | 'linux' | 'darwin'
     const arch = process.arch // 'x64' | 'arm64' | ...
-    const osKeys = [platform, platform === 'win32' ? 'windows' : (platform === 'darwin' ? 'darwin' : 'linux')]
-    const candidates = (manifest?.assets || []).filter(a => {
-      const osMatch = osKeys.includes((a.os||'').toLowerCase())
-      if (!osMatch) return false
-      if (!a.arch) return true
-      return (a.arch||'').toLowerCase() === arch
-    })
-    if (!candidates.length) return { success: false, error: 'no-asset-for-platform', details: { platform, arch } }
-    const asset = candidates[0]
-    const url = asset.url
-    const expectedSha = (asset.sha256||'').trim().toLowerCase()
-    const format = (asset.format||'').toLowerCase() || (url.endsWith('.zip') ? 'zip' : (url.endsWith('.tar.gz') ? 'tar.gz' : ''))
-    if (!url) return { success: false, error: 'asset-has-no-url' }
 
     // Prepare directories
     const userDataPath = app.getPath('userData')
     const baseDir = path.join(userDataPath, 'medomics-server')
     const versionsDir = path.join(baseDir, 'versions')
-    const versionDir = path.join(versionsDir, manifestVersion)
     const downloadsDir = path.join(baseDir, 'downloads')
     try { if (!fs.existsSync(baseDir)) fs.mkdirSync(baseDir, { recursive: true }) } catch {}
     try { if (!fs.existsSync(versionsDir)) fs.mkdirSync(versionsDir, { recursive: true }) } catch {}
     try { if (!fs.existsSync(downloadsDir)) fs.mkdirSync(downloadsDir, { recursive: true }) } catch {}
 
-    // If already installed, just point settings and return
+    const selectOsArchAsset = (assets) => {
+      const nameHas = (s, keys) => keys.some(k => (s||'').toLowerCase().includes(k))
+      const osKeys = platform === 'win32' ? ['windows', 'win32', 'win'] : (platform === 'darwin' ? ['darwin', 'macos', 'mac'] : ['linux'])
+      const archKeys = arch === 'arm64' ? ['arm64', 'aarch64'] : ['x64', 'amd64']
+      const extKeys = ['.zip', '.tar.gz', '.tgz']
+      // First pass: by name
+      let candidate = assets.find(a => nameHas(a.name, osKeys) && nameHas(a.name, archKeys) && nameHas(a.name, extKeys))
+      if (!candidate) {
+        // Second pass: by browser_download_url
+        candidate = assets.find(a => nameHas(a.browser_download_url||'', osKeys) && nameHas(a.browser_download_url||'', archKeys))
+      }
+      // Prefer zip
+      const zips = assets.filter(a => (a.name||'').toLowerCase().endsWith('.zip') && nameHas(a.name, osKeys) && nameHas(a.name, archKeys))
+      if (zips.length) candidate = zips[0]
+      return candidate || null
+    }
+
+    if (manifestUrl) {
+      // Legacy manifest-based install
+      progress({ phase: 'fetch-manifest', manifestUrl })
+      const { data: manifest } = await axios.get(manifestUrl, { timeout: 20000 })
+      const manifestVersion = version || manifest?.version || 'unknown'
+      const osKeys = [platform, platform === 'win32' ? 'windows' : (platform === 'darwin' ? 'darwin' : 'linux')]
+      const candidates = (manifest?.assets || []).filter(a => {
+        const osMatch = osKeys.includes((a.os||'').toLowerCase())
+        if (!osMatch) return false
+        if (!a.arch) return true
+        return (a.arch||'').toLowerCase() === arch
+      })
+      if (!candidates.length) {
+        progress({ phase: 'error', error: 'no-asset-for-platform', details: { platform, arch } })
+        return { success: false, error: 'no-asset-for-platform', details: { platform, arch } }
+      }
+      const asset = candidates[0]
+      const url = asset.url
+      const expectedSha = (asset.sha256||'').trim().toLowerCase()
+      const format = (asset.format||'').toLowerCase() || (url.endsWith('.zip') ? 'zip' : (url.endsWith('.tar.gz') ? 'tar.gz' : ''))
+      if (!url) {
+        progress({ phase: 'error', error: 'asset-has-no-url' })
+        return { success: false, error: 'asset-has-no-url' }
+      }
+
+      const versionDir = path.join(versionsDir, manifestVersion)
+      const existingExe = findInstalledExecutable(versionDir)
+      if (existingExe) {
+        await saveLocalBackendPath(existingExe)
+        progress({ phase: 'already-installed', version: manifestVersion, path: existingExe })
+        return { success: true, version: manifestVersion, path: existingExe, reused: true }
+      }
+
+      const fileName = path.basename(url).split('?')[0]
+      const downloadPath = path.join(downloadsDir, fileName)
+      progress({ phase: 'download-start', url, downloadPath })
+      await downloadWithProgress(url, downloadPath, (d) => progress({ phase: 'download-progress', ...d }))
+      progress({ phase: 'download-complete', downloadPath })
+
+      if (expectedSha) {
+        progress({ phase: 'verify-start' })
+        const actualSha = await sha256File(downloadPath)
+        const ok = (actualSha||'').toLowerCase() === expectedSha
+        if (!ok) {
+          progress({ phase: 'error', error: 'checksum-mismatch', expectedSha, actualSha })
+          return { success: false, error: 'checksum-mismatch', expectedSha, actualSha }
+        }
+        progress({ phase: 'verify-ok', sha256: actualSha })
+      } else {
+        progress({ phase: 'verify-skip', reason: 'no-sha256-in-manifest' })
+      }
+
+      progress({ phase: 'extract-start', to: versionDir, format })
+      await decompress(downloadPath, versionDir)
+      progress({ phase: 'extract-complete', to: versionDir })
+
+      const exePath = findInstalledExecutable(versionDir)
+      if (!exePath) {
+        progress({ phase: 'error', error: 'executable-not-found-in-extracted', versionDir })
+        return { success: false, error: 'executable-not-found-in-extracted', versionDir }
+      }
+      try { if (process.platform !== 'win32') fs.chmodSync(exePath, 0o755) } catch {}
+
+      await saveLocalBackendPath(exePath)
+      try { await cleanupOldVersions(versionsDir, exePath, 3) } catch {}
+      progress({ phase: 'done', version: manifestVersion, path: exePath })
+      return { success: true, version: manifestVersion, path: exePath }
+    }
+
+    // New GitHub releases-based install
+    const defaultOwner = 'm-alexparent'
+    const defaultRepo = 'MEDomics-NodeServerDeploymentTests'
+    progress({ phase: 'github-fetch-releases', owner: defaultOwner, repo: defaultRepo })
+    const { data: releases } = await axios.get(`https://api.github.com/repos/${defaultOwner}/${defaultRepo}/releases`, {
+      headers: { 'Accept': 'application/vnd.github+json', 'User-Agent': 'medomicslab-installer' },
+      timeout: 20000
+    })
+    if (!Array.isArray(releases) || releases.length === 0) {
+      progress({ phase: 'error', error: 'no-releases-found' })
+      return { success: false, error: 'no-releases-found' }
+    }
+
+    // Pick latest release with a tag indicating server (e.g., contains 'server')
+    const serverReleases = releases.filter(r => {
+      const tag = (r.tag_name||'').toLowerCase()
+      const name = (r.name||'').toLowerCase()
+      return tag.includes('server') || name.includes('server')
+    })
+    const sorted = (serverReleases.length ? serverReleases : releases).sort((a,b) => {
+      const pa = new Date(a.published_at||a.created_at||0).getTime()
+      const pb = new Date(b.published_at||b.created_at||0).getTime()
+      return pb - pa
+    })
+    const chosen = sorted[0]
+    if (!chosen) {
+      progress({ phase: 'error', error: 'no-suitable-release' })
+      return { success: false, error: 'no-suitable-release' }
+    }
+    progress({ phase: 'github-pick-release', tag: chosen.tag_name, name: chosen.name })
+
+    // Select asset for OS/arch
+    const asset = selectOsArchAsset(chosen.assets||[])
+    if (!asset) {
+      progress({ phase: 'error', error: 'no-asset-for-platform', details: { platform, arch } })
+      return { success: false, error: 'no-asset-for-platform', details: { platform, arch } }
+    }
+    const url = asset.browser_download_url
+    if (!url) {
+      progress({ phase: 'error', error: 'asset-missing-download-url' })
+      return { success: false, error: 'asset-missing-download-url' }
+    }
+    progress({ phase: 'github-select-asset', asset: asset.name, url })
+
+    const ver = chosen.tag_name || chosen.name || 'latest'
+    const versionDir = path.join(versionsDir, ver)
     const existingExe = findInstalledExecutable(versionDir)
     if (existingExe) {
       await saveLocalBackendPath(existingExe)
-      progress({ phase: 'already-installed', version: manifestVersion, path: existingExe })
-      return { success: true, version: manifestVersion, path: existingExe, reused: true }
+      progress({ phase: 'already-installed', version: ver, path: existingExe })
+      return { success: true, version: ver, path: existingExe, reused: true }
     }
 
-    // Download asset
     const fileName = path.basename(url).split('?')[0]
     const downloadPath = path.join(downloadsDir, fileName)
     progress({ phase: 'download-start', url, downloadPath })
     await downloadWithProgress(url, downloadPath, (d) => progress({ phase: 'download-progress', ...d }))
     progress({ phase: 'download-complete', downloadPath })
 
-    // Verify SHA256
-    if (expectedSha) {
-      progress({ phase: 'verify-start' })
-      const actualSha = await sha256File(downloadPath)
-      const ok = (actualSha||'').toLowerCase() === expectedSha
-      if (!ok) return { success: false, error: 'checksum-mismatch', expectedSha, actualSha }
-      progress({ phase: 'verify-ok', sha256: actualSha })
-    } else {
-      progress({ phase: 'verify-skip', reason: 'no-sha256-in-manifest' })
-    }
-
-    // Extract
+    // Extract archive
+    const lower = fileName.toLowerCase()
+    const format = lower.endsWith('.zip') ? 'zip' : (lower.endsWith('.tar.gz') || lower.endsWith('.tgz') ? 'tar.gz' : 'unknown')
     progress({ phase: 'extract-start', to: versionDir, format })
     await decompress(downloadPath, versionDir)
     progress({ phase: 'extract-complete', to: versionDir })
 
-    // Locate executable inside extracted tree
+    // Locate executable
     const exePath = findInstalledExecutable(versionDir)
-    if (!exePath) return { success: false, error: 'executable-not-found-in-extracted', versionDir }
-    // Ensure exec perms on posix
+    if (!exePath) {
+      progress({ phase: 'error', error: 'executable-not-found-in-extracted', versionDir })
+      return { success: false, error: 'executable-not-found-in-extracted', versionDir }
+    }
     try { if (process.platform !== 'win32') fs.chmodSync(exePath, 0o755) } catch {}
 
-    // Save settings
     await saveLocalBackendPath(exePath)
-
-    // Cleanup old versions (keep latest 3 including this one and currently referenced)
     try { await cleanupOldVersions(versionsDir, exePath, 3) } catch {}
-
-    progress({ phase: 'done', version: manifestVersion, path: exePath })
-    return { success: true, version: manifestVersion, path: exePath }
+    progress({ phase: 'done', version: ver, path: exePath })
+    return { success: true, version: ver, path: exePath }
   } catch (e) {
-    return { success: false, error: e.message || String(e) }
+    const message = e?.message || String(e)
+    try { progress({ phase: 'error', error: message }) } catch {}
+    return { success: false, error: message }
   }
 })
 
@@ -1213,7 +1629,7 @@ if (isProd) {
       if (activeTunnel && tunnel) {
         // If an SSH tunnel is active, we set the remote workspace path
         const remoteWorkspacePath = getRemoteWorkspacePath()
-        axios.get(`http://${tunnel.host}:3000/get-working-dir-tree`, { params: { requestedPath: remoteWorkspacePath } })
+        axios.get(`http://localhost:${tunnel.localExpressPort}/get-working-dir-tree`, { params: { requestedPath: remoteWorkspacePath } })
           .then((response) => {
             if (response.data.success && response.data.workingDirectory) {
               event.reply("updateDirectory", {
@@ -1272,10 +1688,12 @@ ipcMain.handle("request", async (_, axios_request) => {
 // General backend request handler used by the renderer via preload
 ipcMain.handle('express-request', async (_event, req) => {
   if (!req || typeof req.path !== 'string' || !req.path.startsWith('/')) {
-    throw { code: 'BAD_REQUEST', message: 'Invalid request shape' }
+    const err = new Error('express-request: invalid request shape')
+    err.code = 'BAD_REQUEST'
+    throw err
   }
 
-  const host = req.host || '127.0.0.1'
+  const host = '127.0.0.1'
   const port = req.port || expressPort || serverPort || MEDconfig.defaultPort
   const url = `http://${host}:${port}${req.path}`
 
@@ -1290,8 +1708,22 @@ ipcMain.handle('express-request', async (_event, req) => {
     })
     return { status: axiosResp.status, data: axiosResp.data, headers: axiosResp.headers }
   } catch (err) {
-    const message = err.response ? (err.response.data || err.response.statusText) : err.message
-    throw { code: 'BACKEND_ERROR', message, details: err.response ? { status: err.response.status } : undefined }
+    const status = err?.response?.status
+    const dataSnippet = (() => {
+      try {
+        const d = err?.response?.data
+        if (typeof d === 'string') return d.slice(0, 500)
+        return JSON.stringify(d).slice(0, 500)
+      } catch { return '' }
+    })()
+    const method = (req.method || 'GET').toUpperCase()
+    const msg = status
+      ? `express-request ${method} ${url} failed with status ${status}${dataSnippet ? `: ${dataSnippet}` : ''}`
+      : `express-request ${method} ${url} failed: ${err && err.message ? err.message : 'unknown error'}`
+    const e = new Error(msg)
+    e.code = 'BACKEND_ERROR'
+    e.status = status
+    throw e
   }
 })
 
@@ -1301,7 +1733,12 @@ ipcMain.handle("getInstalledPythonPackages", async (event, pythonPath) => {
   const tunnel = getTunnelState()
   if (activeTunnel && tunnel) {
     let pythonPackages = null
-    await axios.get(`http://${tunnel.host}:${expressPort}/get-installed-python-packages`, { params: { pythonPath: pythonPath } })
+    const forwardedPort = tunnel.localExpressPort || tunnel.remoteExpressPort
+    if (!forwardedPort) {
+      console.error("Remote Python packages request: no forwarded Express port available")
+      return null
+    }
+    await axios.get(`http://127.0.0.1:${forwardedPort}/get-installed-python-packages`, { params: { pythonPath: pythonPath } })
           .then((response) => {
             if (response.data.success && response.data.packages) {
               pythonPackages = response.data.packages
@@ -1333,7 +1770,12 @@ ipcMain.handle("getBundledPythonEnvironment", async (event) => {
   const tunnel = getTunnelState()
   if (activeTunnel && tunnel) {
     let pythonEnv = null
-    await axios.get(`http://${tunnel.host}:3000/get-bundled-python-environment`)
+    const forwardedPort = tunnel.localExpressPort || tunnel.remoteExpressPort
+    if (!forwardedPort) {
+      console.error("Remote bundled Python environment request: no forwarded Express port available")
+      return null
+    }
+    await axios.get(`http://127.0.0.1:${forwardedPort}/get-bundled-python-environment`)
           .then((response) => {
             if (response.data.success && response.data.pythonEnv) {
               pythonEnv = response.data.pythonEnv

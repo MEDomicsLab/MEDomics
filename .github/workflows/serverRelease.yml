@@ -1,0 +1,198 @@
+name: Server bundle build and publish
+on:
+  push:
+    tags:
+      - "server-v*"
+permissions:
+  contents: write
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18.13
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: 1.21
+
+      - name: Set version from tag
+        shell: bash
+        run: |
+          TAG=${GITHUB_REF/refs\/tags\//}
+          CLEAN=${TAG#server-}
+          CLEAN=${CLEAN#v}
+          node -p "let p=require('./package.json'); p.version='${CLEAN}'; require('fs').writeFileSync('package.json', JSON.stringify(p,null,2));"
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build server bundle (Windows)
+        run: node ./tools/pack_server.js --platform=win32
+
+      - name: Get version
+        id: get-ver
+        shell: bash
+        run: |
+          TAG=${GITHUB_REF/refs\/tags\//}
+          CLEAN=${TAG#server-}
+          CLEAN=${CLEAN#v}
+          echo "VERSION=${CLEAN}" >> "$GITHUB_OUTPUT"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: server-windows
+          path: ./build/dist/MEDomicsLab-Server-${{ steps.get-ver.outputs.VERSION }}-win32.zip
+
+  build-linux:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18.13
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: 1.21
+
+      - name: Set version from tag
+        run: |
+          TAG=${GITHUB_REF/refs\/tags\//}
+          CLEAN=${TAG#server-}
+          CLEAN=${CLEAN#v}
+          node -p "let p=require('./package.json'); p.version='${CLEAN}'; require('fs').writeFileSync('package.json', JSON.stringify(p,null,2));"
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build server bundle (Linux)
+        run: node ./tools/pack_server.js --platform=linux
+
+      - name: Get version
+        id: get-ver
+        run: |
+          TAG=${GITHUB_REF/refs\/tags\//}
+          CLEAN=${TAG#server-}
+          CLEAN=${CLEAN#v}
+          echo "VERSION=${CLEAN}" >> "$GITHUB_OUTPUT"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: server-linux
+          path: ./build/dist/MEDomicsLab-Server-${{ steps.get-ver.outputs.VERSION }}-linux.zip
+
+  # build-mac:
+  #   runs-on: macos-latest
+  #   steps:
+  #     - name: Checkout code
+  #       uses: actions/checkout@v4
+  #       with:
+  #         submodules: recursive
+
+  #     - name: Set up Node.js
+  #       uses: actions/setup-node@v4
+  #       with:
+  #         node-version: 18.13
+
+  #     - name: Set up Go
+  #       uses: actions/setup-go@v4
+  #       with:
+  #         go-version: 1.21
+
+  #     - name: Set version from tag
+  #       run: |
+  #         TAG=${GITHUB_REF/refs\/tags\//}
+  #         CLEAN=${TAG#server-}
+  #         CLEAN=${CLEAN#v}
+  #         node -p "let p=require('./package.json'); p.version='${CLEAN}'; require('fs').writeFileSync('package.json', JSON.stringify(p,null,2));"
+
+  #     - name: Install dependencies
+  #       run: npm install
+
+  #     - name: Build server bundle (macOS)
+  #       run: node ./tools/pack_server.js --platform=darwin
+
+  #     - name: Get version
+  #       id: get-ver
+  #       run: |
+  #         TAG=${GITHUB_REF/refs\/tags\//}
+  #         CLEAN=${TAG#server-}
+  #         CLEAN=${CLEAN#v}
+  #         echo "VERSION=${CLEAN}" >> "$GITHUB_OUTPUT"
+
+  #     - name: Upload artifact
+  #       uses: actions/upload-artifact@v4
+  #       with:
+  #         name: server-mac
+  #         path: ./build/dist/MEDomicsLab-Server-${{ steps.get-ver.outputs.VERSION }}-darwin.zip
+
+  publish:
+    # Removed Mac build requirement for now since it needs a special signature, readd ", build-mac" later
+    needs: [build-windows, build-linux]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: server-windows
+          path: .
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: server-linux
+          path: .
+
+      # Commented until keys and certificate for Mac are ready
+      # - uses: actions/download-artifact@v4
+      #   with:
+      #     name: server-mac
+
+      # Readd this to "with: files:" when Mac is included
+      # ./MEDomicsLab-Server-${{ steps.get-ver.outputs.VERSION }}-darwin.zip
+
+      - name: Get version
+        id: get-ver
+        shell: bash
+        run: |
+          TAG=${GITHUB_REF/refs\/tags\//}
+          CLEAN=${TAG#server-}
+          CLEAN=${CLEAN#v}
+          echo "VERSION=${CLEAN}" >> "$GITHUB_OUTPUT"
+
+      - name: Create GitHub Release (draft)
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            MEDomicsLab-Server-${{ steps.get-ver.outputs.VERSION }}-win32.zip
+            MEDomicsLab-Server-${{ steps.get-ver.outputs.VERSION }}-linux.zip
+          name: MEDomicsLab Server-${{ steps.get-ver.outputs.VERSION }}
+          body: |
+            MEDomicsLab Server-${{ steps.get-ver.outputs.VERSION }}
+            Standalone Node/Express server bundle with Go + Python assets. Run the start script per OS.
+            ${{ github.ref }}
+          draft: true
+          prerelease: false
+          token: ${{ secrets.GITHUB_TOKEN }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

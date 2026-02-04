@@ -2,6 +2,8 @@ import React, { useContext, useEffect, useRef, useState } from "react"
 import Image from "next/image"
 import myimage from "../../../resources/medomics_transparent_bg.png"
 import { Button, Stack } from "react-bootstrap"
+import { ProgressBar } from "primereact/progressbar"
+import { ProgressSpinner } from "primereact/progressspinner"
 import { WorkspaceContext } from "../workspace/workspaceContext"
 import { ipcRenderer } from "electron"
 import FirstSetupModal from "../generalPurpose/installation/firstSetupModal"
@@ -28,8 +30,9 @@ const HomePage = () => {
 
   const [requirementsMet, setRequirementsMet] = useState(true)
   // Local backend presence (Express/GO orchestration) check
-  const [localBackend, setLocalBackend] = useState({ checking: true, installed: true, detail: null })
+  const [localBackend, setLocalBackend] = useState({ checking: true, installed: false, detail: null })
   const localBackendPollRef = useRef(null)
+  const [installState, setInstallState] = useState({ active: false, phase: '', percent: 0, speed: 0 })
 
   const checkLocalBackendNow = async () => {
     try {
@@ -112,6 +115,84 @@ const HomePage = () => {
 
   // Auto-refresh local install status: poll until installed, and refresh on window focus
   useEffect(() => {
+    // Listen for installer progress events to surface success toasts
+    const onProgress = (_event, payload) => {
+      try {
+        if (!payload || !payload.phase) return
+        // Map phases to progress bands
+        const bands = {
+          download: { start: 0, end: 70 },
+          verify: { start: 70, end: 80 },
+          extract: { start: 80, end: 95 },
+          finalize: { start: 95, end: 100 }
+        }
+
+        const setActive = () => setInstallState(prev => ({ ...prev, active: true }))
+        const setPhase = (phase) => setInstallState(prev => ({ ...prev, phase }))
+
+        switch (payload.phase) {
+          case 'fetch-manifest':
+          case 'github-fetch-releases':
+          case 'github-pick-release':
+          case 'github-select-asset':
+          case 'download-start':
+            setActive(); setPhase('download')
+            setInstallState(prev => ({ ...prev, percent: bands.download.start }))
+            break
+          case 'download-progress': {
+            setActive(); setPhase('download')
+            const raw = Number(payload.percent || 0)
+            const pct = Math.max(0, Math.min(100, raw))
+            const mapped = bands.download.start + (bands.download.end - bands.download.start) * (pct / 100)
+            const speed = Number(payload.speed || 0)
+            setInstallState(prev => ({ ...prev, percent: mapped, speed }))
+            break
+          }
+          case 'download-complete':
+            setActive(); setPhase('verify')
+            setInstallState(prev => ({ ...prev, percent: bands.download.end }))
+            break
+          case 'verify-start':
+            setActive(); setPhase('verify')
+            setInstallState(prev => ({ ...prev, percent: bands.verify.start }))
+            break
+          case 'verify-ok':
+          case 'verify-skip':
+            setActive(); setPhase('extract')
+            setInstallState(prev => ({ ...prev, percent: bands.verify.end }))
+            break
+          case 'extract-start':
+            setActive(); setPhase('extract')
+            setInstallState(prev => ({ ...prev, percent: bands.extract.start }))
+            break
+          case 'extract-complete':
+            setActive(); setPhase('finalize')
+            setInstallState(prev => ({ ...prev, percent: bands.extract.end }))
+            break
+          case 'done':
+            toast.success('Local server installed and ready.')
+            // Refresh local backend status immediately
+            checkLocalBackendNow()
+            setInstallState({ active: false, phase: '', percent: 0, speed: 0 })
+            break
+          case 'already-installed':
+            // Backend was already present on disk; treat like success
+            toast.success('Local server already installed and ready.')
+            checkLocalBackendNow()
+            setInstallState({ active: false, phase: '', percent: 0, speed: 0 })
+            break
+          case 'error':
+            // Any terminal error from the installer should clear the progress UI
+            // The invoking handler shows a toast based on the IPC result.
+            setInstallState({ active: false, phase: '', percent: 0, speed: 0 })
+            break
+        }
+      } catch(e) {
+        console.error("Error handling localBackendInstallProgress event:", e)
+      }
+    }
+    ipcRenderer.on('localBackendInstallProgress', onProgress)
+
     // Always clear any existing poller first
     if (localBackendPollRef.current) {
       clearInterval(localBackendPollRef.current)
@@ -137,6 +218,9 @@ const HomePage = () => {
       if (localBackendPollRef.current) {
         clearInterval(localBackendPollRef.current)
         localBackendPollRef.current = null
+      }
+      try { ipcRenderer.removeListener('localBackendInstallProgress', onProgress) } catch(e) {
+        console.error("Error removing localBackendInstallProgress listener:", e)
       }
     }
   }, [localBackend.installed])
@@ -244,12 +328,12 @@ const HomePage = () => {
                   width: '100%',
                   background: '#fff3cd',
                   border: '1px solid #ffeeba',
-                  borderLeft: '4px solid #ffc107',
+                  borderLeft: '4px solid var(--warning)',
                   borderRadius: 6,
                   padding: '12px 14px',
                   margin: '8px 0 12px 0'
                 }}>
-                  <div style={{ fontWeight: 600, marginBottom: 6 }}>Local server not found</div>
+                  <div style={{ fontWeight: 700, marginBottom: 6, color: '#000000' }}>Local server not found!</div>
                   <div style={{ fontSize: 14, color: '#5c5c5c', marginBottom: 10 }}>
                     To work with a local workspace, MEDomicsLab needs its local server. Install it now or locate an existing executable.
                   </div>
@@ -257,35 +341,57 @@ const HomePage = () => {
                     <Button onClick={handleInstallLocalBackend} variant="warning">Install (Download)</Button>
                     <Button onClick={handleLocateLocalBackend} variant="secondary">Locate Executable…</Button>
                   </div>
+                  {installState.active && (
+                    <div style={{ marginTop: 12 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        {(installState.phase === 'verify' || installState.phase === 'extract' || installState.phase === 'finalize') && (
+                          <ProgressSpinner style={{ width: '20px', height: '20px' }} strokeWidth="6"/>
+                        )}
+                        <div style={{ fontSize: 12, color: '#6c757d' }}>
+                          {installState.phase === 'download' && `Downloading… ${installState.speed ? `${(installState.speed/1024/1024).toFixed(2)} MB/s` : ''}`}
+                          {installState.phase === 'verify' && 'Verifying checksum…'}
+                          {installState.phase === 'extract' && 'Extracting files…'}
+                          {installState.phase === 'finalize' && 'Finalizing installation…'}
+                        </div>
+                      </div>
+                      <div style={{ marginTop: 6 }}>
+                        <ProgressBar value={Math.round(installState.percent)} showValue style={{ height: '14px' }}></ProgressBar>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
-              <h5>Set up your workspace to get started</h5>
-              <Button onClick={handleWorkspaceChange} style={{ margin: "1rem", opacity: (!localBackend.checking && !localBackend.installed) ? 0.5 : 1 }} disabled={!localBackend.checking && !localBackend.installed}>
-                Set Workspace
-              </Button>
-              <h5>Or open a recent workspace</h5>
-              <Stack direction="vertical" gap={0} style={{ padding: "0 0 0 0", alignContent: "center", flex: "0 1 auto", marginBottom: "3rem", opacity: (!localBackend.checking && !localBackend.installed) ? 0.5 : 1 }}>
-                {recentWorkspaces.map((workspace, index) => {
-                  if (index > 4) return
-                  return (
-                    <a
-                      key={index}
-                      onClick={() => {
-                        if (!localBackend.checking && !localBackend.installed) return
-                        ipcRenderer.invoke("setWorkingDirectory", workspace.path).then((data) => {
-                          if (workspace !== data) {
-                            let workspaceToSet = { ...data }
-                            setWorkspace(workspaceToSet)
-                          }
-                        })
-                      }}
-                      style={{ margin: "0rem", color: "var(--blue-600)", pointerEvents: (!localBackend.checking && !localBackend.installed) ? 'none' : 'auto' }}
-                    >
-                      <h6>{workspace.path}</h6>
-                    </a>
-                  )
-                })}
-              </Stack>
+              {!localBackend.checking && localBackend.installed && (
+                <div style={{ display: "flex", flexDirection: "column"}}>
+                  <h5>Set up your workspace to get started</h5>
+                  <Button onClick={handleWorkspaceChange} style={{ margin: "1rem"}}>
+                    Set Workspace
+                  </Button>
+                  <h5>Or open a recent workspace</h5>
+                  <Stack direction="vertical" gap={0} style={{ padding: "0 0 0 0", alignContent: "center", flex: "0 1 auto", marginBottom: "3rem" }}>
+                    {recentWorkspaces.map((workspace, index) => {
+                      if (index > 4) return
+                      return (
+                        <a
+                        key={index}
+                        onClick={() => {
+                          if (!localBackend.checking && !localBackend.installed) return
+                          ipcRenderer.invoke("setWorkingDirectory", workspace.path).then((data) => {
+                            if (workspace !== data) {
+                              let workspaceToSet = { ...data }
+                              setWorkspace(workspaceToSet)
+                            }
+                          })
+                        }}
+                        style={{ margin: "0rem", color: "var(--blue-600)"}}
+                        >
+                          <h6>{workspace.path}</h6>
+                        </a>
+                      )
+                    })}
+                  </Stack>
+                </div>
+              )}
               <h5>Or connect to a remote workspace</h5>
               <Button onClick={() => setShowConnectionModal(true)} style={{ margin: "1rem" }}>
                 Connect to a remote workspace

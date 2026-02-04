@@ -1,4 +1,4 @@
-import { useState, useEffect, useContext } from "react"
+import { useState, useEffect, useContext, useRef } from "react"
 import { Dialog } from "primereact/dialog"
 import { toast } from "react-toastify"
 import { InputText } from "primereact/inputtext"
@@ -16,6 +16,7 @@ import { GoFile, GoFileDirectoryFill, GoChevronDown, GoChevronUp, GoChevronLeft,
 import { FaFolderPlus } from "react-icons/fa"
 import { WorkspaceContext } from "../workspace/workspaceContext"
 import { IoMdClose, IoIosRefresh } from "react-icons/io"
+import RemoteServerPage from "./remoteServer"
 
 /**
  *
@@ -23,6 +24,9 @@ import { IoMdClose, IoIosRefresh } from "react-icons/io"
  */
 import { Steps } from 'primereact/steps'
 import { ProgressBar } from 'primereact/progressbar'
+
+// Minimal, opt-in debug logging for tunnel events/heartbeat
+const DEBUG_TUNNEL = false
 
 const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
   const [showAdvanced, setShowAdvanced] = useState(false)
@@ -34,10 +38,10 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
   const [password, setPassword] = useState("")
   const [remotePort, setRemotePort] = useState("22")
   // Express ports (local forwarded port and remote Express port)
-  const [localExpressPort, setlocalExpressPort] = useState("55080")
-  const [remoteExpressPort, setRemoteExpressPort] = useState("55088")
+  const [localExpressPort, setLocalExpressPort] = useState("5001")
+  const [remoteExpressPort, setRemoteExpressPort] = useState("5010")
   // GO ports (optional direct forwarding)
-  const [localGoPort, setLocalGoPort] = useState("54280")
+  const [localGoPort, setLocalGoPort] = useState("54380")
   const [remoteGoPort, setRemoteGoPort] = useState("54288")
   const [localDBPort, setLocalDBPort] = useState("54020")
   const [remoteDBPort, setRemoteDBPort] = useState("54017")
@@ -45,7 +49,9 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
   const [remoteJupyterPort, setRemoteJupyterPort] = useState("8900")
   const [privateKey, setPrivateKey] = useState("")
   const [publicKey, setPublicKey] = useState("")
-  const [keyComment, setKeyComment] = useState("medomicslab-app")
+  // Commented out to fix linting problems: unused setter setKeyComment
+  // const [keyComment, setKeyComment] = useState("medomicslab-app")
+  const [keyComment] = useState("medomicslab-app")
 
   // Connection state
   const [keyGenerated, setKeyGenerated] = useState(false)
@@ -71,17 +77,24 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
   const [, setRemoteInstalled] = useState(false)
   const [installingRemote, setInstallingRemote] = useState(false)
   const [remoteInstallText, setRemoteInstallText] = useState('')
-  const [remoteStartPort, setRemoteStartPort] = useState('3000')
+  const [remoteStartPort, setRemoteStartPort] = useState('5010')
   const [remoteServerRunning, setRemoteServerRunning] = useState(false)
+  const [lastStartAt, setLastStartAt] = useState(null)
+  const heartbeatBusyRef = useRef(false)
+  const [shouldRecheck, setShouldRecheck] = useState(false)
   const [requirementsChecking, setRequirementsChecking] = useState(false)
   const [requirementsMetRemote, setRequirementsMetRemote] = useState(false)
   const [requirementsInstalling, setRequirementsInstalling] = useState(false)
-  const [requirementsDetailsRemote, setRequirementsDetailsRemote] = useState({ pythonEnv: false, pythonPackages: false, mongoInstalled: false })
+  const [requirementsDetailsRemote, setRequirementsDetailsRemote] = useState({ pythonInstalled: false, mongoInstalled: false })
+  // Debug: last start attempt details
+  const [lastStartDetails, setLastStartDetails] = useState('')
   // Remote install progress
   const [remoteInstallPhase, setRemoteInstallPhase] = useState('')
   const [remoteDownloadPercent, setRemoteDownloadPercent] = useState(null)
   const [remoteDownloadSpeed, setRemoteDownloadSpeed] = useState(null)
-  const [remoteInstallEvents, setRemoteInstallEvents] = useState([])
+  // Commented out state variable to fix linting problems: remoteInstallEvents not directly used
+  // const [remoteInstallEvents, setRemoteInstallEvents] = useState([])
+  const [, setRemoteInstallEvents] = useState([])
 
   // Validation state
   const [inputErrors, setInputErrors] = useState({})
@@ -149,7 +162,7 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
       setTunnelStatus(`Reconnecting... (attempt ${reconnectAttempts} of ${maxReconnectAttempts})`)
       toast.warn(`Attempt ${reconnectAttempts} of ${maxReconnectAttempts} to reconnect SSH tunnel.`)
       const timer = setTimeout(() => {
-  handleConnectSSH(connectionInfo, true)
+        handleConnectSSH(connectionInfo, true)
       }, reconnectDelay)
       return () => clearTimeout(timer)
     }
@@ -172,30 +185,24 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
       setRequirementsMetRemote(false)
       setRequirementsChecking(false)
       setRequirementsInstalling(false)
-  setRemoteInstallPhase('')
-  setRemoteDownloadPercent(null)
-  setRemoteDownloadSpeed(null)
-  setRemoteInstallEvents([])
+      setRemoteInstallPhase('')
+      setRemoteDownloadPercent(null)
+      setRemoteDownloadSpeed(null)
+      setRemoteInstallEvents([])
       const tunnel = getTunnelState()
       if (tunnel.tunnelActive) {
         setTunnelActive(true)
         setHost(tunnel.host || "")
         setUsername(tunnel.username || "")
         setRemotePort(tunnel.remotePort || "22")
-  setlocalExpressPort(tunnel.localExpressPort || "55080")
-  setRemoteExpressPort(tunnel.remoteExpressPort || "55088")
-  setLocalGoPort(tunnel.localGoPort || "54280")
-  setRemoteGoPort(tunnel.remoteGoPort || "54288")
+        setLocalExpressPort(tunnel.localExpressPort || "5001")
+        setRemoteExpressPort(tunnel.remoteExpressPort || "5010")
+        setLocalGoPort(tunnel.localGoPort || "54380")
+        setRemoteGoPort(tunnel.remoteGoPort || "54288")
         setLocalDBPort(tunnel.localDBPort || "54020")
-        setRemoteDBPort(tunnel.remoteDBPort || "54017")
-        setLocalJupyterPort(tunnel.localJupyterPort || "8890")
-        setRemoteJupyterPort(tunnel.remoteJupyterPort || "8900")
         setTunnelStatus("SSH tunnel is already established.")
         setActiveStep(1)
         tunnelContext.setTunnelInfo(tunnel) // Sync React context
-      } else {
-        setTunnelActive(false)
-        setTunnelStatus("")
       }
     }
   }, [visible])
@@ -205,20 +212,135 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
     const handler = (_event, payload) => {
       try {
         if (!payload || typeof payload !== 'object') return
-        if (payload.phase) setRemoteInstallPhase(payload.phase)
+        if (payload.phase) {
+          setRemoteInstallPhase(payload.phase)
+          // Provide user-friendly, contextual text for each phase
+          switch (payload.phase) {
+            case 'github-fetch-releases':
+              setRemoteInstallText('Fetching releases from GitHub…')
+              break
+            case 'github-pick-release':
+              setRemoteInstallText(`Picking release ${payload.tag || payload.name || ''}…`)
+              break
+            case 'github-select-asset':
+              // Surface the selected asset name for clarity
+              setRemoteInstallText(`Selected asset: ${payload.asset || 'unknown'} (preparing download)`) 
+              break
+            case 'prepare-dirs':
+              setRemoteInstallText('Preparing directories on remote…')
+              break
+            case 'download-start':
+              setRemoteInstallText('Downloading server asset…')
+              break
+            case 'download-progress':
+              setRemoteInstallText('Downloading…')
+              break
+            case 'download-complete':
+              setRemoteInstallText('Download complete. Verifying…')
+              break
+            case 'verify-start':
+              setRemoteInstallText('Verifying checksum…')
+              break
+            case 'verify-complete':
+              setRemoteInstallText('Verification complete. Extracting…')
+              break
+            case 'extract-start':
+              setRemoteInstallText('Extracting files…')
+              break
+            case 'extract-complete':
+              setRemoteInstallText('Extraction complete. Locating executable…')
+              break
+            case 'locate-exe':
+              setRemoteInstallText('Locating backend executable…')
+              break
+            case 'done':
+              setRemoteInstallText('Installation completed successfully.')
+              break
+            case 'error':
+              setRemoteInstallText('Install failed')
+              break
+            default:
+              // Generic fallback
+              setRemoteInstallText(`Phase: ${payload.phase}`)
+          }
+        }
         if (typeof payload.percent === 'number') setRemoteDownloadPercent(payload.percent)
         if (typeof payload.speed === 'number') setRemoteDownloadSpeed(payload.speed)
         setRemoteInstallEvents(prev => [...prev.slice(-50), payload])
         if (payload.phase === 'done') {
           // Reset spinners once installation finishes
           setInstallingRemote(false)
-          setRemoteInstallText('')
+          setRemoteInstallText('Installation completed successfully.')
+          setRemoteInstallPhase('')
+          setRemoteDownloadPercent(null)
+          setRemoteDownloadSpeed(null)
+        } else if (payload.phase === 'error') {
+          // Clear progress state on any error
+          setInstallingRemote(false)
+          setRemoteInstallText('Install failed')
+          setRemoteInstallPhase('')
+          setRemoteDownloadPercent(null)
+          setRemoteDownloadSpeed(null)
+          toast.error(`Remote install error${payload.step ? ` at ${payload.step}` : ''}: ${payload.details || ''}`)
         }
       } catch (e) { /* ignore */ }
     }
     ipcRenderer.on('remoteBackendInstallProgress', handler)
     return () => {
-      try { ipcRenderer.removeListener('remoteBackendInstallProgress', handler) } catch (e) { /* ignore */ }
+      try { 
+        ipcRenderer.removeListener('remoteBackendInstallProgress', handler)
+        console.log('Removed remoteBackendInstallProgress listener')
+       } catch (e) { /* ignore */ }
+    }
+  }, [])
+
+  // Subscribe to tunnel state changes from main process and auto-sync UI/context
+  useEffect(() => {
+    const handler = async () => {
+      try {
+        // Always fetch the authoritative full tunnel state to avoid partial payload issues
+        const state = await ipcRenderer.invoke('getTunnelState')
+        if (!state) return
+        // Basic tunnel status
+        setTunnelActive(!!state.tunnelActive)
+        // Sync commonly used ports if present
+        if (state.localExpressPort !== undefined) setLocalExpressPort(String(state.localExpressPort))
+        if (state.remoteExpressPort !== undefined) setRemoteExpressPort(String(state.remoteExpressPort))
+        if (state.localGoPort !== undefined) setLocalGoPort(String(state.localGoPort))
+        if (state.remoteGoPort !== undefined) setRemoteGoPort(String(state.remoteGoPort))
+        if (state.localDBPort !== undefined) setLocalDBPort(String(state.localDBPort))
+        if (state.remoteDBPort !== undefined) setRemoteDBPort(String(state.remoteDBPort))
+        if (state.localJupyterPort !== undefined) setLocalJupyterPort(String(state.localJupyterPort))
+        if (state.remoteJupyterPort !== undefined) setRemoteJupyterPort(String(state.remoteJupyterPort))
+        // Reflect express server running state: treat 'running' or 'forwarding' as running
+        if (state.expressStatus) {
+          const s = String(state.expressStatus).toLowerCase()
+          setRemoteServerRunning(s === 'running' || s === 'forwarding')
+        }
+        if (DEBUG_TUNNEL) {
+          try {
+            console.debug('[ConnectionModal] tunnel event', {
+              expressStatus: state.expressStatus,
+              tunnelActive: !!state.tunnelActive,
+              localExpressPort: state.localExpressPort,
+              remoteExpressPort: state.remoteExpressPort,
+              runningNext: state.expressStatus === 'running'
+            })
+          } catch (_) { /* ignore logging errors */ }
+        }
+        // Keep React context in sync for other panels
+        try { tunnelContext.setTunnelInfo(state) } catch (_) { /* ignore */ }
+      } catch (_) { /* ignore */ }
+    }
+    try {
+      ipcRenderer.on('tunnelStateChanged', handler)
+      ipcRenderer.on('tunnelStateUpdate', handler)
+    } catch (_) { /* ignore */ }
+    return () => {
+      try {
+        ipcRenderer.removeListener('tunnelStateChanged', handler)
+        ipcRenderer.removeListener('tunnelStateUpdate', handler)
+      } catch (_) { /* ignore */ }
     }
   }, [])
 
@@ -375,27 +497,167 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
     }
     try {
       setRemoteBackendStatus('Checking remote server...')
+      // First, check installation presence on remote
+      const presence = await ipcRenderer.invoke('backendPresence', { target: 'remote' })
+      let installed = !!(presence && presence.success && presence.installed)
+      // Fallback: explicitly check default install directory via SFTP listing
+      if (!installed) {
+        try {
+          // Use relative path to home; remoteFunctions normalizePath defaults '.' to HOME
+          const listRes = await ipcRenderer.invoke('navigateRemoteDirectory', { action: 'list', path: '.medomics/medomics-server/versions' })
+          if (listRes && Array.isArray(listRes.contents) && listRes.contents.length > 0) {
+            installed = true
+          }
+        } catch(e) { console.log('Fallback remote presence check failed:', e) }
+      }
+      // Attempt to locate the executable to keep path in sync and as a last resort confirm presence
+      try {
+        const locate = await ipcRenderer.invoke('locateRemoteBackendExecutable')
+        if (locate && locate.success && locate.path) {
+          setRemoteBackendPath(locate.path)
+          // If we couldn't confirm installation earlier but we found a path, consider it installed
+          if (!installed) installed = true
+        }
+      } catch (e) {
+        console.warn('Locate remote backend executable failed:', e)
+      }
+      setRemoteInstalled(installed)
+
+      // Then, read snapshot/status (may include a last-known port from state file)
       const status = await ipcRenderer.invoke('backendStatus', { target: 'remote' })
-      // status may be raw backend /status response or CLI JSON
+      console.log('Remote backend status:', status)
+      const expressPort = status && (status.expressPort || status.state?.expressPort)
+      if (typeof expressPort === 'number') {
+        setRemoteExpressPort(String(expressPort))
+      }
+      const goPort = status && (status.go?.port || status.state?.goPort)
+      if (typeof goPort === 'number') {
+        setRemoteGoPort(String(goPort))
+        console.log('Starting GO forward on port', goPort, 'to local port', localGoPort)
+        ipcRenderer.invoke('startPortTunnel', { name: 'go', localPort: Number(localGoPort), remotePort: Number(goPort) })
+        // Auto-rebind if current tunnel targets a different remote port
+        const currentGo = Number(remoteGoPort)
+        if (currentGo && goPort !== currentGo) {
+          await ipcRenderer.invoke('rebindPortTunnel', { name: 'go', newRemotePort: Number(goPort) })
+        }
+      }
+
+      const mongoPort = status && (status.mongo?.port || status.state?.dbPort || status.state?.mongoPort)
+      if (typeof mongoPort === 'number') {
+        setRemoteDBPort(String(mongoPort))
+        const currentMongo = Number(remoteDBPort)
+        if (currentMongo && mongoPort !== currentMongo) {
+          await ipcRenderer.invoke('rebindPortTunnel', { name: 'mongo', newRemotePort: Number(mongoPort) })
+        }
+      }
+
+      const jupPort = status && (status.jupyter?.port || status.state?.jupyterPort)
+      if (typeof jupPort === 'number') {
+        setRemoteJupyterPort(String(jupPort))
+        const currentJup = Number(remoteJupyterPort)
+        if (currentJup && jupPort !== currentJup) {
+          await ipcRenderer.invoke('rebindPortTunnel', { name: 'jupyter', newRemotePort: Number(jupPort) })
+        }
+      }
+
+      // If a different remote port was discovered, automatically rebind the forward using generic API
+      try {
+        const discovered = typeof status?.discoveredRemotePort === 'number' ? status.discoveredRemotePort : (typeof expressPort === 'number' ? expressPort : null)
+        const currentRemote = Number(remoteExpressPort)
+        if (discovered && currentRemote && discovered !== currentRemote) {
+          const reb = await ipcRenderer.invoke('rebindPortTunnel', { name: 'express', newRemotePort: Number(discovered) })
+          if (reb && reb.success) {
+            setRemoteExpressPort(String(discovered))
+            try { tunnelContext.setTunnelInfo(await ipcRenderer.invoke('getTunnelState')) } catch(e) { console.warn('Post-rebind context sync failed:', e) }
+            toast.success(`Rebound Express forward to remote port ${discovered}.`)
+            // After rebind, try a quick status confirm
+            try {
+              const ts = await ipcRenderer.invoke('getTunnelState')
+              const fwd = ts?.localExpressPort || Number(localExpressPort)
+              if (fwd) {
+                const resp = await window.backend.requestExpress({ method: 'get', path: '/status', host: '127.0.0.1', port: Number(fwd), timeout: 3000 })
+                if (resp?.data?.success) {
+                  setRemoteBackendStatus(`Express server confirmed via /status on port ${discovered}`)
+                  setRemoteServerRunning(true)
+                }
+              }
+            } catch(e) { console.warn('Post-rebind /status confirm failed:', e) }
+          } else {
+            toast.error(`Failed to rebind forward: ${reb?.error || 'Unknown error'}`)
+          }
+        }
+      } catch { /* non-fatal */ }
+
+      // If installation could not be confirmed, stop immediately without probing /status
+      if (!installed) {
+        setRemoteBackendStatus('Remote server not found. Install it to continue.')
+        setRemoteServerRunning(false)
+        setShouldRecheck(false)
+        return
+      }
+
+      // If backendStatus already returned a valid snapshot, use it directly
       if (status && status.success) {
-        const expressPort = status.expressPort || status.state?.expressPort || status.expressPort
-        if (expressPort) {
-          setRemoteExpressPort(String(expressPort))
+        const data = status
+        const expressStatus = 'running'
+        if (typeof data.expressPort === 'number') {
+          setRemoteExpressPort(String(data.expressPort))
         }
-        // Determine running condition heuristically
-        const running = (status.go && status.go.running) || (status.mongo && status.mongo.running) || (status.jupyter && status.jupyter.running) || !!expressPort
-        if (running) {
-          setRemoteBackendStatus(`Remote server reachable${expressPort ? ' on port ' + expressPort : ''}`)
+        await ipcRenderer.invoke('setTunnelState', {
+          expressStatus,
+          serverStartedRemotely: false
+        })
+        try {
+          tunnelContext.setTunnelInfo(await ipcRenderer.invoke("getTunnelState"))
+        } catch(e) { /* non-fatal context sync */ }
+        setRemoteBackendStatus(`Express server confirmed via /status${data.expressPort ? ' on port ' + data.expressPort : ''}`)
+        setRemoteServerRunning(true)
+        setShouldRecheck(true)
+        return
+      }
+
+      // Confirm it's our Express server by hitting forwarded /status and update tunnel panel
+      try {
+        const ts = await ipcRenderer.invoke('getTunnelState')
+        const fwd = ts?.localExpressPort || Number(localExpressPort)
+        const resp = fwd ? await window.backend.requestExpress({ method: 'get', path: '/status', host: '127.0.0.1', port: Number(fwd), timeout: 4000 }) : null
+        const data = resp?.data || {}
+        if (data && data.success) {
+          // Normalize statuses
+          const expressStatus = 'running'
+          // Sync express port from server snapshot if provided
+          if (typeof data.expressPort === 'number') {
+            setRemoteExpressPort(String(data.expressPort))
+          }
+          // Update the Remote Server tab state
+          await ipcRenderer.invoke('setTunnelState', {
+            expressStatus,
+            // We didn’t start it here, just confirming
+            serverStartedRemotely: false
+          })
+          try {
+            tunnelContext.setTunnelInfo(await ipcRenderer.invoke("getTunnelState"))
+          } catch(e) { /* non-fatal context sync */ }
+          setRemoteBackendStatus(`Express server confirmed via /status${data.expressPort ? ' on port ' + data.expressPort : ''}`)
           setRemoteServerRunning(true)
-          setRemoteInstalled(true)
-        } else {
-          setRemoteBackendStatus('Remote server not running. Install or start it.')
-          setRemoteServerRunning(false)
+          setShouldRecheck(true)
+          return
         }
+      } catch (confirmErr) {
+        console.warn('Confirm /status failed:', confirmErr && confirmErr.message ? confirmErr.message : confirmErr)
+      }
+
+      // If confirmation failed, report based on installation/presence without claiming reachability
+      if (installed) {
+        // Grace period after a recent start: avoid flipping running=false on transient timeouts
+        const withinGrace = lastStartAt && (Date.now() - lastStartAt < 20000)
+        setRemoteBackendStatus(withinGrace ? 'Server starting up; will recheck shortly.' : 'Remote server installed but unreachable.')
+        if (!withinGrace) setRemoteServerRunning(false)
+        setShouldRecheck(true)
       } else {
         setRemoteBackendStatus('Remote server not found. Install or locate it.')
         setRemoteServerRunning(false)
-        setRemoteInstalled(false)
+        setShouldRecheck(false)
       }
     } catch (e) {
       setRemoteBackendStatus('Failed to check remote server: ' + (e?.message || String(e)))
@@ -405,20 +667,57 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
   // TODO: Replace with the GitHub Releases manifest asset URL for MEDomics Server, e.g.
   // https://github.com/MEDomicsLab/MEDomics/releases/latest/download/manifest.json
   // or pin to a specific version: https://github.com/MEDomicsLab/MEDomics/releases/download/vX.Y.Z/manifest.json
-  const DEFAULT_REMOTE_MANIFEST = 'https://github.com/OWNER/REPO/releases/latest/download/manifest.json'
+  // Manifest is optional now; remote installer can use GitHub Releases when no manifest is provided.
+  const DEFAULT_REMOTE_MANIFEST = ''
   const installRemoteServer = async () => {
     if (!tunnelActive) {
       toast.error('SSH tunnel is not active. Connect first.')
       return
     }
     try {
+      // Pre-check: if latest release tag already exists on remote, skip install
+      try {
+        const latest = await ipcRenderer.invoke('getLatestBackendReleaseInfo')
+        console.log('Latest backend release info:', latest)
+        if (latest && (latest.tag || latest.tag_name || latest.name)) {
+          const tag = String(latest.tag || latest.tag_name || latest.name).trim()
+          if (tag) {
+            const listRes = await ipcRenderer.invoke('navigateRemoteDirectory', { action: 'list', path: '.medomics/medomics-server/versions' })
+            const names = Array.isArray(listRes?.contents) ? listRes.contents.map(c => c?.name).filter(Boolean) : []
+            // common release folder naming patterns: vX.Y.Z or X.Y.Z
+            const candidates = [tag, tag.startsWith('v') ? tag.slice(1) : `v${tag}`]
+            const alreadyInstalled = candidates.some(t => names.includes(t))
+            console.log(candidates, names, alreadyInstalled)
+            if (alreadyInstalled) {
+              toast.success(`Latest backend (${tag}) already installed. Skipping re-install.`)
+              setRemoteInstalled(true)
+              // Optionally locate executable to update path
+              try {
+                const locate = await ipcRenderer.invoke('locateRemoteBackendExecutable')
+                if (locate && locate.success && locate.path) {
+                  setRemoteBackendPath(locate.path)
+                }
+              } catch { /* ignore */ }
+              // Trigger a status recheck for UI freshness
+              setShouldRecheck(true)
+              await checkRemoteServer()
+              return
+            }
+          }
+        }
+      } catch { /* non-fatal; proceed with normal install */ }
+
       setInstallingRemote(true)
       setRemoteInstallText('Installing remote server...')
-      const res = await ipcRenderer.invoke('installRemoteBackendFromURL', { manifestUrl: DEFAULT_REMOTE_MANIFEST })
+      const payload = {}
+      if (DEFAULT_REMOTE_MANIFEST) payload.manifestUrl = DEFAULT_REMOTE_MANIFEST
+      const res = await ipcRenderer.invoke('installRemoteBackendFromURL', payload)
       if (res && res.success) {
         setRemoteBackendPath(res.path)
         toast.success('Remote server installed.')
         setRemoteInstalled(true)
+        // Hint the UI to recheck status right after a successful install
+        setShouldRecheck(true)
         // After install, run a status check
         await checkRemoteServer()
       } else {
@@ -428,6 +727,10 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
     } catch (e) {
       toast.error('Install failed: ' + (e?.message || String(e)))
       setRemoteInstalled(false)
+      // Ensure progress visuals are cleared on thrown errors
+      setRemoteInstallPhase('')
+      setRemoteDownloadPercent(null)
+      setRemoteDownloadSpeed(null)
     } finally {
       setInstallingRemote(false)
       setRemoteInstallText('')
@@ -443,75 +746,261 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
       setRemoteBackendStatus('Starting remote server...')
       // Prefer explicit start if path is known, else ensure
       let started
-      if (remoteBackendPath) {
-        started = await ipcRenderer.invoke('startRemoteBackendUsingPath', { path: remoteBackendPath, port: Number(remoteStartPort)})
+      let pathToUse = remoteBackendPath
+      // Sanity check: verify saved path exists remotely; if not, auto-locate once
+      if (pathToUse) {
+        const existsStatus = await ipcRenderer.invoke('checkRemoteFileExists', pathToUse)
+        if (existsStatus !== 'exists') {
+          const locate = await ipcRenderer.invoke('locateRemoteBackendExecutable')
+          if (locate && locate.success && locate.path) {
+            pathToUse = locate.path
+            setRemoteBackendPath(pathToUse)
+            setLastStartDetails(`Executable re-located: ${pathToUse}`)
+          } else {
+            setLastStartDetails('Saved path missing; auto-locate failed. Falling back to Ensure.')
+            pathToUse = ''
+          }
+        }
+      }
+      console.log('Starting remote backend using path:', pathToUse || '(Ensure)')
+      if (pathToUse) {
+        started = await ipcRenderer.invoke('startRemoteBackendUsingPath', { path: pathToUse, port: Number(remoteStartPort)})
       } else {
         started = await ipcRenderer.invoke('ensureRemoteBackend', { port: Number(remoteStartPort) })
       }
       if (started && started.success) {
         setRemoteBackendStatus(`Remote server running on port ${remoteStartPort}`)
         setRemoteServerRunning(true)
+        setLastStartAt(Date.now())
+        setLastStartDetails('Start OK')
         // Sync selected express port with running one
         setRemoteExpressPort(String(remoteStartPort))
-        // Optionally verify by hitting /status
-        await window.backend.requestExpress({ method: 'get', path: '/status', host, port: Number(localExpressPort) })
+        // Optionally verify by hitting /status via forwarded localhost port
+        try {
+          const tunnelState = await ipcRenderer.invoke('getTunnelState')
+          const forwardedPort = tunnelState?.localExpressPort || Number(localExpressPort)
+          if (window && window.backend && typeof window.backend.requestExpress === 'function' && forwardedPort) {
+            await window.backend.requestExpress({ method: 'get', path: '/status', host: '127.0.0.1', port: Number(forwardedPort) })
+          }
+        } catch (verifyErr) {
+          // Non-fatal: log and continue; status UI will be updated by checkRemoteServer
+          console.warn('Status verify failed:', verifyErr && verifyErr.message ? verifyErr.message : verifyErr)
+        }
+        // Reflect running state back into tunnel state so listeners update consistently
+        try {
+          await ipcRenderer.invoke('setTunnelState', { expressStatus: 'running' })
+          try { tunnelContext.setTunnelInfo(await ipcRenderer.invoke('getTunnelState')) } catch (_) { /* ignore */ }
+        } catch (_) { /* ignore */ }
         // After server starts, immediately check requirements to update UI
         await checkRequirementsRemote()
+        setShouldRecheck(true)
+        // Sync tunnel context so Remote Server panel sees updated ports/status/log path
+        try {
+          const tunnel = await ipcRenderer.invoke('getTunnelState')
+          tunnelContext.setTunnelInfo(tunnel)
+        } catch (e) {
+          console.warn('Failed to sync tunnel context after starting server:', e && e.message ? e.message : e)
+        }
       } else {
-        setRemoteBackendStatus('Failed to start remote server: ' + (started?.error || 'unknown error'))
+        const msg = started?.error || 'unknown error'
+        setRemoteBackendStatus('Failed to start remote server: ' + msg)
+        setLastStartDetails(`Status: ${started?.status || 'n/a'} · ${msg}`)
         setRemoteServerRunning(false)
       }
     } catch (e) {
-      setRemoteBackendStatus('Failed to start remote server: ' + (e?.message || String(e)))
+      const msg = e?.message || String(e)
+      setRemoteBackendStatus('Failed to start remote server: ' + msg)
+      setLastStartDetails(`Exception: ${msg}`)
       setRemoteServerRunning(false)
     }
   }
 
+  const stopRemoteServer = async () => {
+    if (!tunnelActive || !remoteServerRunning) {
+      toast.error('Server not running or tunnel inactive.')
+      return
+    }
+    try {
+      setRemoteBackendStatus('Stopping remote server...')
+      // Request remote Express to stop via SSH-forwarded endpoint on localhost
+      const tunnelState = await ipcRenderer.invoke('getTunnelState')
+      const forwardedPort = tunnelState?.localExpressPort || Number(localExpressPort)
+      const remoteExpressPortNum = Number(tunnelState?.remoteExpressPort || remoteStartPort)
+
+      const markStopped = async (message = 'Remote server stopped') => {
+        setRemoteBackendStatus(message)
+        setRemoteServerRunning(false)
+        setShouldRecheck(true)
+        try {
+          await ipcRenderer.invoke('setTunnelState', { tunnelActive: true, expressStatus: 'stopped', serverStartedRemotely: false })
+          try {
+            tunnelContext.setTunnelInfo(await ipcRenderer.invoke("getTunnelState"))
+          } catch(e) { /* non-fatal context sync */ }
+          await ipcRenderer.invoke('stopRemoteServerLogStream')
+        } catch(e) { console.log('Failed to update tunnel state after remote stop: ', e) }
+        // Immediately re-run status check to reflect latest state
+        await checkRemoteServer()
+      }
+
+      let resp
+      try {
+        resp = await window.backend.requestExpress({ method: 'post', path: '/stop-express', host: '127.0.0.1', port: Number(forwardedPort) })
+        console.log('Remote /stop-express response:', {
+          status: resp?.status,
+          data: resp?.data,
+          forwardedPort,
+          remoteExpressPortNum,
+        })
+      } catch (err) {
+        // If stop endpoint failed, fall through to port check below
+        console.warn('Remote /stop-express request failed:', {
+          message: err && err.message ? err.message : String(err),
+          forwardedPort,
+          remoteExpressPortNum,
+        })
+      }
+
+      if (resp?.data?.success) {
+        toast.success('Remote server stopped successfully.')
+        await markStopped('Remote server stopped')
+      } else {
+        // If the stop call did not succeed, check whether the remote Express port is still open.
+        let portCheckResult = null
+        try {
+          if (remoteExpressPortNum && !Number.isNaN(remoteExpressPortNum)) {
+            const check = await ipcRenderer.invoke('remoteCheckPort', { port: remoteExpressPortNum })
+            portCheckResult = check
+            console.log('remoteCheckPort after stop:', check)
+            if (check?.success && !check.open) {
+              // Port is no longer listening → treat as stopped even if /stop-express failed.
+              toast.success('Remote server appears stopped (port closed).')
+              await markStopped('Remote server stopped (port closed)')
+              return
+            }
+          }
+        } catch (checkErr) {
+          console.warn('remoteCheckPort after stop failed:', checkErr && checkErr.message ? checkErr.message : checkErr)
+        }
+        const baseMsg = resp?.data?.error || resp?.data?.message || resp?.statusText || 'unknown error'
+        const detail = portCheckResult
+          ? ` (remoteCheckPort: success=${portCheckResult.success}, open=${portCheckResult.open}, error=${portCheckResult.error || 'none'})`
+          : ''
+        const msg = baseMsg + detail
+        setRemoteBackendStatus('Failed to stop remote server: ' + msg)
+      }
+    } catch (e) {
+      setRemoteBackendStatus('Failed to stop remote server: ' + (e?.message || String(e)))
+    }
+  }
+
+
   const checkRequirementsRemote = async () => {
-    if (!tunnelActive || !remoteServerRunning) return
+    if (!tunnelActive) {
+      console.warn('Cannot check remote requirements: tunnel inactive.')
+      return
+    }
     try {
       setRequirementsChecking(true)
-      const resp = await window.backend.requestExpress({ method: 'get', path: '/check-requirements', host, port: Number(localExpressPort) })
+      // Always call via the SSH-forwarded localhost port
+      const tunnelState = await ipcRenderer.invoke('getTunnelState')
+      const forwardedPort = tunnelState?.localExpressPort || Number(localExpressPort)
+      const resp = await window.backend.requestExpress({ method: 'get', path: '/check-requirements', host: '127.0.0.1', port: Number(forwardedPort) })
       const result = resp?.data?.result || {}
-      // Normalize shapes: support both legacy and consolidated formats
-      const pythonEnv = result?.python ? !!result.python.env : (typeof result?.pythonInstalled === 'boolean' ? !!result.pythonInstalled : false)
-      const pythonPackages = result?.python ? (
-        typeof result.python.packagesOk === 'boolean' ? !!result.python.packagesOk : (Array.isArray(result.python.missingPackages) ? result.python.missingPackages.length === 0 : false)
-      ) : (typeof result?.pythonPackagesOk === 'boolean' ? !!result.pythonPackagesOk : false)
-      const mongoInstalled = result?.mongo ? !!result.mongo.installed : (typeof result?.mongoDBInstalled === 'boolean' ? !!result.mongoDBInstalled : false)
+      console.log('Remote requirements check result:', result)
+      // Treat any non-empty path for Python/Mongo as "installed"
+      const pythonInstalled = !!(result?.pythonInstalled)
+      const mongoInstalled = !!(result?.mongoDBInstalled)
 
-      const ok = pythonEnv && pythonPackages && mongoInstalled
-      setRequirementsDetailsRemote({ pythonEnv, pythonPackages, mongoInstalled })
+      const ok = pythonInstalled && mongoInstalled
+      setRequirementsDetailsRemote({ pythonInstalled, mongoInstalled })
       setRequirementsMetRemote(ok)
       if (!ok) toast.warn('Some requirements are missing on remote.')
     } catch (e) {
+      console.warn('Remote requirements check failed:', e && e.message ? e.message : e)
       setRequirementsMetRemote(false)
-      setRequirementsDetailsRemote({ pythonEnv: false, pythonPackages: false, mongoInstalled: false })
+      setRequirementsDetailsRemote({ pythonInstalled: false, mongoInstalled: false })
     } finally {
       setRequirementsChecking(false)
     }
   }
 
+  // GO probe info hint for Verify button
+  const [goProbeInfo, setGoProbeInfo] = useState(null)
+
   const installRequirementsRemote = async () => {
     if (!tunnelActive || !remoteServerRunning) return
     try {
       setRequirementsInstalling(true)
-      // Try installing Python first
-      try {
-        await window.backend.requestExpress({ method: 'post', path: '/install-bundled-python', host, port: Number(localExpressPort) })
-      } catch (e) {
-        // ignore installation error; we'll re-check requirements after
+      const tunnelState = await ipcRenderer.invoke('getTunnelState')
+      const forwardedPort = tunnelState?.localExpressPort || Number(localExpressPort)
+      // Install only the requirements that are currently missing
+      const { pythonInstalled, mongoInstalled } = requirementsDetailsRemote || {}
+
+      if (!pythonInstalled) {
+        try {
+          await window.backend.requestExpress({ method: 'post', path: '/install-bundled-python', host: '127.0.0.1', port: Number(forwardedPort) })
+        } catch (e) {
+          console.warn('Python remote install error:', e)
+        }
       }
-      // Then MongoDB
+
+      if (!mongoInstalled) {
+        try {
+          await window.backend.requestExpress({ method: 'post', path: '/install-mongo', host: '127.0.0.1', port: Number(forwardedPort) })
+        } catch (e) {
+      console.warn('Mongo remote install error:', e)
+      // Detect Windows Installer service failures (e.g., MSI exit code 1601)
       try {
-        await window.backend.requestExpress({ method: 'post', path: '/install-mongo', host, port: Number(localExpressPort) })
-      } catch (e) {
-        // ignore installation error; we'll re-check requirements after
+      const msg = e && e.message ? e.message : null
+      let installerCode = null
+      let windowsInstallerError = false
+      if (msg && typeof msg === 'object') {
+        installerCode = msg.installerExitCode || msg.errorCode || null
+        windowsInstallerError = !!msg.windowsInstallerError
+      } else if (msg) {
+        const str = String(msg)
+        if (str.includes('1601')) installerCode = 1601
+        if (str.toLowerCase().includes('windows installer service could not be accessed')) {
+          windowsInstallerError = true
+        }
+      }
+      if (installerCode === 1601 || windowsInstallerError) {
+        toast.error('Automatic MongoDB installation failed on the remote machine because the Windows Installer service is not available. Please install MongoDB manually using the official documentation: https://www.mongodb.com/docs/manual/administration/install-community/#std-label-install-mdb-community-edition')
+      }
+      } catch (_) {
+      // Best-effort diagnostics; ignore parsing issues
+      }
+        }
       }
       // Re-check
       await checkRequirementsRemote()
     } finally {
       setRequirementsInstalling(false)
+    }
+  }
+
+  // Refresh remote directory contents (used by refresh button and auto on entering Workspace page)
+  const refreshRemoteDirectory = async () => {
+    if (!tunnelActive || navigationProcessing) return
+    try {
+      setNavigationProcessing(true)
+      const navResult = await ipcRenderer.invoke('navigateRemoteDirectory', {
+        action: 'list',
+        path: remoteDirPath
+      })
+      if (navResult && navResult.path) setRemoteDirPath(navResult.path)
+      if (Array.isArray(navResult?.contents)) {
+        setDirectoryContents(navResult.contents.map(item => ({
+          name: item.name,
+          type: item.type === 'dir' ? 'dir' : 'file'
+        })))
+      } else {
+        setDirectoryContents([])
+      }
+    } catch {
+      setDirectoryContents([])
+    } finally {
+      setNavigationProcessing(false)
     }
   }
 
@@ -527,19 +1016,30 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
     }
     try {
       setConnectionProcessing(true)
-      // Ensure GO and Mongo on remote
-      await window.backend.requestExpress({ method: 'post', path: '/ensure-go', host, port: Number(localExpressPort), body: {} })
-      await window.backend.requestExpress({ method: 'post', path: '/ensure-mongo', host, port: Number(localExpressPort), body: { workspacePath: remoteDirPath } })
-      // Set workspace
-      const resp = await window.backend.requestExpress({ method: 'post', path: '/set-working-directory', host, port: Number(localExpressPort), body: { workspacePath: remoteDirPath } })
-      if (resp?.data?.success) {
-        toast.success('Workspace set on remote app.')
-        if (resp.data.workspace !== workspace) setWorkspace(resp.data.workspace)
-        // Close modal and disable editing
-        if (typeof onClose === 'function') onClose()
-      } else {
-        toast.error('Failed to set workspace on remote app: ' + (resp?.data?.error || 'Unknown error'))
-      }
+      const tunnelState = await ipcRenderer.invoke('getTunnelState')
+      const forwardedPort = tunnelState?.localExpressPort || Number(localExpressPort)
+
+		// 1) Set workspace first (server side may restart Mongo for the new workspace)
+		const resp = await window.backend.requestExpress({
+			method: 'post',
+			path: '/set-working-directory',
+			host: '127.0.0.1',
+			port: Number(forwardedPort),
+			body: { workspacePath: remoteDirPath }
+		})
+		if (!resp?.data?.success) {
+			toast.error('Failed to set workspace on remote app: ' + (resp?.data?.error || 'Unknown error'))
+			return
+		}
+		toast.success('Workspace set on remote app.')
+		if (resp.data.workspace !== workspace) setWorkspace(resp.data.workspace)
+
+		// 2) Ensure GO + Mongo on remote (idempotent)
+		await window.backend.requestExpress({ method: 'post', path: '/ensure-go', host: '127.0.0.1', port: Number(forwardedPort), body: {} })
+		await window.backend.requestExpress({ method: 'post', path: '/ensure-mongo', host: '127.0.0.1', port: Number(forwardedPort), body: { workspacePath: remoteDirPath } })
+
+		// Close modal on full success
+		if (typeof onClose === 'function') onClose()
     } catch (e) {
       toast.error('Failed to connect workspace: ' + (e?.message || String(e)))
     } finally {
@@ -576,44 +1076,115 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
       toast.error('SSH tunnel is not active. Please connect first.')
       return
     }
-  setGoVerifyLoading(true)
-  setGoVerifyStatus('checking')
+    setGoVerifyLoading(true)
+    setGoVerifyStatus('checking')
     try {
-      await requestBackend(
-        port,
-        "/connection/connection_test_request",
-        { data: "" },
-        async (jsonResponse) => {
-          console.log("GO Verify Response: ", jsonResponse)
-          if (!jsonResponse.error) {
-            setRegisterStatus("GO tunnel verified!")
-            setGoVerifyStatus('ok')
-            // Optionally store more detail if needed
-            toast.success("GO tunnel is reachable.")
-          } else {
-            const msg = jsonResponse.error || 'Unknown error'
-            setRegisterStatus("GO tunnel check failed: " + msg)
-            setGoVerifyStatus('fail')
-            // Optionally store more detail if needed
-            toast.error(msg)
-          }
-          setGoVerifyLoading(false)
-        },
-        (err) => {
-          const msg = err && err.message ? err.message : String(err)
-          setRegisterStatus("GO tunnel check failed: " + msg)
-          setGoVerifyStatus('fail')
-          // Optionally store more detail if needed
-          toast.error(msg)
-          setGoVerifyLoading(false)
+      // Status-first: try to read GO state and port
+      const tunnelState = await ipcRenderer.invoke('getTunnelState')
+      const forwardedPort = tunnelState?.localExpressPort || Number(localExpressPort)
+      if (!forwardedPort) throw new Error('No forwarded Express port available')
+
+      const readStatus = async (timeout = 6000) => {
+        try {
+          const resp = await window.backend.requestExpress({ method: 'get', path: '/status', host: '127.0.0.1', port: Number(forwardedPort), timeout })
+          return resp?.data || {}
+        } catch { return {} }
+      }
+
+      let data = await readStatus(6000)
+      let discoveredGo = typeof data.go?.port === 'number' ? data.go.port : null
+      const goRunning = !!data.go?.running
+
+      // If not running, start idempotently then re-read status
+      if (!goRunning || !discoveredGo) {
+        try {
+          await window.backend.requestExpress({ method: 'post', path: '/ensure-go', host: '127.0.0.1', port: Number(forwardedPort) })
+          data = await readStatus(8000)
+          discoveredGo = typeof data.go?.port === 'number' ? data.go.port : null
+        } catch (e) {
+          console.warn('ensure-go failed:', e)
         }
-      )
+      }
+
+      // Bind/rebind forward if we have a port
+      if (discoveredGo) {
+        const currentRemoteGo = Number(remoteGoPort)
+        // Always ensure a GO forward exists by starting the generic tunnel;
+        // startPortTunnel will close any existing 'go' server and recreate if needed.
+        try {
+          setRemoteGoPort(String(discoveredGo))
+          const ts = await ipcRenderer.invoke('getTunnelState')
+          const lp = Number(ts?.localGoPort || localGoPort)
+          await ipcRenderer.invoke('startPortTunnel', { name: 'go', localPort: lp, remotePort: Number(discoveredGo), ensureRemoteOpen: true })
+          try { tunnelContext.setTunnelInfo(await ipcRenderer.invoke('getTunnelState')) } catch { /* ignore */ }
+        } catch (e) {
+          console.warn('GO forward start failed:', e && e.message ? e.message : e)
+          // Fallback: if remote port changed vs current, attempt a rebind
+          if (!currentRemoteGo || discoveredGo !== currentRemoteGo) {
+            try {
+              await ipcRenderer.invoke('rebindPortTunnel', { name: 'go', newRemotePort: Number(discoveredGo) })
+              try { tunnelContext.setTunnelInfo(await ipcRenderer.invoke('getTunnelState')) } catch { /* ignore */ }
+            } catch (rebErr) {
+              console.warn('GO rebind failed:', rebErr && rebErr.message ? rebErr.message : rebErr)
+            }
+          }
+        }
+      }
+
+      // Clear any previous probe hint at start of verification
+      setGoProbeInfo(null)
+
+      // First try the base GO test request; if it succeeds, skip probe
+      const test = await new Promise((resolve) => {
+        try {
+          requestBackend(
+            localGoPort,
+            "/connection/connection_test_request",
+            { data: "" },
+            (jsonResponse) => {
+              console.log("GO Verify Response:", jsonResponse)
+              if (!jsonResponse?.error) resolve({ ok: true, data: jsonResponse })
+              else resolve({ ok: false, error: jsonResponse.error })
+            },
+            (err) => {
+              const msg = err && err.message ? err.message : String(err)
+              resolve({ ok: false, error: msg })
+            }
+          )
+        } catch (err) {
+          const msg = err && err.message ? err.message : String(err)
+          resolve({ ok: false, error: msg })
+        }
+      })
+
+      if (test && test.ok) {
+        setRegisterStatus("GO tunnel verified!")
+        setGoVerifyStatus('ok')
+        toast.success("GO tunnel is reachable.")
+        return
+      }
+
+      // Base request failed: run probe to see remote/local reachability
+      const probe = await ipcRenderer.invoke('probeGo')
+      setGoProbeInfo(probe || null)
+
+      const parts = []
+      if (probe && probe.success !== false) {
+        parts.push(`probe: remoteOpen=${!!probe.remoteOpen}, localReachable=${!!probe.localReachable}`)
+      } else if (probe && probe.error) {
+        parts.push(`probe error: ${probe.error}`)
+      }
+      parts.push(`test error: ${test && test.error ? test.error : 'no-response'}`)
+      const msg = parts.join(' · ')
+      setRegisterStatus("GO tunnel check failed: " + msg)
+      setGoVerifyStatus('fail')
+      toast.error(msg)
     } catch (e) {
       const msg = e && e.message ? e.message : String(e)
       setRegisterStatus("GO tunnel check failed: " + msg)
       setGoVerifyStatus('fail')
-  // Optionally store more detail if needed
       toast.error(msg)
+    } finally {
       setGoVerifyLoading(false)
     }
   }
@@ -711,6 +1282,8 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
   const [showNewFolderModal, setShowNewFolderModal] = useState(false)
   const [newFolderName, setNewFolderName] = useState("")
   const [creatingFolder, setCreatingFolder] = useState(false)
+  // Debug panel toggle
+  const [showRemotePanel, setShowRemotePanel] = useState(true)
 
   const handleCreateFolder = async () => {
     setCreatingFolder(true)
@@ -757,6 +1330,114 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
     (activeStep === 0 && !tunnelActive) ||
     (activeStep === 1 && (!remoteServerRunning || !requirementsMetRemote))
 
+  // Auto-run actions when switching pages
+  useEffect(() => {
+    if (!visible) return
+    // Debounce page switch actions to avoid rapid repeated calls
+    let timer
+    if (activeStep === 1) {
+      timer = setTimeout(() => {
+        checkRemoteServer()
+      }, 300)
+    } else if (activeStep === 2) {
+      timer = setTimeout(async () => {
+        // On entering Workspace page: refresh directory, then ensure GO forward if status reports a port
+        try { refreshRemoteDirectory() } catch (e) { console.warn('Workspace directory refresh failed on page enter', e) }
+        try {
+          const ts = await ipcRenderer.invoke('getTunnelState')
+          const forwardedPort = ts?.localExpressPort || Number(localExpressPort)
+          if (forwardedPort) {
+            const resp = await window.backend.requestExpress({ method: 'get', path: '/status', host: '127.0.0.1', port: Number(forwardedPort), timeout: 5000 })
+            const data = resp?.data || {}
+            const goPort = typeof data?.go?.port === 'number' ? data.go.port : null
+            const goRunning = !!data?.go?.running
+            if (goRunning && goPort) {
+              try {
+                const lp = Number(ts?.localGoPort || localGoPort)
+                await ipcRenderer.invoke('startPortTunnel', { name: 'go', localPort: lp, remotePort: Number(goPort), ensureRemoteOpen: true })
+                setRemoteGoPort(String(goPort))
+                try { tunnelContext.setTunnelInfo(await ipcRenderer.invoke('getTunnelState')) } catch(e) { console.warn('GO forward ensure tunnel context sync failed:', e) }
+              } catch (e) { /* non-fatal */ }
+            }
+          }
+        } catch(e) { console.warn('GO forward ensure on Workspace enter failed:', e) }
+      }, 300)
+    }
+    return () => {
+      if (timer) clearTimeout(timer)
+    }
+  }, [activeStep, visible])
+
+  // Heartbeat: periodically check /status and auto-rebind tunnels if remote ports change
+  useEffect(() => {
+    if (!tunnelActive || !visible || !remoteServerRunning) return
+    let interval
+    const beat = async () => {
+      if (heartbeatBusyRef.current) return
+      try {
+        heartbeatBusyRef.current = true
+        const tunnelState = await ipcRenderer.invoke('getTunnelState')
+        const forwardedPort = tunnelState?.localExpressPort
+        if (!forwardedPort) return
+        const resp = await window.backend.requestExpress({ method: 'get', path: '/status', host: '127.0.0.1', port: Number(forwardedPort), timeout: 5000 })
+        const data = resp?.data || {}
+        if (!data || !data.success) return
+        const discoveredExpress = typeof data.expressPort === 'number' ? data.expressPort : null
+        const discoveredGo = typeof data.go?.port === 'number' ? data.go.port : null
+        const discoveredMongo = typeof data.mongo?.port === 'number' ? data.mongo.port : null
+        const discoveredJup = typeof data.jupyter?.port === 'number' ? data.jupyter.port : null
+        const goRunning = !!data?.go?.running
+        if (DEBUG_TUNNEL) {
+          try {
+            console.debug('[ConnectionModal] heartbeat status', {
+              forwardedPort,
+              discoveredExpress,
+              discoveredGo,
+              discoveredMongo,
+              discoveredJup
+            })
+          } catch (_) { /* ignore logging errors */ }
+        }
+        // Express
+        if (discoveredExpress && Number(remoteExpressPort) && discoveredExpress !== Number(remoteExpressPort)) {
+          await ipcRenderer.invoke('rebindPortTunnel', { name: 'express', newRemotePort: Number(discoveredExpress) })
+          setRemoteExpressPort(String(discoveredExpress))
+        }
+        // GO: if running and a port is reported, ensure a forward exists/start it; else rebind if remote changed
+        if (goRunning && discoveredGo) {
+          try {
+            const lp = Number(tunnelState?.localGoPort || localGoPort)
+            await ipcRenderer.invoke('startPortTunnel', { name: 'go', localPort: lp, remotePort: Number(discoveredGo), ensureRemoteOpen: true })
+            setRemoteGoPort(String(discoveredGo))
+          } catch {
+            // Fallback to rebind when start fails
+            if (Number(remoteGoPort) && discoveredGo !== Number(remoteGoPort)) {
+              await ipcRenderer.invoke('rebindPortTunnel', { name: 'go', newRemotePort: Number(discoveredGo) })
+              setRemoteGoPort(String(discoveredGo))
+            }
+          }
+        } else if (discoveredGo && Number(remoteGoPort) && discoveredGo !== Number(remoteGoPort)) {
+          await ipcRenderer.invoke('rebindPortTunnel', { name: 'go', newRemotePort: Number(discoveredGo) })
+          setRemoteGoPort(String(discoveredGo))
+        }
+        // Mongo
+        if (discoveredMongo && Number(remoteDBPort) && discoveredMongo !== Number(remoteDBPort)) {
+          await ipcRenderer.invoke('rebindPortTunnel', { name: 'mongo', newRemotePort: Number(discoveredMongo) })
+          setRemoteDBPort(String(discoveredMongo))
+        }
+        // Jupyter
+        if (discoveredJup && Number(remoteJupyterPort) && discoveredJup !== Number(remoteJupyterPort)) {
+          await ipcRenderer.invoke('rebindPortTunnel', { name: 'jupyter', newRemotePort: Number(discoveredJup) })
+          setRemoteJupyterPort(String(discoveredJup))
+        }
+        try { tunnelContext.setTunnelInfo(await ipcRenderer.invoke('getTunnelState')) } catch (e) { /* quiet */ }
+      } catch(e) { /* quiet */ }
+      finally { heartbeatBusyRef.current = false }
+    }
+    interval = setInterval(beat, 20000)
+    return () => { if (interval) clearInterval(interval) }
+  }, [tunnelActive, visible, remoteServerRunning, remoteExpressPort, remoteGoPort, remoteDBPort, remoteJupyterPort])
+
   return (
     <Dialog className="modal" visible={visible} style={{ width: "60vw" }} closable={closable} onHide={onClose}>
       <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
@@ -791,13 +1472,13 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <h3 style={{ margin: 0, fontSize: '1rem' }}>Remote Express Server</h3>
-              <div style={{ fontSize: 13, color: remoteBackendStatus.includes('running') ? 'var(--success)' : remoteBackendStatus ? 'var(--warning)' : 'var(--text-muted)' }}>
+              <div style={{ fontSize: 13, color: remoteBackendStatus.includes('running') || remoteBackendStatus.includes(' reachable') ? 'var(--success)' : remoteBackendStatus ? 'var(--warning)' : 'var(--text-muted)' }}>
                 {remoteBackendStatus || 'Unknown'}
               </div>
             </div>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-                  <Button onClick={checkRemoteServer} disabled={!tunnelActive || connectionProcessing} style={{ background: 'var(--button-bg)', color: 'var(--button-text)' }}>Check</Button>
-                  <Button onClick={installRemoteServer} disabled={!tunnelActive || installingRemote} style={{ background: 'var(--button-bg)', color: 'var(--button-text)' }}>Install / Update</Button>
+              <Button onClick={checkRemoteServer} disabled={!tunnelActive || connectionProcessing} style={{ background: 'var(--button-bg)', color: 'var(--button-text)' }}>{shouldRecheck ? 'Recheck status' : 'Check'}</Button>
+              <Button onClick={installRemoteServer} disabled={!tunnelActive || installingRemote} style={{ background: 'var(--button-bg)', color: 'var(--button-text)' }}>Install / Update</Button>
               {(installingRemote || remoteInstallPhase) && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
                   {typeof remoteDownloadPercent === 'number' ? (
@@ -820,10 +1501,19 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
                 </div>
               )}
             </div>
+            {lastStartDetails && (
+              <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4 }}>
+                {lastStartDetails}
+              </div>
+            )}
             <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginTop: 8 }}>
               <span>Start on port:</span>
               <InputNumber disabled={!tunnelActive || connectionProcessing} value={remoteStartPort} onChange={e => setRemoteStartPort(e.value)} useGrouping={false} min={1} max={65535} />
-              <Button onClick={startRemoteServer} disabled={!tunnelActive || connectionProcessing} style={{ background: 'var(--button-bg)', color: 'var(--button-text)' }}>Start Server</Button>
+              {!remoteServerRunning ? (
+                <Button onClick={startRemoteServer} disabled={!tunnelActive || connectionProcessing} style={{ background: 'var(--button-bg)', color: 'var(--button-text)' }}>Start Server</Button>
+              ) : (
+                <Button onClick={stopRemoteServer} disabled={!tunnelActive || connectionProcessing} style={{ background: 'var(--danger)', color: 'var(--button-text)' }}>Stop Server</Button>
+              )}
               <Button onClick={async () => {
                 if (!tunnelActive) return toast.error('SSH tunnel not active.')
                 try {
@@ -848,12 +1538,17 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
                 <Tag value={requirementsMetRemote ? 'OK' : 'Missing'} severity={requirementsMetRemote ? 'success' : 'warning'} rounded />
               </div>
               <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4 }}>
-                Python Env: <strong style={{ color: requirementsDetailsRemote.pythonEnv ? 'var(--success)' : 'var(--danger)' }}>{requirementsDetailsRemote.pythonEnv ? 'Yes' : 'No'}</strong> · Packages: <strong style={{ color: requirementsDetailsRemote.pythonPackages ? 'var(--success)' : 'var(--danger)' }}>{requirementsDetailsRemote.pythonPackages ? 'OK' : 'Missing'}</strong> · MongoDB: <strong style={{ color: requirementsDetailsRemote.mongoInstalled ? 'var(--success)' : 'var(--danger)' }}>{requirementsDetailsRemote.mongoInstalled ? 'Installed' : 'Missing'}</strong>
+                Python: <strong style={{ color: requirementsDetailsRemote.pythonInstalled ? 'var(--success)' : 'var(--danger)' }}>{requirementsDetailsRemote.pythonInstalled ? 'Installed' : 'Missing'}</strong> · MongoDB: <strong style={{ color: requirementsDetailsRemote.mongoInstalled ? 'var(--success)' : 'var(--danger)' }}>{requirementsDetailsRemote.mongoInstalled ? 'Installed' : 'Missing'}</strong>
               </div>
-              <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 8 }}>
-                <Button onClick={checkRequirementsRemote} disabled={!remoteServerRunning || requirementsChecking} style={{ background: 'var(--button-bg)', color: 'var(--button-text)' }}>Check</Button>
-                <Button onClick={installRequirementsRemote} disabled={!remoteServerRunning || requirementsInstalling || requirementsMetRemote} style={{ background: 'var(--button-bg)', color: 'var(--button-text)' }}>Install Missing</Button>
-                {(requirementsChecking || requirementsInstalling) && <ProgressBar mode="indeterminate" style={{ width: 200 }} />}
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 8, flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                  <Button onClick={checkRequirementsRemote} disabled={!remoteServerRunning || requirementsChecking} style={{ background: 'var(--button-bg)', color: 'var(--button-text)' }}>Check</Button>
+                  <Button onClick={installRequirementsRemote} disabled={!remoteServerRunning || requirementsInstalling || requirementsMetRemote} style={{ background: 'var(--button-bg)', color: 'var(--button-text)' }}>Install Missing</Button>
+                  {(requirementsChecking || requirementsInstalling) && <ProgressBar mode="indeterminate" style={{ width: 200 }} />}
+                </div>
+                <span style={{ fontSize: 11, color: 'var(--text-secondary)', maxWidth: 420 }}>
+                  Note: On some Windows systems MongoDB cannot be installed automatically because the Windows Installer service is unavailable. In that case you may need to install MongoDB manually using the official instructions.
+                </span>
               </div>
             </div>
             {/* Page navigation moved to the global footer */}
@@ -898,7 +1593,7 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
             <div style={{ width: '100%'}}>
               <label>
                 Local Express Port:
-                <InputNumber disabled={tunnelActive || connectionProcessing} value={localExpressPort} onChange={e => setlocalExpressPort(e.value)} placeholder="54280" useGrouping={false} min={1} max={65535} />
+                <InputNumber disabled={tunnelActive || connectionProcessing} value={localExpressPort} onChange={e => setLocalExpressPort(e.value)} placeholder="54280" useGrouping={false} min={1} max={65535} />
                 {inputErrors.localExpressPort && <div style={{ color: 'red', fontSize: 13 }}>{inputErrors.localExpressPort}</div>}
                 {localPortWarning && <div style={{ color: 'var(--warning)', fontSize: 13, marginTop: 2 }}>{localPortWarning}</div>}
               </label>
@@ -1079,6 +1774,11 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
               rounded
             />
           )}
+          {goProbeInfo && !goVerifyLoading && (
+            <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+              Probe: remoteOpen={goProbeInfo.remoteOpen ? 'yes' : 'no'} · localReachable={goProbeInfo.localReachable ? 'yes' : 'no'}
+            </span>
+          )}
         </div>
         )}
         {/* Directory Browser Section - Step 3 */}
@@ -1089,29 +1789,7 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
             <Button
               className="refresh-btn"
               disabled={!tunnelActive || navigationProcessing}
-              onClick={async () => {
-                try {
-                  setNavigationProcessing(true)
-                  // Use new backend navigation handler
-                  const navResult = await ipcRenderer.invoke('navigateRemoteDirectory', {
-                    action: 'list',
-                    path: remoteDirPath
-                  })
-                  if (navResult && navResult.path) setRemoteDirPath(navResult.path)
-                  if (Array.isArray(navResult?.contents)) {
-                    setDirectoryContents(navResult.contents.map(item => ({
-                      name: item.name,
-                      type: item.type === 'dir' ? 'dir' : 'file'
-                    })))
-                  } else {
-                    setDirectoryContents([])
-                  }
-                } catch {
-                  setDirectoryContents([])
-                } finally {
-                  setNavigationProcessing(false)
-                }
-              }}
+              onClick={refreshRemoteDirectory}
               title="Refresh directory contents"
             >
               <IoIosRefresh style={{ height: '21px', width: '18px' }} />
@@ -1132,43 +1810,84 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
               className="set-workspace-btn"
               icon="folder-open"
               onClick={async () => {
-                const tunnelState = getTunnelState()
+                if (!remoteDirPath) {
+                  toast.error('Select a workspace directory first.')
+                  return
+                }
+
+                // If the remote server is ready, merge behavior: connect (ensure services + set directory + close modal)
+                if (remoteServerRunning && requirementsMetRemote) {
+                  setNavigationProcessing(true)
+                  try {
+                    await connectWorkspace()
+                  } finally {
+                    setNavigationProcessing(false)
+                  }
+                  return
+                }
+
+                // Otherwise: just set the working directory (keeps behavior of the old button)
+                if (!tunnelActive) {
+                  toast.error('SSH tunnel is not active. Connect first.')
+                  return
+                }
+                if (!remoteServerRunning) {
+                  toast.error('Remote server not ready. Start the server first.')
+                  return
+                }
+
                 setConnectionProcessing(true)
                 setNavigationProcessing(true)
-                window.backend.requestExpress({ method: 'post', path: '/set-working-directory', host: tunnelState.host, port: tunnelState.localExpressPort, body: { workspacePath: remoteDirPath } })
-                  .then((response) => {
-                    if (response.data.success) {
-                      toast.success("Workspace set successfully on remote app.")
-                      if (response.data.workspace !== workspace) {
-                        setWorkspace(response.data.workspace)
-                      }
-                      setConnectionProcessing(false)
-                      setNavigationProcessing(false)
-                    } else {
-                      toast.error("Failed to set workspace on remote app: " + (response.data.error || "Unknown error"))
-                      setConnectionProcessing(false)
-                      setNavigationProcessing(false)
+                try {
+                  let tunnelState = await ipcRenderer.invoke('getTunnelState')
+                  const forwardedPort = tunnelState?.localExpressPort || Number(localExpressPort)
+                  if (!forwardedPort) throw new Error('No forwarded Express port available')
+
+                  const response = await window.backend.requestExpress({
+                    method: 'post',
+                    path: '/set-working-directory',
+                    host: '127.0.0.1',
+                    port: Number(forwardedPort),
+                    body: { workspacePath: remoteDirPath }
+                  })
+                  console.log("Recieved workspace object from remote:", response.data.workspace)
+
+                  if (response?.data?.success) {
+                    toast.success('Workspace set successfully on remote app.')
+                    
+                    // Establish mongoDB tunnel
+                    try {
+                      const mongoPort = Number(response?.data?.workspace?.newPort || remoteDBPort)
+                      await ipcRenderer.invoke('startPortTunnel', { name: 'mongo', localPort: Number(localDBPort), remotePort: mongoPort, ensureRemoteOpen: true })
+                      setRemoteDBPort(String(mongoPort))
+                    } catch (e) {
+                      console.warn('Failed to start mongo tunnel:', e)
                     }
-                  })
-                  .catch((error) => {
-                    toast.error("Error setting workspace on remote app: " + error)
-                    setConnectionProcessing(false)
-                    setNavigationProcessing(false)
-                  })
+
+                    // Confirm tunnel established, otherwise cancel showing the workspace
+                    tunnelState = await ipcRenderer.invoke('getTunnelState')
+                    if (!tunnelState.tunnels.mongo?.active) {
+                      throw new Error('MongoDB tunnel not active after workspace set, cannot show workspace.')
+                    }
+
+                    if (response.data.workspace !== workspace) {
+                      setWorkspace(response.data.workspace)
+                    }
+                  } else {
+                    toast.error('Failed to set workspace on remote app: ' + (response?.data?.error || 'Unknown error'))
+                  }
+                } catch (error) {
+                  const msg = error && error.message ? error.message : String(error)
+                  toast.error('Error setting workspace on remote app: ' + msg)
+                } finally {
+                  setConnectionProcessing(false)
+                  setNavigationProcessing(false)
+                }
               }}
-              title="Set this directory as workspace on remote app"
-              disabled={!tunnelActive || navigationProcessing || !remoteDirPath}
+              title="Set this directory as workspace (and connect when ready)"
+              disabled={!tunnelActive || navigationProcessing || connectionProcessing || !remoteDirPath}
             >
               Set as Workspace
-            </Button>
-            <Button
-              className="connect-workspace-btn"
-              onClick={connectWorkspace}
-              title="Establish services and connect to this workspace"
-              disabled={!tunnelActive || !remoteDirPath || connectionProcessing || !remoteServerRunning || !requirementsMetRemote}
-              style={{ background: 'var(--button-bg)', color: 'var(--button-text)' }}
-            >
-              Connect Workspace
             </Button>
             <Button
               className="leave-workspace-btn"
@@ -1177,15 +1896,19 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
                   setConnectionProcessing(true)
                   // Stop Mongo if possible
                   await window.backend.requestExpress({ method: 'post', path: '/stop-mongo', host, port: Number(localExpressPort) })
+                  setWorkspace({
+                    hasBeenSet: false,
+                    workingDirectory: "",
+                    isRemote: false
+                  })
                 } catch (e) {
                   // ignore stop failures
                 }
                 finally {
                   setConnectionProcessing(false)
                 }
-                handleDisconnect()
               }}
-              title="Disconnect and stop servers"
+              title="Disconnect from the current mongoDB workspace"
               disabled={!tunnelActive || connectionProcessing}
               style={{ background: 'var(--danger)', color: 'var(--button-text)' }}
             >
@@ -1239,6 +1962,25 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
           />
         </div>
         )}
+        {/* Remote Server Debug Panel - collapsible */}
+        <div style={{ marginTop: '1rem', borderTop: '1px solid var(--border-color)', paddingTop: '1rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+            <h3 style={{ margin: 0, fontSize: '1rem' }}>Remote Server Panel</h3>
+            <Button
+              onClick={() => setShowRemotePanel(v => !v)}
+              style={{ marginLeft: 'auto', background: 'var(--bg-secondary)', color: 'var(--text-secondary)' }}
+              title={showRemotePanel ? 'Hide panel' : 'Show panel'}
+            >
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                {showRemotePanel ? 'Hide' : 'Show'}
+                {showRemotePanel ? <GoChevronUp size={18} /> : <GoChevronDown size={18} />}
+              </span>
+            </Button>
+          </div>
+          {showRemotePanel && (
+            <RemoteServerPage />
+          )}
+        </div>
         {/* Global wizard footer navigation */}
         {tunnelStatus && (
           <div>

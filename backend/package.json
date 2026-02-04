@@ -1,3 +1,11 @@
 {
-  "type": "module"
+  "name": "medomics-server-backend",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "body-parser": "^1.20.2",
+    "cors": "^2.8.5",
+    "directory-tree": "^3.5.1",
+    "express": "^4.19.2"
+  }
 }

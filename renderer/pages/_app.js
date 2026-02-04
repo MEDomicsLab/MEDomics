@@ -70,8 +70,9 @@ import "../styles/theme.css"
  * It is the parent of the LayoutContextProvider, which provides the layout model to all components.
  * @constructor
  */
-function App({ Component, pageProps }) {
-  // Note: Component and pageProps are required by Next.js but not used in this layout-based app
+// Commented unused Next.js props Component and pageProps to fix linting problems
+// function App({ Component, pageProps }) {
+function App() {
   let initialLayout = {
     // this is the intial layout model for flexlayout model that is passed to the LayoutManager -- See flexlayout-react docs for more info
     global: {

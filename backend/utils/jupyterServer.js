@@ -1,8 +1,8 @@
 import fs from "fs"
 import { getBundledPythonEnvironment } from "./pythonEnv.js"
 import util from "util"
-import { spawn } from "child_process"
-const exec = util.promisify((await import('child_process')).exec)
+import { spawn, exec as execCb } from "child_process"
+const exec = util.promisify(execCb)
 
 let jupyterStatus = { running: false, error: null }
 let jupyterPort = 8900

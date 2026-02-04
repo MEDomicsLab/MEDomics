@@ -5,7 +5,20 @@ import bodyParser from "body-parser"
 import * as serverWorkspace from "./utils/serverWorkspace.js"
 const { createServerMedomicsDirectory, createServerWorkingDirectory, getServerWorkingDirectory } = serverWorkspace
 import * as mongoDBServer from "./utils/mongoDBServer.js"
-const { startMongoDB, stopMongoDB, getMongoDBPath, checkMongoIsRunning } = mongoDBServer
+const { startMongoDB, stopMongoDB, getMongoDBPath, checkMongoIsRunning, getMongoDebugInfo } = mongoDBServer
+
+async function waitForMongoUp(port, timeoutMs = 12000) {
+	const start = Date.now()
+	while (Date.now() - start < timeoutMs) {
+		try {
+			if (await checkMongoIsRunning(port)) return true
+		} catch (_) {
+			// ignore
+		}
+		await new Promise(r => setTimeout(r, 250))
+	}
+	return false
+}
 import cors from "cors"
 import dirTree from "directory-tree"
 import { exec, execSync } from "child_process"
@@ -17,6 +30,9 @@ import MEDconfig from "./utils/medomics.server.dev.js"
 import * as serverInstallation  from "./utils/serverInstallation.js"
 const { checkRequirements } = serverInstallation
 import { runServer, findAvailablePort } from "./utils/server.mjs"
+import fs from "fs"
+import path from "path"
+import os from "os"
 
 const expressApp = express()
 expressApp.use(bodyParser.json())
@@ -28,7 +44,7 @@ expressApp.use(function(req, res, next) {
 	next()
 })
 
-const EXPRESS_PORT_START = 3000
+const EXPRESS_PORT_START = 5000
 const EXPRESS_PORT_END = 8000
 
 // Service state snapshot to report via /status and to keep idempotent ensures
@@ -37,6 +53,48 @@ const serviceState = {
 	go: { running: false, port: null },
 	mongo: { running: false, port: null },
 	jupyter: { running: false, port: null }
+}
+
+// Keep a handle to the HTTP server to support graceful stop via endpoint
+let httpServer = null
+
+// --- State file helpers ---
+function getStateFilePath() {
+	const dir = path.join(os.homedir(), ".medomics", "medomics-server")
+	try { if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true }) } catch(e) { console.warn("[state-file] mkdir error:", e && e.message ? e.message : e) }
+	return path.join(dir, "state.json")
+}
+
+function snapshotState(started) {
+	return {
+		started: !!started,
+		expressPort: serviceState.expressPort,
+		pid: process.pid,
+		updatedAt: new Date().toISOString()
+	}
+}
+
+function writeStateFile(started) {
+	try {
+		const p = getStateFilePath()
+		const payload = snapshotState(started)
+		fs.writeFileSync(p, JSON.stringify(payload, null, 2))
+	} catch (e) {
+		console.warn("[state-file] write error:", e && e.message ? e.message : e)
+	}
+}
+
+// On process termination, mark started=false best-effort
+function setupGracefulShutdownState() {
+	const markStopped = () => {
+		try { writeStateFile(false) } catch(e) { console.warn("[state-file] write error on shutdown:", e && e.message ? e.message : e) }
+	}
+	try {
+		process.on("SIGINT", () => { markStopped(); process.exit(0) })
+		process.on("SIGTERM", () => { markStopped(); process.exit(0) })
+		process.on("beforeExit", () => { markStopped() })
+		process.on("exit", () => { markStopped() })
+	} catch(e) { console.warn("[state-file] error setting up graceful shutdown handlers:", e && e.message ? e.message : e) }
 }
 
 let isProd = process.env.NODE_ENV && process.env.NODE_ENV === "production"
@@ -72,11 +130,20 @@ export async function startExpressServer() {
 			}
 		}
 		console.log('[express:start] selected port', expressPort)
-		const server = expressApp.listen(expressPort, () => {
+		httpServer = expressApp.listen(expressPort, () => {
 			console.log(`Express server listening on port ${expressPort}`)
+			// Write state.json with started=true and selected port
+			writeStateFile(true)
+			setupGracefulShutdownState()
 		})
-		server.on('error', (err) => {
+		httpServer.on('error', (err) => {
 			console.error('[express:start] server error event', err && err.stack ? err.stack : err)
+		})
+		httpServer.on('close', () => {
+			// Mark stopped on server close
+			writeStateFile(false)
+			serviceState.expressPort = null
+			httpServer = null
 		})
 		serviceState.expressPort = expressPort
 		if (process.send) {
@@ -118,6 +185,27 @@ function normalizePathForPlatform(p) {
 async function startGoServer(preferredPort = null) {
 	// Kick the Go server using existing helper; capture process handle and update state
 	try {
+		// Ensure bundled python exists and has required packages (e.g. pandas)
+		// so GO-launched scripts don't fail at import time.
+		try {
+			const pythonExe = getBundledPythonEnvironment()
+			if (!pythonExe) {
+				throw new Error('Bundled Python environment not found')
+			}
+			const reqOk = checkPythonRequirements(pythonExe)
+			if (!reqOk) {
+				console.log('[python] requirements missing; installing into', pythonExe)
+				await installRequiredPythonPackages(null, pythonExe)
+				const reqOk2 = checkPythonRequirements(pythonExe)
+				if (!reqOk2) {
+					throw new Error('Python requirements are still missing after install')
+				}
+			}
+		} catch (pyErr) {
+			console.error('[python] ensure requirements failed:', pyErr && pyErr.message ? pyErr.message : pyErr)
+			throw pyErr
+		}
+
 		const { process: proc, port } = await runServer(isProd, preferredPort, goServerProcess, goServerState, null)
 		goServerProcess = proc
 		serviceState.go.running = true
@@ -153,6 +241,60 @@ expressApp.post("/run-go-server", async (req, res) => {
 	res.json({ success: true, running: true, port: serviceState.go.port })
 })
 
+// Stop Express server gracefully
+expressApp.post("/stop-express", async (req, res) => {
+	try {
+		if (!httpServer) {
+			return res.status(200).json({ success: true, message: 'Express not running' })
+		}
+		httpServer.close(() => {
+			try { writeStateFile(false) } catch (e) { /* ignore */ }
+			serviceState.expressPort = null
+			httpServer = null
+			res.json({ success: true, stopped: true })
+		})
+	} catch (err) {
+		console.error("Error stopping Express server:", err)
+		res.status(500).json({ success: false, error: err.message })
+	}
+	// Stop GO server if running
+	try {
+		if (goServerProcess) {
+			console.log('[express:stop] stopping GO server...')
+			try { goServerProcess.kill('SIGTERM') } catch (_) { /* ignore */ }
+			// Best-effort wait, then force kill if needed
+			await new Promise(r => setTimeout(r, 500))
+			try { goServerProcess.kill('SIGKILL') } catch (_) { /* ignore */ }
+			goServerProcess = null
+			goServerState.serverIsRunning = false
+			serviceState.go.running = false
+			serviceState.go.port = null
+		}
+	} catch (e) {
+		console.warn('[express:stop] GO stop warning:', e && e.message ? e.message : e)
+	}
+
+	// Stop MongoDB if running
+	try {
+		if (serviceState.mongo.running) {
+			console.log('[express:stop] stopping MongoDB...')
+			try { await stopMongoDB() } catch (e) { console.warn('[express:stop] stopMongoDB warning:', e && e.message ? e.message : e) }
+			serviceState.mongo.running = false
+			serviceState.mongo.port = null
+		}
+	} catch (e) { console.warn('[express:stop] Mongo stop warning:', e && e.message ? e.message : e) }
+
+	// Stop Jupyter if running
+	try {
+		if (serviceState.jupyter.running) {
+			console.log('[express:stop] stopping Jupyter...')
+			try { await stopJupyterServer() } catch (e) { console.warn('[express:stop] stopJupyter warning:', e && e.message ? e.message : e) }
+			serviceState.jupyter.running = false
+			serviceState.jupyter.port = null
+		}
+	} catch (e) { console.warn('[express:stop] Jupyter stop warning:', e && e.message ? e.message : e) }
+})
+
 
 expressApp.post("/set-working-directory", async (req, res) =>{
 	let workspacePath = normalizePathForPlatform(req.body.workspacePath)
@@ -176,6 +318,7 @@ expressApp.post("/set-working-directory", async (req, res) =>{
 // Status: single source of truth snapshot for all services this backend manages
 expressApp.get("/status", async (req, res) => {
 		try {
+      console.log("Received request to get service status")
 			// Optionally refresh Jupyter runtime status on demand
 			try {
 				const jStatus = await checkJupyterIsRunning()
@@ -223,12 +366,6 @@ expressApp.post("/ensure-go", async (req, res) => {
 // Body optional: { workspacePath?: string }
 expressApp.post("/ensure-mongo", async (req, res) => {
 	try {
-		// Determine workspace path: prefer body.workspacePath, else current sessionData
-		let workspacePath = req?.body?.workspacePath || getServerWorkingDirectory()
-		workspacePath = normalizePathForPlatform(workspacePath)
-		// Ensure .medomics config and data directories exist
-		createServerMedomicsDirectory(workspacePath)
-
 		// If already running, return current state
 		const mongoUp = await checkMongoIsRunning(MEDconfig.mongoPort)
 		if (serviceState.mongo.running || mongoUp) {
@@ -236,15 +373,64 @@ expressApp.post("/ensure-mongo", async (req, res) => {
 			if (!serviceState.mongo.port) serviceState.mongo.port = MEDconfig.mongoPort
 			return res.json({ success: true, running: true, port: serviceState.mongo.port || MEDconfig.mongoPort })
 		}
+		// Determine workspace path: prefer body.workspacePath, else current sessionData
+		let workspacePath = req?.body?.workspacePath || getServerWorkingDirectory()
+		workspacePath = normalizePathForPlatform(workspacePath)
+		// Ensure .medomics config and data directories exist
+		createServerMedomicsDirectory(workspacePath)
+
+		// If a mongod process is already spawned (e.g., by /set-working-directory) but hasn't opened the port yet,
+		// wait for it instead of spawning a second instance (which can fail due to log file/port locks).
+		try {
+			const dbg = getMongoDebugInfo()
+			if (dbg && (dbg.running || dbg.pid)) {
+				const upExisting = await waitForMongoUp(MEDconfig.mongoPort, 12000)
+				serviceState.mongo.running = !!upExisting
+				serviceState.mongo.port = MEDconfig.mongoPort
+				if (!upExisting) {
+					return res.status(500).json({
+						success: false,
+						running: false,
+						error: "MongoDB process exists but did not start listening within timeout",
+						port: MEDconfig.mongoPort,
+						mongoDebug: getMongoDebugInfo()
+					})
+				}
+				return res.json({ success: true, running: true, port: MEDconfig.mongoPort })
+			}
+		} catch (_) {
+			// best-effort; continue with fresh start below
+		}
+
 
 		// Start MongoDB and record default port from config
 		startMongoDB(workspacePath)
-		serviceState.mongo.running = true
+		// Wait briefly for port to open so the caller gets a reliable signal
+		const up = await waitForMongoUp(MEDconfig.mongoPort, 12000)
+		serviceState.mongo.running = !!up
 		serviceState.mongo.port = MEDconfig.mongoPort
+		if (!up) {
+			return res.status(500).json({
+				success: false,
+				running: false,
+				error: "MongoDB did not start listening within timeout",
+				port: MEDconfig.mongoPort,
+				mongoDebug: getMongoDebugInfo()
+			})
+		}
 		return res.json({ success: true, running: true, port: serviceState.mongo.port })
 	} catch (err) {
 		console.error("ensure-mongo error:", err)
-		return res.status(500).json({ success: false, running: false, error: err.message })
+		return res.status(500).json({ success: false, running: false, error: err.message, mongoDebug: getMongoDebugInfo() })
+	}
+})
+
+// Debug: retrieve last MongoDB spawn/exit/stdout/stderr info
+expressApp.get("/mongo-debug", (req, res) => {
+	try {
+		return res.json({ success: true, mongoDebug: getMongoDebugInfo() })
+	} catch (err) {
+		return res.status(500).json({ success: false, error: err.message })
 	}
 })
 
@@ -463,7 +649,16 @@ expressApp.post("/stop-jupyter-server", async (req, res) => {
 			res.status(200).json({ success: !!result })
 		} catch (err) {
 			console.error("Error installing MongoDB:", err)
-			res.status(500).json({ success: false, error: err.message })
+			const payload = { success: false, error: err.message }
+			// Surface installer exit code (e.g., Windows Installer 1601) to the renderer
+			if (typeof err.code !== "undefined") {
+				payload.errorCode = err.code
+				payload.installerExitCode = err.code
+				if (err.code === 1601) {
+					payload.windowsInstallerError = true
+				}
+			}
+			res.status(500).json(payload)
 		}
 	})
 
@@ -548,7 +743,7 @@ export async function setWorkspaceDirectoryServer(workspacePath) {
 			return {
 				workingDirectory: dirTree(workspacePath),
 				hasBeenSet: hasBeenSet,
-				newPort: null
+				newPort: serviceState.mongo.port
 			}
 		} catch (error) {
 			console.error("Failed to change workspace: ", error)
@@ -565,6 +760,8 @@ if (process.argv[1] && process.argv[1].endsWith('expressServer.mjs')) {
 			console.log('[bootstrap] starting express')
 			await startExpressServer()
 			console.log('[bootstrap] express started on', serviceState.expressPort)
+			await startGoServer()
+			console.log('[bootstrap] go server started on', serviceState.go.port)
 		} catch (e) {
 			console.error('[bootstrap] fatal startup error', e && e.stack ? e.stack : e)
 			process.exit(1)

@@ -14,12 +14,20 @@ let tunnelInfo = {
   remoteJupyterPort: null,
   remotePort: null,
   username: null,
+  // Service statuses and flags
+  serverStartedRemotely: false,
+  expressStatus: "unknown",
+  expressLogPath: null,
 };
 
 export function setTunnelState(info) {
   // Exclude password
   const { password, privateKey, ...safeInfo } = info
-  tunnelInfo = { ...tunnelInfo, ...safeInfo, tunnelActive: safeInfo.tunnelActive }
+  const hasFlag = Object.prototype.hasOwnProperty.call(safeInfo, 'tunnelActive')
+  const nextTunnelActive = hasFlag
+    ? !!safeInfo.tunnelActive
+    : (typeof tunnelInfo.tunnelActive === 'boolean' ? tunnelInfo.tunnelActive : false)
+  tunnelInfo = { ...tunnelInfo, ...safeInfo, tunnelActive: nextTunnelActive }
 }
 
 export function clearTunnelState() {
@@ -37,6 +45,9 @@ export function clearTunnelState() {
     remoteJupyterPort: null,
     remotePort: null,
     username: null,
+    serverStartedRemotely: false,
+    expressStatus: "unknown",
+    expressLogPath: null,
   };
 }
 

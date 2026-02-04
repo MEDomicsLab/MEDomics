@@ -113,6 +113,108 @@ Explore our [contribution page](https://medomics-udes.gitbook.io/medomicslab-doc
 
 <img src="./resources/ContributingTools.png"/>
 
+## Server Bundle (Headless)
+
+Use the standalone server bundle to run the backend (Express + Go server + Python code) without installing the Electron app. It will ensure Python and MongoDB are available and start services for you.
+
+- Download: grab the latest `MEDomicsLab-Server-<version>-<platform>.zip` from GitHub Releases.
+- Prerequisite: install Node.js 18+ on the host and ensure outbound internet access (to download Python/Mongo when needed).
+
+### Windows
+- Extract the zip, then in PowerShell run:
+
+```powershell
+cd <extracted-folder>
+./start.bat
+```
+
+- This will:
+  - Start the Express server and print the listening port
+  - Ensure the Go server, MongoDB, and Jupyter (if requested) are installed/running
+
+- Stop the server:
+
+```powershell
+./stop.bat
+```
+
+### Linux
+- Extract the zip, then in a shell:
+
+```bash
+cd <extracted-folder>
+chmod +x start.sh stop.sh
+./start.sh
+```
+
+- Stop the server:
+
+```bash
+./stop.sh
+```
+
+### macOS
+- Extract the zip, then in a shell:
+
+```bash
+cd <extracted-folder>
+chmod +x start.sh stop.sh
+./start.sh
+```
+
+- Stop the server:
+
+```bash
+./stop.sh
+```
+
+### Status and Health
+- Query status via CLI (from bundle folder):
+
+```bash
+node ./backend/cli/medomics-server.mjs status --json
+```
+
+- Or via HTTP from another terminal/app once you know the Express port (defaults to an available port in 5000–8000):
+
+```bash
+curl http://127.0.0.1:<expressPort>/status
+```
+
+### Configuration hints
+- To force the Express port, set `MEDOMICS_EXPRESS_PORT` before starting:
+
+```bash
+MEDOMICS_EXPRESS_PORT=6000 ./start.sh   # Linux/macOS
+```
+
+```powershell
+$env:MEDOMICS_EXPRESS_PORT=6000; ./start.bat   # Windows PowerShell
+```
+
+If Python/Mongo are missing, the start script will download and install a local Python runtime under `~/.medomics/python` and set up MongoDB as needed.
+
+## Client vs Server Releases
+
+- Client (Electron app only)
+  - Tag pattern: `client-v*` (e.g., `client-v1.2.3`).
+  - Artifacts: Windows NSIS installer (`.exe` + `latest.yml` + `.blockmap`), Linux `.deb`, macOS `.dmg` and `.zip` (and `latest-mac.yml`).
+  - Contents: Electron UI only; no Go/Python/Mongo bundled.
+  - Use when you want the desktop UI and connect to a running backend.
+
+- Server (headless backend bundle)
+  - Tag pattern: `server-v*` (e.g., `server-v1.2.3`).
+  - Artifacts: `MEDomicsLab-Server-<version>-<platform>.zip` for `win32`, `linux`, `darwin`.
+  - Contents: `backend/` (Express + CLI), `go_executables/` (Go server), `pythonCode/`, `pythonEnv/`, plus start/stop scripts.
+  - Use when you want to deploy or run the backend without the Electron app.
+
+- Downloads
+  - Find both under GitHub Releases of this repository. Choose the release type (Client vs Server) matching your needs and your OS.
+
+- Versioning
+  - The tag version (after `client-v`/`server-v`) is written into `package.json` during CI, so artifacts reflect the tag version.
+  - Legacy `v*` tags (full multi-OS build) may still exist; prefer the split releases for clarity.
+
 ## Acknowledgement
 
 This project relies on the following open-source packages, and we are grateful to their developers:

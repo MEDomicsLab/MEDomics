@@ -4,9 +4,9 @@ artifactName: "${productName}-${version}-${os}.${ext}" # Added from package.json
 copyright: Copyright © 2023 MEDomicsLab Team
 # Fix for building on Windows when node-gyp is throwing errors on mongodb-client-encryption module
 ####
-# nodeGypRebuild: false
-# npmRebuild: false
-# npmArgs: "--build-from-source=false"
+nodeGypRebuild: false
+npmRebuild: false
+npmArgs: "--build-from-source=false"
 ####
 directories:
   output: build/dist # Changed from dist to build/dist to match package.json
@@ -68,6 +68,6 @@ afterPack: "build/afterPack.js" # Added from package.json
 # afterAllArtifactBuild: "build/afterAllArtifactBuild.js" # Added from package.json
 publish:
   provider: github
-  owner: "MEDomics-UdeS"
-  repo: "MEDomicsLab"
-  releaseType: "draft"
+  # Rely on GitHub Actions env var GITHUB_REPOSITORY (m-alexparent/MEDomics-NodeServerDeploymentTests)
+  # Remove explicit owner/repo so releases go to the current repo.
+  releaseType: draft

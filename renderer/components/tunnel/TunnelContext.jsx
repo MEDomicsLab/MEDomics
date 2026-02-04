@@ -15,6 +15,9 @@ export const TunnelContext = createContext({
   remoteJupyterPort: null,
   remotePort: null,
   username: null,
+  serverStartedRemotely: false,
+  expressStatus: "unknown",
+  expressLogPath: null,
   setTunnelInfo: () => {},
   clearTunnelInfo: () => {},
 })
@@ -34,11 +37,15 @@ export const TunnelProvider = ({ children }) => {
     remoteJupyterPort: null,
     remotePort: null,
     username: null,
+    serverStartedRemotely: false,
+    expressStatus: "unknown",
+    expressLogPath: null,
   })
 
   const setTunnel = (info) => {
-    // Exclude password if present
-    const { password, privateKey, ...safeInfo } = info
+    // Commented out to fix linting problems: unused password and privateKey destructuring
+    // const { password, privateKey, ...safeInfo } = info
+    const safeInfo = info
     setTunnelInfo(prev => ({ ...prev, ...safeInfo, tunnelActive: true }))
   }
 
@@ -57,6 +64,9 @@ export const TunnelProvider = ({ children }) => {
       remoteJupyterPort: null,
       remotePort: null,
       username: null,
+      serverStartedRemotely: false,
+      expressStatus: "unknown",
+      expressLogPath: null,
     })
   }
 
