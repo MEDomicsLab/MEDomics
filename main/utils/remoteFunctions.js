@@ -1100,6 +1100,24 @@ export async function startPortTunnel({ name, localPort, remotePort, ensureRemot
       return { success: false, error: 'invalid-remote-port' }
     }
 
+    // Idempotent no-op: if the tunnel already exists, is listening, and targets the same remote port,
+    // don't close/recreate it (heartbeat calls this frequently).
+    try {
+      const tunnels = Array.isArray(state.tunnels) ? state.tunnels : []
+      const existingEntry = tunnels.find(t => t && t.name === name && t.status === 'forwarding')
+      const existingServer = servers[name]
+      const requestedLocal = lp
+      const existingLocal = existingEntry ? Number(existingEntry.localPort) : null
+      const existingRemote = existingEntry ? Number(existingEntry.remotePort) : null
+      const localOk = !requestedLocal || requestedLocal === 0 || (existingLocal && requestedLocal === existingLocal)
+      if (existingServer && existingServer.listening && existingEntry && existingRemote === rp && localOk) {
+        console.log('[startPortTunnel] already forwarding', { name, localPort: existingLocal, remotePort: existingRemote })
+        return { success: true, name, localPort: existingLocal, remotePort: existingRemote, already: true }
+      }
+    } catch (_) {
+      // best-effort; continue with normal setup
+    }
+
     // Default ensure for canonical names; include retries
     const canonical = ['express', 'go', 'mongo', 'jupyter']
     const shouldEnsure = typeof ensureRemoteOpen === 'boolean' ? ensureRemoteOpen : canonical.includes(String(name || '').toLowerCase())
@@ -1233,6 +1251,7 @@ export async function stopPortTunnel({ name, localPort }) {
 }
 
 ipcMain.handle('startPortTunnel', async (_event, payload = {}) => {
+  console.log("startPortTunnel IPC called with payload:", payload)
   return startPortTunnel(payload)
 })
 ipcMain.handle('stopPortTunnel', async (_event, payload = {}) => {
@@ -1432,85 +1451,6 @@ export async function detectRemoteOS() {
   return 'win32'
 }
 
-/**
- * @description Starts the MongoDB port forwarding tunnel using an existing SSH connection.
- * Checks if the remote port is open before creating the tunnel, with retries.
- * @returns {Promise<{success: boolean}>}
- */
-export async function startMongoTunnel() {
-  mainWindow.webContents.send("setSidebarLoading", { processing: true, message: "Starting MongoDB Tunnel..." })
-  return new Promise(async (resolve, reject) => {
-    const conn = getActiveTunnel()
-    if (!conn) {
-      reject(new Error("No active SSH connection for MongoDB tunnel."))
-    }
-
-    // Retry logic: up to 5 times, 3s delay
-    let portOpen = false
-    let attempts = 0
-    const maxAttempts = 5
-    const delayMs = 3000
-    while (attempts < maxAttempts && !portOpen) {
-      try {
-        console.log(`Checking if remote MongoDB port ${mongoDBRemotePort} is open...`)
-        portOpen = await checkRemotePortOpen(conn, mongoDBRemotePort)
-      } catch (e) {
-        // If SSH command fails, treat as not open
-        portOpen = false
-      }
-      if (!portOpen) {
-        attempts++
-        if (attempts < maxAttempts) {
-          await new Promise((res) => setTimeout(res, delayMs))
-        }
-      }
-    }
-    if (!portOpen) {
-      reject(new Error(`MongoDB server is not listening on remote port ${mongoDBRemotePort} after ${maxAttempts} attempts.`))
-    }
-
-    // If mongoServer already exists, close it first
-    if (activeTunnelServer && activeTunnelServer.mongoServer) {
-      try {
-        activeTunnelServer.mongoServer.close()
-      } catch {}
-    }
-    const mongoServer = net.createServer((socket) => {
-      conn.forwardOut(socket.localAddress || "127.0.0.1", socket.localPort || 0, "127.0.0.1", parseInt(mongoDBRemotePort), (err, stream) => {
-        if (err) {
-          console.error(err)
-          socket.destroy()
-          return
-        }
-        socket.pipe(stream).pipe(socket)
-      })
-    })
-    mongoServer.listen(mongoDBLocalPort, "127.0.0.1")
-
-    mongoServer.on("error", (e) => {
-      conn.end()
-      console.error("Connection to backend Mongo error:", e)
-      reject(new Error("Mongo local server error: " + e.message))
-    })
-
-    // Update activeTunnelServer to include mongoServer
-    setActiveTunnelServer({
-      ...(activeTunnelServer || {}),
-      mongoServer: mongoServer
-    })
-    // Update tunnels list to reflect Mongo forwarding
-    try {
-      const state = getTunnelState()
-      const tunnels = Array.isArray(state.tunnels) ? state.tunnels.slice() : []
-      const idx = tunnels.findIndex(t => t.name === 'mongo')
-      const entry = { name: 'mongo', localPort: mongoDBLocalPort, remotePort: mongoDBRemotePort, status: 'forwarding' }
-      if (idx >= 0) tunnels[idx] = entry; else tunnels.push(entry)
-      setTunnelState({ ...state, tunnels })
-      mainWindow.webContents.send('tunnelStateUpdate', { tunnels })
-    } catch {}
-    resolve({ success: true })
-  })
-}
 
 /**
  * @description Confirms that the mongoDB tunnel is active and the server is listening.
@@ -1521,23 +1461,68 @@ export async function confirmMongoTunnel(loadBlocking = false) {
     mainWindow.webContents.send("setSidebarLoading", { processing: true, message: "Confirming that the MongoDB tunnel is active..." })
   }
   console.log("Confirming MongoDB tunnel is active...")
+  const conn = getActiveTunnel()
+  if (!conn) {
+    return { success: false, error: "No active SSH tunnel" }
+  }
+
   return new Promise((resolve, reject) => {
-    // Check the value of activeTunnelServer.mongoServer every 3000 ms, up to 10 times
+    // Check for a 'mongo' entry in tunnelState.tunnels and verify the remote DB port is listening.
+    // Poll every 3000 ms, up to 10 times (keeps prior behavior).
     let attempts = 0
     const maxAttempts = 10
-    const interval = setInterval(() => {
-      if (activeTunnelServer && activeTunnelServer.mongoServer) {
-        clearInterval(interval)
-        console.log("MongoDB tunnel is active and listening.")
-        resolve({ success: true })
-      } else {
+    const intervalMs = 3000
+
+    const tick = async () => {
+      try {
+        const state = getTunnelState()
+        const tunnels = Array.isArray(state.tunnels) ? state.tunnels : []
+        const mongoTunnel = tunnels.find(t => t && t.name === 'mongo')
+        const remotePort = mongoTunnel && mongoTunnel.remotePort != null
+          ? Number(mongoTunnel.remotePort)
+          : (state.remoteDBPort != null ? Number(state.remoteDBPort) : null)
+
+        if (!mongoTunnel) {
+          attempts++
+          if (attempts >= maxAttempts) {
+            clearInterval(interval)
+            return reject({ success: false, error: "MongoDB tunnel is not present in tunnel state after multiple attempts." })
+          }
+          return
+        }
+
+        if (!remotePort || Number.isNaN(remotePort)) {
+          clearInterval(interval)
+          return reject({ success: false, error: "MongoDB remote port is missing or invalid in tunnel state." })
+        }
+
+        const isRemoteListening = await checkRemotePortOpen(conn, remotePort, false)
+        if (isRemoteListening) {
+          clearInterval(interval)
+          console.log("MongoDB tunnel is active and the remote port is listening.")
+          return resolve({ success: true })
+        }
+
         attempts++
         if (attempts >= maxAttempts) {
           clearInterval(interval)
-          reject({ success: false, error: "MongoDB tunnel is not listening after multiple attempts." })
+          return reject({ success: false, error: "MongoDB is not listening on the remote port after multiple attempts." })
+        }
+      } catch (e) {
+        attempts++
+        if (attempts >= maxAttempts) {
+          clearInterval(interval)
+          return reject({ success: false, error: e && e.message ? e.message : String(e) })
         }
       }
-    }, 3000)
+    }
+
+    const interval = setInterval(() => {
+      tick()
+    }, intervalMs)
+
+    // Run an immediate check rather than waiting for the first interval.
+    tick()
   })
 }
 
@@ -1592,74 +1577,6 @@ export async function stopSSHTunnel() {
   } catch {}
   if (success) return { success: true }
   return { success: false, error: error || "No active tunnel" }
-}
-
-/**
- * @description Starts the Jupyter port forwarding tunnel using an existing SSH connection.
- * Checks if the remote port is open before creating the tunnel, with retries.
- * @returns {Promise<{success: boolean}>}
- */
-export async function startJupyterTunnel() {
-  return new Promise(async (resolve, reject) => {
-    const conn = getActiveTunnel()
-    if (!conn) {
-      reject(new Error("No active SSH connection for Jupyter tunnel."))
-    }
-
-    // If jupyterServer already exists, return
-    if (activeTunnelServer && activeTunnelServer.jupyterServer) {
-      resolve({ success: true })
-    }
-
-    // Retry logic: up to 5 times, 3s delay
-    let portOpen = false
-    let attempts = 0
-    const maxAttempts = 5
-    const delayMs = 3000
-    while (attempts < maxAttempts && !portOpen) {
-      try {
-        console.log(`Checking if remote Jupyter port ${jupyterRemotePort} is open...`)
-        portOpen = await checkRemotePortOpen(conn, jupyterRemotePort)
-      } catch (e) {
-        // If SSH command fails, treat as not open
-        portOpen = false
-      }
-      if (!portOpen) {
-        attempts++
-        if (attempts < maxAttempts) {
-          await new Promise((res) => setTimeout(res, delayMs))
-        }
-      }
-    }
-    if (!portOpen) {
-      reject(new Error(`Jupyter server is not listening on remote port ${jupyterRemotePort} after ${maxAttempts} attempts.`))
-    }
-
-    const jupyterServer = net.createServer((socket) => {
-      conn.forwardOut(socket.localAddress || "127.0.0.1", socket.localPort || 0, "127.0.0.1", parseInt(jupyterRemotePort), (err, stream) => {
-        if (err) {
-          console.error(err)
-          socket.destroy()
-          return
-        }
-        socket.pipe(stream).pipe(socket)
-      })
-    })
-    jupyterServer.listen(jupyterLocalPort, "127.0.0.1")
-
-    jupyterServer.on("error", (e) => {
-      conn.end()
-      console.error("Connection to backend Mongo error:", e)
-      reject(new Error("Mongo local server error: " + e.message))
-    })
-
-    // Update activeTunnelServer to include jupyterServer
-    setActiveTunnelServer({
-      ...(activeTunnelServer || {}),
-      jupyterServer: jupyterServer
-    })
-    resolve({ success: true })
-  })
 }
 
 
@@ -2092,10 +2009,6 @@ ipcMain.handle('startSSHTunnel', async (_event, params) => {
   return startSSHTunnel(params)
 })
 
-ipcMain.handle('startMongoTunnel', async () => {
-  return startMongoTunnel()
-})
-
 ipcMain.handle('confirmMongoTunnel', async (_event, loadBlocking ) => {
   return confirmMongoTunnel(loadBlocking)
 })
@@ -2117,7 +2030,7 @@ ipcMain.handle('setRemoteWorkspacePath', async (_event, path) => {
 })
 
 ipcMain.handle('startJupyterTunnel', async () => {
-  return startJupyterTunnel()
+  return startPortTunnel({ name: 'jupyter', localPort: jupyterLocalPort, remotePort: jupyterRemotePort, ensureRemoteOpen: true })
 })
 
 /**
