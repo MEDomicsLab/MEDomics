@@ -1839,7 +1839,7 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
                 setConnectionProcessing(true)
                 setNavigationProcessing(true)
                 try {
-                  const tunnelState = await ipcRenderer.invoke('getTunnelState')
+                  let tunnelState = await ipcRenderer.invoke('getTunnelState')
                   const forwardedPort = tunnelState?.localExpressPort || Number(localExpressPort)
                   if (!forwardedPort) throw new Error('No forwarded Express port available')
 
@@ -1850,9 +1850,26 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
                     port: Number(forwardedPort),
                     body: { workspacePath: remoteDirPath }
                   })
+                  console.log("Recieved workspace object from remote:", response.data.workspace)
 
                   if (response?.data?.success) {
                     toast.success('Workspace set successfully on remote app.')
+                    
+                    // Establish mongoDB tunnel
+                    try {
+                      const mongoPort = Number(response?.data?.workspace?.newPort || remoteDBPort)
+                      await ipcRenderer.invoke('startPortTunnel', { name: 'mongo', localPort: Number(localDBPort), remotePort: mongoPort, ensureRemoteOpen: true })
+                      setRemoteDBPort(String(mongoPort))
+                    } catch (e) {
+                      console.warn('Failed to start mongo tunnel:', e)
+                    }
+
+                    // Confirm tunnel established, otherwise cancel showing the workspace
+                    tunnelState = await ipcRenderer.invoke('getTunnelState')
+                    if (!tunnelState.tunnels.mongo?.active) {
+                      throw new Error('MongoDB tunnel not active after workspace set, cannot show workspace.')
+                    }
+
                     if (response.data.workspace !== workspace) {
                       setWorkspace(response.data.workspace)
                     }
@@ -1879,6 +1896,11 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
                   setConnectionProcessing(true)
                   // Stop Mongo if possible
                   await window.backend.requestExpress({ method: 'post', path: '/stop-mongo', host, port: Number(localExpressPort) })
+                  setWorkspace({
+                    hasBeenSet: false,
+                    workingDirectory: "",
+                    isRemote: false
+                  })
                 } catch (e) {
                   // ignore stop failures
                 }

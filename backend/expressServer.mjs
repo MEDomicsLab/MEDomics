@@ -366,12 +366,6 @@ expressApp.post("/ensure-go", async (req, res) => {
 // Body optional: { workspacePath?: string }
 expressApp.post("/ensure-mongo", async (req, res) => {
 	try {
-		// Determine workspace path: prefer body.workspacePath, else current sessionData
-		let workspacePath = req?.body?.workspacePath || getServerWorkingDirectory()
-		workspacePath = normalizePathForPlatform(workspacePath)
-		// Ensure .medomics config and data directories exist
-		createServerMedomicsDirectory(workspacePath)
-
 		// If already running, return current state
 		const mongoUp = await checkMongoIsRunning(MEDconfig.mongoPort)
 		if (serviceState.mongo.running || mongoUp) {
@@ -379,6 +373,35 @@ expressApp.post("/ensure-mongo", async (req, res) => {
 			if (!serviceState.mongo.port) serviceState.mongo.port = MEDconfig.mongoPort
 			return res.json({ success: true, running: true, port: serviceState.mongo.port || MEDconfig.mongoPort })
 		}
+		// Determine workspace path: prefer body.workspacePath, else current sessionData
+		let workspacePath = req?.body?.workspacePath || getServerWorkingDirectory()
+		workspacePath = normalizePathForPlatform(workspacePath)
+		// Ensure .medomics config and data directories exist
+		createServerMedomicsDirectory(workspacePath)
+
+		// If a mongod process is already spawned (e.g., by /set-working-directory) but hasn't opened the port yet,
+		// wait for it instead of spawning a second instance (which can fail due to log file/port locks).
+		try {
+			const dbg = getMongoDebugInfo()
+			if (dbg && (dbg.running || dbg.pid)) {
+				const upExisting = await waitForMongoUp(MEDconfig.mongoPort, 12000)
+				serviceState.mongo.running = !!upExisting
+				serviceState.mongo.port = MEDconfig.mongoPort
+				if (!upExisting) {
+					return res.status(500).json({
+						success: false,
+						running: false,
+						error: "MongoDB process exists but did not start listening within timeout",
+						port: MEDconfig.mongoPort,
+						mongoDebug: getMongoDebugInfo()
+					})
+				}
+				return res.json({ success: true, running: true, port: MEDconfig.mongoPort })
+			}
+		} catch (_) {
+			// best-effort; continue with fresh start below
+		}
+
 
 		// Start MongoDB and record default port from config
 		startMongoDB(workspacePath)
@@ -720,7 +743,7 @@ export async function setWorkspaceDirectoryServer(workspacePath) {
 			return {
 				workingDirectory: dirTree(workspacePath),
 				hasBeenSet: hasBeenSet,
-				newPort: null
+				newPort: serviceState.mongo.port
 			}
 		} catch (error) {
 			console.error("Failed to change workspace: ", error)
