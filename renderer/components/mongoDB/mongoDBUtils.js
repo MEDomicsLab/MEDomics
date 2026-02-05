@@ -1,3 +1,6 @@
+/* eslint-disable no-unused-vars */
+import { toast } from "react-toastify"
+
 const { MongoClient } = require("mongodb")
 const fs = require("fs")
 const Papa = require("papaparse")
@@ -19,6 +22,12 @@ let client
  * @description Establish a connection to MongoDB data database
  * @returns Connection to the data database
  */
+
+function stripIds(doc = {}) {
+  const { _id, id, ...rest } = doc;
+  return rest;
+}
+
 export async function connectToMongoDB() {
   if (!client) {
     client = new MongoClient(getMongoUri(), { useNewUrlParser: true, useUnifiedTopology: true })
@@ -209,6 +218,16 @@ async function insertPKLIntoCollection(filePath, collectionName) {
   const collection = db.collection(collectionName)
 
   const pklContent = fs.readFileSync(filePath)
+  
+  // Check size of the file
+  const fileSize = fs.statSync(filePath).size
+  const maxBSONSize = 16 * 1024 * 1024 // 16MB
+  if (fileSize > maxBSONSize) {
+    console.error(`PKL file ${filePath} size exceeds the maximum BSON document size of 16MB and will not be inserted in the database`)
+    toast.error(`PKL file ${filePath} size exceeds the maximum BSON document size of 16MB and will not be inserted in the database`)
+    return
+  }
+
   const document = { pklContent: pklContent }
 
   const result = await collection.insertOne(document)
@@ -232,37 +251,60 @@ async function insertBigCSVIntoCollection(filePath, collectionName) {
   let batch = []
 
   Papa.parse(fs.createReadStream(filePath), {
-    header: true,
-    dynamicTyping: true,
-    skipEmptyLines: true,
-    step: (results, parser) => {
-      const row = results.data
+  header: true,
+  dynamicTyping: true,
+  skipEmptyLines: true,
+  transformHeader: (h) => (h || '').trim(),   // NEW
+  transform: (value) => {
+    // Handle all NaN representations
+    const nanStrings = ['nan', 'NaN', 'NAN', 'null', 'Null', 'NULL', 'none', 'None', 'NONE', '']
+    
+    if (typeof value === 'string' && nanStrings.includes(value.toLowerCase())) {
+      return null
+    }
+    
+    // Handle numeric NaN (if dynamicTyping already converted some)
+    if (typeof value === 'number' && isNaN(value)) {
+      return null
+    }
+    
+    return value
+  },
+  step: (results, parser) => {
+    const row = results.data;
 
-      // We look at the columns and then we know which ones we want (makes it so no new useless columns gets added)
-      if (!allowedColumns && Object.keys(row).length > 0) {
-        allowedColumns = Object.keys(row)
-      }
+    if (!allowedColumns && Object.keys(row).length > 0) {
+      allowedColumns = Object.keys(row);
+    }
 
-      // Filter out any keys not in allowedColumns (usually not necessary since header:true)
-      const cleanedRow = Object.fromEntries(Object.entries(row).filter(([key]) => allowedColumns.includes(key)))
-      batch.push(cleanedRow)
-
-      // Once the batch size is reached (number of rows is reached), pause parsing and insert the batch.
-      if (batch.length >= batchSize) {
-        parser.pause()
-        collection
-          .insertMany(batch)
-          .then(() => {
-            // Clear the batch and resume parsing
-            batch = []
-            parser.resume()
+    // Additional cleanup for any remaining NaN values
+    const cleanedRow = stripIds(
+      Object.fromEntries(
+        Object.entries(row)
+          .filter(([key]) => allowedColumns.includes(key))
+          .map(([key, value]) => {
+            // Final NaN cleanup for any values that slipped through
+            if (value === null || value === undefined) {
+              return [key, null]
+            } else if (typeof value === 'number' && isNaN(value)) {
+              return [key, null]
+            } else if (typeof value === 'string' && value.toLowerCase() === 'nan') {
+              return [key, null]
+            }
+            return [key, value]
           })
-          .catch((error) => {
-            console.error("Error inserting batch:", error)
-            parser.abort()
-          })
-      }
-    },
+      )
+    );
+
+    batch.push(cleanedRow);
+
+    if (batch.length >= batchSize) {
+      parser.pause();
+      collection.insertMany(batch)
+        .then(() => { batch = []; parser.resume(); })
+        .catch((error) => { console.error("Error inserting batch:", error); parser.abort(); });
+    }
+  },
     complete: () => {
       // When parsing is complete, check if any rows remain to be inserted.
       if (batch.length > 0) {
@@ -304,6 +346,21 @@ async function insertCSVIntoCollection(filePath, collectionName) {
       Papa.parse(fs.createReadStream(filePath), {
         header: true,
         dynamicTyping: true, // Automatically convert numeric fields to numbers
+        transform: (value) => {
+          // Handle all NaN representations
+          const nanStrings = ['nan', 'NaN', 'NAN', 'null', 'Null', 'NULL', 'none', 'None', 'NONE', '']
+          
+          if (typeof value === 'string' && nanStrings.includes(value.toLowerCase())) {
+            return null
+          }
+          
+          // Handle numeric NaN (if dynamicTyping already converted some)
+          if (typeof value === 'number' && isNaN(value)) {
+            return null
+          }
+          
+          return value
+        },
         complete: async (results) => {
           try {
             if (results.data.length == 0) {
@@ -311,7 +368,16 @@ async function insertCSVIntoCollection(filePath, collectionName) {
               resolve(null)
               return
             } 
-            const result = await collection.insertMany(results.data)
+            // Additional cleanup for any remaining NaN values
+            const cleanedData = results.data.map(row => {
+              const cleanRow = {}
+              for (const [key, value] of Object.entries(row)) {
+                cleanRow[key] = (typeof value === 'number' && isNaN(value)) ? null : value
+              }
+              return cleanRow
+            })
+            
+            const result = await collection.insertMany(cleanedData)
             console.log(`CSV data inserted with ${result.insertedCount} documents`)
             resolve(result)
           } catch (error) {
@@ -402,14 +468,20 @@ export async function overwriteMEDDataObjectProperties(id, newData) {
  */
 export async function overwriteMEDDataObjectContent(id, jsonData) {
   try {
-    const db = await connectToMongoDB()
-    const collection = db.collection(id)
-    await collection.deleteMany({})
-    await collection.insertMany(jsonData)
-    return true
+    const db = await connectToMongoDB();
+    const collection = db.collection(id);
+    await collection.deleteMany({});
+
+    // remove any lingering _id / id fields before re-insert
+    const cleaned = (jsonData || []).map(stripIds);
+
+    if (cleaned.length) {
+      await collection.insertMany(cleaned);
+    }
+    return true;
   } catch (error) {
-    console.error("Error in overwriteMEDDataObjectContent", error)
-    return false
+    console.error("Error in overwriteMEDDataObjectContent", error);
+    return false;
   }
 }
 
@@ -470,18 +542,36 @@ export async function deleteMEDDataObject(id) {
  * @param {String} collectionId Id of the collection to retrieve columns from
  * @returns {Array} An array of column names
  */
-export async function getCollectionColumns(collectionId, dropId = false) {
+export async function getCollectionColumns(collectionId) {
   try {
-    const db = await connectToMongoDB()
-    const collection = db.collection(collectionId)
-    const document = dropId ? await collection.findOne({}, { projection: { _id: 0 } }) : await collection.findOne({})
+    const db = await connectToMongoDB();
+    const collection = db.collection(collectionId);
 
-    return document ? Object.keys(document) : [] // Return column names or empty array
+    // Look across multiple docs to capture sparse columns, and exclude _id at source
+    const cursor = collection.find({}, { projection: { _id: 0 } }).limit(200);
+    const keys = new Set();
+    for await (const doc of cursor) {
+      Object.keys(doc || {}).forEach(k => {
+        if (k && k !== '_id' && k !== 'id') keys.add(k);
+      });
+    }
+    return Array.from(keys).sort();
   } catch (error) {
-    console.error("Error fetching collection columns:", error)
-    return [] // Return empty array to avoid breaking UI
+    console.error("Error fetching collection columns:", error);
+    return [];
   }
 }
+
+export async function getCollectionRows(collectionId, limit = 10000) {
+  const db = await connectToMongoDB();
+  const collection = db.collection(collectionId);
+  const docs = await collection
+    .find({}, { projection: { _id: 0 } })
+    .limit(limit)
+    .toArray();
+  return docs.map(stripIds);
+}
+
 
 /**
  * @description Get the tags of a collection specified by id
@@ -497,6 +587,21 @@ export async function getCollectionTags(collectionId) {
   const result = await collection.find({ collection_id: collectionId })
 
   return result
+}
+
+/**
+ * @description Get the row tags of a collection specified by id
+ * @param {String} collectionId Id of the collection to retrieve row tags from
+ * @returns {Array} An array of row tags
+ */
+export async function getCollectionRowTags(collectionId) {
+  const db = await connectToMongoDB()
+  const tags = await db.collection('row_tags').find({ collectionName: collectionId }).toArray()
+  if (tags.length === 0) {
+    console.error(`No tags found for collection ${collectionId}`)
+    return []
+  }
+  return tags
 }
 
 /**
@@ -544,6 +649,18 @@ export async function downloadCollectionToFile(collectionId, filePath, type) {
     const imageBuffer = Buffer.from(imageDocument.data.buffer)
     fs.writeFileSync(filePath, imageBuffer)
     console.log(`Collection ${collectionId} has been downloaded as PNG to ${filePath}`)
+  } else if (type === "pkl") {
+    // Check if documents have the 'model' field
+    let buffer = null
+    if (Object.keys(documents[0]).length > 0 && documents[0].model) {
+      buffer = Buffer.from(documents[0].model.buffer)
+    } else {
+      buffer = Buffer.from(documents[0].base64, 'base64')
+    }
+    
+    // Convert base64 to buffer
+    const pklBuffer = Buffer.from(buffer)
+    fs.writeFileSync(filePath, pklBuffer)
   } else {
     throw new Error("Unsupported file type")
   }

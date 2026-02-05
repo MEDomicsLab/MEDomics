@@ -32,6 +32,9 @@ func AddHandleFunc() {
 	Utils.CreateHandleFunc(prePath+"/create_group_DB/", handleCreateGroupDB)
 	Utils.CreateHandleFunc(prePath+"/generate_sample_data/", handleGenerateSampleData)
 	Utils.CreateHandleFunc(prePath+"/find_duplicate_columns_DB", handleFindDuplicateColumnsDB)
+	Utils.CreateHandleFunc(prePath+"/normalizeDB/", handleNormalizeDB)
+	Utils.CreateHandleFunc(prePath+"/drop_columns_tags/", handleDeleteColumnsAndTags)
+
 }
 
 // handleMerge handles the request to merge the datasets for the DB
@@ -297,6 +300,16 @@ func handleGenerateSampleData(jsonConfig string, id string) (string, error) {
 	return response, nil
 }
 
+func handleNormalizeDB(jsonConfig string, id string) (string, error) {
+	log.Println("Normalizing DB...", id)
+	response, err := Utils.StartPythonScripts(jsonConfig, "../pythonCode/modules/input/normalizeDB.py", id)
+	Utils.RemoveIdFromScripts(id)
+	if err != nil {
+		return "", err
+	}
+	return response, nil
+}
+
 // handleFindDuplicateColumnsDB to identify duplicate columns from a CSV
 // It returns the response from the python script
 func handleFindDuplicateColumnsDB(jsonConfig string, id string) (string, error) {
@@ -314,5 +327,14 @@ func handleFindDuplicateColumnsDB(jsonConfig string, id string) (string, error) 
 		return "", err
 	}
 
+	return response, nil
+}
+func handleDeleteColumnsAndTags(jsonConfig string, id string) (string, error) {
+	log.Println("Deleting Columns...", id)
+	response, err := Utils.StartPythonScripts(jsonConfig, "../pythonCode/modules/input/drop_columns_tags.py", id)
+	Utils.RemoveIdFromScripts(id)
+	if err != nil {
+		return "", err
+	}
 	return response, nil
 }

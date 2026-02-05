@@ -108,6 +108,10 @@ const HomePage = () => {
         setRequirementsMet(false)
       }
     })
+  }, [])
+
+  // Get app's version
+  useEffect(() => {
     ipcRenderer.invoke("getAppVersion").then((data) => {
       setAppVersion(data)
     })
@@ -315,9 +319,9 @@ const HomePage = () => {
       >
         <Stack direction="vertical" gap={1} style={{ alignContent: "center", flexGrow: 1 }}>
           <h2>Home page</h2>
-          <Stack direction="horizontal" gap={0} style={{ alignContent: "center" }}>
-            <h1 style={{ fontSize: "5rem" }}>MEDomicsLab </h1>
-            <h2 style={{ fontSize: "2rem", marginTop: "1.5rem" }}>v{appVersion}</h2>
+          <Stack direction="horizontal" gap={0} style={{ padding: "0 0 0 0", alignContent: "center" }}>
+            <h1 style={{ fontSize: "5rem" }}>MEDomics</h1>
+            <h2 style={{ fontSize: "2rem", marginTop: "2.5rem" }}>v{appVersion}</h2>
             <Image src={myimage} alt="" style={{ height: "175px", width: "175px" }} />
           </Stack>
           {hasBeenSet ? (
@@ -415,19 +419,18 @@ const HomePage = () => {
           style={{
             marginTop: "2rem",
             padding: "2rem",
-            backgroundColor: "#f8f9fa",
             borderRadius: "8px",
-            boxShadow: "0px 2px 5px rgba(0,0,0,0.1)",
+            boxShadow: "0px 2px 5px rgba(128, 117, 117, 0.1)",
             textAlign: "left",
             width: "100%",
           }}
         >
-          <h3 style={{ marginBottom: "1rem", color: "#0056b3" }}>
+          <h3 style={{ marginBottom: "1rem", color: "#4991dfff" }}>
             Getting Started 🚀
           </h3>
           
           <p>
-          To effectively navigate MEDomicsLab and its functionalities, we recommend consulting the official documentation and tutorial resources.
+          To effectively navigate MEDomics and its functionalities, we recommend consulting the official documentation and tutorial resources.
           These materials will help you understand how to manage datasets, perform analyses, and evaluate machine learning models within the platform.
           </p>
 
@@ -435,22 +438,22 @@ const HomePage = () => {
 
           <ul style={{ paddingLeft: "1.5rem", listStyleType: "none" }}>
             <li>📖 Documentation:  
-              <a href="https://medomics-udes.gitbook.io/medomicslab-docs/medomicslab-docs-v0/tutorials" 
-                 target="_blank" rel="noopener noreferrer" style={{ color: "#0056b3", textDecoration: "none", marginLeft: "5px" }}>
-                MEDomicsLab Documentation
+              <a href="https://medomicslab.gitbook.io/medomics-docs/tutorials" 
+                 target="_blank" rel="noopener noreferrer" style={{ color: "#4991dfff", textDecoration: "none", marginLeft: "5px" }}>
+                MEDomics Documentation
               </a>
             </li>
 
             <li>🎥 Module Tutorials:  
               <a href="https://www.youtube.com/playlist?list=PLEPy2VhC4-D6B7o0MuNNEz2DeHDR8NICj" 
-                 target="_blank" rel="noopener noreferrer" style={{ color: "#0056b3", textDecoration: "none", marginLeft: "5px" }}>
+                 target="_blank" rel="noopener noreferrer" style={{ color: "#4991dfff", textDecoration: "none", marginLeft: "5px" }}>
                 YouTube Module Guides
               </a>
             </li>
 
             <li>🎥 Testing Phase Tutorials:  
               <a href="https://www.youtube.com/playlist?list=PLEPy2VhC4-D4vuJO3X7fHboLv1k_HbGsW" 
-                 target="_blank" rel="noopener noreferrer" style={{ color: "#0056b3", textDecoration: "none", marginLeft: "5px" }}>
+                 target="_blank" rel="noopener noreferrer" style={{ color: "#4991dfff", textDecoration: "none", marginLeft: "5px" }}>
                 YouTube Playlist
               </a>
             </li>
@@ -462,12 +465,18 @@ const HomePage = () => {
           style={{
             marginTop: "1rem",
             padding: "1rem",
-            backgroundColor: "#ffeeba",
+            backgroundColor: "#97781bff",
             borderLeft: "4px solid #ffc107",
             borderRadius: "5px"
           }}
         >
-          ⚠️ <strong>Note:</strong> The Testing Phase offers the first official tutorials of MEDomicsLab, based on the pre-released version launched in January 2024. Despite subsequent improvements, these tutorials are still a valuable starting point for new users.
+          ⚠️ <strong>Note:</strong> The Testing Phase offers the first official tutorials of MEDomics, 
+          based on the pre-released version launched in January 2024. Despite subsequent improvements, 
+          these tutorials are still a valuable starting point for new users. The testing phase documentation can be found
+          in the version<a href="https://medomicslab.gitbook.io/medomics-docs/medomicslab-docs-v0/test-with-mimic" 
+          target="_blank" rel="noopener noreferrer" style={{ color: "#4991dfff", textDecoration: "none", marginLeft: "5px" }}>
+               V0
+              </a> of the docs.
         </div>
 
         </div>

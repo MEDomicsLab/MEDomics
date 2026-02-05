@@ -66,12 +66,14 @@ const VarsSelectMultiple = ({ key, onChange, selectedVars, selectedTags, selecte
               isInSelectedTags = true
             }
           })
-          isInSelectedTags && varsToShow.push({ name: key + " | " + timePrefix + "_" + value.join("_"), value: key + "_" + timePrefix })
+          isInSelectedTags && varsToShow.push({ name: key + " | " + timePrefix + "_" + value.join("_"), value: key })
         })
       })
 
       updateCurrentVars(varsToShow)
       setVarsList(varsToShow)
+      varsToShow && setLocalVars(varsToShow.map((it) => it.value))
+      onChange(varsToShow.map((it) => it.value))
     } else {
       setVarsList([])
     }

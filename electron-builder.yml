@@ -1,5 +1,5 @@
-appId: com.medomicslab.medapp
-productName: MEDomicsLab # Changed from MEDapp to MEDomicsLab to match package.json
+appId: com.medomics.medapp
+productName: MEDomics # Changed from MEDomicsLab to MEDomics
 artifactName: "${productName}-${version}-${os}.${ext}" # Added from package.json
 copyright: Copyright © 2023 MEDomicsLab Team
 # Fix for building on Windows when node-gyp is throwing errors on mongodb-client-encryption module
@@ -29,8 +29,14 @@ extraResources: # Add this section if it doesn't exist, or add the line to it
       - "!**/__pycache__/**"
       - "!**/*.pyc"
       - "!**/*.pyo"
+      - "!**/.git"
+      - "!**/.git/**"
   - from: ./pythonEnv # Source directory
     to: pythonEnv # Destination directory inside Contents/Resources
+    filter:
+      - "**/*"
+      - "!**/.git"
+      - "!**/.git/**"
 
 extends: null # Added from package.json
 mac: # Added from package.json
@@ -54,6 +60,7 @@ mac: # Added from package.json
   #   - "Contents/MacOS/MEDomicsLab"
 pkg: # Added from package.json
   isRelocatable: false
+  scripts: "../build/pkg-scripts"
 win: # Added from package.json
   target: nsis
   icon: "app/assets/icon.ico"
@@ -68,6 +75,6 @@ afterPack: "build/afterPack.js" # Added from package.json
 # afterAllArtifactBuild: "build/afterAllArtifactBuild.js" # Added from package.json
 publish:
   provider: github
-  # Rely on GitHub Actions env var GITHUB_REPOSITORY (m-alexparent/MEDomics-NodeServerDeploymentTests)
-  # Remove explicit owner/repo so releases go to the current repo.
-  releaseType: draft
+  owner: "MEDomicsLab"
+  repo: "MEDomics"
+  releaseType: "draft"

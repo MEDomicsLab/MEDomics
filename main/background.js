@@ -174,7 +174,7 @@ autoUpdater.autoInstallOnAppQuit = true
 // on Linux: ~/.config/{app name}/logs/main.log
 // on macOS: ~/Library/Logs/{app name}/main.log
 // on Windows: %USERPROFILE%\AppData\Roaming\{app name}\logs\main.log
-const APP_NAME = isProd ? "medomicslab-application" : "medomicslab-application (development)"
+const APP_NAME = isProd ? "medomics-platform" : "medomics-platform (development)"
 
 const originalConsoleLog = console.log
 /**
@@ -1160,7 +1160,6 @@ function sendStatusToWindow(text) {
 }
 
 autoUpdater.on("checking-for-update", () => {
-  console.log("DEBUG: checking for update")
   sendStatusToWindow("Checking for update...")
 })
 
@@ -1173,7 +1172,7 @@ autoUpdater.on("update-available", (info) => {
     buttons: ["Download", "Later"],
     title: "Application Update",
     message: "A new version is available",
-    detail: `MEDomicsLab ${info.version} is available. You have ${app.getVersion()}. Would you like to download it now?`
+    detail: `MEDomics ${info.version} is available. You have ${app.getVersion()}. Would you like to download it now?`
   }
 
   dialog.showMessageBox(mainWindow, dialogOpts).then((returnValue) => {
@@ -1212,19 +1211,19 @@ autoUpdater.on("update-downloaded", (info) => {
     buttons: ["Restart", "Later"],
     title: "Application Update",
     message: "Update Downloaded",
-    detail: `MEDomicsLab ${info.version} has been downloaded. Restart the application to apply the updates.`
+    detail: `MEDomics ${info.version} has been downloaded. Restart the application to apply the updates.`
   }
 
   // For Linux, provide additional instructions
   if (process.platform === "linux") {
-    downloadPath = path.join(process.env.HOME, ".cache", "medomicslab-application-updater", "pending")
+    downloadPath = path.join(process.env.HOME, ".cache", "medomics-platform-updater", "pending")
     debFilePath = info.files[0].url.split("/").pop()
     dialogOpts = {
       type: "info",
       buttons: ["Copy Command & Quit", "Copy Command", "Later"],
       title: "Application Update",
       message: "Update Downloaded",
-      detail: `MEDomicsLab ${info.version} has been downloaded. On Linux, you may need to run the installer with sudo:\n\nsudo dpkg -i ${path.join(downloadPath, debFilePath)} \n\nClick 'Copy Command & Restart' to copy this command to your clipboard and restart the application, or 'Copy Command' to just copy it.`
+      detail: `MEDomics ${info.version} has been downloaded. On Linux, you may need to run the installer with sudo:\n\nsudo dpkg -i ${path.join(downloadPath, debFilePath)} \n\nClick 'Copy Command & Restart' to copy this command to your clipboard and restart the application, or 'Copy Command' to just copy it.`
     }
   }
 
@@ -1364,7 +1363,7 @@ if (isProd) {
         {
           label: "Documentation",
           click() {
-            openWindowFromURL("https://medomics-udes.gitbook.io/medomicslab-docs")
+            openWindowFromURL("https://medomics-udes.gitbook.io/medomics-docs")
           }
         },
         { type: "separator" },

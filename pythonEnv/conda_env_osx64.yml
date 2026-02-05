@@ -378,7 +378,7 @@ dependencies:
     - pyunpack==0.3
     - scikit-image==0.22.0
     - scipy==1.10.1
-    - shap==0.43.0
+    - shap==0.44.1
     - slicer==0.0.7
     - tifffile==2023.9.26
     - torchxrayvision==1.2.1

@@ -1,9 +1,10 @@
-import React, { useContext } from "react"
-import Modal from "react-bootstrap/Modal"
+import { shell } from "electron"
+import { useContext, useEffect, useState } from "react"
 import Button from "react-bootstrap/Button"
-import CheckOption from "./checkOption"
-import { useState, useEffect } from "react"
+import Modal from "react-bootstrap/Modal"
+import { AiOutlineInfoCircle } from "react-icons/ai"
 import { FlowFunctionsContext } from "../flow/context/flowFunctionsContext"
+import CheckOption from "./checkOption"
 
 /**
  *
@@ -18,37 +19,136 @@ import { FlowFunctionsContext } from "../flow/context/flowFunctionsContext"
  * This component is used to display a ModalSettingsChooser modal.
  * it handles the display of the modal and the available options
  */
-const ModalSettingsChooser = ({ show, onHide, options, id, data }) => {
+const ModalSettingsChooser = ({ show, onHide, options, id, data, optionsTuning = null,  optionsEnsemble = null, title, link = null }) => {
   const [checkedUpdate, setCheckedUpdate] = useState(null)
+  const [checkedUpdateTuning, setCheckedUpdateTuning] = useState(null)
+  const [checkedUpdateEnsemble, setCheckedUpdateEnsemble] = useState(null)
   const { updateNode } = useContext(FlowFunctionsContext)
 
   // update the node when a setting is checked or unchecked from the modal
   useEffect(() => {
-    if (checkedUpdate != null) {
-      if (checkedUpdate.checked) {
-        !data.internal.checkedOptions.includes(checkedUpdate.optionName) && data.internal.checkedOptions.push(checkedUpdate.optionName)
+    if (!checkedUpdate) return;
+  
+    const settings = data.setupParam?.possibleSettings?.[data.internal.selection]?.options;
+    const option = settings?.[checkedUpdate.optionName];
+  
+    if (checkedUpdate.checked) {
+      if (!data.internal.checkedOptions.includes(checkedUpdate.optionName)) {
+        data.internal.checkedOptions.push(checkedUpdate.optionName);
+      }
+  
+      if (
+        option &&
+        "default_val" in option &&
+        data.internal.settings[checkedUpdate.optionName] !== option.default_val
+      ) {
+        data.internal.settings[checkedUpdate.optionName] = option.default_val;
+      }
+    } else {
+      data.internal.checkedOptions = data.internal.checkedOptions.filter((name) => name !== checkedUpdate.optionName);
+      delete data.internal.settings[checkedUpdate.optionName];
+    }
+  
+    updateNode({
+      id,
+      updatedData: data.internal,
+    });
+  }, [checkedUpdate]);
+  
+
+  // update the node when a setting is checked or unchecked from the modal
+  useEffect(() => {
+    if (checkedUpdateTuning != null) {
+      if (checkedUpdateTuning.checked) {
+        !data.internal.checkedOptionsTuning.includes(checkedUpdateTuning.optionName) && data.internal.checkedOptionsTuning.push(checkedUpdateTuning.optionName)
       } else {
-        data.internal.checkedOptions = data.internal.checkedOptions.filter((optionName) => optionName != checkedUpdate.optionName)
-        delete data.internal.settings[checkedUpdate.optionName]
+        data.internal.checkedOptionsTuning = data.internal.checkedOptionsTuning.filter((optionName) => optionName != checkedUpdateTuning.optionName)
+        delete data.internal.settingsTuning[checkedUpdateTuning.optionName]
       }
       updateNode({
         id: id,
         updatedData: data.internal
       })
     }
-  }, [checkedUpdate])
+  }, [checkedUpdateTuning])
+
+  useEffect(() => {
+    if (checkedUpdateEnsemble != null) {
+      if (checkedUpdateEnsemble.checked) {
+        if (!data.internal.checkedOptionsEnsemble.includes(checkedUpdateEnsemble.optionName)) {
+          data.internal.checkedOptionsEnsemble.push(checkedUpdateEnsemble.optionName)
+        }
+      } else {
+        data.internal.checkedOptionsEnsemble = data.internal.checkedOptionsEnsemble.filter(
+          (optionName) => optionName !== checkedUpdateEnsemble.optionName
+        )
+        delete data.internal.settings[checkedUpdateEnsemble.optionName]
+      }
+  
+      updateNode({
+        id,
+        updatedData: data.internal
+      })
+    }
+  }, [checkedUpdateEnsemble])
+  
+  
 
   return (
     // Base modal component built from react-bootstrap
-    <Modal show={show} onHide={onHide} size="lg" aria-labelledby="contained-modal-title-vcenter" centered className="modal-settings-chooser">
-      <Modal.Header closeButton>
-        <Modal.Title id="contained-modal-title-vcenter">{data.setupParam.title + " options"}</Modal.Title>
-      </Modal.Header>
+    <Modal show={show} onHide={onHide} size="lg" aria-labelledby="contained-modal-title-vcenter" centered className="modal-settings-chooser" style={{ zIndex: 100000 }}>
+      <Modal.Header closeButton className="d-flex align-items-center">
+        <div className="d-flex align-items-center gap-2">
+        <Modal.Title id="contained-modal-title-vcenter" className="mb-2">
+          {title || (data.setupParam?.title + " options") || "Options"}
+        </Modal.Title>
+        {(link || data.setupParam?.link) && (
+          <AiOutlineInfoCircle
+            className="btn-info-node"
+            onClick={() => shell.openExternal(link || data.setupParam?.link)}
+          />
+        )}
+      </div>
+    </Modal.Header>
       {/* Display all the options available for the node */}
-      <Modal.Body >
+      <Modal.Body>
         {Object.entries(options).map(([optionName, optionInfos], i) => {
-          return <CheckOption key={optionName + i} optionName={optionName} optionInfos={optionInfos} updateCheckState={setCheckedUpdate} defaultState={data.internal.checkedOptions.includes(optionName)} />
+          return (
+            <CheckOption key={optionName + i} optionName={optionName} optionInfos={optionInfos} updateCheckState={setCheckedUpdate} defaultState={data.internal.checkedOptions.includes(optionName)} />
+          )
         })}
+        {/* Display all the options available for the tuning */}
+        {optionsTuning && (
+          <>
+            {/* <h3>Tuning options</h3> */}
+            {Object.entries(optionsTuning).map(([optionName, optionInfos], i) => {
+              return (
+                <CheckOption
+                  key={optionName + i}
+                  optionName={optionName}
+                  optionInfos={optionInfos}
+                  updateCheckState={setCheckedUpdateTuning}
+                  defaultState={data.internal.checkedOptionsTuning.includes(optionName)}
+                />
+              )
+            })}
+          </>
+        )}
+        {/* Ensemble options */}
+        {optionsEnsemble && (
+          <>
+            <h3>Ensemble options</h3>
+            {Object.entries(optionsEnsemble).map(([optionName, optionInfos], i) => (
+              <CheckOption
+                key={optionName + i}
+                optionName={optionName}
+                optionInfos={optionInfos}
+                updateCheckState={setCheckedUpdateEnsemble}
+                defaultState={data.internal.checkedOptionsEnsemble.includes(optionName)}
+              />
+            ))}
+          </>
+        )}
       </Modal.Body>
       <Modal.Footer>
         <Button onClick={onHide}>Save</Button>

@@ -1,14 +1,11 @@
 {
   "private": true,
-  "name": "medomicslab-application",
-  "description": "MEDomicsLab application",
-  "version": "1.6.2",
+  "name": "medomics-platform",
+  "description": "MEDomics platform",
+  "version": "1.8.0",
   "author": "MEDomicsLab Team",
   "main": "app/background.js",
-  "bin": {
-    "medomics-server": "./backend/cli/medomics-server.mjs"
-  },
-  "repository": "https://github.com/m-alexparent/MEDomics-NodeServerDeploymentTests",
+  "repository": "https://github.com/MEDomicsLab/MEDomics",
   "scripts": {
     "dev": "nextron",
     "dev:headless": "nextron --electron-options=\"--no-gui\"",
@@ -43,6 +40,7 @@
     "@popperjs/core": "^2.11.6",
     "@react-three/drei": "^9.86.0",
     "@react-three/fiber": "^8.14.3",
+    "@superset-ui/embedded-sdk": "^0.1.3",
     "@tanstack/react-table": "^8.9.3",
     "@xterm/addon-fit": "^0.10.0",
     "@xterm/addon-search": "^0.15.0",
@@ -81,6 +79,7 @@
     "node-forge": "^1.3.1",
     "node-loader": "^2.1.0",
     "node-pty": "^1.1.0-beta34",
+    "mongodb-client-encryption": "^6.1.0",
     "node-sys": "^1.2.4",
     "papaparse": "^5.4.1",
     "primeicons": "^7.0.0",
@@ -94,7 +93,7 @@
     "react-csv-reader": "^4.0.0",
     "react-dropzone": "^14.2.3",
     "react-hook-form": "^7.47.0",
-    "react-icons": "^4.11.0",
+    "react-icons": "5.4.0",
     "react-iframe": "^1.8.5",
     "react-loading": "^2.0.3",
     "react-native-uuid": "^2.0.1",
@@ -114,6 +113,7 @@
     "reactflow": "^11.5.6",
     "ssh2": "^1.16.0",
     "three": "^0.156.1",
+    "uuid": "^13.0.0",
     "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.0/xlsx-0.20.0.tgz",
     "zip-local": "^0.3.5"
   },

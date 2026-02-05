@@ -20,6 +20,7 @@ import { downloadCollectionToFile, insertObjectIntoCollection } from "../compone
 import { ThemeProvider } from "../components/theme/themeContext"
 import { SidebarLoadingProvider } from "../components/layout/sidebarTools/SidebarLoadingContext"
 import SidebarLoadingController from "../components/layout/sidebarTools/SidebarLoadingController"
+import { SupersetRequestProvider } from "../components/mainPages/superset/supersetRequestContext"
 
 // CSS
 import "bootstrap/dist/css/bootstrap.min.css"
@@ -70,9 +71,8 @@ import "../styles/theme.css"
  * It is the parent of the LayoutContextProvider, which provides the layout model to all components.
  * @constructor
  */
-// Commented unused Next.js props Component and pageProps to fix linting problems
-// function App({ Component, pageProps }) {
 function App() {
+  // Note: Component and pageProps are required by Next.js but not used in this layout-based app
   let initialLayout = {
     // this is the intial layout model for flexlayout model that is passed to the LayoutManager -- See flexlayout-react docs for more info
     global: {
@@ -136,6 +136,9 @@ function App() {
   const [port, setPort] = useState() // The port of the server
 
   const [globalData, setGlobalData] = useState({}) // The global data object
+
+  const [launched, setLaunched] = useState(false) // Superset launched
+  const [supersetPort, setSupersetPort] = useState(8080) // Superset port
 
   /**
    * @ReadMe
@@ -270,7 +273,7 @@ function App() {
     <>
       <Head>
         <meta name="viewport" content="initial-scale=1.0, width=device-width" />
-        <title>MEDomicsLab</title>
+        <title>MEDomics</title>
         {/* <script src="http://localhost:8097"></script> */}
         {/* Uncomment if you want to use React Dev tools */}
       </Head>
@@ -288,6 +291,12 @@ function App() {
                     recentWorkspaces={recentWorkspaces}
                     setRecentWorkspaces={setRecentWorkspaces}
                   >
+                    <SupersetRequestProvider
+                      launched={launched}
+                      setLaunched={setLaunched}
+                      supersetPort={supersetPort}
+                      setSupersetPort={setSupersetPort}
+                    >
                     <ServerConnectionProvider port={port} setPort={setPort}>
                       <TunnelProvider>
                         <SidebarLoadingProvider>
@@ -304,6 +313,7 @@ function App() {
                         </SidebarLoadingProvider>
                       </TunnelProvider>
                     </ServerConnectionProvider>
+                    </SupersetRequestProvider>
                   </WorkspaceProvider>
                 </DataContextProvider>
               </NotificationContextProvider>

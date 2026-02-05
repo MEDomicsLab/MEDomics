@@ -43,7 +43,7 @@ class Optimize(Node):
 
             self.CodeHandler.add_line(
                 "code",
-                f"trained_models_optimized = pycaret_exp.{self.type}(trained_models, {self.CodeHandler.convert_dict_to_params(settings)})")
+                f"optimized_model = pycaret_exp.{self.type}(trained_models, {self.CodeHandler.convert_dict_to_params(settings)})", 1)
             trained_models.append(getattr(experiment['pycaret_exp'], self.type)(input_models, **settings))
         else:
             self.CodeHandler.add_line("code", f"trained_models_optimized = []")

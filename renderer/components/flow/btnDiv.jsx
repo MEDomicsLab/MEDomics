@@ -1,9 +1,9 @@
-import React from "react"
+import { Tooltip } from "primereact/tooltip"
 import { Button } from "react-bootstrap"
 import * as Icon from "react-bootstrap-icons"
-import { TfiSave } from "react-icons/tfi"
+import { AiOutlineExport, AiOutlineImport } from "react-icons/ai"
 import { PiDownload } from "react-icons/pi"
-import { AiOutlineImport } from "react-icons/ai"
+import { TfiSave } from "react-icons/tfi"
 
 /**
  *
@@ -29,44 +29,72 @@ export default BtnDiv
 const buttonType = {
   clear: (onClear, disabled = false) => {
     return (
-      <Button key="clear" variant="outline margin-left-10 padding-5" onClick={onClear} disabled={disabled}>
+      <>
+      <Tooltip target=".clear" content="Clear the scene" position="bottom"/>
+      <Button className="clear" key="clear" variant="outline margin-left-10 padding-5" onClick={onClear} disabled={disabled}>
         <Icon.Trash width="30px" height="30px" />
       </Button>
+      </>
     )
   },
   save: (onSave, disabled = false) => {
     return (
-      <Button key="save" variant="outline margin-left-10 padding-5" onClick={onSave} disabled={disabled}>
+      <>
+      <Tooltip target=".save" content="Save the scene" position="bottom"/>
+      <Button className="save" key="save" variant="outline margin-left-10 padding-5" onClick={onSave} disabled={disabled}>
         <TfiSave style={{ width: "30px", height: "auto", padding: "2px" }} />
       </Button>
+      </>
     )
   },
   download: (onDownload, disabled = false) => {
     return (
-      <Button key="download" variant="outline margin-left-10 padding-5" onClick={onDownload} disabled={disabled}>
+      <>
+      <Tooltip target=".download" content="Download the scene" position="bottom"/>
+      <Button className="download" key="download" variant="outline margin-left-10 padding-5" onClick={onDownload} disabled={disabled}>
         <PiDownload style={{ width: "30px", height: "auto" }} />
       </Button>
+      </>
     )
   },
   load: (onLoad, disabled = false) => {
     return (
-      <Button key="load" variant="outline margin-left-10 padding-5" onClick={onLoad} disabled={disabled}>
+      <>
+      <Tooltip target=".load" content="Load the scene" position="bottom"/>
+      <Button className="load" key="load" variant="outline margin-left-10 padding-5" onClick={onLoad} disabled={disabled}>
         <AiOutlineImport style={{ width: "30px", height: "auto" }} />
       </Button>
+      </>
+    )
+  },
+  export: (onExport, disabled = false) => {
+    return (
+      <>
+      <Tooltip target=".export" content="Export the scene" position="bottom"/>
+      <Button className="export" key="export" variant="outline margin-left-10 padding-5" onClick={onExport} disabled={disabled}>
+        <AiOutlineExport style={{ width: "30px", height: "auto" }} />
+      </Button>
+      </>
     )
   },
   run: (onRun, disabled = false) => {
     return (
-      <Button key="run" variant="outline margin-left-10 padding-5" onClick={onRun} disabled={disabled}>
+      <>
+      <Tooltip target=".run" content="Run the scene" position="bottom"/>
+      <Button className="run" key="run" variant="outline margin-left-10 padding-5" onClick={onRun} disabled={disabled}>
         <Icon.PlayCircle width="30px" height="30px" />
       </Button>
+      </>
     )
   },
   back: (onBack, disabled = false) => {
     return (
-      <Button key="back" variant="outline margin-left-10 padding-5" onClick={onBack} disabled={disabled}>
+      <>
+      <Tooltip target=".back" content="Go back to the previous scene" position="bottom"/>
+      <Button className="back" key="back" variant="outline margin-left-10 padding-5" onClick={onBack} disabled={disabled}>
         <Icon.Backspace width="30px" height="30px" />
       </Button>
+      </>
     )
   }
 }

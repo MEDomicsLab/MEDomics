@@ -412,6 +412,7 @@ const classificationSettings = {
                     "qda": "Quadratic Discriminant Analysis",
                     "ada": "Ada Boost Classifier",
                     "gbc": "Gradient Boosting Classifier",
+                    "xgboost" : "eXtreme Gradient Boosting",
                     "lda": "Linear Discriminant Analysis",
                     "et": "Extra Trees Classifier",
                     "xgboost": "Extreme Gradient Boosting",
@@ -730,6 +731,69 @@ const classificationSettings = {
             }
         }
     },
+        "combine_models": {
+    "options": {
+        "blend_models": { "options": {
+                "fold": {
+                    "type": "int",
+                    "tooltip": "<p>Controls cross-validation. If None, the CV generator in the fold_strategy\nparameter of the setup function is used. When an integer is passed,\nit is interpreted as the \u2018n_splits\u2019 parameter of the CV generator in the\nsetup function.</p>\n",
+                    "default_val": "None"
+                },
+                "round": {
+                    "type": "int",
+                    "tooltip": "<p>Number of decimal places the metrics in the score grid will be rounded to.</p>\n",
+                    "default_val": "4"
+                },
+                "choose_better": {
+                    "type": "bool",
+                    "tooltip": "<p>When set to True, the returned object is always better performing. The\nmetric used for comparison is defined by the optimize parameter.</p>\n",
+                    "default_val": "False"
+                },
+                "optimize": {
+                    "type": "string",
+                    "tooltip": "<p>Metric to compare for model selection when choose_better is True.</p>\n",
+                    "default_val": "Accuracy"
+                },
+                "method": {
+                    "type": "string",
+                    "tooltip": "<p>\u2018hard\u2019 uses predicted class labels for majority rule voting. \u2018soft\u2019, predicts\nthe class label based on the argmax of the sums of the predicted probabilities,\nwhich is recommended for an ensemble of well-calibrated classifiers. Default\nvalue, \u2018auto\u2019, will try to use \u2018soft\u2019 and fall back to \u2018hard\u2019 if the former is\nnot supported.</p>\n",
+                    "default_val": "auto"
+                },
+                "weights": {
+                    "type": "custom-list",
+                    "tooltip": "<p>Sequence of weights (float or int) to weight the occurrences of predicted class\nlabels (hard voting) or class probabilities before averaging (soft voting). Uses\nuniform weights when None.</p>\n",
+                    "default_val": "None"
+                },
+                "fit_kwargs": {
+                    "type": "dict",
+                    "tooltip": "<p>Dictionary of arguments passed to the fit method of the model.</p>\n",
+                    "default_val": "{} (empty dict)"
+                },
+                "groups": {
+                    "type": "string",
+                    "tooltip": "<p>Optional group labels when GroupKFold is used for the cross validation.\nIt takes an array with shape (n_samples, ) where n_samples is the number\nof rows in training dataset. When string is passed, it is interpreted as\nthe column name in the dataset containing group labels.</p>\n",
+                    "default_val": "None"
+                },
+                "probability_threshold": {
+                    "type": "float",
+                    "tooltip": "<p>Threshold for converting predicted probability to class label.\nIt defaults to 0.5 for all classifiers unless explicitly defined\nin this parameter. Only applicable for binary classification.</p>\n",
+                    "default_val": "None"
+                },
+                "verbose": {
+                    "type": "bool",
+                    "tooltip": "<p>Score grid is not printed when verbose is set to False.</p>\n",
+                    "default_val": "True"
+                },
+                "return_train_score": {
+                    "type": "bool",
+                    "tooltip": "<p>If False, returns the CV Validation scores only.\nIf True, returns the CV training scores along with the CV validation scores.\nThis is useful when the user wants to do bias-variance tradeoff. A high CV\ntraining score with a low corresponding CV validation score indicates overfitting.</p>\n",
+                    "default_val": "False"
+                }
+            } },
+        "stack_models": { /*  ex-stack_models.options */ }
+    },
+    "code": ""
+    },
     "tune_model": {
         "options": {
             "fold": {
@@ -763,14 +827,16 @@ const classificationSettings = {
                 "default_val": "None"
             },
             "search_library": {
-                "type": "string",
-                "tooltip": "<p>The search library used for tuning hyperparameters. Possible values:</p>\n<ul >\n<li><dl >\n<dt>\u2018scikit-learn\u2019 - default, requires no further installation</dt><dd><p>https://github.com/scikit-learn/scikit-learn</p>\n</dd>\n</dl>\n</li>\n<li><dl >\n<dt>\u2018scikit-optimize\u2019 - pip install scikit-optimize</dt><dd><p>https://scikit-optimize.github.io/stable/</p>\n</dd>\n</dl>\n</li>\n<li><dl >\n<dt>\u2018tune-sklearn\u2019 - pip install tune-sklearn ray[tune]</dt><dd><p>https://github.com/ray-project/tune-sklearn</p>\n</dd>\n</dl>\n</li>\n<li><dl >\n<dt>\u2018optuna\u2019 - pip install optuna</dt><dd><p>https://optuna.org/</p>\n</dd>\n</dl>\n</li>\n</ul>\n",
-                "default_val": "scikit-learn"
+                "type": "list",
+                "default_val": "scikit-learn",
+                "choices": ["scikit-learn", "scikit-optimize", "tune-sklearn", "optuna"],
+                "tooltip": "Choose the hyperparameter search library."
             },
             "search_algorithm": {
                 "type": "string",
-                "tooltip": "<p>The search algorithm depends on the search_library parameter.\nSome search algorithms require additional libraries to be installed.\nIf None, will use search library-specific default algorithm.</p>\n<ul >\n<li><dl >\n<dt>\u2018scikit-learn\u2019 possible values:</dt><dd><ul>\n<li><p>\u2018random\u2019 : random grid search (default)</p></li>\n<li><p>\u2018grid\u2019 : grid search</p></li>\n</ul>\n</dd>\n</dl>\n</li>\n<li><dl >\n<dt>\u2018scikit-optimize\u2019 possible values:</dt><dd><ul>\n<li><p>\u2018bayesian\u2019 : Bayesian search (default)</p></li>\n</ul>\n</dd>\n</dl>\n</li>\n<li><dl >\n<dt>\u2018tune-sklearn\u2019 possible values:</dt><dd><ul>\n<li><p>\u2018random\u2019 : random grid search (default)</p></li>\n<li><p>\u2018grid\u2019 : grid search</p></li>\n<li><p>\u2018bayesian\u2019 : pip install scikit-optimize</p></li>\n<li><p>\u2018hyperopt\u2019 : pip install hyperopt</p></li>\n<li><p>\u2018optuna\u2019 : pip install optuna</p></li>\n<li><p>\u2018bohb\u2019 : pip install hpbandster ConfigSpace</p></li>\n</ul>\n</dd>\n</dl>\n</li>\n<li><dl >\n<dt>\u2018optuna\u2019 possible values:</dt><dd><ul>\n<li><p>\u2018random\u2019 : randomized search</p></li>\n<li><p>\u2018tpe\u2019 : Tree-structured Parzen Estimator search (default)</p></li>\n</ul>\n</dd>\n</dl>\n</li>\n</ul>\n",
-                "default_val": "None"
+                "default_val": "None",
+                "choices": ["None","random","grid","bayesian","hyperopt","optuna","bohb","tpe"],
+                "tooltip": "Pick the search algorithm. Availability depends on the chosen library."
             },
             "early_stopping": {
                 "type": "string",
@@ -966,6 +1032,7 @@ const classificationSettings = {
                     "qda": "Quadratic Discriminant Analysis",
                     "ada": "Ada Boost Classifier",
                     "gbc": "Gradient Boosting Classifier",
+                    "xgboost": "eXtreme Gradient Boosting",
                     "lda": "Linear Discriminant Analysis",
                     "et": "Extra Trees Classifier",
                     "xgboost": "Extreme Gradient Boosting",

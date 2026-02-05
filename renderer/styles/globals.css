@@ -416,6 +416,11 @@ body {
   border-radius: 0.4rem 0.4rem 0rem 0rem;
 }
 
+[data-theme="dark"] .progress-bar-requests label {
+  background-color: #ffffff40;
+  color: #b0b0b09c;
+}
+
 .module-loading {
   position: absolute;
   top: 50%;

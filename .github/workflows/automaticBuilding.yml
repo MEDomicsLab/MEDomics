@@ -25,7 +25,7 @@ jobs:
         shell: bash
         run: |
           VERSION=${GITHUB_REF/refs\/tags\//} # Remove "refs/tags/" from the beginning of the tag name 
-          NEW_VERSION="${VERSION#w}"
+          NEW_VERSION="${VERSION#v}"
           node -p "let pkg=require('./package.json'); pkg.version='$NEW_VERSION'; require('fs').writeFileSync('package.json', JSON.stringify(pkg, null, 2));"
 
       - name: Print package.json
@@ -57,14 +57,16 @@ jobs:
         shell: bash
         run: |
           VERSION=${GITHUB_REF/refs\/tags\//}
-          echo "VERSION=${VERSION#w}" >> "$GITHUB_OUTPUT"
+          echo "VERSION=${VERSION#v}" >> "$GITHUB_OUTPUT"
 
       - name: Archive Windows
         uses: actions/upload-artifact@v4
         with:
           name: windows-built
-          path: ./build/dist/MEDomicsLab-${{ env.VERSION }}-win.exe
+          path: ./build/dist/MEDomics-${{ env.VERSION }}-win.exe
           compression-level: 0
+          if-no-files-found: error
+          overwrite: true
         env:
           VERSION: ${{ steps.get-tag.outputs.VERSION }}
 
@@ -72,8 +74,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: windows-built-blockmap
-          path: ./build/dist/MEDomicsLab-${{ env.VERSION }}-win.exe.blockmap
+          path: ./build/dist/MEDomics-${{ env.VERSION }}-win.exe.blockmap
           compression-level: 0
+          if-no-files-found: error
         env:
           VERSION: ${{ steps.get-tag.outputs.VERSION }}
 
@@ -83,11 +86,14 @@ jobs:
           name: windows-built-latest
           path: ./build/dist/latest.yml
           compression-level: 0
+          if-no-files-found: error
         env:
           VERSION: ${{ steps.get-tag.outputs.VERSION }}
 
   build-linux-ubuntu:
     runs-on: ubuntu-22.04
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
     steps:
       - name: Checkout code
@@ -150,7 +156,7 @@ jobs:
           echo "VERSION=${VERSION#v}" >> "$GITHUB_OUTPUT"
 
       - name: Rename Linux
-        run: mv ./build/dist/MEDomicsLab-${{ env.VERSION }}-linux.deb ./build/dist/MEDomicsLab-${{ env.VERSION }}-ubuntu.deb
+        run: mv ./build/dist/MEDomics-${{ env.VERSION }}-linux.deb ./build/dist/MEDomics-${{ env.VERSION }}-ubuntu.deb
         env:
           VERSION: ${{ steps.get-tag.outputs.VERSION }}
 
@@ -158,8 +164,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: linux-built-ubuntu
-          path: ./build/dist/MEDomicsLab-${{ env.VERSION }}-ubuntu.deb
+          path: ./build/dist/MEDomics-${{ env.VERSION }}-ubuntu.deb
           compression-level: 0
+          if-no-files-found: error
         env:
           VERSION: ${{ steps.get-tag.outputs.VERSION }}
 
@@ -315,8 +322,7 @@ jobs:
           CSC_INSTALLER_LINK: ${{ secrets.CSC_INSTALLER_LINK }}
           CSC_INSTALLER_KEY_PASSWORD: ${{ secrets.CSC_INSTALLER_KEY_PASSWORD }}
         run: |
-          # Prevent electron-builder from publishing here; publish occurs in the final job
-          npm run build -- --publish=never
+          npm run build:mac
 
       - name: notarize
         env:
@@ -325,7 +331,7 @@ jobs:
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
-          xcrun notarytool submit build/dist/MEDomicsLab-${{ env.VERSION }}-mac-installer.pkg --keychain-profile "notarytool-password"  --wait
+          xcrun notarytool submit build/dist/MEDomics-${{ env.VERSION }}-mac.pkg --keychain-profile "notarytool-password"  --wait
 
       - name: staple
         continue-on-error: true
@@ -335,7 +341,7 @@ jobs:
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
-          xcrun stapler staple build/dist/MEDomicsLab-${{ env.VERSION }}-mac-installer.pkg
+          xcrun stapler staple build/dist/MEDomics-${{ env.VERSION }}-mac.pkg
 
       - name: Archive latest-mac.yml
         uses: actions/upload-artifact@v4
@@ -343,15 +349,7 @@ jobs:
           name: latest-mac
           path: ./build/dist/latest-mac.yml
           compression-level: 0
-        env:
-          VERSION: ${{ steps.get-tag.outputs.VERSION }}
-
-      - name: Archive Mac
-        uses: actions/upload-artifact@v4
-        with:
-          name: mac-built
-          path: ./build/dist/MEDomicsLab-${{ env.VERSION }}-mac.pkg
-          compression-level: 0
+          if-no-files-found: error
         env:
           VERSION: ${{ steps.get-tag.outputs.VERSION }}
 
@@ -360,8 +358,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: mac-built-pkg
-          path: ./build/dist/MEDomicsLab-${{ env.VERSION }}-mac-installer.pkg
+          path: ./build/dist/MEDomics-${{ env.VERSION }}-mac.pkg
           compression-level: 0
+          if-no-files-found: error
         env:
           VERSION: ${{ steps.get-tag.outputs.VERSION }}
 
@@ -369,8 +368,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: mac-built-dmg-blockmap
-          path: ./build/dist/MEDomicsLab-${{ env.VERSION }}-mac.dmg.blockmap
+          path: ./build/dist/MEDomics-${{ env.VERSION }}-mac.dmg.blockmap
           compression-level: 0
+          if-no-files-found: error
         env:
           VERSION: ${{ steps.get-tag.outputs.VERSION }}
 
@@ -378,8 +378,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: mac-built-dmg
-          path: ./build/dist/MEDomicsLab-${{ env.VERSION }}-mac.dmg
+          path: ./build/dist/MEDomics-${{ env.VERSION }}-mac.dmg
           compression-level: 0
+          if-no-files-found: error
         env:
           VERSION: ${{ steps.get-tag.outputs.VERSION }}
 
@@ -387,8 +388,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: mac-built-zip-blockmap
-          path: ./build/dist/MEDomicsLab-${{ env.VERSION }}-mac.zip.blockmap
+          path: ./build/dist/MEDomics-${{ env.VERSION }}-mac.zip.blockmap
           compression-level: 0
+          if-no-files-found: error
         env:
           VERSION: ${{ steps.get-tag.outputs.VERSION }}
 
@@ -396,8 +398,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: mac-built-zip
-          path: ./build/dist/MEDomicsLab-${{ env.VERSION }}-mac.zip
+          path: ./build/dist/MEDomics-${{ env.VERSION }}-mac.zip
           compression-level: 0
+          if-no-files-found: error
         env:
           VERSION: ${{ steps.get-tag.outputs.VERSION }}
 
@@ -482,16 +485,24 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           files: |
-            ./MEDomicsLab-${{ env.VERSION }}-win.exe
-            ./MEDomicsLab-${{ env.VERSION }}-win.exe.blockmap
+            ./MEDomics-${{ env.VERSION }}-win.exe
+            ./MEDomics-${{ env.VERSION }}-win.exe.blockmap
             ./latest.yml
             ./MEDomicsLab-${{ env.VERSION }}-ubuntu.deb
 
 
           name: MEDomicsLab-${{ env.VERSION }}
+            ./MEDomics-${{ env.VERSION }}-ubuntu.deb
+            ./MEDomics-${{ env.VERSION }}-mac.pkg
+            ./MEDomics-${{ env.VERSION }}-mac.dmg
+            ./MEDomics-${{ env.VERSION }}-mac.zip
+            ./latest-mac.yml
+            ./MEDomics-${{ env.VERSION }}-mac.dmg.blockmap
+            ./MEDomics-${{ env.VERSION }}-mac.zip.blockmap
+          name: MEDomics-${{ env.VERSION }}
           body: |
-            MEDomicsLab-${{ env.VERSION }}
-            This is a full release of MEDomicsLab. This release includes the MEDomicsLab application and the Python environment.
+            MEDomics-${{ env.VERSION }}
+            This is a full release of MEDomics. This release includes the MEDomics platform and the Python environment.
             Refer to the [Documentation](https://medomics-udes.gitbook.io/medomicslab-docs/)
             ${{ github.ref }}
           draft: true

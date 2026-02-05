@@ -264,9 +264,10 @@ const DataTableFromDB = ({ data, tablePropsData, tablePropsColumn, isReadOnly })
         field,
         newValue
       })
-      updateDatabaseData(data.path, data.id, rowData._id, field, newValue)
+      updateDatabaseData(data.id, rowData._id, field, newValue)
         .then(() => {
           console.log("Database updated successfully")
+          toast.success("Cell updated successfully.")
           setLastEdit(Date.now())
         })
         .catch((error) => {

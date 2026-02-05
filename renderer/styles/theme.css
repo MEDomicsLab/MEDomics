@@ -22,7 +22,7 @@
   --input-focus: #86b7fe;
   --shadow: rgba(0, 0, 0, 0.15);
   --shadow-hover: rgba(0, 0, 0, 0.25);
-  --terminal-bg: #ffffff;
+  --terminal-bg: #c9c9c9;
   --terminal-text: #212529;
   --success: #198754;
   --warning: #ffc107;
@@ -71,7 +71,7 @@ body {
 }
 /* Label styles */
 label {
-  color: var(--text-primary) !important;
+  color: var(--text-primary);
   font-weight: 500;
 }
 
@@ -98,14 +98,14 @@ label {
 .card,
 .panel,
 .p-card {
-  background-color: var(--card-bg) !important;
+  background-color: var(--card-bg);
   border-color: var(--card-border) !important;
   color: var(--text-primary) !important;
 }
 
 .card-header,
 .p-card-header {
-  background-color: var(--bg-secondary) !important;
+  background-color: var(--card-bg) !important;
   border-bottom-color: var(--border-color) !important;
   color: var(--text-primary) !important;
 }

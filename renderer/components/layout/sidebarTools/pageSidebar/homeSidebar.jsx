@@ -3,6 +3,7 @@ import { Accordion, Button, Stack } from "react-bootstrap"
 import { WorkspaceContext } from "../../../workspace/workspaceContext"
 import { ipcRenderer } from "electron"
 import SidebarDirectoryTreeControlled from "../directoryTree/sidebarDirectoryTreeControlled"
+import SupersetPanel from "../../../mainPages/superset/supersetPanel"
 
 /**
  * @description - This component is the sidebar tools component that will be used in the sidebar component as the home page
@@ -41,6 +42,8 @@ const HomeSidebar = () => {
         <Accordion defaultActiveKey={["dirTree"]} alwaysOpen>
           <SidebarDirectoryTreeControlled />
         </Accordion>
+
+        {workspace.hasBeenSet == true && (<SupersetPanel />)}
       </Stack>
     </>
   )

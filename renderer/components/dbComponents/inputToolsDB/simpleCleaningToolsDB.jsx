@@ -18,6 +18,8 @@ import { insertMEDDataObjectIfNotExists } from "../../mongoDB/mongoDBUtils"
 import { ServerConnectionContext } from "../../serverConnection/connectionContext"
 import { DataContext } from "../../workspace/dataContext"
 import { MEDDataObject } from "../../workspace/NewMedDataObject"
+import { Tooltip } from 'primereact/tooltip';
+        
 
 /**
  * @description
@@ -202,6 +204,31 @@ const SimpleCleaningToolsDB = ({ currentCollection }) => {
 
   return (
     <>
+       <Tooltip
+      target=".experimental-tag"
+      content="This tool is experimental and mostly intended for visual exploration. We recommand using the Learning Module for validated pipelines."
+    />
+
+    <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "-5px" }}>
+      <div
+        className="experimental-tag"
+        style={{
+          background: "#fff3cd",              
+          padding: "3px 10px",
+          borderRadius: "12px",
+          border: "1px solid #ffeeba",        
+          fontSize: "0.75rem",
+          color: "#856404",                  
+          display: "inline-flex",
+          alignItems: "center",
+          gap: "6px"
+        }}
+      >
+        <i className="pi pi-info-circle" style={{ fontSize: "0.85rem" }}></i>
+        Recommended in Learning Module
+      </div>
+    </div>
+
       <div style={{ textAlign: "center", marginBottom: "10px" }}>
         <Message
           severity="info"

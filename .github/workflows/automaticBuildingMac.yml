@@ -166,7 +166,7 @@ jobs:
         env:
           VERSION: ${{ steps.get-tag.outputs.VERSION }}
         run: |
-          xcrun notarytool submit build/dist/MEDomicsLab-${{ env.VERSION }}-mac.pkg --keychain-profile "notarytool-password" --wait
+          xcrun notarytool submit build/dist/MEDomics-${{ env.VERSION }}-mac.pkg --keychain-profile "notarytool-password" --wait
 
       - name: staple
         continue-on-error: true
@@ -176,13 +176,13 @@ jobs:
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
-          xcrun stapler staple build/dist/MEDomicsLab-${{ env.VERSION }}-mac.pkg
+          xcrun stapler staple build/dist/MEDomics-${{ env.VERSION }}-mac.pkg
 
       - name: Archive Mac
         uses: actions/upload-artifact@v4
         with:
           name: mac-built
-          path: ./build/dist/MEDomicsLab-${{ env.VERSION }}-mac.pkg
+          path: ./build/dist/MEDomics-${{ env.VERSION }}-mac.pkg
           compression-level: 0
         env:
           VERSION: ${{ steps.get-tag.outputs.VERSION }}
@@ -191,7 +191,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: mac-built-pkg
-          path: ./build/dist/MEDomicsLab-${{ env.VERSION }}-mac.pkg
+          path: ./build/dist/MEDomics-${{ env.VERSION }}-mac.pkg
           compression-level: 0
         env:
           VERSION: ${{ steps.get-tag.outputs.VERSION }}
@@ -200,7 +200,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: mac-built-dmg
-          path: ./build/dist/MEDomicsLab-${{ env.VERSION }}-mac.dmg
+          path: ./build/dist/MEDomics-${{ env.VERSION }}-mac.dmg
           compression-level: 0
         env:
           VERSION: ${{ steps.get-tag.outputs.VERSION }}
@@ -209,7 +209,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: mac-built-zip
-          path: ./build/dist/MEDomicsLab-${{ env.VERSION }}-mac.zip
+          path: ./build/dist/MEDomics-${{ env.VERSION }}-mac.zip
           compression-level: 0
         env:
           VERSION: ${{ steps.get-tag.outputs.VERSION }}
@@ -252,7 +252,7 @@ jobs:
           ls -R
 
       - name: zip Mac
-        run: zip -r MEDomicsLab-PythonEnv-mac.zip ./create_conda_env_mac.sh ./requirements_mac.txt
+        run: zip -r MEDomics-PythonEnv-mac.zip ./create_conda_env_mac.sh ./requirements_mac.txt
 
       - name: Get tag name
         id: get-tag
@@ -264,13 +264,13 @@ jobs:
         uses: softprops/action-gh-release@v1
         with:
           files: |
-            ./MEDomicsLab-${{ env.VERSION }}-mac.pkg
-            ./MEDomicsLab-${{ env.VERSION }}-mac.dmg
-            ./MEDomicsLab-${{ env.VERSION }}-mac.zip
-          name: MEDomicsLab-${{ env.VERSION }}
+            ./MEDomics-${{ env.VERSION }}-mac.pkg
+            ./MEDomics-${{ env.VERSION }}-mac.dmg
+            ./MEDomics-${{ env.VERSION }}-mac.zip
+          name: MEDomics-${{ env.VERSION }}
           body: |
-            MEDomicsLab-${{ env.VERSION }}
-            This is a full release of MEDomicsLab. This release includes the MEDomicsLab application and the Python environment.
+            MEDomics-${{ env.VERSION }}
+            This is a full release of MEDomics. This release includes the MEDomics platform and the Python environment.
             Refer to the [Documentation](https://medomics-udes.gitbook.io/medomicslab-docs/)
             ${{ github.ref }}
           draft: true

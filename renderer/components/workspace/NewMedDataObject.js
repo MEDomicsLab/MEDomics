@@ -55,7 +55,7 @@ export class MEDDataObject {
    */
   static getChildIDWithName(dict, parentID, name) {
     for (const childID of dict[parentID].childrenIDs) {
-      if (dict[childID].name == name) {
+      if (dict[childID] && dict[childID].name == name) {
         return childID
       }
     }
@@ -506,6 +506,13 @@ export class MEDDataObject {
       return
     }
 
+    // Check if the object is already in workspace
+    if (medDataObject.type == "directory" && medDataObject.inWorkspace && fs.existsSync(this.getFullPath(dict, id, workspacePath))) {
+      console.log(`MEDDataObject with id ${id} is already saved locally in workspace`)
+      toast.info(`${medDataObject.name} is already saved locally in workspace`)
+      return
+    }
+
     // Check if this object has already been synced to avoid infinite loops
     if (syncedObjects.has(id)) {
       return
@@ -552,6 +559,9 @@ export class MEDDataObject {
             })
         } else {
           await downloadCollectionToFile(id, filePath, medDataObject.type)
+          if (medDataObject.inWorkspace && notify) {
+            toast.success(`Sync ${medDataObject.name} successfully`)
+          }
         }  
       }
 
@@ -567,7 +577,7 @@ export class MEDDataObject {
 
       // Update inWorkspace property to true after successful download
       if (!medDataObject.inWorkspace) {
-        const updateData = { inWorkspace: true }
+        const updateData = filePath ? { inWorkspace: true, path: filePath } : { inWorkspace: true }
         const updateSuccess = await overwriteMEDDataObjectProperties(id, updateData)
 
         if (updateSuccess) {

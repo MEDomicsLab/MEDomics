@@ -1,19 +1,16 @@
-import React from "react"
-import DropzoneComponent from "../../../mainPages/dataComponents/dropzoneComponent"
-import medomicsImg from "../../../../../resources/medomics.svg"
-import * as Icon from "react-bootstrap-icons"
 import Image from "next/image"
+import React from "react"
+import * as Icon from "react-bootstrap-icons"
+import { FaPython } from "react-icons/fa"
 import { PiGraph } from "react-icons/pi"
+import medomicsImg from "../../../../../resources/medomics.svg"
+import DropzoneComponent from "../../../mainPages/dataComponents/dropzoneComponent"
+import { collectionExists } from "../../../mongoDB/mongoDBUtils"
 
 const iconExtension = {
   folder: (isExpanded) => (isExpanded ? <span style={{ paddingBottom: "0.15rem" }}>📂</span> : <span style={{ paddingBottom: "0.15rem" }}>📁</span>),
   csv: <span className="emoji">🛢️</span>,
   view: <span className="emoji">👁️</span>,
-  py: (
-    <span className="emoji">
-      <Image src={"https://img.icons8.com/?size=100&id=13441&format=png&color=000000"} width={12} height={12} alt="python.svg" />
-    </span>
-  ),
   json: (
     <span>
       <Icon.Braces className="icon-offset" style={{ color: "yellow" }} />
@@ -80,6 +77,11 @@ const iconExtension = {
     <span>
       <Icon.ArchiveFill className="icon-offset" style={{ color: "#5b95ff" }} />
     </span>
+  ),
+  py: (
+    <span>
+      <FaPython className="icon-offset" style={{ color: "#5b95ff" }} />
+    </span>
   )
 
   // 📗📙📘📒📑📈📊🧮🎯💊🧬🔬🧰💾📄🗒️💥🎛️⚙️
@@ -109,6 +111,7 @@ const cx = (...classNames) => classNames.filter((cn) => !!cn).join(" ")
 const renderItem = ({ item, depth, children, title, context, arrow }, additionalParams) => {
   const InteractiveComponent = context.isRenaming ? "div" : "button"
   const type = context.isRenaming ? undefined : "button"
+  const itemInMongoDB = collectionExists(item.index)
 
   const folderItemContent = (
     <li
@@ -249,6 +252,8 @@ const renderItem = ({ item, depth, children, title, context, arrow }, additional
                       🔒
                     </span>
                   )}
+                  {additionalParams.showMongoDetails && itemInMongoDB && <img src="https://cdn3.emoji.gg/emojis/21146-mongodb.png" width="16px" height="16px" alt="mongodb" />}
+                  {additionalParams.showMongoDetails && item.path && <img src="https://www.freeiconspng.com/uploads/floppy-save-icon--23.png" width="16px" height="16px" alt="local" />}
                 </div>
               </InteractiveComponent>
             </div>

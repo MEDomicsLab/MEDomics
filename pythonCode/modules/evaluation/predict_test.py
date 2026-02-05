@@ -4,6 +4,15 @@ import sys
 import uuid
 from pathlib import Path
 
+import pandas as pd
+
+# --- Guard for pandas >= 2.0 (iteritems removed) ---
+if not hasattr(pd.Series, "iteritems"):
+    pd.Series.iteritems = pd.Series.items
+if not hasattr(pd.DataFrame, "iteritems"):
+    pd.DataFrame.iteritems = pd.DataFrame.items
+
+
 from pycaret.classification.oop import ClassificationExperiment
 from pycaret.regression.oop import RegressionExperiment
 
@@ -54,18 +63,18 @@ class GoExecScriptPredictTest(GoExecutionScript):
         ml_type = model_metadata['ml_type']
         self.set_progress(label="Loading the model", now=10)
         pickle_object_id = get_child_id_by_name(model_infos['id'], "model.pkl")
-        model = get_pickled_model_from_collection(pickle_object_id)
-        go_print(f"model loaded: {model}") 
 
-        
-        columns_to_keep = None
-        # if model.__class__.__name__ != 'LGBMClassifier':
-            # Get the feature names from the model
-        if dir(model).__contains__('feature_names_in_'):
-            columns_to_keep = model.__getattribute__('feature_names_in_').tolist()
-        
-        if dir(model).__contains__('feature_name_') and columns_to_keep is None:
-            columns_to_keep = model.__getattribute__('feature_name_')
+        # Check if pickle_object_id is None
+        if pickle_object_id is None:
+            raise ValueError("Could not find the model.pkl in the database.")
+
+        # Load the model
+        model = get_pickled_model_from_collection(pickle_object_id)
+        go_print(f"model loaded: {model}")
+
+        # Check if model is not None
+        if model is None:
+            raise ValueError("The model could not be loaded from the database.")
 
         self.set_progress(label="Loading the dataset", now=20)
         
@@ -82,26 +91,17 @@ class GoExecScriptPredictTest(GoExecutionScript):
             print("Dataset has no ID and is not MEDomicsLab standard")
             raise ValueError("Dataset has no ID and is not MEDomicsLab standard")
 
-        # Remove columns with spaces in the name
-        dataset.columns = dataset.columns.str.replace(' ', '_')
-
-        if columns_to_keep is not None:
-            # Add the target to the columns to keep if it's not already there
-            if model_metadata['target'] not in columns_to_keep:
-                columns_to_keep.append(model_metadata['target'])
-            dataset = dataset[columns_to_keep]
-
         # calculate the predictions
         self.set_progress(label="Setting up the experiment", now=30)
-        exp = None
         if ml_type == 'regression':
-            exp = RegressionExperiment()
+            from pycaret.regression import predict_model
+            self.set_progress(label="Predicting...", now=50)
+            pred_unseen = predict_model(model, data=dataset)
         elif ml_type == 'classification':
-            exp = ClassificationExperiment()
-        self.set_progress(label="Setting up the experiment", now=50)
-        exp.setup(data=dataset, target=model_metadata['target'])
-        self.set_progress(label="Predicting...", now=70)
-        pred_unseen = exp.predict_model(model, data=dataset)
+            from pycaret.classification import predict_model
+            self.set_progress(label="Predicting...", now=50)
+            pred_unseen = predict_model(model, data=dataset)
+        self.set_progress(now=70)
         
         # Save predictions
         prediction_object = MEDDataObject(

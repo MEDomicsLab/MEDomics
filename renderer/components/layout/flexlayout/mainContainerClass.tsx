@@ -27,7 +27,7 @@ import "prismjs/themes/prism-coy.css"
 import * as React from "react"
 import * as Icons from "react-bootstrap-icons"
 import Iframe from "react-iframe"
-import { toast } from "react-toastify"
+import { toast, ToastOptions } from "react-toastify"
 import { getPathSeparator, loadCSVFromPath, loadJSONFromPath, loadJsonPath, loadXLSXFromPath } from "../../../utilities/fileManagementUtils"
 import DataTableWrapperBPClass from "../../dataTypeVisualisation/dataTableWrapperBPClass"
 import DataTableFromDB from "../../dbComponents/dataTableFromDB"
@@ -39,6 +39,7 @@ import ExploratoryPage from "../../mainPages/exploratory"
 import ExtractionImagePage from "../../mainPages/extractionImage"
 import ExtractionMEDimagePage from "../../mainPages/extractionMEDimage"
 import ExtractionTextPage from "../../mainPages/extractionText"
+import ExtractionLandingPage from "../../mainPages/extractionLandingPage"
 import ExtractionTSPage from "../../mainPages/extractionTS"
 import HomePage from "../../mainPages/home"
 import HtmlViewer from "../../mainPages/htmlViewer"
@@ -50,6 +51,8 @@ import ModulePage from "../../mainPages/moduleBasics/modulePage"
 import OutputPage from "../../mainPages/output"
 import SettingsPage from "../../mainPages/settings"
 import LoggingPage from "../../mainPages/logging"
+import Superset from "../../mainPages/superset/supersetEmbedder"
+import SupersetFrame from "../../mainPages/superset/SupersetFrame"
 import TerminalPage from "../../mainPages/terminal"
 import IPythonPage from "../../mainPages/ipython"
 import RemoteServerPage from "../../mainPages/remoteServer"
@@ -72,6 +75,8 @@ import { useTunnel } from "../../tunnel/TunnelContext"
 const util = require("util")
 const exec = util.promisify(require("child_process").exec)
 const { spawn } = require('child_process')
+import { SiApachesuperset  } from "react-icons/si"
+import { PiGraph } from "react-icons/pi"
 
 var fields = ["Name", "Field1", "Field2", "Field3", "Field4", "Field5"]
 
@@ -202,13 +207,13 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
     if (this.props.workspace?.isRemote) {
       // Proxy remote Express request via main process
       // Using new IPC-based request to avoid direct HTTP from renderer
-  window.backend.requestExpress({ method: 'get', path: '/check-jupyter-status', host: this.props.tunnel.host })
-      .then((response) => {
+      window.backend.requestExpress({ method: 'get', path: '/check-jupyter-status', host: this.props.tunnel.host })
+      .then((response: { data: { running: boolean; error: string | null } }) => {
         setJupyterStatus(response.data)
       })
-      .catch((error) => {
+      .catch((error: string) => {
         console.error("Error checking Jupyter on remote server: ", error)
-        toast.error("Error checking Jupyter on remote server: ", error)
+        toast.error("Error checking Jupyter on remote server: " + error)
         setJupyterStatus({ running: false, error: "Error checking Jupyter on remote server: " + error })
       })
     } else {
@@ -295,7 +300,7 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
       let uuidToCheck = idMap[key]._attributes.config?.uuid
       // let dataObject = uuidToCheck?.uuid
       console.log("dataObject", dataObject)
-      if (uuidToCheck !== undefined && uuidToCheck === dataObject._UUID) {
+      if (uuidToCheck !== undefined && uuidToCheck === dataObject.uuid) {
         tabsToDelete.push(idMap[key])
       }
     })
@@ -643,7 +648,7 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
    * @param savedCode the new value of savedCode
    */
   updateSavedCode = (savedCode: boolean, nodeId: string) => {
-    const fileName = this.state.model?.getNodeById(nodeId)?.getHelpText()
+    const fileName = this.state.model?.getNodeById(nodeId)?.getHelpText() ?? this.state.model?.getNodeById(nodeId)?.getId()
     this.saved[nodeId] = savedCode
     if (fileName) this.state.model!.doAction(Actions.renameTab(nodeId, fileName + (savedCode ? "" : "*")))
   }
@@ -972,6 +977,8 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
           return <ExtractionImagePage pageId={"ExtractionImagePage"} />
         }
       }
+    } else if (component === "extractionLandingPage") {
+      return <ExtractionLandingPage/>
     } else if (component === "extractionMEDimagePage") {
       if (node.getExtraData().data == null) {
         const config = node.getConfig()
@@ -1022,6 +1029,24 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
         const config = node.getConfig()
         return <LoggingPage />
       }
+    } else if (component === "supersetPage") {
+      if (node.getExtraData().data == null) {
+        const config = node.getConfig()
+        if (config.path !== null) {
+          return <Superset pageId={config.uuid} />
+        } else {
+          return <Superset pageId={"supersetPage"} />
+        }
+      }
+    } else if (component === "SupersetFramePage") {
+      if (node.getExtraData().data == null) {
+        const config = node.getConfig()
+        if (config.path !== null) {
+          return <SupersetFrame pageId={config.uuid} />
+        } else {
+          return <SupersetFrame pageId={"supersetPage"} />
+        }
+      }
     } else if (component === "terminal") {
       if (node.getExtraData().data == null) {
         const config = node.getConfig()
@@ -1059,7 +1084,7 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
         console.log("config", config)
         return <Iframe url={config.path} width="100%" height="100%" />
       }
-    } else if (component === "codeEditor") {
+    } else if (component === "codeEditor" || component === "Code Editor") {
       if (node.getExtraData().data == null) {
         const config = node.getConfig()
         setIsEditorOpen(true)
@@ -1176,6 +1201,9 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
       if (component === "learningPage") {
         return <span style={{ marginRight: 3 }}>📖</span>
       }
+      if (component === "extractionLandingPage") {
+        return <span style={{ marginRight: 3 }}>❯❯❯❯</span>
+      }
       if (component === "extractionTextPage") {
         return <span style={{ marginRight: 3 }}>📄</span>
       }
@@ -1188,7 +1216,7 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
       if (component === "extractionTSPage") {
         return <span style={{ marginRight: 3 }}>📈</span>
       }
-      if (component === "medflPage") {
+      if (component === "medflPage" || component === "htmlViewer") {
         return <span style={{ marginRight: 3 }}>🌐</span>
       }
       if (component === "med3paPage") {
@@ -1215,6 +1243,15 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
       }
       if (component === "Settings") {
         return <span style={{ marginRight: 3 }}>⚙️</span>
+      }
+      if (component === "supersetPage") {
+        return <SiApachesuperset style={{ marginRight: 3 }} />
+      }
+      if (component === "SupersetFramePage") {
+        return <SiApachesuperset style={{ marginRight: 3 }} />
+      }
+      if (component === "modelViewer") {
+        return <span><PiGraph className="icon-offset" style={{ color: "#97edfb" }} /></span>
       }
     }
   }

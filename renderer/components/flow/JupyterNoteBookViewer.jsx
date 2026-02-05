@@ -14,13 +14,23 @@ import { useTunnel } from "../tunnel/TunnelContext"
  * @param {function} setJupyterStatus - function to set the Jupyter server status
  * @returns {JSX.Element} - A Jupyter Notebook viewer
  */
-const JupyterNotebookViewer = ({ filePath, startJupyterServer, isRemote = false, jupyterStatus, setJupyterStatus }) => {
+const JupyterNotebookViewer = ({ filePath, startJupyterServer }) => {
+  const exec = require("child_process").exec
+  const {jupyterStatus, setJupyterStatus} = useContext(LayoutModelContext)
+  const [jupyterURL, setJupyterURL] = useState("")
   const [loading, setLoading] = useState(true)
   const fileName = path.basename(filePath) // Get the file name from the path
   // Get the relative path after "DATA" in the filePath
   // This works cross-platform (Windows, Mac, Linux)
-  const match = filePath.replace(/\\/g, "/").match(/DATA\/(.+)$/)
-  const relativePath = match ? match[1] : filePath
+  let match = null
+  if (filePath.includes("DATA")) {
+    match = filePath.replace(/\\/g, "/").match(/DATA\/(.+)$/)
+  } else if (filePath.includes("EXPERIMENTS")) {
+    match = filePath.replace(/\\/g, "/").match(/EXPERIMENTS\/(.+)$/)
+  } else {
+    match = filePath.replace(/\\/g, "/")
+  }
+  const relativePath = match ? match[0] : filePath
 
   const tunnel = useTunnel()
 
@@ -42,6 +52,7 @@ const JupyterNotebookViewer = ({ filePath, startJupyterServer, isRemote = false,
       console.log("Jupyter server running status:", isRunning)
       if (!isRunning.running) {
         // Start the Jupyter server
+        setJupyterStatus({ running: false, error: null })
         setLoading(true)
         try{
           await startJupyterServer()
@@ -77,12 +88,13 @@ const JupyterNotebookViewer = ({ filePath, startJupyterServer, isRemote = false,
     runJupyter()
   }, [])
 
-  const getJupyterURL = () => {
-    if (isRemote) {
-      return "http://localhost:" + tunnel.localJupyterPort + "/notebooks/" + relativePath
+  useEffect(() => {
+    if (jupyterStatus.running) {
+      const url = "http://localhost:" + defaultJupyterPort + "/notebooks/" + relativePath
+      setJupyterURL(url)
+      setLoading(false)
     }
-    return "http://localhost:" + defaultJupyterPort + "/notebooks/" + relativePath
-  }
+  }, [filePath, jupyterStatus, relativePath])
 
   const refreshIframe = () => {
     document.getElementById("iframe-" + fileName).src += ''
@@ -108,7 +120,7 @@ const JupyterNotebookViewer = ({ filePath, startJupyterServer, isRemote = false,
       ) : (
       <>
         {!jupyterStatus.running && <p className="error-message">{jupyterStatus.error}</p>}
-        <Iframe id={"iframe-" + fileName} className="jupyter-notebook-frame" src={getJupyterURL()}></Iframe>
+        <Iframe id={"iframe-" + fileName} className="jupyter-notebook-frame" src={jupyterURL}></Iframe>
         <button onClick={refreshIframe} id="reload-button" className="p-button p-component p-button-outlined">Reload</button>
         <style>
           {`

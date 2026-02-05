@@ -29,6 +29,52 @@ class GoExecScriptCreateHoldoutSet(GoExecutionScript):
     def __init__(self, json_params: dict, _id: str = None):
         super().__init__(json_params, _id)
         self.results = {"data": "nothing to return"}
+        
+    def _clone_column_tags(self, db, tags_collection_name: str,
+                       src_collection: str, dst_collection: str,
+                       available_columns: list):
+        """
+        Clone column-level tags from `src_collection` to `dst_collection`.
+        Only columns present in `available_columns` are cloned.
+        Tags collection must contain docs like:
+        { collection_id: <str>, column_name: <str>, tags: <list>, ... }
+        Upsert key: (collection_id, column_name) — idempotent.
+        """
+        tags_col = db[tags_collection_name]
+        try:
+            tags_col.create_index(
+                [("collection_id", 1), ("column_name", 1)],
+                unique=True,
+                name="uniq_collection_column",
+            )
+        except Exception as e:
+            go_print(f"[tags][warn] create_index: {e}")
+
+        allowed = set(map(str, available_columns))
+        cursor = tags_col.find({"collection_id": src_collection}, {"_id": 0})
+
+        src_count = 0
+        written = 0
+        for doc in cursor:
+            src_count += 1
+            col = str(doc.get("column_name", "")).strip()
+            if not col or col not in allowed:
+                continue
+            payload = dict(doc)
+            payload["collection_id"] = dst_collection
+            try:
+                tags_col.update_one(
+                    {"collection_id": dst_collection, "column_name": col},
+                    {"$set": payload},
+                    upsert=True,
+                )
+                written += 1
+            except Exception as e:
+                go_print(f"[tags][error] upsert {dst_collection}.{col}: {e}")
+
+        go_print(f"[tags] cloned '{src_collection}' → '{dst_collection}' "
+                f"(source_docs={src_count}, written={written})")
+
 
     def _custom_process(self, json_config: dict) -> dict:
         """
@@ -51,6 +97,9 @@ class GoExecScriptCreateHoldoutSet(GoExecutionScript):
         final_name = json_config["name"]
         final_name2 = json_config["name2"]
         collection_name = json_config["collectionName"]
+        keep_tags = bool(json_config.get("keepTags", True))
+        tags_collection_name = json_config.get("tagsCollectionName", "column_tags")
+
 
         # Connect to MongoDB
         db = connect_to_mongo()
@@ -109,8 +158,27 @@ class GoExecScriptCreateHoldoutSet(GoExecutionScript):
         db.create_collection(holdoutCollection)
         holdoutCollection = db[holdoutCollection]
         data_dict = holdout_set.where(pd.notnull(holdout_set), None).to_dict(orient='records')
-        holdoutCollection.insert_many(data_dict)
-
+        holdoutCollection.insert_many(data_dict)    
+        
+        if keep_tags:
+            try:
+                self._clone_column_tags(
+                    db=db,
+                    tags_collection_name=tags_collection_name,   # ex: "column_tags"
+                    src_collection=collection_name,              # dataset source 
+                    dst_collection=final_name,                   # Learning_*
+                    available_columns=list(train_set.columns)    # columns
+                )
+                self._clone_column_tags(
+                    db=db,
+                    tags_collection_name=tags_collection_name,
+                    src_collection=collection_name,              # dataset source
+                    dst_collection=final_name2,                  # Holdout_*
+                    available_columns=list(holdout_set.columns)
+                )
+            except Exception as e:
+                go_print(f"[tags][warn] cloning failed: {e}")
+        
         return
 
 script = GoExecScriptCreateHoldoutSet(json_params_dict, id_)
