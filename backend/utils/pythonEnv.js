@@ -4,7 +4,6 @@ import util from "util"
 import fs from "fs"
 import { execSync, exec as execCb } from "child_process"
 const exec = util.promisify(execCb)
-import join from "path"
 import { readdir, stat, rm } from "fs/promises"
 
 function getServerBundleRoot() {
@@ -74,13 +73,13 @@ async function getDirectorySize(dir) {
     const files = await readdir(dir, { withFileTypes: true })
 
     const paths = files.map(async file => {
-        const path = join(dir, file.name)
+        const filePath = path.join(dir, file.name)
         if (file.isDirectory()) {
             // Recurse into subdirectories
-            return await getDirectorySize(path)
+            return await getDirectorySize(filePath)
         } else if (file.isFile()) {
             // Get size of files
-            const { size } = await stat(path)
+            const { size } = await stat(filePath)
             return size
         }
         return 0
@@ -278,7 +277,7 @@ function getBundledPythonEnvironment() {
     bundledPythonPath = path.join(userPath, ".medomics", "python")
   } else {
     // Check if the python path can be found in the .medomics directory
-    let medomicsDirExists = fs.existsSync(path.join(app.getPath("home"), ".medomics", "python"))
+    let medomicsDirExists = fs.existsSync(path.join(getAppPath("home"), ".medomics", "python"))
     if (medomicsDirExists) {
       bundledPythonPath = path.join(getHomePath(), ".medomics", "python")
     } else {
