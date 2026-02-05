@@ -14,10 +14,7 @@ import { useTunnel } from "../tunnel/TunnelContext"
  * @param {function} setJupyterStatus - function to set the Jupyter server status
  * @returns {JSX.Element} - A Jupyter Notebook viewer
  */
-const JupyterNotebookViewer = ({ filePath, startJupyterServer }) => {
-  const exec = require("child_process").exec
-  const {jupyterStatus, setJupyterStatus} = useContext(LayoutModelContext)
-  const [jupyterURL, setJupyterURL] = useState("")
+const JupyterNotebookViewer = ({ filePath, startJupyterServer, isRemote = false, jupyterStatus, setJupyterStatus }) => {
   const [loading, setLoading] = useState(true)
   const fileName = path.basename(filePath) // Get the file name from the path
   // Get the relative path after "DATA" in the filePath
@@ -88,13 +85,12 @@ const JupyterNotebookViewer = ({ filePath, startJupyterServer }) => {
     runJupyter()
   }, [])
 
-  useEffect(() => {
-    if (jupyterStatus.running) {
-      const url = "http://localhost:" + defaultJupyterPort + "/notebooks/" + relativePath
-      setJupyterURL(url)
-      setLoading(false)
+  const getJupyterURL = () => {
+    if (isRemote) {
+      return "http://localhost:" + tunnel.localJupyterPort + "/notebooks/" + relativePath
     }
-  }, [filePath, jupyterStatus, relativePath])
+    return "http://localhost:" + defaultJupyterPort + "/notebooks/" + relativePath
+  }
 
   const refreshIframe = () => {
     document.getElementById("iframe-" + fileName).src += ''
@@ -120,7 +116,7 @@ const JupyterNotebookViewer = ({ filePath, startJupyterServer }) => {
       ) : (
       <>
         {!jupyterStatus.running && <p className="error-message">{jupyterStatus.error}</p>}
-        <Iframe id={"iframe-" + fileName} className="jupyter-notebook-frame" src={jupyterURL}></Iframe>
+        <Iframe id={"iframe-" + fileName} className="jupyter-notebook-frame" src={getJupyterURL()}></Iframe>
         <button onClick={refreshIframe} id="reload-button" className="p-button p-component p-button-outlined">Reload</button>
         <style>
           {`
