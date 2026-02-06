@@ -209,8 +209,11 @@ async function insertPKLIntoCollection(filePath, collectionName) {
   const fileSize = fs.statSync(filePath).size
   const maxBSONSize = 16 * 1024 * 1024 // 16MB
   if (fileSize > maxBSONSize) {
-    console.error(`PKL file ${filePath} size exceeds the maximum BSON document size of 16MB and will not be inserted in the database`)
-    toast.error(`PKL file ${filePath} size exceeds the maximum BSON document size of 16MB and will not be inserted in the database`)
+    console.warn(`PKL file ${filePath} size exceeds the maximum BSON document size of 16MB and will not be inserted in the database`)
+    toast.warn(`PKL file ${filePath} size exceeds the maximum BSON document size of 16MB and only the path will be saved in the database.`)
+    const document = { path: filePath }
+    const result = await collection.insertOne(document)
+    console.log(`PKL file path inserted with _id: ${result.insertedId}`)
     return
   }
 
