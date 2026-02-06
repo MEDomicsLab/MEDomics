@@ -205,7 +205,7 @@ const EvaluationPageContent = () => {
                       <Col>
                         <p>Needed columns:</p>
                         <ul>
-                          {modelCols.map((col) => {
+                          {modelCols.sort().map((col) => {
                             return <li key={col}>{col}</li>
                           })}
                         </ul>
@@ -213,7 +213,7 @@ const EvaluationPageContent = () => {
                       <Col>
                         <p>Received columns:</p>
                         <ul>
-                          {columnsArray_.map((col) => {
+                          {columnsArray_.sort().map((col) => {
                             return <li key={col}>{col}</li>
                           })}
                         </ul>

@@ -170,7 +170,7 @@ const LoadModelNode = ({ id, data }) => {
                       <Col>
                         <p>Needed columns:</p>
                         <ul>
-                          {modelDataFormatted.columns.map((col) => {
+                          {modelDataFormatted.columns.sort().map((col) => {
                             return <li key={col}>{col}</li>
                           })}
                         </ul>
@@ -178,7 +178,7 @@ const LoadModelNode = ({ id, data }) => {
                       <Col>
                         <p>Received columns:</p>
                         <ul>
-                          {datasetNodeModelDataFormatted.columns.map((col) => {
+                          {datasetNodeModelDataFormatted.columns.sort().map((col) => {
                             return <li key={col}>{col}</li>
                           })}
                         </ul>

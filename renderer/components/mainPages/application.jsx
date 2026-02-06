@@ -348,7 +348,7 @@ const ApplicationPage = ({ pageId }) => {
                     <Col>
                       <p>Needed columns:</p>
                       <ul>
-                        {modelData.map((col) => {
+                        {modelData.sort().map((col) => {
                           return <li key={col}>{col}</li>
                         })}
                       </ul>
@@ -356,7 +356,7 @@ const ApplicationPage = ({ pageId }) => {
                     <Col>
                       <p>Received columns:</p>
                       <ul>
-                        {columnsArray.map((col) => {
+                        {columnsArray.sort().map((col) => {
                           return <li key={col}>{col}</li>
                         })}
                       </ul>
