@@ -38,7 +38,7 @@ const classificationModelSettings = {
             },
             "class_weight": {
                 "type": "NoneType",
-                "default_val": "None",
+                "default_val": null,
                 "tooltip": "NoneType, default=None. Set the parameter C of class i to class_weight[i]*C for SVC. If not given, all classes are supposed to have weight one. The “balanced” mode uses the values of y to automatically adjust weights inversely proportional to class frequencies in the input data as n_samples / (n_classes * np.bincount(y))."
             },
             "random_state": {
@@ -234,8 +234,8 @@ const classificationModelSettings = {
             },
             "class_weight": {
                 "type": "string",
-                "default_val": "None",
-                "choices": ["None", "balanced"],
+                "default_val": null,
+                "choices": [null, "balanced"],
                 "tooltip": "class_weight ∈ {'None',balanced'}, default=None. The “balanced” mode uses the values of y to automatically adjust weights inversely proportional to class frequencies in the input data as n_samples / (n_classes * np.bincount(y)Note that these weights will be multiplied with sample_weight (passed through the fit method) if sample_weight is specified.)"
             },
             "ccp_alpha": {
@@ -374,7 +374,7 @@ const classificationModelSettings = {
             },
             "class_weight": {
                 "type": "NoneType",
-                "default_val": "None",
+                "default_val": null,
                 "tooltip": "NoneType, default=None. Set the parameter C of class i to class_weight[i]*C for SVC. If not given, all classes are supposed to have weight one. The “balanced” mode uses the values of y to automatically adjust weights inversely proportional to class frequencies in the input data as n_samples / (n_classes * np.bincount(y))."
             },
             "n_jobs": {
@@ -460,7 +460,7 @@ const classificationModelSettings = {
             },
             "class_weight": {
                 "type": "NoneType",
-                "default_val": "None",
+                "default_val": null,
                 "tooltip": "NoneType, default=None. Set the parameter C of class i to class_weight[i]*C for SVC. If not given, all classes are supposed to have weight one. The “balanced” mode uses the values of y to automatically adjust weights inversely proportional to class frequencies in the input data as n_samples / (n_classes * np.bincount(y))."
             },
             "verbose": {
@@ -712,14 +712,14 @@ const classificationModelSettings = {
                 "tooltip": "bool, default=False. When set to True, reuse the solution of the previous call to fit as initialization, otherwise, just erase the previous solution."
             },
             "class_weight": {
-            "type": "string",
-            "tooltip": "Weights associated with classes. Can be a string ('None', 'balanced', 'balanced_subsample') or a dictionary encoded as a string mapping class labels to weights (e.g. {\"0\": 1, \"1\": 3}).",
-            "default_val": "None",
-            "choices": ["None", "balanced", "balanced_subsample"]
+                "type": "string",
+                "tooltip": "Weights associated with classes. Can be a string ('None', 'balanced', 'balanced_subsample') or a dictionary encoded as a string mapping class labels to weights (e.g. {\"0\": 1, \"1\": 3}).",
+                "default_val": null,
+                "choices": [null, "balanced", "balanced_subsample"]
             },
             "max_samples": {
                 "type": "NoneType",
-                "default_val": "None",
+                "default_val": null,
                 "tooltip": "NoneType, default=None. The number of samples to draw from X to train each base estimator "
             },
             "criterion": {
@@ -1170,8 +1170,8 @@ const classificationModelSettings = {
             },
             "class_weight": {
                 "type": "string",
-                "default_val": "None",
-                "choices": ["None", "balanced", "balanced_subsample"],
+                "default_val": null,
+                "choices": [null, "balanced", "balanced_subsample"],
                 "tooltip": "class_weight ∈ {'balanced','balanced_subsample'}, default=None. 'balanced' uses class frequencies (n_samples / (n_classes * np.bincount(y))) to set weights. 'balanced_subsample' is the same but computed on each tree's bootstrap sample. If sample_weight is passed to fit(), it is multiplied with class_weight. Use None to disable class weighting."
             },
             "max_samples": {
@@ -1342,7 +1342,7 @@ const classificationModelSettings = {
             },
             "class_weight": {
                 "type": "NoneType",
-                "default_val": "None",
+                "default_val": null,
                 "tooltip": "NoneType, default=None. Set the parameter C of class i to class_weight[i]*C for SVC. If not given, all classes are supposed to have weight one. The “balanced” mode uses the values of y to automatically adjust weights inversely proportional to class frequencies in the input data as n_samples / (n_classes * np.bincount(y))."
             }
         },
