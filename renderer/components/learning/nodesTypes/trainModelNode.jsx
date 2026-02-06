@@ -26,7 +26,7 @@ import ModalSettingsChooser from "../modalSettingsChooser"
  */
 const TrainModelNode = ({ id, data }) => {
   const [modalShow, setModalShow] = useState(false) // state of the modal
-  const [usePycaretSearchSpace, setUsePycaretSearchSpace] = useState(true) // state of the checkbox
+  const [usePycaretSearchSpace, setUsePycaretSearchSpace] = useState(("useTuningGrid" in data.internal) ? !data.internal.useTuningGrid : true) // state of the checkbox
   const [modalShowTuning, setModalShowTuning] = useState(false)
   const { updateNode } = useContext(FlowFunctionsContext)
   const [IntegrateTuning, setIntegrateTuning] = useState(data.internal.isTuningEnabled ?? false)
@@ -36,58 +36,55 @@ const TrainModelNode = ({ id, data }) => {
 
   // Check if isTuningEnabled exists in data.internal, if not initialize it
   useEffect(() => {
+    let hasUpdates = false
+
+    // Initialize tuningGrid structure without wiping existing data
     if (data.internal.tuningGrid && Object.keys(data.internal.tuningGrid).length > 0) {
-      Object.keys(data.internal.tuningGrid).map((model) => {
-        data.internal[model] = {}
-        data.internal[model].custom_grid = {}
+      Object.keys(data.internal.tuningGrid).forEach((model) => {
+        // Initialize model object only if missing
+        if (!data.internal[model]) {
+          data.internal[model] = {}
+          hasUpdates = true
+        }
+        // Initialize custom_grid only if missing
+        if (!data.internal[model].custom_grid) {
+          data.internal[model].custom_grid = {}
+          hasUpdates = true
+        }
       })
     }
-    if (!("isTuningEnabled" in Object.keys(data.internal))) {
-      data.internal.isTuningEnabled = false
-      updateNode({
-        id: id,
-        updatedData: data.internal
-      })
+
+    // Define default values for missing keys
+    const defaults = {
+      isTuningEnabled: false,
+      useTuningGrid: false,
+      isEnsembleEnabled: false,
+      isCalibrateEnabled: false,
+      settingsEnsembling: {},
+      settingsCalibration: {}
     }
-    if (!("optimizeThreshold" in Object.keys(data.internal))) {
+
+    // Apply defaults only where keys are missing
+    Object.entries(defaults).forEach(([key, defaultValue]) => {
+      if (!(key in data.internal)) {
+        data.internal[key] = defaultValue
+        hasUpdates = true
+      }
+    })
+
+    // Handle special case: optimizeThreshold (coupled with threshOptimizationMetric)
+    if (!("optimizeThreshold" in data.internal)) {
       data.internal.optimizeThreshold = false
       data.internal.threshOptimizationMetric = "Accuracy"
-      updateNode({
-        id: id,
-        updatedData: data.internal
-      })
-    }
-    if (!("useTuningGrid" in Object.keys(data.internal))) {
-      data.internal.useTuningGrid = false
-      updateNode({
-        id: id,
-        updatedData: data.internal
-      })
+      hasUpdates = true
     }
 
-    if (!("isEnsembleEnabled" in Object.keys(data.internal))) {
-      data.internal.isEnsembleEnabled = false
+    // Perform a single update if any changes were made
+    if (hasUpdates) {
       updateNode({
         id: id,
         updatedData: data.internal
       })
-    }
-
-    if (!("isCalibrateEnabled" in Object.keys(data.internal))) {
-      data.internal.isCalibrateEnabled = false
-      updateNode({
-        id: id,
-        updatedData: data.internal
-      })
-    }
-
-    if (!("settingsEnsembling" in data.internal)) {
-      data.internal.settingsEnsembling = {}
-    }
-  
-    // saving it for later
-    if (!("settingsCalibration" in data.internal)) {
-      data.internal.settingsCalibration = {}
     }
   }, [])
 
@@ -296,7 +293,6 @@ const TrainModelNode = ({ id, data }) => {
                   onChange={(e) => {
                     setIntegrateTuning(e.value)
                     data.internal.isTuningEnabled = e.value
-                    updateNode({ id, updatedData: data.internal })
                   }}
                 />
               </div>
