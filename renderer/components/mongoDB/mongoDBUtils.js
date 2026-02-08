@@ -167,6 +167,11 @@ export async function insertMEDDataObjectIfNotExists(medData, path = null, jsonD
         await insertJPGIntoCollection(path, medData.id)
         break
       case "json":
+        // Check if file exists
+        if (!fs.existsSync(path)) {
+          console.error(`File at path ${path} does not exist`)
+          break
+        }
         const fileContent = fs.readFileSync(path, "utf8")
         const jsonContent = JSON.parse(fileContent)
         const dataCollection = db.collection(medData.id)
