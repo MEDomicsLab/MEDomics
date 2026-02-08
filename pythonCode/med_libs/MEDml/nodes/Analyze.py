@@ -40,7 +40,14 @@ class Analyze(Node):
         This function is used to execute the node.
         """
         self._info_for_next_node = kwargs  # Pass all kwargs to finalze and save models
-        if self.finalize: return {} # Skip analyze if finalizing models
+        if self.finalize:
+            self.CodeHandler.add_line("code", f"for model in trained_models:")
+            self.CodeHandler.add_line(
+                "code", 
+                f"pycaret_exp.{selection}(model, {self.CodeHandler.convert_dict_to_params(print_settings)})",
+                1
+            )
+            return {} # Skip analyze if finalizing models
         selection = self.config_json['data']['internal']['selection']
         if selection not in ['interpret_model', 'plot_model', 'dashboard']:
             selection = 'plot_model'  # Default to plot_model if not specified
