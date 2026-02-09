@@ -446,9 +446,9 @@ const ApplicationPage = ({ pageId }) => {
         {modelMetadata && (
           <>
             {isCalibrated === false ? (
-              <Tag className="app-model-uncalibrated-tag" severity="warning" value="Uncalibrated Model" />
+              <Tag className="app-model-uncalibrated-tag" severity="warning" value="This model is uncalibrated" />
             ) : (
-              <Tag className="app-model-calibrated-tag" severity="success" value="Calibrated Model" />
+              <Tag className="app-model-calibrated-tag" severity="success" value="This model is calibrated" />
             )}
             <Entry
               pageId={pageId}
