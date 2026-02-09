@@ -91,11 +91,6 @@ const ConvertCategoricalColumnIntoNumericDB = ({ currentCollection }) => {
     setModifiedColumns((prev) => [...new Set([...prev, column])])
   }
 
-  const isDataModified = () => {
-    // Compare both data to dectect any modification
-    return JSON.stringify(data) !== JSON.stringify(originalData)
-  }
-
   // Identify categorical columns
   const identifyCategoricalColumns = (allKeys, documents) => {
     const detectedColumns = allKeys.filter((key) => {
@@ -106,8 +101,7 @@ const ConvertCategoricalColumnIntoNumericDB = ({ currentCollection }) => {
       if (uniqueValues.length > 0 && uniqueValues.length == categoricalThreshold) {
         // Identify already encoded columns
         const encodedColumn = allKeys.filter((col) => uniqueValues.some((cat) => col == `${key}_${cat}`))
-        if (encodedColumn.length == uniqueValues.length) {
-        } else {
+        if (encodedColumn.length !== uniqueValues.length) {
           return key
         }
       }
@@ -181,16 +175,6 @@ const ConvertCategoricalColumnIntoNumericDB = ({ currentCollection }) => {
         throw new Error("Missing database configuration or data")
       }
 
-      const cleanedData = data.map((row) => {
-        let newRow = { ...row }
-
-        modifiedColumns.forEach((col) => {
-          delete newRow[col]
-        })
-
-        return newRow
-      })
-
       const requestBody = {
         collectionName: globalData[currentCollection]?.id,
         columnToEncode: modifiedColumns[0],
@@ -230,24 +214,6 @@ const ConvertCategoricalColumnIntoNumericDB = ({ currentCollection }) => {
       if (!globalData || !currentCollection || !data.length) {
         throw new Error("Missing database configuration or data")
       }
-
-      const restoredData = data.map((row) => {
-        let restoredRow = { ...row }
-
-        if (modifiedColumns.length > 0) {
-          removedColumns.forEach((col) => {
-            if (!(col in restoredRow)) {
-              const originalValue = originalData.find((origRow) => origRow._id === row._id)?.[col]
-
-              if (originalValue !== undefined) {
-                restoredRow[col] = originalValue
-              }
-            }
-          })
-        }
-
-        return restoredRow
-      })
 
       const requestBody = {
         collectionName: globalData[currentCollection]?.id,

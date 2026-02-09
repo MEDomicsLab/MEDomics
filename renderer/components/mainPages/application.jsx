@@ -123,7 +123,7 @@ const Entry = ({ pageId, setRequestSettings, chosenModel, modelMetadata, updateW
           {modelColumns.map((columnName, index) => {
             if (columnName !== modelMetadata.target) {
               return (
-                <div style={{ 
+                <div key={index} style={{ 
                   boxShadow: imputedColumns.includes(columnName) 
                     ? 'none' 
                     : '0 0 4px rgba(239, 68, 68, 0.4)',
