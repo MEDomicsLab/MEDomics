@@ -84,6 +84,10 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
   const [lastStartAt, setLastStartAt] = useState(null)
   const heartbeatBusyRef = useRef(false)
   const [shouldRecheck, setShouldRecheck] = useState(false)
+  // Step 2 action busy states (used to disable buttons until the async action fully exits)
+  const [checkingRemoteServerBusy, setCheckingRemoteServerBusy] = useState(false)
+  const [startingRemoteServerBusy, setStartingRemoteServerBusy] = useState(false)
+  const [checkingRemotePortBusy, setCheckingRemotePortBusy] = useState(false)
   const [requirementsChecking, setRequirementsChecking] = useState(false)
   const [requirementsMetRemote, setRequirementsMetRemote] = useState(false)
   const [requirementsInstalling, setRequirementsInstalling] = useState(false)
@@ -109,6 +113,9 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
   // Directory browser state
   const [directoryContents, setDirectoryContents] = useState([])
   const [remoteDirPath, setRemoteDirPath] = useState("")
+
+  // Prevent overlapping local port rebind operations while the user is editing
+  const localPortRebindBusyRef = useRef({ go: false, mongo: false })
 
   // const registerPublicKey = async (publicKeyToRegister, usernameToRegister) => {
   //   setRegisterStatus("Registering...")
@@ -346,6 +353,70 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
     }
   }, [])
 
+  // Rebind local forwarded ports (GO/Mongo) while the tunnel is active.
+  // This keeps the same remote port but moves the local listening port.
+  useEffect(() => {
+    if (!tunnelActive) return
+    const desiredLocalPort = Number(localGoPort)
+    if (!Number.isFinite(desiredLocalPort) || desiredLocalPort < 1 || desiredLocalPort > 65535) return
+
+    const timer = setTimeout(async () => {
+      if (localPortRebindBusyRef.current.go) return
+      localPortRebindBusyRef.current.go = true
+      try {
+        const state = await ipcRenderer.invoke('getTunnelState')
+        const tunnels = Array.isArray(state?.tunnels) ? state.tunnels : []
+        const entry = tunnels.find(t => t && t.name === 'go')
+        const currentLocal = Number(entry?.localPort ?? state?.localGoPort)
+        const remotePort = Number(entry?.remotePort ?? state?.remoteGoPort ?? remoteGoPort)
+        if (!remotePort || Number.isNaN(remotePort)) return
+        if (currentLocal && currentLocal === desiredLocalPort) return
+
+        const res = await ipcRenderer.invoke('rebindPortTunnel', { name: 'go', newLocalPort: desiredLocalPort, newRemotePort: remotePort })
+        if (!res?.success) {
+          console.warn('Failed to rebind GO forward local port:', res?.error || res)
+        }
+      } catch (e) {
+        console.warn('Failed to rebind GO forward local port:', e && e.message ? e.message : String(e))
+      } finally {
+        localPortRebindBusyRef.current.go = false
+      }
+    }, 500)
+
+    return () => clearTimeout(timer)
+  }, [localGoPort, remoteGoPort, tunnelActive])
+
+  useEffect(() => {
+    if (!tunnelActive) return
+    const desiredLocalPort = Number(localDBPort)
+    if (!Number.isFinite(desiredLocalPort) || desiredLocalPort < 1 || desiredLocalPort > 65535) return
+
+    const timer = setTimeout(async () => {
+      if (localPortRebindBusyRef.current.mongo) return
+      localPortRebindBusyRef.current.mongo = true
+      try {
+        const state = await ipcRenderer.invoke('getTunnelState')
+        const tunnels = Array.isArray(state?.tunnels) ? state.tunnels : []
+        const entry = tunnels.find(t => t && t.name === 'mongo')
+        const currentLocal = Number(entry?.localPort ?? state?.localDBPort)
+        const remotePort = Number(entry?.remotePort ?? state?.remoteDBPort ?? remoteDBPort)
+        if (!remotePort || Number.isNaN(remotePort)) return
+        if (currentLocal && currentLocal === desiredLocalPort) return
+
+        const res = await ipcRenderer.invoke('rebindPortTunnel', { name: 'mongo', newLocalPort: desiredLocalPort, newRemotePort: remotePort })
+        if (!res?.success) {
+          console.warn('Failed to rebind Mongo forward local port:', res?.error || res)
+        }
+      } catch (e) {
+        console.warn('Failed to rebind Mongo forward local port:', e && e.message ? e.message : String(e))
+      } finally {
+        localPortRebindBusyRef.current.mongo = false
+      }
+    }, 500)
+
+    return () => clearTimeout(timer)
+  }, [localDBPort, remoteDBPort, tunnelActive])
+
   // Step 1: Only establish SSH tunnel/auth to remote host
   const handleConnectSSH = async (info, isReconnect = false) => {
     setConnectionProcessing(true)
@@ -497,6 +568,7 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
       return
     }
     try {
+      setCheckingRemoteServerBusy(true)
       setRemoteBackendStatus('Checking remote server...')
       // First, check installation presence on remote
       const presence = await ipcRenderer.invoke('backendPresence', { target: 'remote' })
@@ -662,6 +734,8 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
       }
     } catch (e) {
       setRemoteBackendStatus('Failed to check remote server: ' + (e?.message || String(e)))
+    } finally {
+      setCheckingRemoteServerBusy(false)
     }
   }
 
@@ -676,6 +750,9 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
       return
     }
     try {
+      setInstallingRemote(true)
+      // Keep the UI disabled immediately on click (pre-check can take time)
+      setRemoteInstallText('Preparing install...')
       // Pre-check: if latest release tag already exists on remote, skip install
       try {
         const latest = await ipcRenderer.invoke('getLatestBackendReleaseInfo')
@@ -708,7 +785,6 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
         }
       } catch { /* non-fatal; proceed with normal install */ }
 
-      setInstallingRemote(true)
       setRemoteInstallText('Installing remote server...')
       const payload = {}
       if (DEFAULT_REMOTE_MANIFEST) payload.manifestUrl = DEFAULT_REMOTE_MANIFEST
@@ -744,6 +820,7 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
       return
     }
     try {
+      setStartingRemoteServerBusy(true)
       setRemoteBackendStatus('Starting remote server...')
       // Prefer explicit start if path is known, else ensure
       let started
@@ -813,6 +890,8 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
       setRemoteBackendStatus('Failed to start remote server: ' + msg)
       setLastStartDetails(`Exception: ${msg}`)
       setRemoteServerRunning(false)
+    } finally {
+      setStartingRemoteServerBusy(false)
     }
   }
 
@@ -925,6 +1004,26 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
     }
   }
 
+  const waitForRequirementsRemote = async ({ forwardedPort, maxWaitMs = 10 * 60 * 1000, intervalMs = 5000 } = {}) => {
+    const startedAt = Date.now()
+    while (Date.now() - startedAt < maxWaitMs) {
+      try {
+        const resp = await window.backend.requestExpress({ method: 'get', path: '/check-requirements', host: '127.0.0.1', port: Number(forwardedPort) })
+        const result = resp?.data?.result || {}
+        const pythonInstalled = !!(result?.pythonInstalled)
+        const mongoInstalled = !!(result?.mongoDBInstalled)
+        const ok = pythonInstalled && mongoInstalled
+        setRequirementsDetailsRemote({ pythonInstalled, mongoInstalled })
+        setRequirementsMetRemote(ok)
+        if (ok) return true
+      } catch {
+        // Ignore transient errors while the remote is restarting/installing
+      }
+      await new Promise((r) => setTimeout(r, intervalMs))
+    }
+    return false
+  }
+
 
   const installRequirementsRemote = async () => {
     if (!tunnelActive || !remoteServerRunning) return
@@ -972,7 +1071,10 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
         }
       }
       // Re-check
-      await checkRequirementsRemote()
+      const ok = await waitForRequirementsRemote({ forwardedPort: Number(forwardedPort) })
+      if (!ok) {
+        toast.warn('Remote requirements install is taking longer than expected. Please re-check in a moment.')
+      }
     } finally {
       setRequirementsInstalling(false)
     }
@@ -1281,6 +1383,8 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
     { label: 'Workspace' }
   ]
 
+  const serverSetupActionsBusy = checkingRemoteServerBusy || installingRemote || startingRemoteServerBusy || checkingRemotePortBusy
+
   // Pager visibility/disabled states
   const prevDisabled = connectionProcessing || activeStep === 0
   const nextDisabled = connectionProcessing ||
@@ -1456,8 +1560,8 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
               </div>
             </div>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-              <Button onClick={checkRemoteServer} disabled={!tunnelActive || connectionProcessing} style={{ background: 'var(--button-bg)', color: 'var(--button-text)' }}>{shouldRecheck ? 'Recheck status' : 'Check'}</Button>
-              <Button onClick={installRemoteServer} disabled={!tunnelActive || installingRemote} style={{ background: 'var(--button-bg)', color: 'var(--button-text)' }}>Install / Update</Button>
+              <Button onClick={checkRemoteServer} disabled={!tunnelActive || connectionProcessing || serverSetupActionsBusy} style={{ background: 'var(--button-bg)', color: 'var(--button-text)' }}>{shouldRecheck ? 'Recheck status' : 'Check'}</Button>
+              <Button onClick={installRemoteServer} disabled={!tunnelActive || connectionProcessing || serverSetupActionsBusy} style={{ background: 'var(--button-bg)', color: 'var(--button-text)' }}>Install / Update</Button>
               {(installingRemote || remoteInstallPhase) && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
                   {typeof remoteDownloadPercent === 'number' ? (
@@ -1487,14 +1591,15 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
             )}
             <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginTop: 8 }}>
               <span>Start on port:</span>
-              <InputNumber disabled={!tunnelActive || connectionProcessing} value={remoteStartPort} onChange={e => setRemoteStartPort(e.value)} useGrouping={false} min={1} max={65535} />
+              <InputNumber disabled={!tunnelActive || connectionProcessing || serverSetupActionsBusy} value={remoteStartPort} onChange={e => setRemoteStartPort(e.value)} useGrouping={false} min={1} max={65535} />
               {!remoteServerRunning ? (
-                <Button onClick={startRemoteServer} disabled={!tunnelActive || connectionProcessing} style={{ background: 'var(--button-bg)', color: 'var(--button-text)' }}>Start Server</Button>
+                <Button onClick={startRemoteServer} disabled={!tunnelActive || connectionProcessing || serverSetupActionsBusy} style={{ background: 'var(--button-bg)', color: 'var(--button-text)' }}>Start Server</Button>
               ) : (
-                <Button onClick={stopRemoteServer} disabled={!tunnelActive || connectionProcessing} style={{ background: 'var(--danger)', color: 'var(--button-text)' }}>Stop Server</Button>
+                <Button onClick={stopRemoteServer} disabled={!tunnelActive || connectionProcessing || serverSetupActionsBusy} style={{ background: 'var(--danger)', color: 'var(--button-text)' }}>Stop Server</Button>
               )}
               <Button onClick={async () => {
                 if (!tunnelActive) return toast.error('SSH tunnel not active.')
+                setCheckingRemotePortBusy(true)
                 try {
                   const res = await ipcRenderer.invoke('remoteCheckPort', { port: Number(remoteStartPort) })
                   if (res && res.success) {
@@ -1508,8 +1613,10 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
                   }
                 } catch (e) {
                   toast.error(`Port check error: ${e.message || e}`)
+                } finally {
+                  setCheckingRemotePortBusy(false)
                 }
-              }} disabled={!tunnelActive || connectionProcessing} style={{ background: 'var(--bg-secondary)', color: 'var(--text-secondary)' }}>Check Port</Button>
+              }} disabled={!tunnelActive || connectionProcessing || serverSetupActionsBusy} style={{ background: 'var(--bg-secondary)', color: 'var(--text-secondary)' }}>Check Port</Button>
             </div>
             <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--border-color)' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -1521,8 +1628,8 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
               </div>
               <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 8, flexWrap: 'wrap' }}>
                 <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                  <Button onClick={checkRequirementsRemote} disabled={!remoteServerRunning || requirementsChecking} style={{ background: 'var(--button-bg)', color: 'var(--button-text)' }}>Check</Button>
-                  <Button onClick={installRequirementsRemote} disabled={!remoteServerRunning || requirementsInstalling || requirementsMetRemote} style={{ background: 'var(--button-bg)', color: 'var(--button-text)' }}>Install Missing</Button>
+                  <Button onClick={checkRequirementsRemote} disabled={!remoteServerRunning || requirementsChecking || requirementsInstalling} style={{ background: 'var(--button-bg)', color: 'var(--button-text)' }}>Check</Button>
+                  <Button onClick={installRequirementsRemote} disabled={!remoteServerRunning || requirementsInstalling || requirementsChecking || requirementsMetRemote} style={{ background: 'var(--button-bg)', color: 'var(--button-text)' }}>Install Missing</Button>
                   {(requirementsChecking || requirementsInstalling) && <ProgressBar mode="indeterminate" style={{ width: 200 }} />}
                 </div>
                 <span style={{ fontSize: 11, color: 'var(--text-secondary)', maxWidth: 420 }}>
@@ -1571,42 +1678,12 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
             {showAdvanced && <>
             <div style={{ width: '100%'}}>
               <label>
-                Local Express Port:
-                <InputNumber disabled={tunnelActive || connectionProcessing} value={localExpressPort} onChange={e => setLocalExpressPort(e.value)} placeholder="54280" useGrouping={false} min={1} max={65535} />
-                {inputErrors.localExpressPort && <div style={{ color: 'red', fontSize: 13 }}>{inputErrors.localExpressPort}</div>}
-                {localPortWarning && <div style={{ color: 'var(--warning)', fontSize: 13, marginTop: 2 }}>{localPortWarning}</div>}
-              </label>
-              <label>
                 Local GO Port:
-                <InputNumber disabled={tunnelActive || connectionProcessing} value={localGoPort} onChange={e => setLocalGoPort(e.value)} placeholder="54380" useGrouping={false} min={1} max={65535} />
+                <InputNumber disabled={connectionProcessing} value={localGoPort} onChange={e => setLocalGoPort(e.value == null ? '' : String(e.value))} placeholder="54380" useGrouping={false} min={1} max={65535} />
               </label>
               <label>
                 Local MongoDB Port:
-                <InputNumber disabled={tunnelActive || connectionProcessing} value={localDBPort} onChange={e => setLocalDBPort(e.value)} placeholder="54020" useGrouping={false} min={1} max={65535} />
-              </label>
-            </div>
-            <div style={{ width: '100%'}}>
-              <label>
-                Remote Express Port:
-                <InputNumber disabled={tunnelActive || connectionProcessing} value={remoteExpressPort} onChange={e => setRemoteExpressPort(e.value)} placeholder="54288" useGrouping={false} min={1} max={65535} />
-                {inputErrors.remoteExpressPort && <div style={{ color: 'var(--danger)', fontSize: 13 }}>{inputErrors.remoteExpressPort}</div>}
-              </label>
-              <label>
-                Remote GO Port:
-                <InputNumber disabled={tunnelActive || connectionProcessing} value={remoteGoPort} onChange={e => setRemoteGoPort(e.value)} placeholder="54388" useGrouping={false} min={1} max={65535} />
-              </label>
-              <label>
-                Remote MongoDB Port:
-                <InputNumber disabled={tunnelActive || connectionProcessing} value={remoteDBPort} onChange={e => setRemoteDBPort(e.value)} placeholder="54017" useGrouping={false} min={1} max={65535} />
-              </label>
-              {/* <label>
-                SSH Key Comment:
-                <InputText disabled={tunnelActive || connectionProcessing} className="ssh-key-command" value={keyComment} onChange={e => setKeyComment(e.target.value)} placeholder="medomicslab-app" />
-              </label> */}
-              <label>
-                Remote SSH Port:
-                <InputNumber disabled={tunnelActive || connectionProcessing} value={remotePort} onChange={e => setRemotePort(e.value)} placeholder="22" useGrouping={false} min={1} max={65535} />
-                {inputErrors.remotePort && <div style={{ color: 'var(--danger)', fontSize: 13 }}>{inputErrors.remotePort}</div>}
+                <InputNumber disabled={connectionProcessing} value={localDBPort} onChange={e => setLocalDBPort(e.value == null ? '' : String(e.value))} placeholder="54020" useGrouping={false} min={1} max={65535} />
               </label>
             </div>
             </>}
