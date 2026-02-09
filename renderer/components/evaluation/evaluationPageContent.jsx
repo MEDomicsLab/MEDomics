@@ -153,11 +153,11 @@ const EvaluationPageContent = () => {
 
         columnsArray_ = cleanDatasetCols
         modelCols     = cleanModelCols
-
-        const includes = cleanModelCols.every(col => cleanDatasetCols.includes(col))
-        isValid = (cleanModelCols && cleanDatasetCols)
-          ? includes
-          : true
+        
+        const includes = cleanDatasetCols.filter(prefix => 
+          cleanModelCols.some(item => item.startsWith(prefix))
+        )
+        isValid = cleanModelCols && cleanDatasetCols && includes.length > 0
       }
       setLoader(false)
 
@@ -203,17 +203,9 @@ const EvaluationPageContent = () => {
                   <div style={{ maxHeight: "400px", overflowY: "auto", overflowX: "hidden" }}>
                     <Row>
                       <Col>
-                        <p>Needed columns:</p>
+                        <p>Missing columns:</p>
                         <ul>
-                          {modelCols.sort().map((col) => {
-                            return <li key={col}>{col}</li>
-                          })}
-                        </ul>
-                      </Col>
-                      <Col>
-                        <p>Received columns:</p>
-                        <ul>
-                          {columnsArray_.sort().map((col) => {
+                          {[...new Set(modelCols)].filter(item => !columnsArray_.includes(item)).sort().map((col) => {
                             return <li key={col}>{col}</li>
                           })}
                         </ul>

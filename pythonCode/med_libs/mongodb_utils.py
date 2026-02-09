@@ -130,6 +130,8 @@ def get_pickled_model_from_collection(collection_name):
 
     # Find the document containing the model
     model_document = collection.find_one()
+    if not model_document:
+        raise ValueError(f"No document found in collection {collection_name}")
     if model_document and 'model' in model_document:
         # Deserialize the model
         pickled_model = model_document['model']

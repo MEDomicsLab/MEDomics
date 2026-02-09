@@ -15,7 +15,7 @@ import { Dropdown } from "primereact/dropdown"
 import { MultiSelect } from "primereact/multiselect"
 import VarsSelectMultiple from "../mainPages/dataComponents/varsSelectMultiple"
 import { Message } from "primereact/message"
-import { Button } from "react-bootstrap";
+import { Button } from "react-bootstrap"
 
 
 /**
@@ -35,7 +35,7 @@ const normalizeStringForBackend = (settingInfos, raw) => {
   const v = (raw ?? "").trim()
   const hasChoices = Array.isArray(settingInfos?.choices)
   // If this "string" field has "None" among choices, map "None" → null for backend
-  if (hasChoices && settingInfos.choices.includes("None") && v === "None") return null
+  if (hasChoices && settingInfos.choices.includes("None") && String.toLowerCase(v) === "none") return null
   return v
 }
 
@@ -113,22 +113,22 @@ const Input = ({ name, settingInfos, currentValue, onInputChange, disabled = fal
   }, [inputUpdate])
 
   const detectMultiType = (value) => {
-  if (value === null || value === undefined) return "none";
-  if (typeof value === "string") return "str";
-  if (typeof value === "number") return "int"; // or float, but int default is okay
-  if (Array.isArray(value)) {
-    // list of dicts
-    if (value.length > 0 && typeof value[0] === "object") return "list-dict";
-    // multidimensional arrays
-    if (Array.isArray(value[0])) {
-      if (Array.isArray(value[0][0])) return "array3d";
-      return "array2d";
+    if (value === null || value === undefined) return "none"
+    if (typeof value === "string") return "str"
+    if (typeof value === "number") return "int" // or float, but int default is okay
+    if (Array.isArray(value)) {
+      // list of dicts
+      if (value.length > 0 && typeof value[0] === "object") return "list-dict"
+      // multidimensional arrays
+      if (Array.isArray(value[0])) {
+        if (Array.isArray(value[0][0])) return "array3d"
+        return "array2d"
+      }
+      return "list"
     }
-    return "list";
+    if (typeof value === "object") return "dict"
+    return "none"
   }
-  if (typeof value === "object") return "dict";
-  return "none";
-};
 
   /**
    *
@@ -151,7 +151,7 @@ const Input = ({ name, settingInfos, currentValue, onInputChange, disabled = fal
             <FloatingLabel id={name} controlId={name} label={name} className=" input-hov">
               <Form.Select
                 disabled={disabled}
-                defaultValue={currentValue ?? "None"}
+                defaultValue={currentValue ?? null}
                 onChange={(e) =>
                   setInputUpdate({
                     name,
@@ -351,21 +351,21 @@ const Input = ({ name, settingInfos, currentValue, onInputChange, disabled = fal
         )
 
         case "multi": {
-          const subType = detectMultiType(currentValue);
-          const [selectedSubType, setSelectedSubType] = useState(subType);
+          const subType = detectMultiType(currentValue)
+          const [selectedSubType, setSelectedSubType] = useState(subType)
 
           const defaultValueFromSubtype = (sub) => {
-            const subInfo = settingInfos.allowedTypes?.[sub];
-            if (!subInfo) return null;
-            return subInfo.default_val ?? null;
-          };
+            const subInfo = settingInfos.allowedTypes?.[sub]
+            if (!subInfo) return null
+            return subInfo.default_val ?? null
+          }
 
-          const tooltipId = `${name}_multi_info`;
+          const tooltipId = `${name}_multi_info`
 
-          const allowed = settingInfos.allowedTypes || {};
-          const subInfo = allowed[selectedSubType] || {};
+          const allowed = settingInfos.allowedTypes || {}
+          const subInfo = allowed[selectedSubType] || {}
 
-          const effectiveType = subInfo.mapTo || selectedSubType;
+          const effectiveType = subInfo.mapTo || selectedSubType
 
           return (
             <>
@@ -409,15 +409,15 @@ const Input = ({ name, settingInfos, currentValue, onInputChange, disabled = fal
                   disabled={disabled}
                   value={selectedSubType}
                   onChange={(e) => {
-                    const newType = e.target.value;
-                    const info = allowed[newType] || {};
-                    setSelectedSubType(newType);
+                    const newType = e.target.value
+                    const info = allowed[newType] || {}
+                    setSelectedSubType(newType)
 
                     setInputUpdate({
                       name,
                       value: defaultValueFromSubtype(newType),
                       type: "multi"
-                    });
+                    })
                   }}
                 >
                   {Object.entries(allowed).map(([key, info]) => (
@@ -451,7 +451,7 @@ const Input = ({ name, settingInfos, currentValue, onInputChange, disabled = fal
 
               {createTooltip(settingInfos.tooltip, name)}
             </>
-          );
+          )
         }
 
       // for list input (form select of all the options, multiple selection possible)

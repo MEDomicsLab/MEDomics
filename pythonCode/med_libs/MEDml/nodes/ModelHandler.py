@@ -396,9 +396,7 @@ class ModelHandler(Node):
                 # Finalize the model
                 if finalize:
                     best_model = best_exp.finalize_model(best_model)
-                    self.CodeHandler.add_line("code", "\n# Finalizing model")
-                    self.CodeHandler.add_line("code", f"best_model = best_exp.finalize_model(best_model)")
-                
+
                 # Store the final model
                 self.CodeHandler.add_line("code", f"trained_models = [best_model]")
                 return {'model': best_model, 'overall_metrics': overall_metrics}
@@ -548,13 +546,6 @@ class ModelHandler(Node):
                 #self.CodeHandler.add_line("code", f"trained_models = [pycaret_exp.optimize_threshold(trained_models[0], metric='{self.threshold_optimization_metric}')]")
 
             if finalize:
-                self.CodeHandler.add_line("md", "##### *Finalizing models*")
-                self.CodeHandler.add_line("code", f"for model in trained_models:")
-                self.CodeHandler.add_line(
-                    "code",
-                    f"model = pycaret_exp.finalize_model(model)",
-                    1
-                )
                 trained_model = pycaret_exp.finalize_model(trained_model)
             
             # Get final metrics dict
@@ -707,13 +698,6 @@ class ModelHandler(Node):
                 self.CodeHandler.add_line("code", f"trained_models = [pycaret_exp.optimize_threshold(trained_models[0], metric='{self.threshold_optimization_metric}')]")
 
             if finalize:
-                self.CodeHandler.add_line("md", "##### *Finalizing models*")
-                self.CodeHandler.add_line("code", f"for model in trained_models:")
-                self.CodeHandler.add_line(
-                    "code",
-                    f"model = pycaret_exp.finalize_model(model)",
-                    1
-                )
                 trained_models = [experiment['pycaret_exp'].finalize_model(model) for model in trained_models]
         else:
             raise ValueError(f"Unsupported type: {self.type}. Expected 'compare_models' or 'train_model'.")
