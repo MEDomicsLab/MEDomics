@@ -39,7 +39,21 @@ class Analyze(Node):
         """
         This function is used to execute the node.
         """
+        # Initializations
+        print()
+        print(Fore.BLUE + "=== Analysing === " + Fore.YELLOW + f"({self.username})" + Fore.RESET)
+        settings = copy.deepcopy(self.settings)
+        plot_paths = {}
+        settings.update({'save': True})
         self._info_for_next_node = kwargs  # Pass all kwargs to finalze and save models
+        selection = self.config_json['data']['internal']['selection']
+        print_settings = copy.deepcopy(settings)
+        if 'save' in print_settings:
+            del print_settings['save']
+        if selection not in ['interpret_model', 'plot_model', 'dashboard']:
+            selection = 'plot_model'  # Default to plot_model if not specified
+
+        # Skip if finalizing models
         if self.finalize:
             self.CodeHandler.add_line("code", f"for model in trained_models:")
             self.CodeHandler.add_line(
@@ -48,24 +62,8 @@ class Analyze(Node):
                 1
             )
             return {} # Skip analyze if finalizing models
-        selection = self.config_json['data']['internal']['selection']
-        if selection not in ['interpret_model', 'plot_model', 'dashboard']:
-            selection = 'plot_model'  # Default to plot_model if not specified
-        print()
-        print(Fore.BLUE + "=== Analysing === " +
-              Fore.YELLOW + f"({self.username})" + Fore.RESET)
-        print(Fore.CYAN + f"Using {selection}" + Fore.RESET)
-        settings = copy.deepcopy(self.settings)
-        plot_paths = {}
-        settings.update({'save': True})
-        #settings.update({"plot_kwargs": {}})
-        """ if selection == 'interpret_model':
-            settings.update({'save': self.global_config_json["tmp_path"]}) """
 
         self.CodeHandler.add_line("code", f"for model in trained_models:")
-        print_settings = copy.deepcopy(settings)
-        if 'save' in print_settings:
-            del print_settings['save']
         self.CodeHandler.add_line(
             "code", f"pycaret_exp.{selection}(model, {self.CodeHandler.convert_dict_to_params(print_settings)})", 1)
         for model in kwargs['models']:
