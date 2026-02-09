@@ -38,7 +38,7 @@ const classificationModelSettings = {
             },
             "class_weight": {
                 "type": "NoneType",
-                "default_val": "None",
+                "default_val": null,
                 "tooltip": "NoneType, default=None. Set the parameter C of class i to class_weight[i]*C for SVC. If not given, all classes are supposed to have weight one. The “balanced” mode uses the values of y to automatically adjust weights inversely proportional to class frequencies in the input data as n_samples / (n_classes * np.bincount(y))."
             },
             "random_state": {
@@ -234,8 +234,8 @@ const classificationModelSettings = {
             },
             "class_weight": {
                 "type": "string",
-                "default_val": "None",
-                "choices": ["None", "balanced"],
+                "default_val": null,
+                "choices": [null, "balanced"],
                 "tooltip": "class_weight ∈ {'None',balanced'}, default=None. The “balanced” mode uses the values of y to automatically adjust weights inversely proportional to class frequencies in the input data as n_samples / (n_classes * np.bincount(y)Note that these weights will be multiplied with sample_weight (passed through the fit method) if sample_weight is specified.)"
             },
             "ccp_alpha": {
@@ -374,7 +374,7 @@ const classificationModelSettings = {
             },
             "class_weight": {
                 "type": "NoneType",
-                "default_val": "None",
+                "default_val": null,
                 "tooltip": "NoneType, default=None. Set the parameter C of class i to class_weight[i]*C for SVC. If not given, all classes are supposed to have weight one. The “balanced” mode uses the values of y to automatically adjust weights inversely proportional to class frequencies in the input data as n_samples / (n_classes * np.bincount(y))."
             },
             "n_jobs": {
@@ -460,7 +460,7 @@ const classificationModelSettings = {
             },
             "class_weight": {
                 "type": "NoneType",
-                "default_val": "None",
+                "default_val": null,
                 "tooltip": "NoneType, default=None. Set the parameter C of class i to class_weight[i]*C for SVC. If not given, all classes are supposed to have weight one. The “balanced” mode uses the values of y to automatically adjust weights inversely proportional to class frequencies in the input data as n_samples / (n_classes * np.bincount(y))."
             },
             "verbose": {
@@ -712,34 +712,14 @@ const classificationModelSettings = {
                 "tooltip": "bool, default=False. When set to True, reuse the solution of the previous call to fit as initialization, otherwise, just erase the previous solution."
             },
             "class_weight": {
-    "type": "multi",
-    "tooltip": "Weights associated with classes. Can be a string ('balanced', 'balanced_subsample'), a dict {class_label: weight}, or a list of such dicts for multi-output problems.",
-    "allowedTypes": {
-        "str": {
-            "label": "String",
-            mapTo: "string",
-            "choices": ["None", "balanced", "balanced_subsample"],
-            "default_val": "None",
-            "description": "String mode: automatic balancing using class frequencies."
-        },
-        "dict": {
-            "label": "Dictionary",
-            "mapTo": "string",
-            "default_val": "{}",
-            "description": "Custom weights per class. Example: {\"0\": 1, \"1\": 3}."
-        },
-        "list-dict": {
-            "label": "List of dictionaries",
-            "mapTo": "string",
-            "default_val": "[{}]",
-            "description": "Required for multi-output tasks. One dict per output column."
-        }
-    },
-    "default_val": null
-},
+                "type": "string",
+                "tooltip": "Weights associated with classes. Can be a string ('None', 'balanced', 'balanced_subsample') or a dictionary encoded as a string mapping class labels to weights (e.g. {\"0\": 1, \"1\": 3}).",
+                "default_val": null,
+                "choices": [null, "balanced", "balanced_subsample"]
+            },
             "max_samples": {
                 "type": "NoneType",
-                "default_val": "None",
+                "default_val": null,
                 "tooltip": "NoneType, default=None. The number of samples to draw from X to train each base estimator "
             },
             "criterion": {
@@ -769,14 +749,41 @@ const classificationModelSettings = {
                 "tooltip": "float, default=0.0. The minimum weighted fraction of the sum total of weights (of all the input samples) required to be at a leaf node. Samples have equal weight when sample_weight is not provided."
             },
             "max_features": {
-                "type": "list",
-                "default_val": "sqrt",
-                "tooltip": "<p>Number of features to consider when looking for the best split. Default = <code>sqrt</code>.</p>\n<ul>\n<li><b>sqrt</b>: Square root of total features.</li>\n<li><b>log2</b>: Log2 of total features.</li>\n<li><b>None</b>: Use all features.</li>\n</ul>\n<p><b>Note :</b> You can also provide float or int manually in the backend.</p>",
-                "choices": {
-                    "sqrt": "Sqrt (default)",
-                    "log2": "Log2",
-                    "None": "None (all features)"
-                }
+                "type": "multi",
+                "label": "Max features",
+                "tooltip": "Number of features to consider when looking for the best split.",
+                "allowedTypes": {
+                    "string": {
+                        "label": "String",
+                        "mapTo": "string",
+                        "choices": ["sqrt", "log2"],
+                        "default_val": "sqrt",
+                        "description": "sqrt(n_features) or log2(n_features)"
+                    },
+                    "int": {
+                        "label": "Integer",
+                        "mapTo": "int",
+                        "default_val": 1,
+                        "min": 1,
+                        "description": "Fixed number of features"
+                    },
+                    "float": {
+                        "label": "Fraction",
+                        "mapTo": "float",
+                        "default_val": 0.5,
+                        "min": 0.0,
+                        "max": 1.0,
+                        "step": 0.05,
+                        "description": "Fraction of features (0 < f ≤ 1)"
+                    },
+                    "none": {
+                        "label": "All features",
+                        "mapTo": "string",
+                        "default_val": "None",
+                        "description": "Use all features"
+                    }
+                },
+                "default_val": "sqrt"
             },
             "max_leaf_nodes": {
                 "type": "NoneType",
@@ -1163,8 +1170,8 @@ const classificationModelSettings = {
             },
             "class_weight": {
                 "type": "string",
-                "default_val": "None",
-                "choices": ["None", "balanced", "balanced_subsample"],
+                "default_val": null,
+                "choices": [null, "balanced", "balanced_subsample"],
                 "tooltip": "class_weight ∈ {'balanced','balanced_subsample'}, default=None. 'balanced' uses class frequencies (n_samples / (n_classes * np.bincount(y))) to set weights. 'balanced_subsample' is the same but computed on each tree's bootstrap sample. If sample_weight is passed to fit(), it is multiplied with class_weight. Use None to disable class weighting."
             },
             "max_samples": {
@@ -1335,7 +1342,7 @@ const classificationModelSettings = {
             },
             "class_weight": {
                 "type": "NoneType",
-                "default_val": "None",
+                "default_val": null,
                 "tooltip": "NoneType, default=None. Set the parameter C of class i to class_weight[i]*C for SVC. If not given, all classes are supposed to have weight one. The “balanced” mode uses the values of y to automatically adjust weights inversely proportional to class frequencies in the input data as n_samples / (n_classes * np.bincount(y))."
             }
         },

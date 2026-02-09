@@ -75,15 +75,15 @@ data types contributing to more personalized and effective treatment models **by
 
 - **Design layer**: In this layer, various types of input data are integrated to support the analytical process. This includes DICOM images and tabular data in CSV format, such as time series and clinical text data from notes or reports. This layer uses the following modules:
 
-  - [Extraction Module](https://medomics-udes.gitbook.io/medomicslab-docs/tutorials/design/extraction-modules): performs feature extraction to identify critical characteristics—like radiomic features from medical images using the [MEDimage package](https://medimage.app). 
-  - [Input Module](https://medomics-udes.gitbook.io/medomicslab-docs/tutorials/design/input-module): used to process extracted data. It provides extensive functionalities including cleaning empty lines, merging tables, and removing correlated features. It also offers a tagging tool that allows users to organize dataset columns, and offers a graphical implementation of the [MEDprofiles package](https://github.com/MEDomics-UdeS/MEDprofiles) for patient data treatment and visualization.
-  - [Exploratory Module](https://medomics-udes.gitbook.io/medomicslab-docs/tutorials/design/exploratory-module): utilized to assess data characteristics visually or statistically, with tools like [Sweetviz](https://github.com/fbdesignpro/sweetviz), [D-Tale](https://github.com/man-group/dtale), and [ydata-profiling](https://github.com/ydataai/ydata-profiling).
+  - [Extraction Module](https://medomicslab.gitbook.io/medomics-docs/tutorials/design/extraction-modules): performs feature extraction to identify critical characteristics—like radiomic features from medical images using the [MEDimage package](https://medimage.app). 
+  - [Input Module](https://medomicslab.gitbook.io/medomics-docs/tutorials/design/input-module): used to process extracted data. It provides extensive functionalities including cleaning empty lines, merging tables, and removing correlated features. It also offers a tagging tool that allows users to organize dataset columns, and offers a graphical implementation of the [MEDprofiles package](https://github.com/MEDomics-UdeS/MEDprofiles) for patient data treatment and visualization.
+  - [Exploratory Module](https://medomicslab.gitbook.io/medomics-docs/tutorials/design/exploratory-module): utilized to assess data characteristics visually or statistically, with tools like [Sweetviz](https://github.com/fbdesignpro/sweetviz), [D-Tale](https://github.com/man-group/dtale), and [ydata-profiling](https://github.com/ydataai/ydata-profiling).
 
 - **Development Layer**: Once features have been extracted and treated, it enters the Development Layer, which includes key modules for model training and testing:
-  - [Learning Module](https://medomics-udes.gitbook.io/medomicslab-docs/tutorials/development/learning-module): allows users to experiment with different machine learning (ML) models to determine the best-performing algorithms for a given clinical endpoint. After model experimentation, the ML module can help finalize a model ready for evaluation and saves it under the MEDomicsLab format: "*.medmodel*".
-  - [Evaluation Module](https://medomics-udes.gitbook.io/medomicslab-docs/tutorials/development/evaluation-module): enables model validation by testing it on new data and explaining its performance and outcomes using the [explainerdashboard package](https://github.com/oegedijk/explainerdashboard). For models that require distributed data sources for training, a graphical implementation of the [MEDfl package](https://github.com/MEDomics-UdeS/MEDfl) for simulated Federated Learning (FL) is included, allowing users to simulate federated learning experiments.
+  - [Learning Module](https://medomicslab.gitbook.io/medomics-docs/tutorials/development/learning-module): allows users to experiment with different machine learning (ML) models to determine the best-performing algorithms for a given clinical endpoint. After model experimentation, the ML module can help finalize a model ready for evaluation and saves it under the MEDomicsLab format: "*.medmodel*".
+  - [Evaluation Module](https://medomicslab.gitbook.io/medomics-docs/tutorials/development/evaluation-module): enables model validation by testing it on new data and explaining its performance and outcomes using the [explainerdashboard package](https://github.com/oegedijk/explainerdashboard). For models that require distributed data sources for training, a graphical implementation of the [MEDfl package](https://github.com/MEDomics-UdeS/MEDfl) for simulated Federated Learning (FL) is included, allowing users to simulate federated learning experiments.
 
-- **Deployment Layer** : After finalizing and evaluating a model, it’s ready to be used in the [Application Module](https://medomics-udes.gitbook.io/medomicslab-docs/tutorials/deployment/application-module). This module enables users to apply the trained model to new datasets or patient data, making it accessible for clinical use. Additionally, the standardized "*.medmodel*" format plays a crucial role in facilitating collaboration, allowing models to be shared seamlessly across teams and ensuring compatibility and ease of integration in diverse environments.
+- **Deployment Layer** : After finalizing and evaluating a model, it’s ready to be used in the [Application Module](https://medomicslab.gitbook.io/medomics-docs/tutorials/deployment/application-module). This module enables users to apply the trained model to new datasets or patient data, making it accessible for clinical use. Additionally, the standardized "*.medmodel*" format plays a crucial role in facilitating collaboration, allowing models to be shared seamlessly across teams and ensuring compatibility and ease of integration in diverse environments.
 
 ## MEDomicsLab in Action
 Explore MEDomicsLab's powerful features through the part two of the machine learning module tutorial. It highlights the intuitive interface and versatile tools available for data analysis and how it can be utilized.
@@ -100,16 +100,16 @@ Explore MEDomicsLab's powerful features through the part two of the machine lear
 </div>
 
 ## Installation and Usage
-[Get started here](https://medomics-udes.gitbook.io/medomicslab-docs/quick-start).
+[Get started here](https://medomicslab.gitbook.io/medomics-docs/quick-start).
 
 ![Operating systems supported by MEDomicsLab](./resources/OSSystemsSupport.png)
 
 ### Explore Documentation
 Detailed documentation for MEDomicsLab can be found 
-[here](https://medomics-udes.gitbook.io/medomicslab-docs/).
+[here](https://medomicslab.gitbook.io/medomics-docs/).
 
 ### Engage in MEDomicsLab
-Explore our [contribution page](https://medomics-udes.gitbook.io/medomicslab-docs/contributing) for resources on contributing to MEDomicsLab and setting up your development environment.
+Explore our [contribution page](https://medomicslab.gitbook.io/medomics-docs/contributing) for resources on contributing to MEDomicsLab and setting up your development environment.
 
 <img src="./resources/ContributingTools.png"/>
 

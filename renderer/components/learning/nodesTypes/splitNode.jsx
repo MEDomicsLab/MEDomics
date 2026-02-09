@@ -289,7 +289,7 @@ const SplitNode = ({ id, data }) => {
           {(!useUserDefinedSettings) && (
             <div className="p-3 mb-3" style={{ border: "1px solid #ccc", borderRadius: "8px" }}>
               <h6>Outer Split</h6>
-              <p className="text-muted" style={{ fontSize: "0.85em" }}>
+              <p style={{ fontSize: "0.85em" }}>
                 Outer Splits are used for training and testing the model. The selected method will be used to define the method used for splitting the data into training and testing sets.
               </p>            
               <>

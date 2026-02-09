@@ -20,7 +20,7 @@ const EvaluationPage = ({ pageId = "evaluation-456" }) => {
           <p style={{ marginTop: "10px" }}>
             Learn more about this process in our{' '}
             <u
-              onClick={() => shell.openExternal("https://medomics-udes.gitbook.io/medomicslab-docs/tutorials/development/evaluation-module")}
+              onClick={() => shell.openExternal("https://medomicslab.gitbook.io/medomics-docs/tutorials/development/evaluation-module")}
               style={{ color: "#4991dfff", textDecoration: "none", cursor: "pointer" }}
             >
               documentation. 🔗

@@ -484,7 +484,7 @@ jobs:
           body: |
             MEDomics-${{ env.VERSION }}
             This is a full release of MEDomics. This release includes the MEDomics platform and the Python environment.
-            Refer to the [Documentation](https://medomics-udes.gitbook.io/medomicslab-docs/)
+            Refer to the [Documentation](https://medomicslab.gitbook.io/medomics-docs/)
             ${{ github.ref }}
           draft: true
           prerelease: false

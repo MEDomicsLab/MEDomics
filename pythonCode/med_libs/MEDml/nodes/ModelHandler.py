@@ -16,6 +16,52 @@ from .NodeObj import Node
 DATAFRAME_LIKE = Union[dict, list, tuple, np.ndarray, pd.DataFrame]
 TARGET_LIKE = Union[int, str, list, tuple, np.ndarray, pd.Series]
 
+def sanitize_hyperparam(name, value):
+    if value is None:
+        return None
+
+    # --- special case: max_features
+    if name == "max_features":
+        if isinstance(value, str):
+            if value.isdigit():
+                return int(value)
+            try:
+                return float(value)
+            except ValueError:
+                return value
+        return value
+
+    # --- default behavior for ALL other hyperparameters
+    return value
+
+
+def sanitize_custom_grid(custom_grid: dict) -> dict:
+    """
+    Sanitize all hyperparameters coming from frontend
+    - cast values
+    - remove None
+    - drop empty parameters
+    """
+    clean_grid = {}
+
+    for param, values in custom_grid.items():
+        if not isinstance(values, list):
+            continue
+
+        sanitized_values = []
+        for v in values:
+            sv = sanitize_hyperparam(param, v)
+            if sv is not None:
+                sanitized_values.append(sv)
+
+        # IMPORTANT : on ne garde le paramètre que s'il reste des valeurs
+        if sanitized_values:
+            clean_grid[param] = sanitized_values
+
+    return clean_grid
+
+
+
 class ModelHandler(Node):
     """
     This class represents the ModelHandler node.
@@ -206,8 +252,9 @@ class ModelHandler(Node):
                 
                 # Check if a custom grid is provided
                 if self.useTuningGrid and self.model_id in list(self.config_json['data']['internal'].keys()) and 'custom_grid' in list(self.config_json['data']['internal'][self.model_id].keys()):
-                    self.settingsTuning['custom_grid'] = self.config_json['data']['internal'][self.model_id]['custom_grid']
-                    
+                    raw_grid = self.config_json['data']['internal'][self.model_id]['custom_grid']
+                    self.settingsTuning['custom_grid'] = sanitize_custom_grid(raw_grid)
+          
                     # Convert hidden_layer_sizes if it is a string
                     if "hidden_layer_sizes" in self.settingsTuning['custom_grid']:
                         val = self.settingsTuning['custom_grid']["hidden_layer_sizes"]
@@ -349,9 +396,7 @@ class ModelHandler(Node):
                 # Finalize the model
                 if finalize:
                     best_model = best_exp.finalize_model(best_model)
-                    self.CodeHandler.add_line("code", "\n# Finalizing model")
-                    self.CodeHandler.add_line("code", f"best_model = best_exp.finalize_model(best_model)")
-                
+
                 # Store the final model
                 self.CodeHandler.add_line("code", f"trained_models = [best_model]")
                 return {'model': best_model, 'overall_metrics': overall_metrics}
@@ -429,7 +474,9 @@ class ModelHandler(Node):
             if self.isTuningEnabled:
                 # Check if a custom grid is provided
                 if self.useTuningGrid and self.model_id in list(self.config_json['data']['internal'].keys()) and 'custom_grid' in list(self.config_json['data']['internal'][self.model_id].keys()):
-                    self.settingsTuning['custom_grid'] = self.config_json['data']['internal'][self.model_id]['custom_grid']
+                    raw_grid = self.config_json['data']['internal'][self.model_id]['custom_grid']
+                    self.settingsTuning['custom_grid'] = sanitize_custom_grid(raw_grid)
+
                     # Convert hidden_layer_sizes if it is a string
                     if "hidden_layer_sizes" in self.settingsTuning['custom_grid']:
                         val = self.settingsTuning['custom_grid']["hidden_layer_sizes"]
@@ -499,13 +546,6 @@ class ModelHandler(Node):
                 #self.CodeHandler.add_line("code", f"trained_models = [pycaret_exp.optimize_threshold(trained_models[0], metric='{self.threshold_optimization_metric}')]")
 
             if finalize:
-                self.CodeHandler.add_line("md", "##### *Finalizing models*")
-                self.CodeHandler.add_line("code", f"for model in trained_models:")
-                self.CodeHandler.add_line(
-                    "code",
-                    f"model = pycaret_exp.finalize_model(model)",
-                    1
-                )
                 trained_model = pycaret_exp.finalize_model(trained_model)
             
             # Get final metrics dict
@@ -622,7 +662,8 @@ class ModelHandler(Node):
             if self.isTuningEnabled:
                 # Check if a custom grid is provided
                 if self.useTuningGrid and self.model_id in list(self.config_json['data']['internal'].keys()) and 'custom_grid' in list(self.config_json['data']['internal'][self.model_id].keys()):
-                    self.settingsTuning['custom_grid'] = self.config_json['data']['internal'][self.model_id]['custom_grid']
+                    raw_grid = self.config_json['data']['internal'][self.model_id]['custom_grid']
+                    self.settingsTuning['custom_grid'] = sanitize_custom_grid(raw_grid)
 
                     # Convert hidden_layer_sizes if it is a string
                     if "hidden_layer_sizes" in self.settingsTuning['custom_grid']:
@@ -657,13 +698,6 @@ class ModelHandler(Node):
                 self.CodeHandler.add_line("code", f"trained_models = [pycaret_exp.optimize_threshold(trained_models[0], metric='{self.threshold_optimization_metric}')]")
 
             if finalize:
-                self.CodeHandler.add_line("md", "##### *Finalizing models*")
-                self.CodeHandler.add_line("code", f"for model in trained_models:")
-                self.CodeHandler.add_line(
-                    "code",
-                    f"model = pycaret_exp.finalize_model(model)",
-                    1
-                )
                 trained_models = [experiment['pycaret_exp'].finalize_model(model) for model in trained_models]
         else:
             raise ValueError(f"Unsupported type: {self.type}. Expected 'compare_models' or 'train_model'.")
