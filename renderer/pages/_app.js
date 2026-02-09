@@ -266,6 +266,9 @@ function App() {
     if (workspaceObject.hasBeenSet == true) {
       console.log("workspaceObject changed", workspaceObject)
       getGlobalData()
+    } else {
+      console.log("Clearing global data because workspaceObject has not been set yet", workspaceObject)
+      setGlobalData({})
     }
   }, [workspaceObject])
 

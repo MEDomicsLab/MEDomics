@@ -1871,8 +1871,14 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
                     workingDirectory: "",
                     isRemote: false
                   })
+                  // Stop mongo tunnel but ignore errors (in case it was started outside of this workflow or already stopped)
+                  try {
+                    await ipcRenderer.invoke('stopPortTunnel', { name: 'mongo' })
+                  } catch (e) {
+                    console.warn('Failed to stop mongo tunnel:', e)
+                  }
                 } catch (e) {
-                  // ignore stop failures
+                  console.warn('Error leaving workspace:', e)
                 }
                 finally {
                   setConnectionProcessing(false)
