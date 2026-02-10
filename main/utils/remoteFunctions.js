@@ -757,8 +757,8 @@ ipcMain.handle('installRemoteBackendFromURL', async (_event, { manifestUrl, vers
       }
     } else {
       // GitHub releases-based install (no manifest provided)
-      const defaultOwner = 'm-alexparent'
-      const defaultRepo = 'MEDomics-NodeServerDeploymentTests'
+      const defaultOwner = 'MEDomicsLab'
+      const defaultRepo = 'MEDomics'
       sendInstallProgress({ phase: 'github-fetch-releases', owner: defaultOwner, repo: defaultRepo })
       const { data: releases } = await axios.get(`https://api.github.com/repos/${defaultOwner}/${defaultRepo}/releases`, {
         headers: { 'Accept': 'application/vnd.github+json', 'User-Agent': 'medomicslab-remote-installer' },

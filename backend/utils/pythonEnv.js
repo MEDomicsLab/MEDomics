@@ -4,7 +4,31 @@ import util from "util"
 import fs from "fs"
 import { execSync, exec as execCb } from "child_process"
 const exec = util.promisify(execCb)
-import { readdir, stat, rm } from "fs/promises"
+import { readdir, stat } from "fs/promises"
+
+async function rmRecursive(targetPath) {
+  // Node 14.5 (used by nexe targets) does not support `rm` in fs/promises.
+  // Prefer rm when available, otherwise fall back to rmdir(recursive).
+  const fsp = fs.promises
+  try {
+    if (fsp && typeof fsp.rm === "function") {
+      await fsp.rm(targetPath, { recursive: true, force: true })
+      return
+    }
+  } catch (e) {
+    // If rm exists but fails (permissions, etc.), fall through to rmdir.
+  }
+
+  try {
+    if (fsp && typeof fsp.rmdir === "function") {
+      await fsp.rmdir(targetPath, { recursive: true })
+    }
+  } catch (e) {
+    // Match rm({force:true}) semantics as closely as we can.
+    if (e && (e.code === "ENOENT")) return
+    throw e
+  }
+}
 
 function getServerBundleRoot() {
   // In Electron builds, process.resourcesPath is a good anchor.
@@ -102,7 +126,7 @@ async function checkSizeAndDeleteIfZero(directoryPath) {
         if (size === 0) {
             console.log(`Directory is empty. Deleting...`)
             // The { recursive: true } option allows deleting a directory and its contents (even if empty)
-            await rm(directoryPath, { recursive: true, force: true }) 
+          await rmRecursive(directoryPath)
             console.log(`Directory deleted: ${directoryPath}`)
         } else {
             console.log(`Directory is not empty (size: ${size} bytes). Not deleting.`)

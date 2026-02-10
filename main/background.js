@@ -869,8 +869,8 @@ ipcMain.handle('setLocalBackendPath', async (_event, exePath) => {
 // IPC: Get latest backend release info from GitHub
 // Enhancement: fetch all releases and return the latest "server-" tagged one.
 ipcMain.handle('getLatestBackendReleaseInfo', async (_event, payload) => {
-  const owner = (payload && payload.owner) || 'm-alexparent' // TO REPLACE WITH MEDOMICS BASE REPO
-  const repo = (payload && payload.repo) || 'MEDomics-NodeServerDeploymentTests'
+  const owner = (payload && payload.owner) || 'MEDomicsLab' // TO REPLACE WITH MEDOMICS BASE REPO
+  const repo = (payload && payload.repo) || 'MEDomics'
   const serverOnly = payload && typeof payload.serverOnly === 'boolean' ? payload.serverOnly : true
 
   // Helpers
@@ -1054,8 +1054,8 @@ ipcMain.handle('installLocalBackendFromURL', async (_event, { version, manifestU
     }
 
     // New GitHub releases-based install
-    const defaultOwner = 'm-alexparent'
-    const defaultRepo = 'MEDomics-NodeServerDeploymentTests'
+    const defaultOwner = 'MEDomicsLab'
+    const defaultRepo = 'MEDomics'
     progress({ phase: 'github-fetch-releases', owner: defaultOwner, repo: defaultRepo })
     const { data: releases } = await axios.get(`https://api.github.com/repos/${defaultOwner}/${defaultRepo}/releases`, {
       headers: { 'Accept': 'application/vnd.github+json', 'User-Agent': 'medomicslab-installer' },
