@@ -6,6 +6,58 @@ import { execSync, exec as execCb } from "child_process"
 const exec = util.promisify(execCb)
 import { readdir, stat } from "fs/promises"
 
+const _requirementsInstallPromises = new Map()
+let _bundledPythonSizeCheckStarted = false
+
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms))
+}
+
+function getRequirementsInstallLockPath(pythonExecutablePath) {
+  try {
+    // Put the lock next to the interpreter so it is shared across processes.
+    return path.join(path.dirname(pythonExecutablePath), '.requirements-install.lock')
+  } catch {
+    return path.join(process.cwd(), '.requirements-install.lock')
+  }
+}
+
+async function acquireInstallLock(lockPath, timeoutMs = 30 * 60 * 1000) {
+  const started = Date.now()
+  let lockAcquired = false
+  while (!lockAcquired) {
+    try {
+      fs.writeFileSync(lockPath, JSON.stringify({ pid: process.pid, started: new Date().toISOString() }), { flag: 'wx' })
+      lockAcquired = true
+      return
+    } catch (e) {
+      if (e && e.code !== 'EEXIST') throw e
+      try {
+        const st = fs.statSync(lockPath)
+        // If lock is stale (> 60 min), delete it.
+        if (Date.now() - st.mtimeMs > 60 * 60 * 1000) {
+          try { fs.unlinkSync(lockPath) } catch {}
+          continue
+        }
+      } catch {
+        // If stat fails, retry creating lock.
+      }
+      if (Date.now() - started > timeoutMs) {
+        throw new Error(`Timed out waiting for python requirements install lock: ${lockPath}`)
+      }
+      await sleep(2000)
+    }
+  }
+}
+
+async function releaseInstallLock(lockPath) {
+  try {
+    await fs.promises.unlink(lockPath)
+  } catch (e) {
+    if (e && e.code === 'ENOENT') return
+  }
+}
+
 async function rmRecursive(targetPath) {
   // Node 14.5 (used by nexe targets) does not support `rm` in fs/promises.
   // Prefer rm when available, otherwise fall back to rmdir(recursive).
@@ -311,7 +363,11 @@ function getBundledPythonEnvironment() {
   }
 
   // Check if the python folder is empty, if yes, delete it
-  checkSizeAndDeleteIfZero(bundledPythonPath)
+  if (!_bundledPythonSizeCheckStarted) {
+    _bundledPythonSizeCheckStarted = true
+    // Fire-and-forget (cannot await from a sync getter); avoid spamming logs by running once.
+    checkSizeAndDeleteIfZero(bundledPythonPath).catch(() => {})
+  }
 
   pythonEnvironment = path.join(bundledPythonPath, "bin", "python")
   if (process.platform == "win32") {
@@ -321,6 +377,46 @@ function getBundledPythonEnvironment() {
     pythonEnvironment = null
   }
   return pythonEnvironment
+}
+
+async function ensurePythonRequirementsInstalled(notify, pythonExecutablePath, requirementsFilePath = null) {
+  const pythonPath = pythonExecutablePath || getBundledPythonEnvironment()
+  const reqPath = requirementsFilePath || getMergedRequirementsPath()
+  if (!pythonPath || !fs.existsSync(pythonPath)) {
+    throw new Error(`Python executable not found: ${pythonPath}`)
+  }
+  if (!reqPath || !fs.existsSync(reqPath)) {
+    throw new Error(`Requirements file not found: ${reqPath}`)
+  }
+
+  const key = `${pythonPath}::${reqPath}`
+  if (_requirementsInstallPromises.has(key)) {
+    return await _requirementsInstallPromises.get(key)
+  }
+
+  const lockPath = getRequirementsInstallLockPath(pythonPath)
+  const promise = (async () => {
+    await acquireInstallLock(lockPath)
+    try {
+      const ok = checkPythonRequirements(pythonPath, reqPath)
+      if (ok) return { ok: true, installed: false }
+      await installRequiredPythonPackages(notify, pythonPath)
+      const ok2 = checkPythonRequirements(pythonPath, reqPath)
+      if (!ok2) {
+        throw new Error('Python requirements are still missing after install')
+      }
+      return { ok: true, installed: true }
+    } finally {
+      await releaseInstallLock(lockPath)
+    }
+  })()
+
+  _requirementsInstallPromises.set(key, promise)
+  try {
+    return await promise
+  } finally {
+    _requirementsInstallPromises.delete(key)
+  }
 }
 
 async function installRequiredPythonPackages(notify, pythonExecutablePath) {
@@ -399,7 +495,8 @@ function getInstalledPythonPackages(pythonPath = null) {
 
   let pythonPackagesOutput = ""
   try {
-    pythonPackagesOutput = execSync(`${pythonPath} -m pip list --format=json`).toString()
+    // Quote path to support spaces (e.g., Program Files).
+    pythonPackagesOutput = execSync(`"${pythonPath}" -m pip list --format=json`).toString()
   } catch (error) {
     console.warn("Error retrieving python packages:", error)
   }
@@ -623,6 +720,7 @@ export {
   getPythonEnvironment,
   getBundledPythonEnvironment,
   installRequiredPythonPackages,
+  ensurePythonRequirementsInstalled,
   checkPythonRequirements,
   getInstalledPythonPackages,
   installPythonPackage,

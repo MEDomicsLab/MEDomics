@@ -23,7 +23,7 @@ import cors from "cors"
 import dirTree from "directory-tree"
 import { exec, execSync } from "child_process"
 import * as pythonEnv from "./utils/pythonEnv.js"
-const { getBundledPythonEnvironment, installBundledPythonExecutable, installRequiredPythonPackages, checkPythonRequirements } = pythonEnv
+const { getBundledPythonEnvironment, installBundledPythonExecutable, installRequiredPythonPackages, checkPythonRequirements, ensurePythonRequirementsInstalled } = pythonEnv
 import * as jupyterServer from "./utils/jupyterServer.js"
 const { startJupyterServer, stopJupyterServer, checkJupyterIsRunning } = jupyterServer
 import MEDconfig from "./utils/medomics.server.dev.js"
@@ -195,11 +195,7 @@ async function startGoServer(preferredPort = null) {
 			const reqOk = checkPythonRequirements(pythonExe)
 			if (!reqOk) {
 				console.log('[python] requirements missing; installing into', pythonExe)
-				await installRequiredPythonPackages(null, pythonExe)
-				const reqOk2 = checkPythonRequirements(pythonExe)
-				if (!reqOk2) {
-					throw new Error('Python requirements are still missing after install')
-				}
+				await ensurePythonRequirementsInstalled(null, pythonExe)
 			}
 		} catch (pyErr) {
 			console.error('[python] ensure requirements failed:', pyErr && pyErr.message ? pyErr.message : pyErr)
