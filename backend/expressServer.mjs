@@ -760,8 +760,15 @@ if (process.argv[1] && process.argv[1].endsWith('expressServer.mjs')) {
 			console.log('[bootstrap] starting express')
 			await startExpressServer()
 			console.log('[bootstrap] express started on', serviceState.expressPort)
-			await startGoServer()
-			console.log('[bootstrap] go server started on', serviceState.go.port)
+			try {
+				await startGoServer()
+				console.log('[bootstrap] go server started on', serviceState.go.port)
+			} catch (goErr) {
+				console.error('[bootstrap] failed to start Go server:', goErr && goErr.stack ? goErr.stack : goErr)
+				// Continue running Express even if Go server fails to start
+				serviceState.go.running = false
+				serviceState.go.port = null
+			}
 		} catch (e) {
 			console.error('[bootstrap] fatal startup error', e && e.stack ? e.stack : e)
 			process.exit(1)
