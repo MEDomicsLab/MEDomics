@@ -37,6 +37,47 @@ async function ensureDir(dir) {
   await fsp.mkdir(dir, { recursive: true });
 }
 
+async function fileExists(p) {
+  try {
+    await fsp.access(p);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// Remove dependency specs that tend to create symlinks/junctions (file:/link:/workspace:)
+async function sanitizeStagedBackend(stagedBackendDir) {
+  const stagedPkgPath = path.join(stagedBackendDir, 'package.json');
+  if (!(await fileExists(stagedPkgPath))) return;
+
+  const pkg = JSON.parse(await fsp.readFile(stagedPkgPath, 'utf8'));
+  const deps = pkg.dependencies || {};
+  const badSpecs = new Set(['file:', 'link:', 'workspace:']);
+  const removed = [];
+  for (const [name, spec] of Object.entries(deps)) {
+    if (typeof spec !== 'string') continue;
+    for (const prefix of badSpecs) {
+      if (spec.startsWith(prefix)) {
+        removed.push([name, spec]);
+        delete deps[name];
+        break;
+      }
+    }
+  }
+  if (removed.length) {
+    console.warn('Sanitizing staged backend dependencies that can create recursive symlinks:');
+    for (const [name, spec] of removed) console.warn(` - removed ${name}: ${spec}`);
+    pkg.dependencies = deps;
+    await fsp.writeFile(stagedPkgPath, JSON.stringify(pkg, null, 2));
+  }
+
+  // Ensure installs are driven from the sanitized package.json
+  // (package-lock/shrinkwrap can reintroduce local/file deps even with flags)
+  await fsp.rm(path.join(stagedBackendDir, 'package-lock.json'), { force: true }).catch(() => {});
+  await fsp.rm(path.join(stagedBackendDir, 'npm-shrinkwrap.json'), { force: true }).catch(() => {});
+}
+
 // Copy a directory tree while excluding specified top-level names (e.g., node_modules)
 async function copyDirExcluding(src, dest, excludeNames = new Set()) {
   await ensureDir(dest);
@@ -67,20 +108,6 @@ async function main() {
 
   const root = process.cwd();
   const version = require(path.join(root, 'package.json')).version;
-  // Preflight: detect and auto-remove any local file: dependencies (e.g. monorepo self-links)
-  const backendPkgPath = path.join(root, 'backend', 'package.json');
-  const backendPkg = JSON.parse(fs.readFileSync(backendPkgPath, 'utf8'));
-  const deps = backendPkg.dependencies || {};
-  const fileDeps = Object.entries(deps).filter(([, spec]) => typeof spec === 'string' && spec.startsWith('file:'));
-  if (fileDeps.length > 0) {
-    console.warn('Detected local file: dependencies in backend/package.json that can cause symlink/EPERM issues. Auto-removing for pack:');
-    for (const [name, spec] of fileDeps) {
-      console.warn(` - removing ${name}: ${spec}`);
-      delete deps[name];
-    }
-    backendPkg.dependencies = deps;
-    fs.writeFileSync(backendPkgPath, JSON.stringify(backendPkg, null, 2));
-  }
   const outBase = path.join(root, 'build', 'server', platform);
   const distDir = path.join(root, 'build', 'dist');
   await ensureDir(outBase);
@@ -121,7 +148,9 @@ async function main() {
 
   // Copy backend, pythonCode, pythonEnv
   // Copy backend excluding node_modules to avoid Windows symlink EPERM
-  await copyDirExcluding(path.join(root, 'backend'), path.join(outBase, 'backend'), new Set(['node_modules']));
+  const stagedBackendDir = path.join(outBase, 'backend');
+  await copyDirExcluding(path.join(root, 'backend'), stagedBackendDir, new Set(['node_modules']));
+  await sanitizeStagedBackend(stagedBackendDir);
   await cpRecursive(path.join(root, 'pythonCode'), path.join(outBase, 'pythonCode'));
   await cpRecursive(path.join(root, 'pythonEnv'), path.join(outBase, 'pythonEnv'));
 
@@ -157,15 +186,21 @@ async function main() {
   // Install backend production dependencies into the staged backend
   console.log('Installing backend production dependencies...');
   // Ensure a clean node_modules in staging
-  await fsp.rm(path.join(outBase, 'backend', 'node_modules'), { recursive: true, force: true }).catch(() => {});
+  await fsp.rm(path.join(stagedBackendDir, 'node_modules'), { recursive: true, force: true }).catch(() => {});
   // Use npm with --prefix to install into the staged backend folder
   // Add --no-bin-links to avoid symlink creation on Windows (EPERM without admin/dev-mode)
-  // Also disable lockfile to avoid reintroducing local file deps via package-lock
-  sh(`npm install --omit=dev --no-bin-links --no-package-lock --prefix "${path.join(outBase, 'backend')}"`, { shell: true });
+  // Also disable lockfile creation; we already removed lockfiles in the staged backend.
+  sh(`npm install --omit=dev --no-bin-links --no-package-lock --prefix "${stagedBackendDir}"`, { shell: true });
 
-  // npm creates a self-referencing symlink (package name matches repo) which causes
-  // infinite recursion when zip-local traverses the directory. Remove it proactively.
-  await removeRecursiveSymlink(path.join(outBase, 'backend', 'node_modules', 'medomicslab-application'));
+  // If the staged backend depends on the parent repo via file:/link:/workspace:,
+  // npm can create a self-referencing symlink/junction that points back into the repo.
+  // zip-local follows symlinks when stat'ing and will recurse until it hits ELOOP.
+  // Remove known self-link candidates proactively.
+  await removeRecursiveSymlink(path.join(stagedBackendDir, 'node_modules', 'medomics-platform'));
+  await removeRecursiveSymlink(path.join(stagedBackendDir, 'node_modules', 'medomicslab-application'));
+
+  // Extra safety: if a published package ever includes build artifacts, drop them.
+  await fsp.rm(path.join(stagedBackendDir, 'node_modules', 'medomics-platform', 'build', 'server'), { recursive: true, force: true }).catch(() => {});
 
   const readme = `MEDomicsLab Server Bundle (v${version})\n\n` +
 `Quick start:\n` +
