@@ -147,6 +147,30 @@ const LayoutManager = (props) => {
 
   // Render content component based on activeNavItem state
   const renderContentComponent = () => {
+    const isRemoteWorkspace = !!workspace?.isRemote
+    const blockedInRemote = new Set([
+      'learning',
+      'extractionMEDimage',
+      'extractionText',
+      'extractionTS',
+      'extractionImage',
+      'exploratory',
+      'results',
+      'evaluation',
+      'application'
+    ])
+
+    if (isRemoteWorkspace && blockedInRemote.has(activeSidebarItem)) {
+      return (
+        <div style={{ padding: 16 }}>
+          <h3 style={{ marginTop: 0 }}>Module unavailable</h3>
+          <div style={{ color: 'var(--warning)', fontSize: 14 }}>
+            Not yet implemented for online use, please switch to a local workspace.
+          </div>
+        </div>
+      )
+    }
+
     if (developerMode && workspaceIsSet) {
       return <MainContainer />
     } else {

@@ -1109,6 +1109,24 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
         jupyterStatus={this.props.jupyterStatus}
         setJupyterStatus={this.props.setJupyterStatus}
       />
+    } else if (component === "remoteNotReady") {
+      if (node.getExtraData().data == null) {
+        const config: any = node.getConfig()
+        const moduleName = config?.blockedModule || 'This module'
+        const reason = config?.blockedReason || 'Not yet implemented for online use, please switch to a local workspace.'
+
+        return (
+          <div style={{ padding: 16 }}>
+            <h3 style={{ marginTop: 0 }}>{moduleName}</h3>
+            <div style={{ color: 'var(--warning)', fontSize: 14 }}>
+              {reason}
+            </div>
+            <div style={{ marginTop: 8, color: 'var(--text-secondary)', fontSize: 12 }}>
+              Tip: Disconnect from the remote workspace and open a local workspace to use this module.
+            </div>
+          </div>
+        )
+      }
     } else if (component !== "") {
       if (node.getExtraData().data == null) {
         const config = node.getConfig()
@@ -1387,15 +1405,29 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
   addTab = (tabParams: any) => {
     // Your code to add a tab with custom parameters
     console.log("addTab", tabParams)
-    let tabExists = this.checkIfTabIDExists(tabParams.id)
+    if (!tabParams || typeof tabParams !== 'object') {
+      console.warn('[MainContainer] ADD_TAB ignored: missing tab params', tabParams)
+      return
+    }
+
+    // FlexLayout requires an id; if callers omit it, derive one from common fields.
+    const tabId = tabParams.id || tabParams.component || tabParams.name
+    if (!tabId || typeof tabId !== 'string') {
+      console.warn('[MainContainer] ADD_TAB ignored: missing tab id', tabParams)
+      return
+    }
+
+    const normalizedTabParams = tabParams.id ? tabParams : { ...tabParams, id: tabId }
+
+    let tabExists = this.checkIfTabIDExists(tabId)
     if (tabExists) {
       console.log("tab already exists")
       // We select the tab that already exists and set it to active
-      this.state.model!.doAction(Actions.selectTab(tabParams.id))
+      this.state.model!.doAction(Actions.selectTab(tabId))
     } else {
       // We add the tab to the active tabset
-      this.saved[tabParams.id] = true
-      this.layoutRef!.current!.addTabToActiveTabSet(tabParams)
+      this.saved[tabId] = true
+      this.layoutRef!.current!.addTabToActiveTabSet(normalizedTabParams)
     }
   }
 
@@ -1423,6 +1455,7 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
    */
   checkIfTabIDExists = (tabID: string) => {
     let tabExists = false
+    if (!tabID || typeof tabID !== 'string') return false
     this.state.model!.getNodeById(tabID) ? (tabExists = true) : (tabExists = false)
     return tabExists
   }
