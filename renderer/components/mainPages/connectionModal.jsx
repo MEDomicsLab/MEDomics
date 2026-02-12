@@ -32,6 +32,9 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
   const [showAdvanced, setShowAdvanced] = useState(false)
   const [activeStep, setActiveStep] = useState(0) // 0=SSH, 1=Server Setup, 2=Workspace
 
+  // Step 1: Optional advanced disclosure for SSH key details
+  const [showSSHKeyAdvanced, setShowSSHKeyAdvanced] = useState(false)
+
   // Connection info form fields
   const [host, setHost] = useState("")
   const [username, setUsername] = useState("")
@@ -47,7 +50,7 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
   const [remoteDBPort, setRemoteDBPort] = useState("54017")
   const [localJupyterPort, setLocalJupyterPort] = useState("8890")
   const [remoteJupyterPort, setRemoteJupyterPort] = useState("8900")
-  const [privateKey, setPrivateKey] = useState("")
+  const [, setPrivateKey] = useState("")
   const [publicKey, setPublicKey] = useState("")
   // Commented out to fix linting problems: unused setter setKeyComment
   // const [keyComment, setKeyComment] = useState("medomicslab-app")
@@ -59,6 +62,10 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
   const [tunnelStatus, setTunnelStatus] = useState("")
   const [remoteBackendStatus, setRemoteBackendStatus] = useState("")
   const [remoteBackendPath, setRemoteBackendPath] = useState("")
+  const [remoteBackendVersion, setRemoteBackendVersion] = useState("")
+  const [latestRemoteVersionTag, setLatestRemoteVersionTag] = useState("")
+  const [latestRemoteVersionAvailable, setLatestRemoteVersionAvailable] = useState(false)
+  const [latestRemoteVersionChecked, setLatestRemoteVersionChecked] = useState(false)
   const [tunnelActive, setTunnelActive] = useState(false)
   const [reconnectAttempts, setReconnectAttempts] = useState(0)
   const maxReconnectAttempts = 3
@@ -76,7 +83,7 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
   const [goProbeInfo, setGoProbeInfo] = useState(null)
 
   // Step 2: Remote server setup state
-  const [, setRemoteInstalled] = useState(false)
+  const [remoteInstalled, setRemoteInstalled] = useState(false)
   const [installingRemote, setInstallingRemote] = useState(false)
   const [remoteInstallText, setRemoteInstallText] = useState('')
   const [remoteStartPort, setRemoteStartPort] = useState('5010')
@@ -144,25 +151,33 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
   //   )
   // }
 
-  const handleGenerateKey = async () => {
+  const ensureSSHKey = async (usernameToUse) => {
+    const uname = String(usernameToUse || username || '').trim()
+    if (!uname) throw new Error('Username is required to generate an SSH key.')
+
+    // 1) Try to load an existing key from the main process (if supported)
     try {
-      const result = await ipcRenderer.invoke('generateSSHKey', { comment: keyComment, username })
-      if (result && result.publicKey && result.privateKey) {
-        setPublicKey(result.publicKey)
-        setPrivateKey(result.privateKey)
+      const existing = await ipcRenderer.invoke('getSSHKey', { username: uname })
+      if (existing && existing.publicKey && existing.privateKey) {
+        setPublicKey(existing.publicKey)
+        setPrivateKey(existing.privateKey)
         setKeyGenerated(true)
-        toast.success("A new SSH key pair was generated.")
-      } else if (result && result.error) {
-        alert('Key generation failed: ' + result.error)
-        toast.error("Key Generation Failed: " + result.error)
-      } else {
-        alert('Key generation failed: Unknown error.')
-        toast.error("Key Generation Failed: Unknown error.")
+        return existing
       }
-    } catch (err) {
-      alert('Key generation failed: ' + err.message)
-      toast.error("Key Generation Failed: " + err.message)
+    } catch (e) {
+      // If handler isn't implemented or lookup fails, fall back to generation.
+      console.warn('getSSHKey failed; will attempt to generate:', e && e.message ? e.message : e)
     }
+
+    // 2) Generate a new key
+    const created = await ipcRenderer.invoke('generateSSHKey', { comment: keyComment, username: uname })
+    if (created && created.publicKey && created.privateKey) {
+      setPublicKey(created.publicKey)
+      setPrivateKey(created.privateKey)
+      setKeyGenerated(true)
+      return created
+    }
+    throw new Error(created?.error || 'SSH key generation failed.')
   }
 
   // Tunnel error handler and auto-reconnect
@@ -187,6 +202,7 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
   useEffect(() => {
     if (visible) {
       setActiveStep(0)
+      setShowSSHKeyAdvanced(false)
       setRemoteInstalled(false)
       setInstallingRemote(false)
       setRemoteInstallText('')
@@ -198,6 +214,10 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
       setRemoteDownloadPercent(null)
       setRemoteDownloadSpeed(null)
       setRemoteInstallEvents([])
+      setRemoteBackendVersion("")
+      setLatestRemoteVersionTag("")
+      setLatestRemoteVersionAvailable(false)
+      setLatestRemoteVersionChecked(false)
       const tunnel = getTunnelState()
       if (tunnel.tunnelActive) {
         setTunnelActive(true)
@@ -422,71 +442,95 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
     setConnectionProcessing(true)
     setTunnelStatus(isReconnect ? "Reconnecting..." : "Connecting...")
     toast.info(isReconnect ? "Reconnecting SSH tunnel..." : "Establishing SSH tunnel...")
-  const connInfo = info || { host, username, privateKey, password, remotePort, localExpressPort, remoteExpressPort, localGoPort, remoteGoPort, localDBPort, remoteDBPort, localJupyterPort, remoteJupyterPort }
-    setConnectionInfo(connInfo)
+    const baseInfo = info || { host, username, password, remotePort, localExpressPort, remoteExpressPort, localGoPort, remoteGoPort, localDBPort, remoteDBPort, localJupyterPort, remoteJupyterPort }
     // --- Host validation ---
     const hostPattern = /^(?!-)[A-Za-z0-9-]{1,63}(?<!-)\.?([A-Za-z0-9-]{1,63}\.?)*[A-Za-z]{2,6}$|^(\d{1,3}\.){3}\d{1,3}$/
-    if (!connInfo.host || connInfo.host.trim() === "") {
+    if (!baseInfo.host || baseInfo.host.trim() === "") {
       setTunnelStatus("Error: Remote host is required.")
       toast.error("Remote host is required.")
       setConnectionProcessing(false)
       return
     }
-    if (!hostPattern.test(connInfo.host.trim())) {
+    if (!hostPattern.test(baseInfo.host.trim())) {
       setTunnelStatus("Error: Invalid remote host. Please enter a valid hostname or IP address.")
       toast.error("Invalid remote host. Please enter a valid hostname or IP address.")
       setConnectionProcessing(false)
       return
     }
+
+    // Ensure an SSH key exists (load if present, generate otherwise)
+    let keyResult
+    try {
+      keyResult = await ensureSSHKey(baseInfo.username)
+    } catch (e) {
+      const msg = e?.message || String(e)
+      setTunnelStatus('Failed to prepare SSH key: ' + msg)
+      toast.error('Failed to prepare SSH key: ' + msg)
+      setConnectionProcessing(false)
+      return
+    }
+
+    const connInfo = { ...baseInfo, privateKey: keyResult?.privateKey || '' }
+    setConnectionInfo(connInfo)
     try {
       if (!connInfo.host) {
         setTunnelStatus("Error: Remote host is required.")
         toast.error("Remote host is required.")
+        setConnectionProcessing(false)
         return
       }
       if (!connInfo.username) {
         setTunnelStatus("Error: Username is required.")
         toast.error("Username is required.")
+        setConnectionProcessing(false)
         return
       }
       if (!connInfo.privateKey) {
-        setTunnelStatus("Error: SSH private key is missing. Please generate a key first.")
-       toast.error("SSH private key is missing. Please generate a key first.")
+        setTunnelStatus("Error: SSH private key is missing and could not be generated.")
+        toast.error("SSH private key is missing and could not be generated.")
+        setConnectionProcessing(false)
         return
       }
       if (!connInfo.remotePort || isNaN(Number(connInfo.remotePort))) {
         setTunnelStatus("Error: Remote SSH port is invalid.")
         toast.error("Remote SSH port is invalid.")
+        setConnectionProcessing(false)
         return
       }
       if (!connInfo.localExpressPort || isNaN(Number(connInfo.localExpressPort))) {
         setTunnelStatus("Error: Local port is invalid.")
         toast.error("Local port is invalid.")
+        setConnectionProcessing(false)
         return
       }
       if (!connInfo.remoteExpressPort || isNaN(Number(connInfo.remoteExpressPort))) {
         setTunnelStatus("Error: Remote backend port is invalid.")
         toast.error("Remote backend port is invalid.")
+        setConnectionProcessing(false)
         return
       }
       if (!connInfo.localDBPort || isNaN(Number(connInfo.localDBPort))) {
         setTunnelStatus("Error: Local MongoDB port is invalid.")
         toast.error("Local MongoDB port is invalid.")
+        setConnectionProcessing(false)
         return
       }
       if (!connInfo.remoteDBPort || isNaN(Number(connInfo.remoteDBPort))) {
         setTunnelStatus("Error: Remote MongoDB port is invalid.")
         toast.error("Remote MongoDB port is invalid.")
+        setConnectionProcessing(false)
         return
       }
       if (!connInfo.localJupyterPort || isNaN(Number(connInfo.localJupyterPort))) {
         setTunnelStatus("Error: Local Jupyter port is invalid.")
         toast.error("Local Jupyter port is invalid.")
+        setConnectionProcessing(false)
         return
       }
       if (!connInfo.remoteJupyterPort || isNaN(Number(connInfo.remoteJupyterPort))) {
         setTunnelStatus("Error: Remote Jupyter port is invalid.")
         toast.error("Remote Jupyter port is invalid.")
+        setConnectionProcessing(false)
         return
       }
       const result = await ipcRenderer.invoke('startSSHTunnel', connInfo)
@@ -506,11 +550,13 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
         setTunnelActive(false)
         setReconnectAttempts((prev) => prev + 1)
         toast.error("Tunnel failed: " + result.error)
+        setConnectionProcessing(false)
       } else {
         setTunnelStatus("Failed to establish SSH tunnel: Unknown error.")
         setTunnelActive(false)
         setReconnectAttempts((prev) => prev + 1)
         toast.error("Tunnel Failed, Unknown error.")
+        setConnectionProcessing(false)
       }
     } catch (err) {
       let errorMsg = err && err.message ? err.message : String(err)
@@ -521,6 +567,7 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
       setTunnelActive(false)
       setReconnectAttempts((prev) => prev + 1)
       toast.error("Tunnel Failed: " + errorMsg)
+      setConnectionProcessing(false)
     }
   }
 
@@ -739,6 +786,88 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
     }
   }
 
+  // Derive a human-readable version string from the remote backend executable path
+  useEffect(() => {
+    if (!remoteBackendPath) {
+      setRemoteBackendVersion("")
+      return
+    }
+    try {
+      const normalized = remoteBackendPath.replace(/\\/g, "/")
+      const segments = normalized.split("/").filter(Boolean)
+      if (!segments.length) {
+        setRemoteBackendVersion("")
+        return
+      }
+
+      let versionSegment = null
+
+      // Prefer the directory immediately under a "versions" folder, if present
+      const versionsIdx = segments.lastIndexOf("versions")
+      if (versionsIdx >= 0 && versionsIdx < segments.length - 1) {
+        versionSegment = segments[versionsIdx + 1]
+      } else {
+        // Fallbacks: directory before "bin", or parent directory
+        const binIdx = segments.lastIndexOf("bin")
+        if (binIdx > 0) {
+          versionSegment = segments[binIdx - 1]
+        } else if (segments.length >= 2) {
+          versionSegment = segments[segments.length - 2]
+        } else {
+          versionSegment = segments[segments.length - 1]
+        }
+      }
+
+      if (!versionSegment) {
+        setRemoteBackendVersion("")
+        return
+      }
+
+      // Clean up common prefix like "server-" or "server_" for display
+      const cleaned = versionSegment.replace(/^server[-_]?/i, "")
+      setRemoteBackendVersion(cleaned || versionSegment)
+    } catch {
+      setRemoteBackendVersion("")
+    }
+  }, [remoteBackendPath])
+
+  // Check GitHub releases to see if a newer backend version is available on the remote
+  const checkForNewRemoteBackendVersion = async () => {
+    try {
+      const latest = await ipcRenderer.invoke('getLatestBackendReleaseInfo')
+      console.log('Latest backend release info:', latest)
+      const rawTag = latest && (latest.tag || latest.tag_name || latest.name)
+      const tag = rawTag ? String(rawTag).trim() : ''
+      if (!tag) {
+        setLatestRemoteVersionTag("")
+        setLatestRemoteVersionAvailable(false)
+        setLatestRemoteVersionChecked(true)
+        return { tag: '', alreadyInstalled: false }
+      }
+
+      let alreadyInstalled = false
+      try {
+        const listRes = await ipcRenderer.invoke('navigateRemoteDirectory', { action: 'list', path: '.medomics/medomics-server/versions' })
+        const names = Array.isArray(listRes?.contents) ? listRes.contents.map(c => c?.name).filter(Boolean) : []
+        // common release folder naming patterns: vX.Y.Z or X.Y.Z
+        const candidates = [tag, tag.startsWith('v') ? tag.slice(1) : `v${tag}`]
+        alreadyInstalled = candidates.some(t => names.includes(t))
+        console.log('Release candidates vs remote versions:', { tag, candidates, names, alreadyInstalled })
+      } catch (e) {
+        console.log('Remote versions directory listing failed for latest release check:', e)
+      }
+
+      setLatestRemoteVersionTag(tag)
+      setLatestRemoteVersionAvailable(!alreadyInstalled)
+      setLatestRemoteVersionChecked(true)
+      return { tag, alreadyInstalled }
+    } catch (e) {
+      console.warn('Latest backend release check failed:', e && e.message ? e.message : e)
+      setLatestRemoteVersionChecked(true)
+      return { tag: '', alreadyInstalled: false, error: e }
+    }
+  }
+
   // TODO: Replace with the GitHub Releases manifest asset URL for MEDomics Server, e.g.
   // https://github.com/MEDomicsLab/MEDomics/releases/latest/download/manifest.json
   // or pin to a specific version: https://github.com/MEDomicsLab/MEDomics/releases/download/vX.Y.Z/manifest.json
@@ -755,33 +884,21 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
       setRemoteInstallText('Preparing install...')
       // Pre-check: if latest release tag already exists on remote, skip install
       try {
-        const latest = await ipcRenderer.invoke('getLatestBackendReleaseInfo')
-        console.log('Latest backend release info:', latest)
-        if (latest && (latest.tag || latest.tag_name || latest.name)) {
-          const tag = String(latest.tag || latest.tag_name || latest.name).trim()
-          if (tag) {
-            const listRes = await ipcRenderer.invoke('navigateRemoteDirectory', { action: 'list', path: '.medomics/medomics-server/versions' })
-            const names = Array.isArray(listRes?.contents) ? listRes.contents.map(c => c?.name).filter(Boolean) : []
-            // common release folder naming patterns: vX.Y.Z or X.Y.Z
-            const candidates = [tag, tag.startsWith('v') ? tag.slice(1) : `v${tag}`]
-            const alreadyInstalled = candidates.some(t => names.includes(t))
-            console.log(candidates, names, alreadyInstalled)
-            if (alreadyInstalled) {
-              toast.success(`Latest backend (${tag}) already installed. Skipping re-install.`)
-              setRemoteInstalled(true)
-              // Optionally locate executable to update path
-              try {
-                const locate = await ipcRenderer.invoke('locateRemoteBackendExecutable')
-                if (locate && locate.success && locate.path) {
-                  setRemoteBackendPath(locate.path)
-                }
-              } catch { /* ignore */ }
-              // Trigger a status recheck for UI freshness
-              setShouldRecheck(true)
-              await checkRemoteServer()
-              return
+        const { tag, alreadyInstalled } = await checkForNewRemoteBackendVersion()
+        if (tag && alreadyInstalled) {
+          toast.success(`Latest backend (${tag}) already installed. Skipping re-install.`)
+          setRemoteInstalled(true)
+          // Optionally locate executable to update path
+          try {
+            const locate = await ipcRenderer.invoke('locateRemoteBackendExecutable')
+            if (locate && locate.success && locate.path) {
+              setRemoteBackendPath(locate.path)
             }
-          }
+          } catch { /* ignore */ }
+          // Trigger a status recheck for UI freshness
+          setShouldRecheck(true)
+          await checkRemoteServer()
+          return
         }
       } catch { /* non-fatal; proceed with normal install */ }
 
@@ -793,6 +910,8 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
         setRemoteBackendPath(res.path)
         toast.success('Remote server installed.')
         setRemoteInstalled(true)
+        // Refresh latest-release availability state so the UI can disable Update when up-to-date
+        try { await checkForNewRemoteBackendVersion() } catch { /* non-fatal */ }
         // Hint the UI to recheck status right after a successful install
         setShouldRecheck(true)
         // After install, run a status check
@@ -1325,9 +1444,6 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
     if (!remoteDBPort || isNaN(Number(remoteDBPort)) || Number(remoteDBPort) < 1 || Number(remoteDBPort) > 65535) {
       errors.remoteDBPort = "Remote MongoDB port must be 1-65535."
     }
-    if (!keyGenerated || !publicKey || !privateKey) {
-      errors.key = "SSH key must be generated."
-    }
   // Warn if localExpressPort matches the main server port
     if (String(localExpressPort) === String(port)) {
       warning = `Warning: Local Express port (${localExpressPort}) is the same as the main server port (${port}). This may cause conflicts if a local backend is running.`
@@ -1335,7 +1451,7 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
     setInputErrors(errors)
     setInputValid(Object.keys(errors).length === 0)
     setLocalPortWarning(warning)
-  }, [host, username, remotePort, localExpressPort, remoteExpressPort, localDBPort, remoteDBPort, keyGenerated, publicKey, privateKey, port])
+  }, [host, username, remotePort, localExpressPort, remoteExpressPort, localDBPort, remoteDBPort, port])
 
   // New folder modal state
   const [showNewFolderModal, setShowNewFolderModal] = useState(false)
@@ -1385,6 +1501,18 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
 
   const serverSetupActionsBusy = checkingRemoteServerBusy || installingRemote || startingRemoteServerBusy || checkingRemotePortBusy
 
+  const formatReleaseTagForDisplay = (tag) => {
+    const cleaned = String(tag || '').trim().replace(/^server[-_]?/i, '')
+    if (!cleaned) return ''
+    return cleaned.startsWith('v') ? cleaned : `v${cleaned}`
+  }
+
+  const installButtonLabel = !remoteInstalled
+    ? 'Install'
+    : (latestRemoteVersionAvailable ? 'Update' : 'Install')
+  const installButtonDisabled = (!tunnelActive || connectionProcessing || serverSetupActionsBusy) || (remoteInstalled && !latestRemoteVersionAvailable)
+  const latestRemoteVersionDisplay = formatReleaseTagForDisplay(latestRemoteVersionTag)
+
   // Pager visibility/disabled states
   const prevDisabled = connectionProcessing || activeStep === 0
   const nextDisabled = connectionProcessing ||
@@ -1398,7 +1526,13 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
     let timer
     if (activeStep === 1) {
       timer = setTimeout(() => {
-        checkRemoteServer()
+        (async () => {
+          // On first entry to Server Setup, also check if a newer release is available
+          if (!latestRemoteVersionChecked) {
+            try { await checkForNewRemoteBackendVersion() } catch { /* non-fatal */ }
+          }
+          try { await checkRemoteServer() } catch { /* non-fatal */ }
+        })()
       }, 300)
     } else if (activeStep === 2) {
       timer = setTimeout(async () => {
@@ -1440,7 +1574,7 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
     return () => {
       if (timer) clearTimeout(timer)
     }
-  }, [activeStep, visible])
+  }, [activeStep, visible, latestRemoteVersionChecked])
 
   // Heartbeat: periodically check /status and auto-rebind tunnels if remote ports change
   useEffect(() => {
@@ -1547,6 +1681,41 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
               Password: 
               <Password disabled={tunnelActive || connectionProcessing} value={password} onChange={e => setPassword(e.target.value)} placeholder="SSH password" style={{ marginLeft: "5px" }} feedback={false} toggleMask />
             </label>
+            {localPortWarning && (
+              <div style={{ color: 'var(--warning)', fontSize: 12 }}>
+                {localPortWarning}
+              </div>
+            )}
+            <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+              An SSH key will be used automatically (loaded if available, generated if missing) when you click Connect.
+            </div>
+            {keyGenerated && publicKey && (
+              <div>
+                <button
+                  type="button"
+                  onClick={() => setShowSSHKeyAdvanced(v => !v)}
+                  style={{
+                    color: 'var(--button-bg)',
+                    background: 'transparent',
+                    border: 'none',
+                    cursor: 'pointer',
+                    fontSize: 14,
+                    textDecoration: 'underline',
+                    padding: 0
+                  }}
+                  aria-expanded={showSSHKeyAdvanced}
+                >
+                  {showSSHKeyAdvanced ? 'Hide SSH Key (Advanced)' : 'Show SSH Key (Advanced)'}
+                </button>
+                {showSSHKeyAdvanced && (
+                  <div style={{ marginTop: 8 }}>
+                    <strong>Public Key:</strong>
+                    <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-all', background: 'var(--bg-tertiary)', marginTop: '10px', padding: '0.5em' }}>{publicKey}</pre>
+                    {registerStatus && <div style={{ marginTop: '0.5em', color: registerStatus.includes('success') ? 'var(--success)' : 'var(--danger)' }}>{registerStatus}</div>}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
 
@@ -1561,7 +1730,12 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
             </div>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
               <Button onClick={checkRemoteServer} disabled={!tunnelActive || connectionProcessing || serverSetupActionsBusy} style={{ background: 'var(--button-bg)', color: 'var(--button-text)' }}>{shouldRecheck ? 'Recheck status' : 'Check'}</Button>
-              <Button onClick={installRemoteServer} disabled={!tunnelActive || connectionProcessing || serverSetupActionsBusy} style={{ background: 'var(--button-bg)', color: 'var(--button-text)' }}>Install / Update</Button>
+              <Button onClick={installRemoteServer} disabled={installButtonDisabled} style={{ background: 'var(--button-bg)', color: 'var(--button-text)' }}>{installButtonLabel}</Button>
+              {remoteInstalled && latestRemoteVersionAvailable && latestRemoteVersionDisplay && (
+                <span style={{ fontSize: 12, color: 'var(--warning)' }}>
+                  New version available to download: {latestRemoteVersionDisplay}
+                </span>
+              )}
               {(installingRemote || remoteInstallPhase) && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
                   {typeof remoteDownloadPercent === 'number' ? (
@@ -1596,6 +1770,11 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
                 <Button onClick={startRemoteServer} disabled={!tunnelActive || connectionProcessing || serverSetupActionsBusy} style={{ background: 'var(--button-bg)', color: 'var(--button-text)' }}>Start Server</Button>
               ) : (
                 <Button onClick={stopRemoteServer} disabled={!tunnelActive || connectionProcessing || serverSetupActionsBusy} style={{ background: 'var(--danger)', color: 'var(--button-text)' }}>Stop Server</Button>
+              )}
+              {remoteBackendVersion && (
+                <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+                  Version: {remoteBackendVersion}
+                </span>
               )}
               <Button onClick={async () => {
                 if (!tunnelActive) return toast.error('SSH tunnel not active.')
@@ -1689,19 +1868,6 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
             </>}
           </div>
         </div>
-        )}
-        {activeStep === 0 && (
-        <Button onClick={handleGenerateKey} disabled={keyGenerated || tunnelActive || connectionProcessing} style={{ background: 'var(--button-bg)', color: 'var(--button-text)', opacity: keyGenerated ? 0.4 : 1 }}>
-          {keyGenerated ? 'Key Generated' : 'Generate SSH Key'}
-        </Button>
-        )}
-        {inputErrors.key && <div style={{ color: 'red', fontSize: 13, marginTop: 4 }}>{inputErrors.key}</div>}
-        {activeStep === 0 && keyGenerated && (
-          <div>
-            <strong>Public Key:</strong>
-            <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-all', background: 'var(--bg-tertiary)', marginTop: '10px', padding: '0.5em' }}>{publicKey}</pre>
-            {registerStatus && <div style={{ marginTop: '0.5em', color: registerStatus.includes('success') ? 'var(--success)' : 'var(--danger)' }}>{registerStatus}</div>}
-          </div>
         )}
         {activeStep === 0 && (
           <div style={{ display: "flex", gap: "1rem", justifyContent: "flex-end" }}>
