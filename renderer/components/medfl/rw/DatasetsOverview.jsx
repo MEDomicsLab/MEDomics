@@ -1,3 +1,5 @@
+/* eslint-disable react-hooks/rules-of-hooks */
+
 // components/.../DatasetOverview.jsx
 import React, { useMemo, useEffect, useRef, useContext } from "react"
 import { Badge } from "react-bootstrap"

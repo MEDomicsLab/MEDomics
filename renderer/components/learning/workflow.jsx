@@ -1,3 +1,6 @@
+/* eslint-disable react/display-name */
+/* eslint-disable no-prototype-builtins */
+
 import { useState, useCallback, useMemo, useEffect, useContext, forwardRef, useImperativeHandle } from "react"
 import uuid from "react-native-uuid"
 import { toast } from "react-toastify"
@@ -92,7 +95,7 @@ const Workflow = forwardRef(({ setWorkflowType, workflowType, isExperiment }, re
       standardNode: StandardNode,
       splitNode: SplitNode,
       selectionNode: SelectionNode,
-      boxNode, boxNode,
+      boxNode,
       analysisBoxNode: analysisBoxNode,
       ResizableGroupNode: ResizableGroupNode,
       CombineModelsNode: CombineModelsNode,

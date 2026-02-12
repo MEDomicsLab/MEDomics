@@ -1,3 +1,5 @@
+/* eslint-disable no-prototype-builtins */
+
 import React, { useState, useCallback, useMemo, useEffect, useContext } from "react"
 import { toast } from "react-toastify"
 import { useNodesState, useEdgesState, useReactFlow, addEdge } from "reactflow"

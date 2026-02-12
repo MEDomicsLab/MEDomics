@@ -5,7 +5,7 @@ import myimage from "../../../resources/medomics_transparent_bg.png"
 import { FaCogs, FaGlobe } from "react-icons/fa"
 import { LayoutModelContext } from "../layout/layoutContext"
 
-export default function MedflWelcomePage({}) {
+export default function MedflWelcomePage() {
   const { dispatchLayout, developerMode, setDeveloperMode } = useContext(LayoutModelContext)
 
   function choosePage(event, name) {

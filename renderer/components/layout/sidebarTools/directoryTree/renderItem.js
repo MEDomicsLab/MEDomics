@@ -46,7 +46,6 @@ const iconExtension = {
   ini: <span className="emoji">⚙️ </span>,
   pth: <span className="emoji">🧬 </span>,
   npz: <span className="emoji">🧬 </span>,
-  db: <span className="emoji">🛢️ </span>,
   medflres: <span className="emoji">📊</span>,
   db: (
     <span>

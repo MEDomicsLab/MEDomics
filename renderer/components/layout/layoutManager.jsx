@@ -202,8 +202,8 @@ const LayoutManager = (props) => {
         return < MEDflSidebar/>
       case "flClient":
         return <MEDflSidebar />
-      case "med3pa":
-        return <MED3paSidebar />
+      // case "med3pa":
+      //   return <MED3paSidebar />
 
       default:
         return (

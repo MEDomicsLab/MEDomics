@@ -1,3 +1,5 @@
+/* eslint-disable no-extra-boolean-cast */
+
 import React, { useEffect } from "react"
 import { Button, ListGroup, Alert, Form } from "react-bootstrap"
 import { FaLaptop } from "react-icons/fa"

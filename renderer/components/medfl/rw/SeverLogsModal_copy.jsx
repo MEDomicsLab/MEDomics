@@ -801,8 +801,8 @@ const NewServerLogsModal = ({ show, onHide, nodes, onSaveScean, setRunServer, co
 
     console.log(servernoteBook)
 
-    if (configPath != "") {
-    } else {
+    if (configPath == ""){
+
       let dirPath = savingPath != "" ? savingPath : await onSaveScean("FL_code")
 
       console.log(dirPath)
