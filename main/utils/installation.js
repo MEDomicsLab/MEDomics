@@ -155,7 +155,7 @@ export const installMongoDB = async () => {
         await downloadMongoDBPromise
         // Install MongoDB in the .medomics directory in the user's home directory
         ubuntuVersion = ubuntuVersion.replace(".", "")
-        let command = `tar -xvzf ${downloadPath} -C /home/${process.env.USER}/.medomics/ && mv /home/${process.env.USER}/.medomics/mongodb-linux-${architecture}-ubuntu${ubuntuVersion}-7.0.15 /home/${process.env.USER}/.medomics/mongodb`
+        let command = `tar -xvzf ${downloadPath} -C /home/${process.env.USER}/.medomics/ && mv /home/${process.env.USER}/.medomics/mongodb-linux-${architecture}-ubuntu${ubuntuVersion}-${mongoDBVersion} /home/${process.env.USER}/.medomics/mongodb`
         let installMongoDBPromise = exec(command)
 
         // let installMongoDBPromise = exec(`tar -xvzf ${downloadPath} && mv mongodb-linux-${architecture}-ubuntu${ubuntuVersion}-7.0.15 /home/${process.env.USER}/.medomics/mongodb`)
