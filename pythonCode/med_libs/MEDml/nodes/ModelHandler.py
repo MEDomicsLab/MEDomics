@@ -376,7 +376,16 @@ class ModelHandler(Node):
 
                 # Optimize model's threshold if enabled
                 if self.optimize_threshold:
-                    best_model = best_exp.optimize_threshold(best_model, optimize=self.threshold_optimization_metric)
+                    # Do not optimize if data is multiclass
+                    if len(pycaret_exp.get_config('y').unique()) != 2:
+                        print("Skipping threshold optimization (multiclass not supported).")
+                    
+                    # Do not optimize if ensemble was applied
+                    elif self.ensembleEnabled:
+                        print("Skipping threshold optimization (ensemble not supported).")
+
+                    else:
+                        best_model = best_exp.optimize_threshold(best_model, optimize=self.threshold_optimization_metric)
 
                 # Update code handler with final fit
                 self.CodeHandler.add_line("code", f"best_model.fit(X_processed, y_processed)")
@@ -390,8 +399,9 @@ class ModelHandler(Node):
                     self.CodeHandler.add_line("code", f"# Calibrating model", indent=0)
                     self.CodeHandler.add_line("code", f"best_model = pycaret_exp.calibrate_model(best_model, {self.CodeHandler.convert_dict_to_params(self.settingsCalibrate)})", indent=0)
                 if self.optimize_threshold:
-                    self.CodeHandler.add_line("code", f"# Optimizing model threshold based on {self.threshold_optimization_metric}", indent=0)
-                    self.CodeHandler.add_line("code", f"best_model = pycaret_exp.optimize_threshold(best_model, metric='{self.threshold_optimization_metric}')", indent=0)
+                    if len(pycaret_exp.get_config('y').unique()) == 2 and not self.ensembleEnabled:
+                        self.CodeHandler.add_line("code", f"# Optimizing model threshold based on {self.threshold_optimization_metric}", indent=0)
+                        self.CodeHandler.add_line("code", f"best_model = pycaret_exp.optimize_threshold(best_model, metric='{self.threshold_optimization_metric}')", indent=0)
 
                 # Finalize the model
                 if finalize:
@@ -523,14 +533,10 @@ class ModelHandler(Node):
                 # Do not optimize if data is multiclass
                 if len(pycaret_exp.get_config('y').unique()) != 2:
                     print("Skipping threshold optimization (multiclass not supported).")
-                
+
                 # Do not optimize if ensemble was applied
                 elif self.ensembleEnabled:
                     print("Skipping threshold optimization (ensemble not supported).")
-
-                # Do not optimize if calibration was applied
-                elif self.calibrateEnabled:
-                    print("Skipping threshold optimization (calibrated model not supported).")
 
                 else:
                     trained_model = pycaret_exp.optimize_threshold(
@@ -541,9 +547,6 @@ class ModelHandler(Node):
                         "code",
                         f"trained_models = [pycaret_exp.optimize_threshold(trained_models[0], metric='{self.threshold_optimization_metric}')]"
                     )
-
-                #trained_model = pycaret_exp.optimize_threshold(trained_model, optimize=self.threshold_optimization_metric)
-                #self.CodeHandler.add_line("code", f"trained_models = [pycaret_exp.optimize_threshold(trained_models[0], metric='{self.threshold_optimization_metric}')]")
 
             if finalize:
                 trained_model = pycaret_exp.finalize_model(trained_model)
@@ -597,6 +600,12 @@ class ModelHandler(Node):
             return tn / (tn + fp) if (tn + fp) > 0 else 0
         return 0
 
+    def balanced_accuracy(self, y_true, y_pred):
+        """Balanced Accuracy"""
+        sensitivity = recall_score(y_true, y_pred, zero_division=0)
+        specificity = self.specificity(y_true, y_pred)
+        return (sensitivity + specificity) / 2
+
     def npv(self, y_true, y_pred):
         """Negative Predictive Value"""
         cm = confusion_matrix(y_true, y_pred)
@@ -604,7 +613,18 @@ class ModelHandler(Node):
             tn, fp, fn, tp = cm.ravel()
             return tn / (tn + fn) if (tn + fn) > 0 else 0
         return 0
+
+    def youden_index(self, y_true, y_proba):
+        """Youden's J statistic"""
+        y_pred = (y_proba >= 0.5).astype(int)
+        sensitivity = recall_score(y_true, y_pred, zero_division=0)
+        specificity = self.specificity(y_true, y_pred)
+        return sensitivity + specificity - 1
     
+    def mcc(self, y_true, y_pred):
+        """Matthews Correlation Coefficient"""
+        return matthews_corrcoef(y_true, y_pred)
+
     def _execute(self, experiment: dict = None, **kwargs) -> json:
         """
         This function is used to execute the node.
@@ -613,13 +633,33 @@ class ModelHandler(Node):
         print(Fore.CYAN + f"Using {self.type}" + Fore.RESET)
         
         # Add custom metrics to PyCaret
-        experiment['pycaret_exp'].add_metric(id='specificity', name='Specificity', score_func=self.specificity)
-        experiment['pycaret_exp'].add_metric(id='npv', name='NPV', score_func=self.npv)
-        
+        try:
+            experiment['pycaret_exp'].add_metric(id='specificity', name='Specificity', score_func=self.specificity)
+        except Exception as e:
+            print(Fore.RED + f"Specificity already exists. Error message: {e}" + Fore.RESET)
+        try:
+            experiment['pycaret_exp'].add_metric(id='BAC', name='Balanced Accuracy', score_func=self.balanced_accuracy)
+        except Exception as e:
+            print(Fore.RED + f"Balanced Accuracy already exists. Error message: {e}" + Fore.RESET)
+        try:
+            experiment['pycaret_exp'].add_metric(id='npv', name='NPV', score_func=self.npv)
+        except Exception as e:
+            print(Fore.RED + f"NPV already exists. Error message: {e}" + Fore.RESET)
+        try:
+            experiment['pycaret_exp'].add_metric(id='Youden', name="Youden Index", score_func=self.youden_index)
+        except Exception as e:
+            print(Fore.RED + f"Youden Index already exists. Error message: {e}" + Fore.RESET)
+        try:
+            experiment['pycaret_exp'].add_metric(id='MCC', name='MCC', score_func=self.mcc)
+        except Exception as e:
+            print(Fore.RED + f"MCC already exists. Error message: {e}" + Fore.RESET)
+
         if self.type == "train_model" and getattr(self, "model_name_id", None) is not None:
             self.CodeHandler.add_line("md", f"##### *Model ID: {self.model_name_id}*")
         else:
             self.CodeHandler.add_line("md", f"##### *Model ID: {self.username}*")
+        
+        # Initialization
         trained_models = None
         trained_models_json = {}
         settings = copy.deepcopy(self.settings)
@@ -627,11 +667,15 @@ class ModelHandler(Node):
             del settings['useTuningGrid']
         splitted = kwargs.get("splitted", None)
         finalize = kwargs.get("finalize", False)
+
+        # If data is splitted, we need to train and evaluate the model using the custom function that handles splitted data
         if splitted:
             results = self.__handle_splitted_data(experiment, settings, **kwargs)
             trained_models = [results['model']]
             all_metrics = results['overall_metrics']
             trained_models_json['overall_metrics'] = all_metrics
+        
+        # Experimental scene: comparing multiple models with compare_models
         elif self.type == 'compare_models':
             models = experiment['pycaret_exp'].compare_models(**settings)
             self.CodeHandler.add_line("code", f"trained_models = pycaret_exp.compare_models({self.CodeHandler.convert_dict_to_params(settings)})")
@@ -642,6 +686,7 @@ class ModelHandler(Node):
                 self.CodeHandler.add_line("code", "# pycaret_exp.compare_models() returns a single model, but we want a list of models")
                 self.CodeHandler.add_line("code", "trained_models = [trained_models]")
 
+        # Regular scene: training a single model with create_model (with other optional steps like tuning, ensembling, calibrating, threshold optimization)
         elif self.type == 'train_model':
             settings.update(self.config_json['data']['estimator']['settings'])
             
@@ -694,8 +739,17 @@ class ModelHandler(Node):
                 self.CodeHandler.add_line("code", f"trained_models = [pycaret_exp.calibrate_model(trained_models[0], {self.CodeHandler.convert_dict_to_params(self.settingsCalibrate)})]")
 
             if self.optimize_threshold:
-                trained_models = [experiment['pycaret_exp'].optimize_threshold(trained_models[0], optimize=self.threshold_optimization_metric)]
-                self.CodeHandler.add_line("code", f"trained_models = [pycaret_exp.optimize_threshold(trained_models[0], metric='{self.threshold_optimization_metric}')]")
+                # Do not optimize if data is multiclass
+                if len(experiment['pycaret_exp'].get_config('y').unique()) != 2:
+                    print("Skipping threshold optimization (multiclass not supported).")
+
+                # Do not optimize if ensemble was applied
+                elif self.ensembleEnabled:
+                    print("Skipping threshold optimization (ensemble not supported).")
+
+                else:
+                    trained_models = [experiment['pycaret_exp'].optimize_threshold(trained_models[0], optimize=self.threshold_optimization_metric)]
+                    self.CodeHandler.add_line("code", f"trained_models = [pycaret_exp.optimize_threshold(trained_models[0], metric='{self.threshold_optimization_metric}')]")
 
             if finalize:
                 trained_models = [experiment['pycaret_exp'].finalize_model(model) for model in trained_models]
