@@ -145,7 +145,11 @@ export const installMongoDB = async () => {
         // Get the download URL
         let downloadUrl = linuxURLDict[`Ubuntu ${ubuntuVersion} ${architecture}`]
         // Download MongoDB installer
-        const downloadPath = path.join(app.getPath("downloads"), `mongodb-linux-${architecture}-ubuntu${ubuntuVersion}-7.0.15.tgz`)
+        let mongoDBVersion = "7.0.15"
+        if (ubuntuVersion === "24.04") {
+          mongoDBVersion = "8.0.9"
+        }
+        const downloadPath = path.join(app.getPath("downloads"), `mongodb-linux-${architecture}-ubuntu${ubuntuVersion}-${mongoDBVersion}.tgz`)
         let downloadMongoDBPromise = exec(`curl -o ${downloadPath} ${downloadUrl}`)
         execCallbacksForChildWithNotifications(downloadMongoDBPromise.child, "Downloading MongoDB installer", mainWindow)
         await downloadMongoDBPromise
@@ -157,7 +161,7 @@ export const installMongoDB = async () => {
         // let installMongoDBPromise = exec(`tar -xvzf ${downloadPath} && mv mongodb-linux-${architecture}-ubuntu${ubuntuVersion}-7.0.15 /home/${process.env.USER}/.medomics/mongodb`)
         execCallbacksForChildWithNotifications(installMongoDBPromise.child, "Installing MongoDB", mainWindow)
         await installMongoDBPromise
-        
+
         return getMongoDBPath() !== null
       }
     }
