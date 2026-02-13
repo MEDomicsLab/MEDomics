@@ -416,7 +416,7 @@ const TrainModelNode = ({ id, data }) => {
                       key={optionName}
                       name={optionName}
                       settingInfos={data.setupParam.possibleSettingsTuning.options[optionName]}
-                      currentValue={data.internal.settingsTuning[optionName]}
+                      currentValue={data.internal.settingsTuning[optionName] || data.setupParam.possibleSettingsTuning.options[optionName].default_val}
                       onInputChange={onInputChangeTuning}
                     />
                   )
