@@ -111,11 +111,10 @@ export const installMongoDB = async () => {
     let installMongoDBPromise = exec(`brew tap mongodb/brew && brew install mongodb-community@7.0.12`)
     execCallbacksForChildWithNotifications(installMongoDBPromise.child, "Installing MongoDB", mainWindow)
     
-
-    
     return getMongoDBPath() !== null
   } else if (process.platform === "linux") {
     const linuxURLDict = {
+      "Ubuntu 24.04 x86_64": "https://fastdl.mongodb.org/linux/mongodb-linux-x86_64-ubuntu2404-8.0.9.tgz",
       "Ubuntu 20.04 x86_64": "https://fastdl.mongodb.org/linux/mongodb-linux-x86_64-ubuntu2004-7.0.15.tgz",
       "Ubuntu 22.04 x86_64": "https://fastdl.mongodb.org/linux/mongodb-linux-x86_64-ubuntu2204-7.0.15.tgz",
       "Ubuntu 20.04 aarch64": "https://fastdl.mongodb.org/linux/mongodb-linux-aarch64-ubuntu2004-7.0.15.tgz",
@@ -159,9 +158,6 @@ export const installMongoDB = async () => {
         execCallbacksForChildWithNotifications(installMongoDBPromise.child, "Installing MongoDB", mainWindow)
         await installMongoDBPromise
         
-        
-        
-
         return getMongoDBPath() !== null
       }
     }
