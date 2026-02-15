@@ -122,50 +122,38 @@ export const installMongoDB = async () => {
       "Debian 10 x86_64": "https://fastdl.mongodb.org/linux/mongodb-linux-x86_64-debian10-7.0.15.tgz",
       "Debian 11 x86_64": "https://fastdl.mongodb.org/linux/mongodb-linux-x86_64-debian11-7.0.15.tgz",
     }
-    console.log(`Debug checking if MongoDB is installed`)
     // Check if MongoDB is installed
     if (getMongoDBPath() !== null) {
-      console.log(`Debug MongoDB is already installed`)
       return true
     }
     // Check which Linux distribution is being used
     let { stdout, stderr } = await exec(`cat /etc/os-release`)
-    console.log(`Debug os-release stdout: ${stdout}`)
-    console.log(`Debug os-release stderr: ${stderr}`)
     let osRelease = stdout
     let isUbuntu = osRelease.includes("Ubuntu")
     if (!isUbuntu) {
-      console.log("DEBUG Only Ubuntu is supported for now")
       return false
     } else {
       // osRelease is a string with the contents of /etc/os-release
       // Get the version of Ubuntu
       let ubuntuVersion = osRelease.match(/VERSION_ID="(.*)"/)[1]
-      console.log(`Debug Ubuntu version: ${ubuntuVersion}`)
       // Get the architecture of the system
       let architecture = "x86_64"
       if (process.arch === "arm64") {
         architecture = "aarch64"
       }
-      console.log(`Debug architecture: ${architecture}`)
       // Get the download URL
       let downloadUrl = linuxURLDict[`Ubuntu ${ubuntuVersion} ${architecture}`]
-      console.log(`Debug download URL: ${downloadUrl}`)
       // Download MongoDB installer
       let mongoDBVersion = "7.0.15"
       if (ubuntuVersion === "24.04") {
         mongoDBVersion = "8.0.9"
       }
-      console.log(`Debug MongoDB version: ${mongoDBVersion}`)
       const downloadPath = path.join(app.getPath("downloads"), `mongodb-linux-${architecture}-ubuntu${ubuntuVersion}-${mongoDBVersion}.tgz`)
-      console.log(`Debug download path: ${downloadPath}`)
-      console.log(`Debug starting download of MongoDB. Command: curl -o ${downloadPath} ${downloadUrl}`)
       let downloadMongoDBPromise = exec(`curl -o ${downloadPath} ${downloadUrl}`)
       execCallbacksForChildWithNotifications(downloadMongoDBPromise.child, "Downloading MongoDB installer", mainWindow)
       await downloadMongoDBPromise
       // Install MongoDB in the .medomics directory in the user's home directory
       ubuntuVersion = ubuntuVersion.replace(".", "")
-      console.log(`Debug starting installation of MongoDB. Command: tar -xvzf ${downloadPath} -C ${process.env.HOME}/.medomics/ && mv ${process.env.HOME}/.medomics/mongodb-linux-${architecture}-ubuntu${ubuntuVersion}-${mongoDBVersion} ${process.env.HOME}/.medomics/mongodb`)
       let command = `tar -xvzf ${downloadPath} -C ${process.env.HOME}/.medomics/ && mv ${process.env.HOME}/.medomics/mongodb-linux-${architecture}-ubuntu${ubuntuVersion}-${mongoDBVersion} ${process.env.HOME}/.medomics/mongodb`
       let installMongoDBPromise = exec(command)
 
@@ -173,10 +161,7 @@ export const installMongoDB = async () => {
       execCallbacksForChildWithNotifications(installMongoDBPromise.child, "Installing MongoDB", mainWindow)
       await installMongoDBPromise
 
-      console.log(`Debug finished installation of MongoDB`)
-
       const test = getMongoDBPath()
-      console.log(`Debug getMongoDBPath after installation: ${test}`)
 
       return getMongoDBPath() !== null
     }

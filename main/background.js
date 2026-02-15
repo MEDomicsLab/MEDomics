@@ -909,32 +909,24 @@ export function getMongoDBPath() {
     return null
   } else if (process.platform === "linux") {
     // Check if mongod is in the process.env.PATH
-    console.log(`Debug process.env.PATH: ${process.env.PATH}`)
-    console.log(`Debug delimiter: ${path.delimiter}`)
     const paths = process.env.PATH.split(path.delimiter)
-    console.log(`Debug paths: ${paths}`)
     for (let i = 0; i < paths.length; i++) {
       console.log(`Checking for mongod in: index ${i}, path ${paths[i]}`)
       const binPath = path.join(paths[i], "mongod")
       console.log(`Checking if mongod exists at: ${binPath}`)
       if (fs.existsSync(binPath)) {
-        console.log(`Debug mongod found in PATH at: ${binPath}`)
         return binPath
       }
     }
     console.error("mongod not found in PATH" + paths)
     // Check if mongod is in the default installation path on Linux - /usr/bin/mongod
     if (fs.existsSync("/usr/bin/mongod")) {
-      console.log(`Debug mongod found in /usr/bin/mongod`)
       return "/usr/bin/mongod"
     }
-    console.error("debug mongod not found in /usr/bin/mongod")
 
     if (fs.existsSync(process.env.HOME + "/.medomics/mongodb/bin/mongod")) {
-      console.log(`Debug mongod found in ${process.env.HOME}/.medomics/mongodb/bin/mongod`)
       return process.env.HOME + "/.medomics/mongodb/bin/mongod"
     }
-    console.log(`Debug mongo not found returning null`)
     return null
   } else {
     return "mongod"
