@@ -930,9 +930,9 @@ export function getMongoDBPath() {
     }
     console.error("debug mongod not found in /usr/bin/mongod")
 
-    if (fs.existsSync("/home/" + process.env.USER + "/.medomics/mongodb/bin/mongod")) {
-      console.log(`Debug mongod found in /home/${process.env.USER}/.medomics/mongodb/bin/mongod`)
-      return "/home/" + process.env.USER + "/.medomics/mongodb/bin/mongod"
+    if (fs.existsSync(process.env.HOME + "/.medomics/mongodb/bin/mongod")) {
+      console.log(`Debug mongod found in ${process.env.HOME}/.medomics/mongodb/bin/mongod`)
+      return process.env.HOME + "/.medomics/mongodb/bin/mongod"
     }
     console.log(`Debug mongo not found returning null`)
     return null
