@@ -911,7 +911,9 @@ export function getMongoDBPath() {
     // Check if mongod is in the process.env.PATH
     const paths = process.env.PATH.split(path.delimiter)
     for (let i = 0; i < paths.length; i++) {
+      console.log(`Checking for mongod in: index ${i}, path ${paths[i]}`)
       const binPath = path.join(paths[i], "mongod")
+      console.log(`Checking if mongod exists at: ${binPath}`)
       if (fs.existsSync(binPath)) {
         return binPath
       }
@@ -921,10 +923,9 @@ export function getMongoDBPath() {
     if (fs.existsSync("/usr/bin/mongod")) {
       return "/usr/bin/mongod"
     }
-    console.error("mongod not found in /usr/bin/mongod")
 
-    if (fs.existsSync("/home/" + process.env.USER + "/.medomics/mongodb/bin/mongod")) {
-      return "/home/" + process.env.USER + "/.medomics/mongodb/bin/mongod"
+    if (fs.existsSync(process.env.HOME + "/.medomics/mongodb/bin/mongod")) {
+      return process.env.HOME + "/.medomics/mongodb/bin/mongod"
     }
     return null
   } else {
