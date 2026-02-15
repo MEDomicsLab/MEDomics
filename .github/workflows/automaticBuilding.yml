@@ -6,6 +6,88 @@ on:
 permissions:
   contents: write
 jobs:
+  build-windows:
+    runs-on: windows-latest
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18.13
+
+      - name: Get tag name
+        shell: bash
+        run: |
+          VERSION=${GITHUB_REF/refs\/tags\//} # Remove "refs/tags/" from the beginning of the tag name 
+          NEW_VERSION="${VERSION#v}"
+          node -p "let pkg=require('./package.json'); pkg.version='$NEW_VERSION'; require('fs').writeFileSync('package.json', JSON.stringify(pkg, null, 2));"
+
+      - name: Print package.json
+        run: Get-Content package.json
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Setup Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: 1.21
+
+      - name: Build go
+        run: |
+          cd go_server
+          go build main.go 
+          cd ..
+
+      - name: Prebuild libmongocrypt
+        run: bash ./utilScripts/libmongocrypt_prebuild.sh
+
+      - name: Build for Windows
+        run: npm run build:win
+
+      - name: Get tag name
+        id: get-tag
+        shell: bash
+        run: |
+          VERSION=${GITHUB_REF/refs\/tags\//}
+          echo "VERSION=${VERSION#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Archive Windows
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-built
+          path: ./build/dist/MEDomics-${{ env.VERSION }}-win.exe
+          compression-level: 0
+          if-no-files-found: error
+          overwrite: true
+        env:
+          VERSION: ${{ steps.get-tag.outputs.VERSION }}
+
+      - name: Archive Windows blockmap
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-built-blockmap
+          path: ./build/dist/MEDomics-${{ env.VERSION }}-win.exe.blockmap
+          compression-level: 0
+          if-no-files-found: error
+        env:
+          VERSION: ${{ steps.get-tag.outputs.VERSION }}
+
+      - name: Archive Windows latest.yml file
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-built-latest
+          path: ./build/dist/latest.yml
+          compression-level: 0
+          if-no-files-found: error
+        env:
+          VERSION: ${{ steps.get-tag.outputs.VERSION }}
 
   build-linux-ubuntu:
     runs-on: ubuntu-22.04
@@ -86,18 +168,136 @@ jobs:
         env:
           VERSION: ${{ steps.get-tag.outputs.VERSION }}
 
-  # Publish to GitHub
-  publish:
-    needs: [build-linux-ubuntu]
-    runs-on: ubuntu-latest
+  build-mac:
+    runs-on: macos-latest
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
-      - name: Download Linux Ubuntu
-        uses: actions/download-artifact@v4
         with:
-          name: linux-built-ubuntu
+          submodules: recursive
+          fetch-depth: 0 # Fetch full history for branches
+
+      - name: Keys and certificates
+        env:
+          APPLE_CERT_DATA: ${{ secrets.CSC_INSTALLER_LINK }}
+          APPLE_CERT_PASSWORD: ${{ secrets.CSC_INSTALLER_KEY_PASSWORD }}
+          DEVELOPER_APP_CER: ${{ secrets.CSC_LINK}}
+          DEVELOPER_APP_KEY: ${{ secrets.CSC_KEY_PASSWORD }}
+
+        run: |
+          CERTIFICATE_PATH=$RUNNER_TEMP/build_certificate.p12
+          echo -n "$APPLE_CERT_DATA" | base64 --decode -o certificate_installer.p12
+          echo -n "$DEVELOPER_APP_CER" | base64 --decode -o certificate_application.p12
+
+          KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
+          security create-keychain -p "${{ secrets.CSC_KEY_PASSWORD }}" $KEYCHAIN_PATH
+          security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
+          security unlock-keychain -p "${{ secrets.CSC_KEY_PASSWORD }}" $KEYCHAIN_PATH
+
+          security import certificate_installer.p12 -P "${{ secrets.CSC_KEY_PASSWORD }}" -A -t cert -f pkcs12 -k $KEYCHAIN_PATH
+          security import certificate_application.p12 -P "${{ secrets.CSC_KEY_PASSWORD }}" -A -t cert -f pkcs12 -k $KEYCHAIN_PATH
+          security list-keychain -d user -s $KEYCHAIN_PATH
+          # Store as a keychain profile (for signing)
+
+      - name: keychain profile
+        env:
+          APPLE_NOTARY_USER: ${{ secrets.APPLE_ID }}
+          APPLE_NOTARY_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          xcrun notarytool store-credentials "notarytool-password" --apple-id "$APPLE_NOTARY_USER" --team-id "$APPLE_TEAM_ID" --password "$APPLE_NOTARY_PASSWORD"
+
+      - name: Checking out the correct branches for submodules
+        run: |
+          git submodule foreach '
+          if [ "$name" = "pythonCode/submodules/MEDimage" ]; then
+            git fetch origin && git checkout -B dev_lab origin/dev_lab && git pull origin dev_lab
+          elif [ "$name" = "pythonCode/submodules/MEDprofiles" ]; then
+            git fetch origin && git checkout -B fusion_MEDomicsLab origin/fusion_MEDomicsLab && git pull origin fusion_MEDomicsLab
+          else
+            echo "No branch specified for $name"
+          fi
+          '
+
+      - name: Setup Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: 1.21
+
+      - name: Build go
+        run: |
+          cd go_server
+          go build main.go 
+          cd ..
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18.13
+
+      - name: Mac OS X with M1 chip
+        run: uname -m
+
+      - name: Install Python 2.7
+        uses: actions/setup-python@v2
+        with:
+          python-version: 3.9
+
+      - name: Bash python version
+        run: |
+          echo $PATH
+          python --version
+          which python
+        shell: bash -l {0}
+
+      - name: Check if Python2.7 is installed
+        run: |
+          if ! which python2.7 > /dev/null; then
+            curl -O https://www.python.org/ftp/python/2.7.18/python-2.7.18-macosx10.9.pkg
+            sudo installer -pkg python-2.7.18-macosx10.9.pkg -target /
+          else
+            echo "Python 2.7 is already installed"
+          fi
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Cache node modules
+        id: cache-npm
+        uses: actions/cache@v3
+        env:
+          cache-name: cache-node-modules
+        with:
+          # npm cache files are stored in `~/.npm` on Linux/macOS
+          path: ~/.npm
+          key: ${{ runner.os }}-build-${{ env.cache-name }}-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-build-${{ env.cache-name }}-
+            ${{ runner.os }}-build-
+            ${{ runner.os }}-
+
+      - if: ${{ steps.cache-npm.outputs.cache-hit != 'true' }}
+        name: List the state of node modules
+        continue-on-error: true
+        run: npm list
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Prebuild libmongocrypt
+        run: bash ./utilScripts/libmongocrypt_prebuild.sh
+
+      - name: Update version
+        run: |
+          node -p "let pkg=require('./package.json'); pkg.version='${GITHUB_REF/refs\/tags\//}'; require('fs').writeFileSync('package.json', JSON.stringify(pkg, null, 2));"
+          echo "Version updated to ${GITHUB_REF/refs\/tags\//}"
+
+      # Before building the app, allocate more memory to the shell
+      - name: Allocate more memory
+        run: export NODE_OPTIONS=--max-old-space-size=8192
 
       - name: Get tag name
         id: get-tag
@@ -105,12 +305,181 @@ jobs:
           VERSION=${GITHUB_REF/refs\/tags\//}
           echo "VERSION=${VERSION#v}" >> "$GITHUB_OUTPUT"
 
-      - name: Publish to GitHubs
+      - name: dotenv file
+        run: |
+          echo "DEVELOPER_ID_APP='${{ secrets.DEVELOPER_ID_APP }}'" >> .env
+          echo "DEVELOPER_ID_INSTALLER='${{ secrets.DEVELOPER_ID_INSTALLER }}'" >> .env
+
+      - name: Build for Mac
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          CSC_INSTALLER_LINK: ${{ secrets.CSC_INSTALLER_LINK }}
+          CSC_INSTALLER_KEY_PASSWORD: ${{ secrets.CSC_INSTALLER_KEY_PASSWORD }}
+        run: |
+          npm run build:mac
+
+      - name: notarize
+        env:
+          VERSION: ${{ steps.get-tag.outputs.VERSION }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          xcrun notarytool submit build/dist/MEDomics-${{ env.VERSION }}-mac.pkg --keychain-profile "notarytool-password"  --wait
+
+      - name: staple
+        continue-on-error: true
+        env:
+          VERSION: ${{ steps.get-tag.outputs.VERSION }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_ID_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          xcrun stapler staple build/dist/MEDomics-${{ env.VERSION }}-mac.pkg
+
+      - name: Archive latest-mac.yml
+        uses: actions/upload-artifact@v4
+        with:
+          name: latest-mac
+          path: ./build/dist/latest-mac.yml
+          compression-level: 0
+          if-no-files-found: error
+        env:
+          VERSION: ${{ steps.get-tag.outputs.VERSION }}
+
+      #### PKG ####
+      - name: Archive Mac PKG installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: mac-built-pkg
+          path: ./build/dist/MEDomics-${{ env.VERSION }}-mac.pkg
+          compression-level: 0
+          if-no-files-found: error
+        env:
+          VERSION: ${{ steps.get-tag.outputs.VERSION }}
+
+      - name: Archive Mac DMG blockmap
+        uses: actions/upload-artifact@v4
+        with:
+          name: mac-built-dmg-blockmap
+          path: ./build/dist/MEDomics-${{ env.VERSION }}-mac.dmg.blockmap
+          compression-level: 0
+          if-no-files-found: error
+        env:
+          VERSION: ${{ steps.get-tag.outputs.VERSION }}
+
+      - name: Archive Mac DMG
+        uses: actions/upload-artifact@v4
+        with:
+          name: mac-built-dmg
+          path: ./build/dist/MEDomics-${{ env.VERSION }}-mac.dmg
+          compression-level: 0
+          if-no-files-found: error
+        env:
+          VERSION: ${{ steps.get-tag.outputs.VERSION }}
+
+      - name: Archive Mac ZIP blockmap
+        uses: actions/upload-artifact@v4
+        with:
+          name: mac-built-zip-blockmap
+          path: ./build/dist/MEDomics-${{ env.VERSION }}-mac.zip.blockmap
+          compression-level: 0
+          if-no-files-found: error
+        env:
+          VERSION: ${{ steps.get-tag.outputs.VERSION }}
+
+      - name: Archive Mac ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: mac-built-zip
+          path: ./build/dist/MEDomics-${{ env.VERSION }}-mac.zip
+          compression-level: 0
+          if-no-files-found: error
+        env:
+          VERSION: ${{ steps.get-tag.outputs.VERSION }}
+
+  # Publish to GitHub
+  publish:
+    needs: [build-windows, build-linux-ubuntu, build-mac]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download Windows
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-built
+
+      - name: Download Windows blockmap
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-built-blockmap
+
+      - name: Download Windows latest.yml file
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-built-latest
+
+      - name: Download Linux Ubuntu
+        uses: actions/download-artifact@v4
+        with:
+          name: linux-built-ubuntu
+
+      - name: Download Mac PKG
+        uses: actions/download-artifact@v4
+        with:
+          name: mac-built-pkg
+
+      - name: Download Mac DMG
+        uses: actions/download-artifact@v4
+        with:
+          name: mac-built-dmg
+
+      - name: Download Mac ZIP
+        uses: actions/download-artifact@v4
+        with:
+          name: mac-built-zip
+
+      - name: Download latest-mac.yml
+        uses: actions/download-artifact@v4
+        with:
+          name: latest-mac
+
+      - name: Download Mac DMG blockmap
+        uses: actions/download-artifact@v4
+        with:
+          name: mac-built-dmg-blockmap
+
+      - name: Download Mac ZIP blockmap
+        uses: actions/download-artifact@v4
+        with:
+          name: mac-built-zip-blockmap
+
+      - name: Get tag name
+        id: get-tag
+        run: |
+          VERSION=${GITHUB_REF/refs\/tags\//}
+          echo "VERSION=${VERSION#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Publish to GitHub
         uses: softprops/action-gh-release@v1
         with:
           files: |
+            ./MEDomics-${{ env.VERSION }}-win.exe
+            ./MEDomics-${{ env.VERSION }}-win.exe.blockmap
             ./latest.yml
             ./MEDomics-${{ env.VERSION }}-ubuntu.deb
+            ./MEDomics-${{ env.VERSION }}-mac.pkg
+            ./MEDomics-${{ env.VERSION }}-mac.dmg
+            ./MEDomics-${{ env.VERSION }}-mac.zip
+            ./latest-mac.yml
+            ./MEDomics-${{ env.VERSION }}-mac.dmg.blockmap
+            ./MEDomics-${{ env.VERSION }}-mac.zip.blockmap
           name: MEDomics-${{ env.VERSION }}
           body: |
             MEDomics-${{ env.VERSION }}
