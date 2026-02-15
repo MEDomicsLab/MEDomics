@@ -77,16 +77,6 @@ export const checkRequirements = async () => {
   return { pythonInstalled: pythonInstalled, mongoDBInstalled: mongoDBInstalled }
 }
 
-function getHomePath() {
-  let homePath = null
-  if (process.platform === "win32") {
-    homePath = process.env.USERPROFILE
-  } else {
-    homePath = process.env.HOME
-  }
-  return homePath
-}
-
 export const installMongoDB = async () => {
   if (process.platform === "win32") {
     // Download MongoDB installer
@@ -175,12 +165,11 @@ export const installMongoDB = async () => {
       await downloadMongoDBPromise
       // Install MongoDB in the .medomics directory in the user's home directory
       ubuntuVersion = ubuntuVersion.replace(".", "")
-      console.log(`Debug starting installation of MongoDB. Command: tar -xvzf ${downloadPath} -C ${userPath}/.medomics/ && mv ${userPath}/.medomics/mongodb-linux-${architecture}-ubuntu${ubuntuVersion}-${mongoDBVersion} ${userPath}/.medomics/mongodb`)
-      let userPath = getHomePath()
-      let command = `tar -xvzf ${downloadPath} -C ${userPath}/.medomics/ && mv ${userPath}/.medomics/mongodb-linux-${architecture}-ubuntu${ubuntuVersion}-${mongoDBVersion} ${userPath}/.medomics/mongodb`
+      console.log(`Debug starting installation of MongoDB. Command: tar -xvzf ${downloadPath} -C ${process.env.HOME}/.medomics/ && mv ${process.env.HOME}/.medomics/mongodb-linux-${architecture}-ubuntu${ubuntuVersion}-${mongoDBVersion} ${process.env.HOME}/.medomics/mongodb`)
+      let command = `tar -xvzf ${downloadPath} -C ${process.env.HOME}/.medomics/ && mv ${process.env.HOME}/.medomics/mongodb-linux-${architecture}-ubuntu${ubuntuVersion}-${mongoDBVersion} ${process.env.HOME}/.medomics/mongodb`
       let installMongoDBPromise = exec(command)
 
-      // let installMongoDBPromise = exec(`tar -xvzf ${downloadPath} && mv mongodb-linux-${architecture}-ubuntu${ubuntuVersion}-7.0.15 ${userPath}/.medomics/mongodb`)
+      // let installMongoDBPromise = exec(`tar -xvzf ${downloadPath} && mv mongodb-linux-${architecture}-ubuntu${ubuntuVersion}-7.0.15 ${process.env.HOME}/.medomics/mongodb`)
       execCallbacksForChildWithNotifications(installMongoDBPromise.child, "Installing MongoDB", mainWindow)
       await installMongoDBPromise
 
