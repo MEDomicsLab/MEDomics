@@ -11,6 +11,7 @@ SUPERSET_PACKAGES = [
     "flask-cors==5.0.0",
     "marshmallow==3.26.1",
     "psycopg2-binary==2.9.9",
+    "setuptools<81",
     "wtforms==2.3.3", # https://github.com/apache/superset/issues/29289#issuecomment-2341321222
 ]
 
@@ -113,13 +114,13 @@ class SupersetEnvManager:
                 print(f"Failed to ensure pip: {result.stderr}")
                 return []
             result = subprocess.run([
-                    str(self.python_path), "-m", "pip", "list", "--format=json"
+                    str(self.env_path), "-m", "pip", "list", "--format=json"
             ], capture_output=True, text=True, check=True)
             return json.loads(result.stdout)
         except (subprocess.CalledProcessError, json.JSONDecodeError):
             # Fallback: try pip freeze
             result = subprocess.run([
-                str(self.python_path), "-m", "pip", "freeze"
+                str(self.env_path), "-m", "pip", "freeze"
             ], capture_output=True, text=True, check=False)
             
             packages = []
@@ -139,6 +140,55 @@ class SupersetEnvManager:
         package_name_lower, _ = package_name.lower().split("==") if "==" in package_name else (package_name.lower(), None)
         package_installed = [pkg for pkg in installed_packages if pkg['name'].lower() == package_name_lower]
         return bool(package_installed)
+
+    def ensure_pkg_resources(self):
+        """Ensure pkg_resources is importable in the Superset virtual environment"""
+        if not self.env_path or not Path(self.env_path).exists():
+            return False
+
+        try:
+            subprocess.run(
+                [str(self.env_path), "-c", "import pkg_resources"],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            return True
+        except subprocess.CalledProcessError:
+            print("pkg_resources missing, reinstalling setuptools...")
+
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                subprocess.run(
+                    [str(self.env_path), "-m", "pip", "install", "--upgrade", "--prefer-binary", "setuptools<81"],
+                    check=True,
+                    capture_output=True,
+                    text=True,
+                    timeout=300,
+                )
+                subprocess.run(
+                    [str(self.env_path), "-c", "import pkg_resources"],
+                    check=True,
+                    capture_output=True,
+                    text=True,
+                )
+                return True
+            except subprocess.CalledProcessError as e:
+                if attempt < max_retries - 1:
+                    print(f"setuptools repair failed, retrying... (Attempt {attempt + 1}/{max_retries})")
+                    time.sleep(2)
+                else:
+                    print(f"Failed to repair pkg_resources after {max_retries} attempts:")
+                    print(f"Error: {e.stderr}")
+            except subprocess.TimeoutExpired:
+                if attempt < max_retries - 1:
+                    print(f"setuptools repair timed out, retrying... (Attempt {attempt + 1}/{max_retries})")
+                    time.sleep(2)
+                else:
+                    print(f"Failed to repair pkg_resources after {max_retries} attempts due to timeout")
+
+        return False
 
     def install_requirements(self):
         """Install packages in the environment"""
