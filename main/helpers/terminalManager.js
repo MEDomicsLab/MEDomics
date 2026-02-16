@@ -1,6 +1,7 @@
 import { spawn } from "node-pty"
 import os from "os"
 import path from "path"
+import fs from "fs"
 
 // Delay (in ms) for terminal to be ready after cloning (for clear/pwd commands)
 // This can be overridden via options or environment variable for dynamic adjustment
@@ -10,6 +11,94 @@ class TerminalManager {
   constructor() {
     this.terminals = new Map()
     this.terminalCwd = new Map() // Track current working directory for each terminal
+  }
+
+  getDefaultPathForPlatform() {
+    const platform = os.platform()
+
+    if (platform === "win32") {
+      return "C:\\Windows\\System32;C:\\Windows;C:\\Windows\\System32\\WindowsPowerShell\\v1.0"
+    }
+
+    if (platform === "darwin") {
+      return "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+    }
+
+    return "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+  }
+
+  buildPathEnv(extraEntries = []) {
+    const delimiter = os.platform() === "win32" ? ";" : ":"
+    const currentPath = process.env.PATH && process.env.PATH.trim().length > 0 ? process.env.PATH : this.getDefaultPathForPlatform()
+
+    const finalEntries = [...extraEntries.filter(Boolean), ...currentPath.split(delimiter).filter(Boolean)]
+    const dedupedEntries = [...new Set(finalEntries)]
+
+    return dedupedEntries.join(delimiter)
+  }
+
+  resolveWorkingDirectory(cwd) {
+    if (typeof cwd === "string" && cwd.trim().length > 0 && fs.existsSync(cwd)) {
+      try {
+        if (fs.statSync(cwd).isDirectory()) {
+          return cwd
+        }
+      } catch (error) {
+        console.warn(`Invalid cwd provided (${cwd}), falling back to home directory`)
+      }
+    }
+
+    return os.homedir()
+  }
+
+  resolveShellExecutable(preferredShell) {
+    const platform = os.platform()
+    const shellCandidates = []
+
+    const pushCandidate = (candidate) => {
+      if (typeof candidate === "string" && candidate.trim().length > 0) {
+        shellCandidates.push(candidate)
+      }
+    }
+
+    pushCandidate(preferredShell)
+    pushCandidate(process.env.SHELL)
+
+    if (platform === "darwin") {
+      pushCandidate("/bin/zsh")
+      pushCandidate("/bin/bash")
+      pushCandidate("/bin/sh")
+      pushCandidate("/opt/homebrew/bin/zsh")
+      pushCandidate("/usr/local/bin/zsh")
+      pushCandidate("/opt/homebrew/bin/bash")
+      pushCandidate("/usr/local/bin/bash")
+    } else if (platform === "linux") {
+      pushCandidate("/bin/bash")
+      pushCandidate("/bin/sh")
+      pushCandidate("/usr/bin/bash")
+      pushCandidate("/usr/bin/zsh")
+    } else if (platform === "win32") {
+      pushCandidate("powershell.exe")
+      pushCandidate("cmd.exe")
+    }
+
+    for (const candidate of shellCandidates) {
+      const trimmedCandidate = candidate.trim()
+
+      if (path.isAbsolute(trimmedCandidate) && fs.existsSync(trimmedCandidate)) {
+        return trimmedCandidate
+      }
+
+      if (!trimmedCandidate.includes(path.sep) && platform === "win32") {
+        return trimmedCandidate
+      }
+    }
+
+    if (platform === "win32") {
+      return "cmd.exe"
+    }
+
+    return "/bin/sh"
   }
 
   getShellForPlatform() {
@@ -35,13 +124,16 @@ class TerminalManager {
         shell = process.env.SHELL || "/bin/sh"
     }
 
-    return { shell, args }
+    const resolvedShell = this.resolveShellExecutable(shell)
+    return { shell: resolvedShell, args }
   }
 
   createTerminal(terminalId, options = {}) {
     try {
       const { shell, args } = this.getShellForPlatform()
       const { cwd = os.homedir(), cols = 80, rows = 24, useIPython = false } = options
+      const finalCwd = this.resolveWorkingDirectory(cwd)
+      const extraPathEntries = []
 
       let finalShell = shell
       let finalArgs = args
@@ -53,6 +145,10 @@ class TerminalManager {
           console.log(`Creating IPython session ${terminalId} with Python: ${pythonPath}`)
           finalShell = pythonPath
           finalArgs = ["-m", "IPython"]
+          const pythonBinPath = this.getPythonBinPath()
+          if (pythonBinPath) {
+            extraPathEntries.push(pythonBinPath)
+          }
         } else {
           console.warn(`Python environment not found for IPython session ${terminalId}, falling back to system IPython`)
           // Try to use system IPython
@@ -65,24 +161,25 @@ class TerminalManager {
           }
         }
       } else {
-        console.log(`Creating terminal ${terminalId} with shell: ${shell}`)
+        console.log(`Creating terminal ${terminalId} with shell: ${finalShell}`)
       }
+
+      const terminalPath = this.buildPathEnv(extraPathEntries)
+      const localeValue = process.env.LANG || "en_US.UTF-8"
 
       const ptyProcess = spawn(finalShell, finalArgs, {
         name: "xterm-color",
         cols,
         rows,
-        cwd,
+        cwd: finalCwd,
         env: {
           ...process.env,
+          PATH: terminalPath,
           // Ensure colored output
           TERM: "xterm-256color",
           COLORTERM: "truecolor",
-          // Add Python environment to PATH if using IPython
-          ...(useIPython &&
-            this.getPythonEnvironmentPath() && {
-              PATH: `${this.getPythonBinPath()}${os.platform() === "win32" ? ";" : ":"}${process.env.PATH}`
-            }),
+          LANG: localeValue,
+          LC_ALL: process.env.LC_ALL || localeValue,
           // Set PS1 for colored prompt (bash/zsh)
           ...(os.platform() !== "win32" &&
             !useIPython && {
@@ -93,15 +190,14 @@ class TerminalManager {
             TERM_PROGRAM: "MEDomicsLab",
             TERM_PROGRAM_VERSION: "1.0.0",
             // Enable VT processing for colored output in PowerShell
-            FORCE_COLOR: "1",
-            NO_COLOR: undefined
+            FORCE_COLOR: "1"
           })
         }
       })
 
       // Store the terminal process and initial directory
       this.terminals.set(terminalId, ptyProcess)
-      this.terminalCwd.set(terminalId, cwd)
+      this.terminalCwd.set(terminalId, finalCwd)
 
       const sessionType = useIPython ? "IPython session" : "Terminal"
       console.log(`${sessionType} ${terminalId} created successfully`)
