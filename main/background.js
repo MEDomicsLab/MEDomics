@@ -924,6 +924,15 @@ export function getMongoDBPath() {
       return "/usr/bin/mongod"
     }
 
+    // Check the tarball install location used by after-install.sh
+    if (fs.existsSync("/usr/local/bin/mongod")) {
+      return "/usr/local/bin/mongod"
+    }
+
+    if (fs.existsSync("/usr/local/lib/mongodb/bin/mongod")) {
+      return "/usr/local/lib/mongodb/bin/mongod"
+    }
+
     if (fs.existsSync(process.env.HOME + "/.medomics/mongodb/bin/mongod")) {
       return process.env.HOME + "/.medomics/mongodb/bin/mongod"
     }
