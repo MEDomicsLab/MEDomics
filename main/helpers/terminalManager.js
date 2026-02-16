@@ -312,13 +312,18 @@ class TerminalManager {
     const terminal = this.terminals.get(terminalId)
     if (terminal) {
       try {
-        terminal.kill()
+        // Send SIGHUP first for graceful shell exit, then kill if needed
+        try { terminal.kill('SIGHUP') } catch { terminal.kill() }
         this.terminals.delete(terminalId)
         this.terminalCwd.delete(terminalId) // Clean up stored CWD
         this.terminalShells.delete(terminalId) // Clean up stored shell
         console.log(`Terminal ${terminalId} killed successfully`)
       } catch (error) {
         console.error(`Error killing terminal ${terminalId}:`, error)
+        // Force remove from maps even if kill fails
+        this.terminals.delete(terminalId)
+        this.terminalCwd.delete(terminalId)
+        this.terminalShells.delete(terminalId)
       }
     } else {
       console.warn(`Terminal ${terminalId} not found for kill operation`)
@@ -396,11 +401,82 @@ class TerminalManager {
     })
   }
 
+  /**
+   * Gracefully clean up all terminals, waiting for each child process to exit.
+   * Returns a promise that resolves when all PTY processes have exited (or timed out).
+   * This MUST be awaited before app.quit() to prevent the node-pty SIGABRT crash.
+   */
+  async cleanupAsync(timeoutMs = 3000) {
+    if (this.terminals.size === 0) {
+      return
+    }
+
+    console.log(`Cleaning up ${this.terminals.size} terminal(s)...`)
+    const exitPromises = []
+
+    for (const [terminalId, terminal] of this.terminals) {
+      const exitPromise = new Promise((resolve) => {
+        // Set a timeout so we don't wait forever
+        const timer = setTimeout(() => {
+          console.warn(`Terminal ${terminalId} exit timed out after ${timeoutMs}ms, force killing`)
+          try { terminal.kill('SIGKILL') } catch (e) { /* already dead */ }
+          resolve()
+        }, timeoutMs)
+
+        // Listen for the exit event
+        try {
+          terminal.onExit(() => {
+            clearTimeout(timer)
+            console.log(`Terminal ${terminalId} exited during cleanup`)
+            resolve()
+          })
+        } catch (e) {
+          // If we can't attach the listener, just resolve after kill
+          clearTimeout(timer)
+          resolve()
+        }
+
+        // Send graceful kill signal
+        try {
+          if (os.platform() === 'win32') {
+            terminal.kill()
+          } else {
+            // SIGHUP is the standard signal for "terminal closed"
+            terminal.kill('SIGHUP')
+          }
+        } catch (error) {
+          console.warn(`Error sending kill signal to terminal ${terminalId}:`, error)
+          clearTimeout(timer)
+          resolve()
+        }
+      })
+
+      exitPromises.push(exitPromise)
+    }
+
+    // Wait for all terminals to exit
+    await Promise.all(exitPromises)
+
+    // Clear all maps
+    this.terminals.clear()
+    this.terminalCwd.clear()
+    this.terminalShells.clear()
+    console.log('All terminals cleaned up successfully')
+  }
+
+  /**
+   * Synchronous cleanup fallback — kills all terminals without waiting.
+   * Only use this if cleanupAsync cannot be called (e.g., synchronous event handler).
+   */
   cleanup() {
     // Kill all active terminals
     for (const [terminalId, terminal] of this.terminals) {
       try {
-        terminal.kill()
+        if (os.platform() === 'win32') {
+          terminal.kill()
+        } else {
+          terminal.kill('SIGHUP')
+        }
         console.log(`Cleaned up terminal ${terminalId}`)
       } catch (error) {
         console.error(`Error cleaning up terminal ${terminalId}:`, error)

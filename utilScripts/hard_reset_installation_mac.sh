@@ -13,7 +13,7 @@ fi
 
 echo "This script will perform a hard reset of the MEDomics installation on your Mac. It will remove the application, associated files, and settings. Please ensure you have backed up any important data before proceeding."
 
-rm -f /Applications/MEDomics.app
+rm -rf /Applications/MEDomics.app
 rm -rf ~/Library/Application\ Support/medomics-platform
 rm -rf ~/Library/Preferences/com.medomics.medapp.plist
 
