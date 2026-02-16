@@ -30,6 +30,25 @@ class SupersetEnvManager:
         else:
             self.env_path = base_dir / "superset_env/bin/python"
 
+    def _get_build_env(self):
+        """Return an environment dict with CC/CXX overridden to the system compiler.
+        
+        Standalone Python builds (python-build-standalone) bake in the compiler
+        that was used at build time (often clang/clang++).  On end-user machines
+        this compiler is usually absent, but gcc/g++ are available.  Setting
+        CC and CXX ensures pip can compile C extensions like python-geohash.
+        """
+        import shutil
+        env = os.environ.copy()
+        if sys.platform != "win32":
+            cc = shutil.which("gcc") or shutil.which("cc")
+            cxx = shutil.which("g++") or shutil.which("c++")
+            if cc:
+                env["CC"] = cc
+            if cxx:
+                env["CXX"] = cxx
+        return env
+
     def check_env_exists(self):
         """Check if the virtual environment exists"""
         if sys.platform == "win32":
@@ -192,13 +211,16 @@ class SupersetEnvManager:
 
     def install_requirements(self):
         """Install packages in the environment"""
+        build_env = self._get_build_env()
+
         # Upgrade pip, setuptools and wheel first to ensure we can install binary wheels
         try:
             subprocess.run(
                 [str(self.env_path), "-m", "pip", "install", "--upgrade", "--prefer-binary", "pip", "setuptools", "wheel"],
                 check=True,
                 capture_output=True,
-                text=True
+                text=True,
+                env=build_env
             )
         except subprocess.CalledProcessError as e:
             print(f"Warning: Failed to upgrade pip/setuptools/wheel: {e.stderr}")
@@ -225,7 +247,8 @@ class SupersetEnvManager:
                     check=True,
                     capture_output=True,
                     text=True,
-                    timeout=300  # 5 minute timeout
+                    timeout=300,  # 5 minute timeout
+                    env=build_env
                 )
                 if result.returncode == 0:
                     print("Packages installed successfully!")
@@ -247,10 +270,12 @@ class SupersetEnvManager:
             print("No environment created yet!")
             return False
 
+        build_env = self._get_build_env()
+
         # Ensure pip first
         result = subprocess.run([
             str(self.env_path), "-m", "ensurepip", "--default-pip"
-        ], check=True, capture_output=True, text=True)
+        ], check=True, capture_output=True, text=True, env=build_env)
         if result.returncode != 0:
             print(f"Failed to ensure pip: {result.stderr}")
             return False
@@ -261,7 +286,8 @@ class SupersetEnvManager:
                 [str(self.env_path), "-m", "pip", "install", "--upgrade", "--prefer-binary", "pip", "setuptools", "wheel"],
                 check=True,
                 capture_output=True,
-                text=True
+                text=True,
+                env=build_env
             )
         except subprocess.CalledProcessError as e:
             print(f"Warning: Failed to upgrade pip/setuptools/wheel: {e.stderr}")
@@ -272,7 +298,7 @@ class SupersetEnvManager:
             # Use --prefer-binary to avoid compiling from source
             result = subprocess.run([
                 str(self.env_path), "-m", "pip", "install", "--prefer-binary", package
-            ], check=True, capture_output=True, text=True)
+            ], check=True, capture_output=True, text=True, env=build_env)
 
             if result.returncode == 0:
                 set_progress(now=current_progress+step//len(SUPERSET_PACKAGES))
