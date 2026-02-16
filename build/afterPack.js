@@ -21,13 +21,31 @@ exports.default = async function (context) {
     console.log("Current path:", currentPath)
     const appPath = path.join(context.appOutDir, "MEDomics.app")
     const mongodbPath = path.join(appPath, "Contents/Resources/app.asar.unpacked/node_modules/mongodb-client-encryption/prebuilds")
-    const tarFile = "mongodb-client-encryption-v6.0.1-node-v108-darwin-arm64.tar.gz"
+    const preferredTarFile = "mongodb-client-encryption-v6.0.1-node-v108-darwin-arm64.tar.gz"
+
+    if (!fs.existsSync(mongodbPath)) {
+      throw new Error(`mongodb-client-encryption prebuilds directory not found: ${mongodbPath}`)
+    }
+
+    const tarCandidates = fs
+      .readdirSync(mongodbPath)
+      .filter((file) => file.startsWith("mongodb-client-encryption-") && file.endsWith("-darwin-arm64.tar.gz"))
+      .sort()
+
+    if (tarCandidates.length === 0) {
+      throw new Error(`No mongodb-client-encryption darwin-arm64 prebuild tarball found in ${mongodbPath}`)
+    }
+
+    const tarFile = tarCandidates.includes(preferredTarFile) ? preferredTarFile : tarCandidates[0]
+    if (tarFile !== preferredTarFile) {
+      console.warn(`AfterPack: Preferred tarball ${preferredTarFile} not found, using ${tarFile}`)
+    }
 
     // Change to mongodb prebuilds directory
     process.chdir(mongodbPath)
 
     // Extract tar.gz
-    execSync(`tar -xvf ${tarFile}`)
+    execSync(`tar -xvf ${tarFile}`, { stdio: "inherit" })
 
     // Remove original tar.gz
     fs.unlinkSync(tarFile)
