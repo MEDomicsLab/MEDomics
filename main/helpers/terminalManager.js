@@ -11,6 +11,7 @@ class TerminalManager {
   constructor() {
     this.terminals = new Map()
     this.terminalCwd = new Map() // Track current working directory for each terminal
+    this.terminalShells = new Map() // Track shell executable for each terminal
   }
 
   getDefaultPathForPlatform() {
@@ -29,12 +30,25 @@ class TerminalManager {
 
   buildPathEnv(extraEntries = []) {
     const delimiter = os.platform() === "win32" ? ";" : ":"
-    const currentPath = process.env.PATH && process.env.PATH.trim().length > 0 ? process.env.PATH : this.getDefaultPathForPlatform()
+    const currentPath = process.env.PATH || ""
 
-    const finalEntries = [...extraEntries.filter(Boolean), ...currentPath.split(delimiter).filter(Boolean)]
-    const dedupedEntries = [...new Set(finalEntries)]
+    // Essential system directories that must always be available
+    // In production Electron (launched from Dock/Finder), PATH can be minimal
+    const essentialDirs = os.platform() === "win32"
+      ? ["C:\\Windows\\System32", "C:\\Windows", "C:\\Windows\\System32\\WindowsPowerShell\\v1.0"]
+      : ["/usr/local/bin", "/usr/bin", "/bin", "/usr/sbin", "/sbin"]
 
-    return dedupedEntries.join(delimiter)
+    if (os.platform() === "darwin") {
+      essentialDirs.push("/opt/homebrew/bin", "/opt/homebrew/sbin")
+    }
+
+    const allEntries = [
+      ...extraEntries.filter(Boolean),
+      ...currentPath.split(delimiter).filter(Boolean),
+      ...essentialDirs
+    ]
+
+    return [...new Set(allEntries)].join(delimiter)
   }
 
   resolveWorkingDirectory(cwd) {
@@ -101,27 +115,31 @@ class TerminalManager {
     return "/bin/sh"
   }
 
-  getShellForPlatform() {
+  getShellForPlatform(preferredShell = null) {
     const platform = os.platform()
     let shell,
       args = []
 
-    switch (platform) {
-      case "win32":
-        // Use PowerShell on Windows
-        shell = "powershell.exe"
+    if (platform === "win32") {
+      shell = preferredShell || "powershell.exe"
+      if (shell.toLowerCase().includes("powershell")) {
         args = ["-NoLogo"]
-        break
-      case "darwin":
-        // Use zsh on macOS (default on modern macOS)
-        shell = process.env.SHELL || "/bin/zsh"
-        break
-      case "linux":
-        // Use bash on Linux
-        shell = process.env.SHELL || "/bin/bash"
-        break
-      default:
-        shell = process.env.SHELL || "/bin/sh"
+      } else if (shell.toLowerCase().includes("bash")) {
+        args = ["--login"]
+      }
+    } else {
+      // macOS, Linux, and others
+      if (platform === "darwin") {
+        shell = preferredShell || process.env.SHELL || "/bin/zsh"
+      } else if (platform === "linux") {
+        shell = preferredShell || process.env.SHELL || "/bin/bash"
+      } else {
+        shell = preferredShell || process.env.SHELL || "/bin/sh"
+      }
+      // Start as login shell so that /etc/zprofile (path_helper) and
+      // user profile files (.zshrc, .bash_profile, etc.) are sourced.
+      // This is what VS Code, iTerm2, and Terminal.app do on macOS.
+      args = ["-l"]
     }
 
     const resolvedShell = this.resolveShellExecutable(shell)
@@ -130,8 +148,8 @@ class TerminalManager {
 
   createTerminal(terminalId, options = {}) {
     try {
-      const { shell, args } = this.getShellForPlatform()
-      const { cwd = os.homedir(), cols = 80, rows = 24, useIPython = false } = options
+      const { cwd = os.homedir(), cols = 80, rows = 24, useIPython = false, shellPath = null } = options
+      const { shell, args } = this.getShellForPlatform(shellPath)
       const finalCwd = this.resolveWorkingDirectory(cwd)
       const extraPathEntries = []
 
@@ -167,8 +185,10 @@ class TerminalManager {
       const terminalPath = this.buildPathEnv(extraPathEntries)
       const localeValue = process.env.LANG || "en_US.UTF-8"
 
+      console.log(`Spawning terminal ${terminalId}: shell=${finalShell}, args=${JSON.stringify(finalArgs)}, cwd=${finalCwd}`)
+
       const ptyProcess = spawn(finalShell, finalArgs, {
-        name: "xterm-color",
+        name: "xterm-256color",
         cols,
         rows,
         cwd: finalCwd,
@@ -178,26 +198,24 @@ class TerminalManager {
           // Ensure colored output
           TERM: "xterm-256color",
           COLORTERM: "truecolor",
+          // Locale settings — prevents "command not found: locale" errors
           LANG: localeValue,
           LC_ALL: process.env.LC_ALL || localeValue,
-          // Set PS1 for colored prompt (bash/zsh)
-          ...(os.platform() !== "win32" &&
-            !useIPython && {
-              PS1: "\\[\\033[01;32m\\]\\u@\\h\\[\\033[00m\\]:\\[\\033[01;34m\\]\\w\\[\\033[00m\\]\\$ "
-            }),
+          // Do NOT set PS1 — login shell profiles handle the prompt
+          // (P10k, Oh My Zsh, Starship, etc. set their own prompts)
           // Windows-specific environment
           ...(os.platform() === "win32" && {
             TERM_PROGRAM: "MEDomicsLab",
             TERM_PROGRAM_VERSION: "1.0.0",
-            // Enable VT processing for colored output in PowerShell
             FORCE_COLOR: "1"
           })
         }
       })
 
-      // Store the terminal process and initial directory
+      // Store the terminal process, directory, and shell info
       this.terminals.set(terminalId, ptyProcess)
       this.terminalCwd.set(terminalId, finalCwd)
+      this.terminalShells.set(terminalId, finalShell)
 
       const sessionType = useIPython ? "IPython session" : "Terminal"
       console.log(`${sessionType} ${terminalId} created successfully`)
@@ -221,14 +239,16 @@ class TerminalManager {
         throw new Error(`Source terminal ${sourceTerminalId} not found for cloning`)
       }
 
-      // Get current working directory from source terminal
+      // Get current working directory and shell from source terminal
       const cwd = this.terminalCwd.get(sourceTerminalId) || os.homedir()
-      console.log(`Source terminal cwd: ${cwd}`)
+      const sourceShell = this.terminalShells.get(sourceTerminalId) || null
+      console.log(`Source terminal cwd: ${cwd}, shell: ${sourceShell}`)
 
-      // Create a new terminal with the same directory
+      // Create a new terminal with the same directory and shell
       const cloneOptions = {
         ...options,
-        cwd
+        cwd,
+        shellPath: sourceShell
       }
 
       // Allow dynamic delay override via options or fallback to constant
@@ -295,6 +315,7 @@ class TerminalManager {
         terminal.kill()
         this.terminals.delete(terminalId)
         this.terminalCwd.delete(terminalId) // Clean up stored CWD
+        this.terminalShells.delete(terminalId) // Clean up stored shell
         console.log(`Terminal ${terminalId} killed successfully`)
       } catch (error) {
         console.error(`Error killing terminal ${terminalId}:`, error)
@@ -335,6 +356,7 @@ class TerminalManager {
       }
       this.terminals.delete(terminalId)
       this.terminalCwd.delete(terminalId) // Clean up stored CWD
+      this.terminalShells.delete(terminalId) // Clean up stored shell
     })
 
     // Track working directory changes based on output
@@ -386,6 +408,7 @@ class TerminalManager {
     }
     this.terminals.clear()
     this.terminalCwd.clear()
+    this.terminalShells.clear()
   }
 
   getTerminalCount() {
@@ -394,6 +417,77 @@ class TerminalManager {
 
   getAllTerminals() {
     return Array.from(this.terminals.keys())
+  }
+
+  getTerminalShell(terminalId) {
+    return this.terminalShells.get(terminalId) || null
+  }
+
+  /**
+   * Returns all available shell executables on the system.
+   * Used by the renderer to offer a shell selector (like VS Code).
+   */
+  getAvailableShells() {
+    const platform = os.platform()
+    const shells = []
+    const defaultShell = platform === "win32"
+      ? "powershell.exe"
+      : (process.env.SHELL || (platform === "darwin" ? "/bin/zsh" : "/bin/bash"))
+
+    if (platform === "win32") {
+      const candidates = [
+        { name: "PowerShell", path: "powershell.exe" },
+        { name: "Command Prompt", path: "cmd.exe" },
+        { name: "Git Bash", path: "C:\\Program Files\\Git\\bin\\bash.exe" },
+        { name: "WSL", path: "wsl.exe" }
+      ]
+      for (const candidate of candidates) {
+        // For non-absolute paths on Windows, just include them
+        if (!path.isAbsolute(candidate.path) || fs.existsSync(candidate.path)) {
+          shells.push({
+            ...candidate,
+            isDefault: candidate.path === defaultShell
+          })
+        }
+      }
+    } else {
+      const candidates = [
+        { name: "zsh", path: "/bin/zsh" },
+        { name: "bash", path: "/bin/bash" },
+        { name: "sh", path: "/bin/sh" }
+      ]
+
+      if (platform === "darwin") {
+        candidates.push(
+          { name: "zsh (Homebrew)", path: "/opt/homebrew/bin/zsh" },
+          { name: "bash (Homebrew)", path: "/opt/homebrew/bin/bash" },
+          { name: "fish (Homebrew)", path: "/opt/homebrew/bin/fish" },
+          { name: "fish", path: "/usr/local/bin/fish" }
+        )
+      }
+
+      if (platform === "linux") {
+        candidates.push(
+          { name: "zsh", path: "/usr/bin/zsh" },
+          { name: "fish", path: "/usr/bin/fish" }
+        )
+      }
+
+      // Deduplicate by path and only include shells that exist
+      const seen = new Set()
+      for (const candidate of candidates) {
+        if (!seen.has(candidate.path) && fs.existsSync(candidate.path)) {
+          seen.add(candidate.path)
+          shells.push({
+            ...candidate,
+            isDefault: candidate.path === defaultShell ||
+              candidate.path === this.resolveShellExecutable(defaultShell)
+          })
+        }
+      }
+    }
+
+    return shells
   }
 
   // Get the Python environment path from .medomics directory

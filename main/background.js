@@ -715,7 +715,8 @@ ipcMain.handle("terminal-create", async (event, options) => {
       cwd: cwd,
       cols: options.cols,
       rows: options.rows,
-      useIPython: options.useIPython || false
+      useIPython: options.useIPython || false,
+      shellPath: options.shellPath || null
     })
 
     // Set up event handlers for this terminal
@@ -765,6 +766,11 @@ ipcMain.handle("terminal-list", async () => {
 // Get current working directory of a terminal
 ipcMain.handle("terminal-get-cwd", async (event, terminalId) => {
   return terminalManager.getCurrentWorkingDirectory(terminalId)
+})
+
+// Get available shell executables on this system
+ipcMain.handle("terminal-get-available-shells", async () => {
+  return terminalManager.getAvailableShells()
 })
 
 /**
