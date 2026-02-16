@@ -3,6 +3,7 @@ import { Button } from "primereact/button"
 import { ConfirmDialog } from "primereact/confirmdialog"
 import { ContextMenu } from "primereact/contextmenu"
 import { InputText } from "primereact/inputtext"
+import { Menu } from "primereact/menu"
 import { Splitter, SplitterPanel } from "primereact/splitter"
 import { Tooltip } from "primereact/tooltip"
 import TerminalInstance from "./TerminalInstance"
@@ -26,25 +27,29 @@ const TerminalManager = ({ useIPython = false }) => {
   const [dragOverIndex, setDragOverIndex] = useState(null)
   const [splitTerminals, setSplitTerminals] = useState({}) // Maps parent terminal ID to split info
   const [currentContextMenuItems, setCurrentContextMenuItems] = useState([])
+  const [availableShells, setAvailableShells] = useState([])
   const terminalRefs = useRef({})
   const contextMenuRef = useRef(null)
   const editInputRef = useRef(null)
+  const shellMenuRef = useRef(null)
 
   // Create a new terminal instance
   const createNewTerminal = useCallback(
-    (parentTerminal = null) => {
+    (parentTerminal = null, shellInfo = null) => {
       const terminalId = uuid.v4()
       const sessionType = useIPython ? "IPython" : "Terminal"
+      const displayName = shellInfo ? shellInfo.name : sessionType
       const newTerminal = {
         id: terminalId,
-        title: `${sessionType} ${terminals.length + 1}`,
+        title: `${displayName} ${terminals.length + 1}`,
         isActive: false,
         parentId: parentTerminal?.id || null,
         cwd: parentTerminal?.cwd || null, // Inherit CWD from parent
         isSplit: false,
         splitPane: null,
         isManuallyRenamed: false, // Initialize as not manually renamed
-        useIPython: useIPython // Store the IPython flag for this terminal
+        useIPython: useIPython, // Store the IPython flag for this terminal
+        shellPath: shellInfo?.path || null // Shell executable path (null = system default)
       }
 
       setTerminals((prev) => [...prev, newTerminal])
@@ -95,7 +100,8 @@ const TerminalManager = ({ useIPython = false }) => {
           isSplit: true,
           splitPane: "right",
           isManuallyRenamed: false, // Initialize as not manually renamed
-          sourceTerminalId: terminalId // Track the source terminal
+          sourceTerminalId: terminalId, // Track the source terminal
+          shellPath: terminal.shellPath || null // Inherit shell from source
         }
 
         // For the left terminal, we only update metadata without recreating the instance
@@ -448,9 +454,24 @@ const TerminalManager = ({ useIPython = false }) => {
         }
       )
 
+      // Add shell submenu if available (only for regular terminals)
+      if (!useIPython && availableShells.length > 0) {
+        baseItems.push(
+          { separator: true },
+          {
+            label: "New Terminal With Shell",
+            icon: "pi pi-list",
+            items: availableShells.map(shell => ({
+              label: `${shell.name}${shell.isDefault ? ' (default)' : ''}`,
+              command: () => createNewTerminal(null, shell)
+            }))
+          }
+        )
+      }
+
       return baseItems
     },
-    [terminals, createNewTerminal, splitTerminal, unsplitTerminal, startRename, closeTerminal, resetToAutomaticTitle, useIPython]
+    [terminals, createNewTerminal, splitTerminal, unsplitTerminal, startRename, closeTerminal, resetToAutomaticTitle, useIPython, availableShells]
   )
 
   // Context menu items (fallback for backward compatibility)
@@ -503,6 +524,20 @@ const TerminalManager = ({ useIPython = false }) => {
     }
   }, [createNewTerminal, terminals.length])
 
+  // Fetch available shells from the backend
+  useEffect(() => {
+    if (!useIPython) {
+      ipcRenderer.invoke('terminal-get-available-shells')
+        .then(shells => {
+          setAvailableShells(shells || [])
+        })
+        .catch(err => {
+          console.warn('Failed to get available shells:', err)
+          setAvailableShells([])
+        })
+    }
+  }, [useIPython])
+
   const activeTerminal = terminals.find((t) => t.id === activeTerminalId)
 
   // Keyboard shortcuts for terminal actions
@@ -552,6 +587,7 @@ const TerminalManager = ({ useIPython = false }) => {
       {/* Tooltips for buttons - Enhanced with keyboard shortcuts */}
       <Tooltip target=".terminal-kill-btn" content="Kill Terminal (Ctrl+Shift+K)" position="bottom" showDelay={500} hideDelay={0} />
       <Tooltip target=".terminal-new-btn-header" content="New Terminal (Ctrl+Shift+`)" position="bottom" showDelay={500} hideDelay={0} />
+      <Tooltip target=".terminal-shell-selector-btn" content="Select Shell" position="bottom" showDelay={500} hideDelay={0} />
       <Tooltip target=".terminal-split-tab-btn" content="Split Terminal (Ctrl+Shift+5)" position="bottom" showDelay={500} hideDelay={0} />
       <Tooltip target=".terminal-unsplit-tab-btn" content="Unsplit Terminal (Ctrl+Shift+U)" position="bottom" showDelay={500} hideDelay={0} />
 
@@ -585,6 +621,7 @@ const TerminalManager = ({ useIPython = false }) => {
                               onUnsplit={unsplitTerminal}
                               isSplit={leftTerminal.isSplit}
                               useIPython={useIPython}
+                              shellPath={leftTerminal.shellPath}
                               ref={(ref) => {
                                 if (ref) {
                                   terminalRefs.current[leftTerminal.id] = ref
@@ -603,6 +640,7 @@ const TerminalManager = ({ useIPython = false }) => {
                               onUnsplit={unsplitTerminal}
                               isSplit={rightTerminal.isSplit}
                               useIPython={useIPython}
+                              shellPath={rightTerminal.shellPath}
                               ref={(ref) => {
                                 if (ref) {
                                   terminalRefs.current[rightTerminal.id] = ref
@@ -637,6 +675,7 @@ const TerminalManager = ({ useIPython = false }) => {
                       onUnsplit={unsplitTerminal}
                       isSplit={terminal.isSplit}
                       useIPython={useIPython}
+                      shellPath={terminal.shellPath}
                       ref={(ref) => {
                         if (ref) {
                           terminalRefs.current[terminal.id] = ref
@@ -676,21 +715,40 @@ const TerminalManager = ({ useIPython = false }) => {
                 }}
               >
                 <span>{useIPython ? 'IPython Sessions' : 'Terminals'}</span>
-                <Button
-                  icon="pi pi-plus"
-                  size="small"
-                  text
-                  onClick={createNewTerminal}
-                  className="terminal-new-btn-header"
-                  style={{
-                    width: "18px",
-                    height: "18px",
-                    padding: "0",
-                    minWidth: "unset",
-                    opacity: 0.7,
-                    color: "var(--text-secondary)"
-                  }}
-                />
+                <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
+                  <Button
+                    icon="pi pi-plus"
+                    size="small"
+                    text
+                    onClick={() => createNewTerminal()}
+                    className="terminal-new-btn-header"
+                    style={{
+                      width: "18px",
+                      height: "18px",
+                      padding: "0",
+                      minWidth: "unset",
+                      opacity: 0.7,
+                      color: "var(--text-secondary)"
+                    }}
+                  />
+                  {!useIPython && availableShells.length > 0 && (
+                    <Button
+                      icon="pi pi-chevron-down"
+                      size="small"
+                      text
+                      onClick={(e) => shellMenuRef.current && shellMenuRef.current.toggle(e)}
+                      className="terminal-shell-selector-btn"
+                      style={{
+                        width: "18px",
+                        height: "18px",
+                        padding: "0",
+                        minWidth: "unset",
+                        opacity: 0.7,
+                        color: "var(--text-secondary)"
+                      }}
+                    />
+                  )}
+                </div>
               </div>
 
               <div style={{ flex: 1, overflow: "auto" }}>
@@ -880,6 +938,22 @@ const TerminalManager = ({ useIPython = false }) => {
       </div>
 
       <ContextMenu ref={contextMenuRef} model={currentContextMenuItems.length > 0 ? currentContextMenuItems : contextMenuItems} />
+      {!useIPython && availableShells.length > 0 && (
+        <Menu
+          ref={shellMenuRef}
+          popup
+          model={[
+            {
+              label: 'New Terminal With Shell',
+              items: availableShells.map(shell => ({
+                label: `${shell.name}${shell.isDefault ? ' (default)' : ''}`,
+                icon: 'pi pi-angle-right',
+                command: () => createNewTerminal(null, shell)
+              }))
+            }
+          ]}
+        />
+      )}
       <ConfirmDialog />
     </div>
   )
