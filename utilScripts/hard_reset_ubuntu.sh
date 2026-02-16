@@ -10,7 +10,16 @@ fi
 apt remove medomics-platform --purge
 apt autoremove --purge -y
 rm -rf /opt/MEDomics
-rm -rf ~/.medomics
+
+# Remove MEDomics configuration from the invoking user's home directory
+if [ -n "$SUDO_USER" ] && [ "$SUDO_USER" != "root" ]; then
+    USER_HOME_DIR="$(getent passwd "$SUDO_USER" | cut -d: -f6)"
+    if [ -n "$USER_HOME_DIR" ]; then
+        rm -rf "$USER_HOME_DIR/.medomics"
+    fi
+else
+    rm -rf "$HOME/.medomics"
+fi
 rm -rf /usr/local/lib/mongodb
 rm -f /usr/local/bin/mongod
 rm -f /usr/local/bin/mongos

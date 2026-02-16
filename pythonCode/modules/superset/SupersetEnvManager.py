@@ -5,6 +5,7 @@ import os
 import time
 from pathlib import Path
 import venv
+import shutil
 
 SUPERSET_PACKAGES = [
     "apache-superset==4.1.1",
@@ -38,7 +39,7 @@ class SupersetEnvManager:
         this compiler is usually absent, but gcc/g++ are available.  Setting
         CC and CXX ensures pip can compile C extensions like python-geohash.
         """
-        import shutil
+        
         env = os.environ.copy()
         if sys.platform != "win32":
             cc = shutil.which("gcc") or shutil.which("cc")

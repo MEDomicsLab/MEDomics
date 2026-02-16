@@ -77,8 +77,14 @@ echo "Download URL: $DOWNLOAD_URL" >>"$LOG_FILE"
 
 # ── Install runtime dependencies required by the mongod binary ────────────
 echo "Installing runtime dependencies..." >>"$LOG_FILE"
-apt-get install -y curl libcurl4 libssl3 >>"$LOG_FILE" 2>&1 || \
-    apt-get install -y curl libcurl4 libssl1.1 >>"$LOG_FILE" 2>&1 || true
+if apt-get install -y curl libcurl4 libssl3 >>"$LOG_FILE" 2>&1; then
+    echo "Runtime dependencies installed with libssl3." >>"$LOG_FILE"
+elif apt-get install -y curl libcurl4 libssl1.1 >>"$LOG_FILE" 2>&1; then
+    echo "Runtime dependencies installed with libssl1.1 (fallback)." >>"$LOG_FILE"
+else
+    echo "WARNING: Failed to install runtime dependencies (libssl3 and libssl1.1)." >>"$LOG_FILE"
+    echo "WARNING: MongoDB may fail to run due to missing SSL dependencies." >>"$LOG_FILE"
+fi
 
 # ── Download the tarball ──────────────────────────────────────────────────
 TEMP_DIR=$(mktemp -d)
@@ -106,7 +112,10 @@ fi
 INSTALL_DIR="/usr/local/lib/mongodb"
 echo "Installing MongoDB to $INSTALL_DIR" >>"$LOG_FILE"
 rm -rf "$INSTALL_DIR"
-mkdir -p "$INSTALL_DIR"
+# Also place in /usr/bin as a fallback (getMongoDBPath checks this directly).
+# This can fail (e.g. read-only /usr, existing system-managed mongod, or lack
+# of permissions) and is non-critical because /usr/local/bin already has the
+# primary symlink and getMongoDBPath checks that before /usr/bin.
 cp -r "$EXTRACTED_DIR"/* "$INSTALL_DIR/"
 
 # Symlink the binaries so they appear on PATH
