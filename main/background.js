@@ -299,18 +299,16 @@ if (isProd) {
   console.log("process.resourcesPath: ", process.resourcesPath)
   console.log(MEDconfig.runServerAutomatically ? "Server will start automatically here (in background of the application)" : "Server must be started manually")
   let bundledPythonPath = getBundledPythonEnvironment()
-  if (MEDconfig.runServerAutomatically && bundledPythonPath !== null) {
-    // Find the bundled python environment
-    if (bundledPythonPath !== null) {
-      runServer(isProd, serverPort, serverProcess, serverState, bundledPythonPath)
-        .then((process) => {
-          serverProcess = process
-          console.log("Server process started: ", serverProcess)
-        })
-        .catch((err) => {
-          console.error("Failed to start server: ", err)
-        })
-    }
+  if (MEDconfig.runServerAutomatically) {
+    // Start the Go server – Python path is optional (passed if available)
+    runServer(isProd, serverPort, serverProcess, serverState, bundledPythonPath)
+      .then((process) => {
+        serverProcess = process
+        console.log("Server process started: ", serverProcess)
+      })
+      .catch((err) => {
+        console.error("Failed to start server: ", err)
+      })
   } else {
     //**** NO SERVER ****//
     findAvailablePort(MEDconfig.defaultPort)
@@ -963,6 +961,15 @@ export function getMongoDBPath() {
     // Check if mongod is in the default installation path on Linux - /usr/bin/mongod
     if (fs.existsSync("/usr/bin/mongod")) {
       return "/usr/bin/mongod"
+    }
+
+    // Check the tarball install location used by after-install.sh
+    if (fs.existsSync("/usr/local/bin/mongod")) {
+      return "/usr/local/bin/mongod"
+    }
+
+    if (fs.existsSync("/usr/local/lib/mongodb/bin/mongod")) {
+      return "/usr/local/lib/mongodb/bin/mongod"
     }
 
     if (fs.existsSync(process.env.HOME + "/.medomics/mongodb/bin/mongod")) {

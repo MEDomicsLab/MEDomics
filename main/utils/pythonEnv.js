@@ -1,4 +1,4 @@
-import { app } from "electron"
+import { app, dialog } from "electron"
 const fs = require("fs")
 var path = require("path")
 const { join } = require("path")
@@ -130,11 +130,6 @@ function getCondaPath(parentPath) {
     }
     if (condaPath === null && process.platform !== "darwin") {
       console.log("No conda environment found")
-      dialog.showMessageBoxSync({
-        type: "error",
-        title: "No conda environment found",
-        message: "No conda environment found. Please install anaconda or miniconda and try again."
-      })
     }
   }
   return condaPath
