@@ -909,6 +909,9 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
       if (res && res.success) {
         setRemoteBackendPath(res.path)
         toast.success('Remote server installed.')
+        if (res.cleanup && res.cleanup.success === false) {
+          toast.warn('Unable to delete previous versions on remote server, we recommend deleting them manually.')
+        }
         setRemoteInstalled(true)
         // Refresh latest-release availability state so the UI can disable Update when up-to-date
         try { await checkForNewRemoteBackendVersion() } catch { /* non-fatal */ }

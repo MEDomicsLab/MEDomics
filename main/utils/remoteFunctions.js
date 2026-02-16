@@ -555,6 +555,85 @@ function sendInstallProgress(payload) {
   } catch {}
 }
 
+function extractVersionFolderNameFromExePath(exePath) {
+  if (!exePath || typeof exePath !== 'string') return null
+  const normalized = exePath.replace(/\\/g, '/')
+  const marker = '/versions/'
+  const idx = normalized.lastIndexOf(marker)
+  if (idx === -1) return null
+  const rest = normalized.slice(idx + marker.length)
+  const seg = rest.split('/')[0]
+  return seg ? String(seg).trim() : null
+}
+
+async function listRemoteVersionDirs(conn, remoteOS, versionsDir) {
+  try {
+    if (!versionsDir) return []
+    if (remoteOS === 'win32') {
+      const ps = `powershell -NoProfile -Command "if (Test-Path '${versionsDir.replace(/'/g, "''")}') { Get-ChildItem -Path '${versionsDir.replace(/'/g, "''")}' -Directory | Select-Object -ExpandProperty Name }"`
+      const r = await execRemote(conn, ps)
+      return String(r.stdout || '')
+        .split(/\r?\n/)
+        .map(s => s.trim())
+        .filter(Boolean)
+    }
+
+    const sh = `bash -lc "if [ -d '${versionsDir.replace(/'/g, "'\\''")}' ]; then find '${versionsDir.replace(/'/g, "'\\''")}' -maxdepth 1 -mindepth 1 -type d -exec basename {} \\; 2>/dev/null; fi"`
+    const r = await execRemote(conn, sh)
+    return String(r.stdout || '')
+      .split(/\r?\n/)
+      .map(s => s.trim())
+      .filter(Boolean)
+  } catch {
+    return []
+  }
+}
+
+async function deleteRemoteDir(conn, remoteOS, dirPath) {
+  if (!dirPath) return { success: false, error: 'missing-path' }
+  try {
+    if (remoteOS === 'win32') {
+      const ps = `powershell -NoProfile -Command "$ErrorActionPreference='Stop'; Remove-Item -LiteralPath '${dirPath.replace(/'/g, "''")}' -Recurse -Force"`
+      const r = await execRemote(conn, ps)
+      if (r && r.code && r.code !== 0) return { success: false, error: r.stderr || 'remove-item-failed' }
+      return { success: true }
+    }
+
+    const sh = `bash -lc "rm -rf -- '${dirPath.replace(/'/g, "'\\''")}'"`
+    const r = await execRemote(conn, sh)
+    if (r && r.code && r.code !== 0) return { success: false, error: r.stderr || 'rm-failed' }
+    return { success: true }
+  } catch (e) {
+    return { success: false, error: e && e.message ? e.message : String(e) }
+  }
+}
+
+async function cleanupRemoteBackendVersions(conn, remoteOS, { versionsDir, keepVersionNames = [] } = {}) {
+  const keep = new Set((keepVersionNames || []).map(v => String(v || '').trim()).filter(Boolean))
+  const deleted = []
+  const failed = []
+  try {
+    const names = await listRemoteVersionDirs(conn, remoteOS, versionsDir)
+    for (const name of names) {
+      if (!name) continue
+      if (keep.has(name)) continue
+      const fullPath = remoteOS === 'win32' ? `${versionsDir}\\${name}` : `${versionsDir}/${name}`
+      const res = await deleteRemoteDir(conn, remoteOS, fullPath)
+      if (res && res.success) deleted.push(name)
+      else failed.push({ name, error: res && res.error ? res.error : 'delete-failed' })
+    }
+  } catch (e) {
+    failed.push({ name: '*', error: e && e.message ? e.message : String(e) })
+  }
+  return {
+    success: failed.length === 0,
+    versionsDir,
+    keep: Array.from(keep),
+    deleted,
+    failed,
+  }
+}
+
 ipcMain.handle('ensureRemoteBackend', async (_event, { port } = {}) => {
   const conn = getActiveTunnel()
   if (!conn) return { success: false, status: 'tunnel-inactive', error: 'No active SSH tunnel' }
@@ -929,9 +1008,24 @@ ipcMain.handle('installRemoteBackendFromURL', async (_event, { manifestUrl, vers
       await execRemote(conn, `bash -lc "ln -sfn '${versionDir.replace(/'/g, "'\\''")}' '${currentLink.replace(/'/g, "'\\''")}'"`)
     }
 
+    const previousExePath = getRemoteBackendExecutablePath()
     setRemoteBackendExecutablePath(exePath)
-    sendInstallProgress({ phase: 'done', version: manifestVersion, path: exePath })
-    return { success: true, version: manifestVersion, path: exePath }
+    // Best-effort cleanup: delete older versions after downloading a new one.
+    // Keep the newly installed version AND the currently used version (if different), so we don't break a running server.
+    let cleanup = null
+    try {
+      const previousVersionName = extractVersionFolderNameFromExePath(previousExePath)
+      const keepVersionNames = [manifestVersion, previousVersionName].filter(Boolean)
+      sendInstallProgress({ phase: 'cleanup-start', versionsDir, keepVersionNames })
+      cleanup = await cleanupRemoteBackendVersions(conn, remoteOS, { versionsDir, keepVersionNames })
+      sendInstallProgress({ phase: 'cleanup-complete', cleanup })
+    } catch (e) {
+      cleanup = { success: false, error: e && e.message ? e.message : String(e) }
+      try { sendInstallProgress({ phase: 'cleanup-error', error: cleanup.error }) } catch {}
+    }
+
+    sendInstallProgress({ phase: 'done', version: manifestVersion, path: exePath, cleanup })
+    return { success: true, version: manifestVersion, path: exePath, cleanup }
   } catch (e) {
     try { sendInstallProgress({ phase: 'error', step: 'unexpected', details: e && e.message ? e.message : String(e) }) } catch {}
     return { success: false, error: e && e.message ? e.message : String(e) }

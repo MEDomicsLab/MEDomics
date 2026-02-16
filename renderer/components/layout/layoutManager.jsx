@@ -162,7 +162,7 @@ const LayoutManager = (props) => {
 
     if (isRemoteWorkspace && blockedInRemote.has(activeSidebarItem)) {
       return (
-        <div style={{ padding: 16 }}>
+        <div style={{ padding: 16, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', boxSizing: 'border-box' }}>
           <h3 style={{ marginTop: 0 }}>Module unavailable</h3>
           <div style={{ color: 'var(--warning)', fontSize: 14 }}>
             Not yet implemented for online use, please switch to a local workspace.
