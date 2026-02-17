@@ -63,7 +63,7 @@
     "jquery-csv": "^1.0.21",
     "lodash": "^4.17.21",
     "mongodb": "^6.6.2",
-    "node-pty": "node-pty@1.2.0-beta.11",
+    "node-pty": "1.2.0-beta.11",
     "mongodb-client-encryption": "^6.1.0",
     "node-sys": "^1.2.4",
     "papaparse": "^5.4.1",
