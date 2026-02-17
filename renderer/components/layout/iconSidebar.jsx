@@ -17,8 +17,6 @@ import { VscChromeClose } from "react-icons/vsc"
 import { PiGraphFill } from "react-icons/pi"
 import ConnectionModal from "../mainPages/connectionModal"
 import { toast } from "react-toastify"
-import { useTunnel } from "../tunnel/TunnelContext"
-import { FaCircle } from "react-icons/fa"
 import { MdOutlineGroups3, MdSunny, MdOutlineDarkMode } from "react-icons/md"
 import { useTheme } from "../theme/themeContext"
 
@@ -38,8 +36,6 @@ const IconSidebar = ({ onSidebarItemSelect }) => {
   const [extractionBtnstate, setExtractionBtnstate] = useState(false)
   const [buttonClass, setButtonClass] = useState("")
   const [showConnectionModal, setShowConnectionModal] = useState(false)
-
-  const tunnel = useTunnel()
 
   const delayOptions = { showDelay: 750, hideDelay: 0 }
 
@@ -185,7 +181,7 @@ const IconSidebar = ({ onSidebarItemSelect }) => {
           >
             <TbCloudDataConnection style={{ height: "2.2rem", width: "100%", strokeWidth: "1" }} />
             {/* SSH Tunnel status indicator */}
-            {tunnel.tunnelActive && (
+            {workspace.isRemote && (
               <span
                 style={{
                   position: "absolute",

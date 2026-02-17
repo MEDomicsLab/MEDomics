@@ -1328,7 +1328,25 @@ export async function stopPortTunnel({ name, localPort }) {
       serverName = match ? match.name : undefined
     }
     if (!serverName || !servers[serverName]) return { success: false, error: 'tunnel-not-found' }
-    await new Promise((resolve) => servers[serverName].close(() => resolve()))
+    // Never hang forever on close (Disconnect relies on this).
+    await new Promise((resolve) => {
+      let done = false
+      const finish = () => {
+        if (done) return
+        done = true
+        resolve()
+      }
+      const timer = setTimeout(finish, 2000)
+      try {
+        servers[serverName].close(() => {
+          clearTimeout(timer)
+          finish()
+        })
+      } catch {
+        clearTimeout(timer)
+        finish()
+      }
+    })
     const nextServers = { ...servers }
     delete nextServers[serverName]
     setActiveTunnelServer(nextServers)
@@ -1344,12 +1362,59 @@ export async function stopPortTunnel({ name, localPort }) {
   }
 }
 
+export async function stopAllPortTunnels({ clearList = true } = {}) {
+  try {
+    const servers = getActiveTunnelServer() || {}
+    const names = Object.keys(servers)
+    for (const n of names) {
+      try {
+        await new Promise((resolve) => {
+          let done = false
+          const finish = () => {
+            if (done) return
+            done = true
+            resolve()
+          }
+          const timer = setTimeout(finish, 2000)
+          try {
+            servers[n].close(() => {
+              clearTimeout(timer)
+              finish()
+            })
+          } catch {
+            clearTimeout(timer)
+            finish()
+          }
+        })
+      } catch (e) {
+        console.warn('[stopAllPortTunnels] close failed', n, e && e.message ? e.message : String(e))
+      }
+    }
+    setActiveTunnelServer({})
+
+    const state = getTunnelState()
+    const tunnels = clearList ? [] : (Array.isArray(state.tunnels) ? state.tunnels.map(t => ({ ...t, status: 'closed' })) : [])
+    setTunnelState({ ...state, tunnels })
+    try {
+      const full = getTunnelState()
+      mainWindow.webContents.send('tunnelStateChanged', full)
+      mainWindow.webContents.send('tunnelStateUpdate', full)
+    } catch {}
+    return { success: true, stopped: names, cleared: !!clearList }
+  } catch (e) {
+    return { success: false, error: e && e.message ? e.message : String(e) }
+  }
+}
+
 ipcMain.handle('startPortTunnel', async (_event, payload = {}) => {
   console.log("startPortTunnel IPC called with payload:", payload)
   return startPortTunnel(payload)
 })
 ipcMain.handle('stopPortTunnel', async (_event, payload = {}) => {
   return stopPortTunnel(payload)
+})
+ipcMain.handle('stopAllPortTunnels', async (_event, payload = {}) => {
+  return stopAllPortTunnels(payload)
 })
 ipcMain.handle('listPortTunnels', async () => {
   return { success: true, tunnels: (getTunnelState().tunnels || []) }
@@ -1625,52 +1690,65 @@ export async function confirmMongoTunnel(loadBlocking = false) {
  * @returns {Promise<{success: boolean, error?: string}>}
  */
 export async function stopSSHTunnel() {
-  let success = false
+  console.log('[stopSSHTunnel] begin')
   let error = null
-  if (activeTunnelServer) {
-    try {
-      await new Promise((resolve, reject) => {
-        activeTunnelServer.expressServer && activeTunnelServer.expressServer.close((err) => {
-          if (err) reject(err)
-          else resolve()
-        })
-      })
-      await new Promise((resolve, reject) => {
-        activeTunnelServer.goServer && activeTunnelServer.goServer.close((err) => {
-          if (err) reject(err)
-          else resolve()
-        })
-      })
-      await new Promise((resolve, reject) => {
-        activeTunnelServer.mongoServer && activeTunnelServer.mongoServer.close((err) => {
-          if (err) reject(err)
-          else resolve()
-        })
-      })
-      setActiveTunnelServer(null)
-      success = true
-    } catch (e) {
-      error = e.message || String(e)
-    }
+  let didSomething = false
+
+  // Close any local forward servers (legacy objects and the newer name->server map).
+  try {
+    const res = await stopAllPortTunnels({ clearList: true })
+    if (res && res.success) didSomething = true
+    else if (res && res.error) error = res.error
+  } catch (e) {
+    error = e && e.message ? e.message : String(e)
   }
+
+  // Close SSH client.
   if (activeTunnel) {
+    didSomething = true
     try {
-      activeTunnel.end()
+      // end() should be non-blocking; add a best-effort timeout anyway.
+      await new Promise((resolve) => {
+        let done = false
+        const finish = () => {
+          if (done) return
+          done = true
+          resolve()
+        }
+        const timer = setTimeout(finish, 1500)
+        try {
+          activeTunnel.once && activeTunnel.once('close', () => {
+            clearTimeout(timer)
+            finish()
+          })
+        } catch {}
+        try { activeTunnel.end() } catch {}
+        // If no close event, timer will resolve.
+      })
     } catch {}
-    setActiveTunnel(null)
-    success = true
+    try { setActiveTunnel(null) } catch {}
   }
+
   // Emit state change reflecting closed forwards and inactive tunnel
   try {
-    setTunnelState({
-      ...getTunnelState(),
+    const prev = getTunnelState()
+    const next = {
+      ...prev,
       tunnelActive: false,
-      expressStatus: 'closed'
-    })
-    mainWindow.webContents.send('tunnelStateChanged', getTunnelState())
+      expressStatus: 'closed',
+      serverStartedRemotely: false,
+      tunnels: [],
+    }
+    setTunnelState(next)
+    try {
+      mainWindow.webContents.send('tunnelStateChanged', next)
+      mainWindow.webContents.send('tunnelStateUpdate', next)
+    } catch {}
   } catch {}
-  if (success) return { success: true }
-  return { success: false, error: error || "No active tunnel" }
+
+  console.log('[stopSSHTunnel] done', { didSomething, error })
+  if (didSomething) return { success: true }
+  return { success: false, error: error || 'No active tunnel' }
 }
 
 

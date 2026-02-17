@@ -1034,6 +1034,8 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
         setRemoteServerRunning(false)
         setShouldRecheck(true)
         try {
+          // Stop and clear local forwards so the Server Panel doesn't show stale tunnels.
+          try { await ipcRenderer.invoke('stopAllPortTunnels', { clearList: true }) } catch (_) { /* non-fatal */ }
           await ipcRenderer.invoke('setTunnelState', { tunnelActive: true, expressStatus: 'stopped', serverStartedRemotely: false })
           try {
             tunnelContext.setTunnelInfo(await ipcRenderer.invoke("getTunnelState"))
@@ -1461,7 +1463,7 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
   const [newFolderName, setNewFolderName] = useState("")
   const [creatingFolder, setCreatingFolder] = useState(false)
   // Debug panel toggle
-  const [showRemotePanel, setShowRemotePanel] = useState(true)
+  const [showRemotePanel, setShowRemotePanel] = useState(false)
 
   const handleCreateFolder = async () => {
     setCreatingFolder(true)
@@ -1518,7 +1520,7 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
 
   // Pager visibility/disabled states
   const prevDisabled = connectionProcessing || activeStep === 0
-  const nextDisabled = connectionProcessing ||
+  const nextDisabled = connectionProcessing || activeStep === steps.length - 1 ||
     (activeStep === 0 && !tunnelActive) ||
     (activeStep === 1 && (!remoteServerRunning || !requirementsMetRemote))
 
@@ -1859,7 +1861,7 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
           >
             {showAdvanced && <>
             <div style={{ width: '100%'}}>
-              <label>
+              <label style={{ marginRight: '10px'}}>
                 Local GO Port:
                 <InputNumber disabled={connectionProcessing} value={localGoPort} onChange={e => setLocalGoPort(e.value == null ? '' : String(e.value))} placeholder="54380" useGrouping={false} min={1} max={65535} />
               </label>
@@ -2088,6 +2090,7 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
 
                     if (response.data.workspace !== workspace) {
                       setWorkspace(response.data.workspace)
+                      ipcRenderer.invoke("setRemoteWorkspacePath", response.data.workspace.workingDirectory.path || '')
                     }
                   } else {
                     toast.error('Failed to set workspace on remote app: ' + (response?.data?.error || 'Unknown error'))
@@ -2184,25 +2187,6 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
           />
         </div>
         )}
-        {/* Remote Server Debug Panel - collapsible */}
-        <div style={{ marginTop: '1rem', borderTop: '1px solid var(--border-color)', paddingTop: '1rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-            <h3 style={{ margin: 0, fontSize: '1rem' }}>Remote Server Panel</h3>
-            <Button
-              onClick={() => setShowRemotePanel(v => !v)}
-              style={{ marginLeft: 'auto', background: 'var(--bg-secondary)', color: 'var(--text-secondary)' }}
-              title={showRemotePanel ? 'Hide panel' : 'Show panel'}
-            >
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                {showRemotePanel ? 'Hide' : 'Show'}
-                {showRemotePanel ? <GoChevronUp size={18} /> : <GoChevronDown size={18} />}
-              </span>
-            </Button>
-          </div>
-          {showRemotePanel && (
-            <RemoteServerPage />
-          )}
-        </div>
         {/* Global wizard footer navigation */}
         {tunnelStatus && (
           <div>
@@ -2240,6 +2224,25 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
               <GoChevronRight size={18} />
             </span>
           </Button>
+        </div>
+        {/* Remote Server Debug Panel - collapsible */}
+        <div style={{ marginTop: '1rem', borderTop: '1px solid var(--border-color)', paddingTop: '1rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+            <h3 style={{ margin: 0, fontSize: '1rem' }}>Remote Server Panel</h3>
+            <Button
+              onClick={() => setShowRemotePanel(v => !v)}
+              style={{ marginLeft: 'auto', background: 'var(--bg-secondary)', color: 'var(--text-secondary)' }}
+              title={showRemotePanel ? 'Hide panel' : 'Show panel'}
+            >
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                {showRemotePanel ? 'Hide' : 'Show'}
+                {showRemotePanel ? <GoChevronUp size={18} /> : <GoChevronDown size={18} />}
+              </span>
+            </Button>
+          </div>
+          {showRemotePanel && (
+            <RemoteServerPage />
+          )}
         </div>
       </div>
       {/* New Folder Modal */}
