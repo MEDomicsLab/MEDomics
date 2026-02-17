@@ -18,6 +18,13 @@ let tunnelInfo = {
   serverStartedRemotely: false,
   expressStatus: "unknown",
   expressLogPath: null,
+  // Optional persisted remote context
+  remoteWorkspacePath: null,
+  remoteBackendExecutablePath: null,
+  requirementsMetRemote: false,
+  requirementsDetailsRemote: null,
+  requirementsCheckedAt: null,
+  tunnels: [],
 };
 
 export function setTunnelState(info) {
@@ -48,6 +55,12 @@ export function clearTunnelState() {
     serverStartedRemotely: false,
     expressStatus: "unknown",
     expressLogPath: null,
+    remoteWorkspacePath: null,
+    remoteBackendExecutablePath: null,
+    requirementsMetRemote: false,
+    requirementsDetailsRemote: null,
+    requirementsCheckedAt: null,
+    tunnels: [],
   };
 }
 

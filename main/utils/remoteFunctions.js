@@ -34,6 +34,10 @@ export function getActiveTunnelServer() {
 }
 export function setRemoteWorkspacePath(path) {
   remoteWorkspacePath = path
+  try {
+    setTunnelState({ ...getTunnelState(), remoteWorkspacePath: path || null })
+    try { mainWindow.webContents.send('tunnelStateUpdate', { remoteWorkspacePath: path || null }) } catch {}
+  } catch {}
 }
 export function getRemoteWorkspacePath() {
   return remoteWorkspacePath
@@ -46,6 +50,10 @@ export function setRemoteBackendExecutablePath(p) {
   } else {
     remoteBackendExecutablePath = p
   }
+  try {
+    setTunnelState({ ...getTunnelState(), remoteBackendExecutablePath: remoteBackendExecutablePath || null })
+    try { mainWindow.webContents.send('tunnelStateUpdate', { remoteBackendExecutablePath: remoteBackendExecutablePath || null }) } catch {}
+  } catch {}
 }
 export function getRemoteBackendExecutablePath() {
   return remoteBackendExecutablePath
@@ -72,6 +80,12 @@ let tunnelInfo = {
   serverStartedRemotely: false,
   expressStatus: 'unknown',
   expressLogPath: null,
+  // Persisted remote context
+  remoteWorkspacePath: null,
+  remoteBackendExecutablePath: null,
+  requirementsMetRemote: false,
+  requirementsDetailsRemote: null,
+  requirementsCheckedAt: null,
   // Generic list of active tunnels
   tunnels: [] // [{ name: string, localPort: number, remotePort: number, status: 'forwarding'|'closed' }]
 }
@@ -87,6 +101,8 @@ export function setTunnelState(info) {
 }
 
 export function clearTunnelState() {
+  try { remoteWorkspacePath = null } catch {}
+  try { remoteBackendExecutablePath = null } catch {}
   tunnelInfo = {
     host: null,
     tunnelActive: false,
@@ -103,6 +119,13 @@ export function clearTunnelState() {
     username: null,
     serverStartedRemotely: false,
     expressStatus: 'unknown',
+    expressLogPath: null,
+    remoteWorkspacePath: null,
+    remoteBackendExecutablePath: null,
+    requirementsMetRemote: false,
+    requirementsDetailsRemote: null,
+    requirementsCheckedAt: null,
+    tunnels: [],
   }
 }
 
@@ -112,6 +135,14 @@ export function getTunnelState() {
 
 ipcMain.handle('getTunnelState', () => {
   return getTunnelState()
+})
+
+ipcMain.handle('getRemoteWorkspacePath', () => {
+  return getRemoteWorkspacePath()
+})
+
+ipcMain.handle('getRemoteBackendExecutablePath', () => {
+  return getRemoteBackendExecutablePath()
 })
 
 ipcMain.handle('setTunnelState', (_event, info) => {

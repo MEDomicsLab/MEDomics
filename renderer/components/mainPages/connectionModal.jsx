@@ -32,6 +32,9 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
   const [showAdvanced, setShowAdvanced] = useState(false)
   const [activeStep, setActiveStep] = useState(0) // 0=SSH, 1=Server Setup, 2=Workspace
 
+  // Prevent automatic "page enter" checks from firing immediately on reopen.
+  const hydratingOnOpenRef = useRef(false)
+
   // Step 1: Optional advanced disclosure for SSH key details
   const [showSSHKeyAdvanced, setShowSSHKeyAdvanced] = useState(false)
 
@@ -200,40 +203,115 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
 
   // On modal open, check for existing tunnel and sync state, and reset wizard
   useEffect(() => {
-    if (visible) {
-      setActiveStep(0)
-      setShowSSHKeyAdvanced(false)
-      setRemoteInstalled(false)
-      setInstallingRemote(false)
-      setRemoteInstallText('')
-      setRemoteServerRunning(false)
-      setRequirementsMetRemote(false)
-      setRequirementsChecking(false)
-      setRequirementsInstalling(false)
-      setRemoteInstallPhase('')
-      setRemoteDownloadPercent(null)
-      setRemoteDownloadSpeed(null)
-      setRemoteInstallEvents([])
-      setRemoteBackendVersion("")
-      setLatestRemoteVersionTag("")
-      setLatestRemoteVersionAvailable(false)
-      setLatestRemoteVersionChecked(false)
-      const tunnel = getTunnelState()
-      if (tunnel.tunnelActive) {
+    if (!visible) return
+
+    let cancelled = false
+    hydratingOnOpenRef.current = true
+
+    const hydrate = async () => {
+      try {
+        let state = null
+        try {
+          state = await ipcRenderer.invoke('getTunnelState')
+        } catch (_) {
+          state = getTunnelState()
+        }
+        if (cancelled) return
+
+        const isActive = !!state?.tunnelActive
+
+        // No active tunnel: open on Step 1 with a clean slate.
+        if (!isActive) {
+          setActiveStep(0)
+          setShowSSHKeyAdvanced(false)
+          setTunnelActive(false)
+          setTunnelStatus("")
+          setRemoteBackendStatus("")
+          setRemoteBackendPath("")
+          setRemoteBackendVersion("")
+          setRemoteInstalled(false)
+          setRemoteServerRunning(false)
+          setRequirementsMetRemote(false)
+          setRequirementsDetailsRemote({ pythonInstalled: false, mongoInstalled: false })
+          setShouldRecheck(false)
+          // Keep progress state consistent
+          setInstallingRemote(false)
+          setRemoteInstallText('')
+          setRemoteInstallPhase('')
+          setRemoteDownloadPercent(null)
+          setRemoteDownloadSpeed(null)
+          setRemoteInstallEvents([])
+          return
+        }
+
+        // Tunnel active: hydrate UI and choose the right starting step.
         setTunnelActive(true)
-        setHost(tunnel.host || "")
-        setUsername(tunnel.username || "")
-        setRemotePort(tunnel.remotePort || "22")
-        setLocalExpressPort(tunnel.localExpressPort || "5001")
-        setRemoteExpressPort(tunnel.remoteExpressPort || "5010")
-        setLocalGoPort(tunnel.localGoPort || "54380")
-        setRemoteGoPort(tunnel.remoteGoPort || "54288")
-        setLocalDBPort(tunnel.localDBPort || "54020")
         setTunnelStatus("SSH tunnel is already established.")
-        setActiveStep(1)
-        tunnelContext.setTunnelInfo(tunnel) // Sync React context
+        setHost(state?.host || "")
+        setUsername(state?.username || "")
+        setRemotePort(state?.remotePort != null ? String(state.remotePort) : "22")
+        setLocalExpressPort(state?.localExpressPort != null ? String(state.localExpressPort) : "5001")
+        setRemoteExpressPort(state?.remoteExpressPort != null ? String(state.remoteExpressPort) : "5010")
+        setRemoteStartPort(state?.remoteExpressPort != null ? String(state.remoteExpressPort) : remoteStartPort)
+        setLocalGoPort(state?.localGoPort != null ? String(state.localGoPort) : "54380")
+        setRemoteGoPort(state?.remoteGoPort != null ? String(state.remoteGoPort) : "54288")
+        setLocalDBPort(state?.localDBPort != null ? String(state.localDBPort) : "54020")
+        setRemoteDBPort(state?.remoteDBPort != null ? String(state.remoteDBPort) : "54017")
+        setLocalJupyterPort(state?.localJupyterPort != null ? String(state.localJupyterPort) : "8890")
+        setRemoteJupyterPort(state?.remoteJupyterPort != null ? String(state.remoteJupyterPort) : "8900")
+
+        // Backend path (cached by main). Keep this lightweight: no remote re-check.
+        let cachedExePath = state?.remoteBackendExecutablePath || ''
+        if (!cachedExePath) {
+          try { cachedExePath = await ipcRenderer.invoke('getRemoteBackendExecutablePath') } catch (_) { /* optional */ }
+        }
+        if (cachedExePath) {
+          setRemoteBackendPath(String(cachedExePath))
+          setRemoteInstalled(true)
+        }
+
+        // Derive running from express status.
+        const expressStatus = String(state?.expressStatus || '').toLowerCase()
+        const running = expressStatus === 'running' || expressStatus === 'forwarding'
+        setRemoteServerRunning(running)
+        if (running) {
+          const rp = state?.remoteExpressPort != null ? Number(state.remoteExpressPort) : Number(remoteExpressPort)
+          if (rp) setRemoteBackendStatus(`Remote server running on port ${rp}`)
+        } else if (expressStatus) {
+          setRemoteBackendStatus(`Remote server status: ${expressStatus}`)
+        }
+
+        // Requirements state (if previously checked in this session).
+        if (typeof state?.requirementsMetRemote === 'boolean') setRequirementsMetRemote(!!state.requirementsMetRemote)
+        if (state?.requirementsDetailsRemote) setRequirementsDetailsRemote(state.requirementsDetailsRemote)
+
+        // Workspace path: prefer current workspace context, then cached remote path.
+        const workspacePathFromContext = (workspace && workspace.isRemote && workspace.hasBeenSet && workspace.workingDirectory && workspace.workingDirectory.path)
+          ? String(workspace.workingDirectory.path)
+          : ''
+        let remotePath = workspacePathFromContext || state?.remoteWorkspacePath || ''
+        if (!remotePath) {
+          try { remotePath = await ipcRenderer.invoke('getRemoteWorkspacePath') } catch (_) { /* optional */ }
+        }
+        if (remotePath) setRemoteDirPath(String(remotePath))
+
+        // Start step selection:
+        // - Step 2 when tunnel is active
+        // - Step 3 when server running + requirements met (from prior check) + we have a workspace path.
+        const hasWorkspacePath = !!remotePath
+        const reqMet = (typeof state?.requirementsMetRemote === 'boolean') ? !!state.requirementsMetRemote : requirementsMetRemote
+        const initialStep = (running && reqMet && hasWorkspacePath) ? 2 : 1
+        setActiveStep(initialStep)
+
+        try { tunnelContext.setTunnelInfo(state) } catch (_) { /* ignore */ }
+      } finally {
+        // Ensure page-enter auto checks do not run for this open.
+        setTimeout(() => { hydratingOnOpenRef.current = false }, 0)
       }
     }
+
+    hydrate()
+    return () => { cancelled = true }
   }, [visible])
 
   // Subscribe to remote install progress events
@@ -577,14 +655,13 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
     setTunnelStatus("Disconnecting...")
     toast.info("Disconnecting SSH tunnel...")
     try {
-      const result = await ipcRenderer.invoke('stopSSHTunnel')
-      if (result && result.success) {
+      const finalizeDisconnected = async ({ statusMessage = 'SSH tunnel disconnected.', toastMessage = 'SSH tunnel disconnected.', toastKind = 'success' } = {}) => {
         setTunnelActive(false)
-        setTunnelStatus("SSH tunnel disconnected.")
-        tunnelContext.clearTunnelInfo()
-        ipcRenderer.invoke("setRemoteWorkspacePath", null)
-        ipcRenderer.invoke("clearTunnelState")
-        toast.success("SSH tunnel disconnected.")
+        setTunnelStatus(statusMessage)
+        try { tunnelContext.clearTunnelInfo() } catch (_) { /* non-fatal */ }
+        try { await ipcRenderer.invoke("setRemoteWorkspacePath", null) } catch (_) { /* non-fatal */ }
+        try { await ipcRenderer.invoke('setRemoteBackendPath', null) } catch (_) { /* non-fatal */ }
+        try { await ipcRenderer.invoke("clearTunnelState") } catch (_) { /* non-fatal */ }
         setDirectoryContents([])
         setRemoteDirPath("")
         setWorkspace({
@@ -596,13 +673,81 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
         setRemoteInstalled(false)
         setRemoteServerRunning(false)
         setRequirementsMetRemote(false)
+        setRequirementsDetailsRemote({ pythonInstalled: false, mongoInstalled: false })
+        if (toastKind === 'success') toast.success(toastMessage)
+        else if (toastKind === 'warn') toast.warn(toastMessage)
+        else toast.info(toastMessage)
+      }
+
+      // Best-effort: stop any active log streaming and clear local forwarded tunnels immediately
+      // so the UI doesn't show stale "open" tunnels while disconnect is in progress.
+      try { await ipcRenderer.invoke('stopRemoteServerLogStream') } catch (_) { /* non-fatal */ }
+      try { await ipcRenderer.invoke('stopAllPortTunnels', { clearList: true }) } catch (_) { /* non-fatal */ }
+
+      // Disconnect should also clear cached requirements state so we re-verify on next connection.
+      setRequirementsMetRemote(false)
+      setRequirementsDetailsRemote({ pythonInstalled: false, mongoInstalled: false })
+      try {
+        await ipcRenderer.invoke('setTunnelState', {
+          requirementsMetRemote: false,
+          requirementsDetailsRemote: { pythonInstalled: false, mongoInstalled: false },
+          requirementsCheckedAt: null,
+        })
+      } catch (_) { /* best-effort */ }
+
+      const result = await ipcRenderer.invoke('stopSSHTunnel')
+      if (result && result.success) {
+        await finalizeDisconnected({
+          statusMessage: 'SSH tunnel disconnected.',
+          toastMessage: 'SSH tunnel disconnected.',
+          toastKind: 'success',
+        })
       } else {
-        setTunnelStatus("Failed to disconnect tunnel: " + (result?.error || 'Unknown error'))
-        toast.error("Disconnect Failed: " + result?.error || 'Unknown error')
+        // UX: if the tunnel is already inactive, clear UI state anyway.
+        let mainState = null
+        try { mainState = await ipcRenderer.invoke('getTunnelState') } catch (_) { /* ignore */ }
+        if (mainState && mainState.tunnelActive === false) {
+          await finalizeDisconnected({
+            statusMessage: 'SSH tunnel already disconnected.',
+            toastMessage: 'SSH tunnel already disconnected.',
+            toastKind: 'info',
+          })
+        } else {
+          setTunnelStatus("Failed to disconnect tunnel: " + (result?.error || 'Unknown error'))
+          toast.error("Disconnect Failed: " + (result?.error || 'Unknown error'))
+        }
       }
     } catch (err) {
-      setTunnelStatus("Failed to disconnect tunnel: " + (err.message || err))
-      toast.error("Disconnect Failed: ", err.message || String(err))
+      // If stopSSHTunnel throws but the tunnel is already inactive, clear UI state anyway.
+      let mainState = null
+      try { mainState = await ipcRenderer.invoke('getTunnelState') } catch (_) { /* ignore */ }
+      if (mainState && mainState.tunnelActive === false) {
+        try {
+          // Reuse the same reset behavior as successful disconnect.
+          setTunnelActive(false)
+          setTunnelStatus('SSH tunnel already disconnected.')
+          try { tunnelContext.clearTunnelInfo() } catch (_) { /* non-fatal */ }
+          try { await ipcRenderer.invoke("setRemoteWorkspacePath", null) } catch (_) { /* non-fatal */ }
+          try { await ipcRenderer.invoke('setRemoteBackendPath', null) } catch (_) { /* non-fatal */ }
+          try { await ipcRenderer.invoke("clearTunnelState") } catch (_) { /* non-fatal */ }
+          setDirectoryContents([])
+          setRemoteDirPath("")
+          setWorkspace({ hasBeenSet: false, workingDirectory: "", isRemote: false })
+          setActiveStep(0)
+          setRemoteInstalled(false)
+          setRemoteServerRunning(false)
+          setRequirementsMetRemote(false)
+          setRequirementsDetailsRemote({ pythonInstalled: false, mongoInstalled: false })
+          toast.info('SSH tunnel already disconnected.')
+        } catch (_) {
+          // fall through to error toast below
+          setTunnelStatus("Failed to disconnect tunnel: " + (err?.message || String(err)))
+          toast.error("Disconnect Failed: " + (err?.message || String(err)))
+        }
+      } else {
+        setTunnelStatus("Failed to disconnect tunnel: " + (err?.message || String(err)))
+        toast.error("Disconnect Failed: " + (err?.message || String(err)))
+      }
     } finally {
       setConnectionProcessing(false)
     }
@@ -1032,11 +1177,21 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
       const markStopped = async (message = 'Remote server stopped') => {
         setRemoteBackendStatus(message)
         setRemoteServerRunning(false)
+        // Stopping the remote server should clear cached requirements so we re-verify on next start.
+        setRequirementsMetRemote(false)
+        setRequirementsDetailsRemote({ pythonInstalled: false, mongoInstalled: false })
         setShouldRecheck(true)
         try {
           // Stop and clear local forwards so the Server Panel doesn't show stale tunnels.
           try { await ipcRenderer.invoke('stopAllPortTunnels', { clearList: true }) } catch (_) { /* non-fatal */ }
-          await ipcRenderer.invoke('setTunnelState', { tunnelActive: true, expressStatus: 'stopped', serverStartedRemotely: false })
+          await ipcRenderer.invoke('setTunnelState', {
+            tunnelActive: true,
+            expressStatus: 'stopped',
+            serverStartedRemotely: false,
+            requirementsMetRemote: false,
+            requirementsDetailsRemote: { pythonInstalled: false, mongoInstalled: false },
+            requirementsCheckedAt: null,
+          })
           try {
             tunnelContext.setTunnelInfo(await ipcRenderer.invoke("getTunnelState"))
           } catch(e) { /* non-fatal context sync */ }
@@ -1118,11 +1273,25 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
       const ok = pythonInstalled && mongoInstalled
       setRequirementsDetailsRemote({ pythonInstalled, mongoInstalled })
       setRequirementsMetRemote(ok)
+      try {
+        await ipcRenderer.invoke('setTunnelState', {
+          requirementsMetRemote: ok,
+          requirementsDetailsRemote: { pythonInstalled, mongoInstalled },
+          requirementsCheckedAt: Date.now(),
+        })
+      } catch (_) { /* best-effort */ }
       if (!ok) toast.warn('Some requirements are missing on remote.')
     } catch (e) {
       console.warn('Remote requirements check failed:', e && e.message ? e.message : e)
       setRequirementsMetRemote(false)
       setRequirementsDetailsRemote({ pythonInstalled: false, mongoInstalled: false })
+      try {
+        await ipcRenderer.invoke('setTunnelState', {
+          requirementsMetRemote: false,
+          requirementsDetailsRemote: { pythonInstalled: false, mongoInstalled: false },
+          requirementsCheckedAt: Date.now(),
+        })
+      } catch (_) { /* best-effort */ }
     } finally {
       setRequirementsChecking(false)
     }
@@ -1139,7 +1308,16 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
         const ok = pythonInstalled && mongoInstalled
         setRequirementsDetailsRemote({ pythonInstalled, mongoInstalled })
         setRequirementsMetRemote(ok)
-        if (ok) return true
+        if (ok) {
+          try {
+            await ipcRenderer.invoke('setTunnelState', {
+              requirementsMetRemote: true,
+              requirementsDetailsRemote: { pythonInstalled, mongoInstalled },
+              requirementsCheckedAt: Date.now(),
+            })
+          } catch (_) { /* best-effort */ }
+          return true
+        }
       } catch {
         // Ignore transient errors while the remote is restarting/installing
       }
@@ -1527,6 +1705,7 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
   // Auto-run actions when switching pages
   useEffect(() => {
     if (!visible) return
+    if (hydratingOnOpenRef.current) return
     // Debounce page switch actions to avoid rapid repeated calls
     let timer
     if (activeStep === 1) {

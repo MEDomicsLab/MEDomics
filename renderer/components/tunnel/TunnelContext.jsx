@@ -18,6 +18,12 @@ export const TunnelContext = createContext({
   serverStartedRemotely: false,
   expressStatus: "unknown",
   expressLogPath: null,
+  remoteWorkspacePath: null,
+  remoteBackendExecutablePath: null,
+  requirementsMetRemote: false,
+  requirementsDetailsRemote: null,
+  requirementsCheckedAt: null,
+  tunnels: [],
   setTunnelInfo: () => {},
   clearTunnelInfo: () => {},
 })
@@ -40,13 +46,24 @@ export const TunnelProvider = ({ children }) => {
     serverStartedRemotely: false,
     expressStatus: "unknown",
     expressLogPath: null,
+    remoteWorkspacePath: null,
+    remoteBackendExecutablePath: null,
+    requirementsMetRemote: false,
+    requirementsDetailsRemote: null,
+    requirementsCheckedAt: null,
+    tunnels: [],
   })
 
   const setTunnel = (info) => {
-    // Commented out to fix linting problems: unused password and privateKey destructuring
-    // const { password, privateKey, ...safeInfo } = info
-    const safeInfo = info
-    setTunnelInfo(prev => ({ ...prev, ...safeInfo, tunnelActive: true }))
+    if (!info || typeof info !== 'object') return
+    const safeInfo = { ...info }
+    delete safeInfo.password
+    delete safeInfo.privateKey
+    const hasFlag = Object.prototype.hasOwnProperty.call(safeInfo, 'tunnelActive')
+    setTunnelInfo((prev) => {
+      const nextTunnelActive = hasFlag ? !!safeInfo.tunnelActive : !!prev.tunnelActive
+      return { ...prev, ...safeInfo, tunnelActive: nextTunnelActive }
+    })
   }
 
   const clearTunnel = () => {
@@ -67,6 +84,12 @@ export const TunnelProvider = ({ children }) => {
       serverStartedRemotely: false,
       expressStatus: "unknown",
       expressLogPath: null,
+      remoteWorkspacePath: null,
+      remoteBackendExecutablePath: null,
+      requirementsMetRemote: false,
+      requirementsDetailsRemote: null,
+      requirementsCheckedAt: null,
+      tunnels: [],
     })
   }
 
