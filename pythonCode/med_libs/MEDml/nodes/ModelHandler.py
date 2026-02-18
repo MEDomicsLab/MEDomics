@@ -504,7 +504,14 @@ class ModelHandler(Node):
                                 raise ValueError(f"Invalid tuple format for hidden_layer_sizes: {val}") from e
                 
                 # Tune the model
-                trained_model = pycaret_exp.tune_model(trained_model, **self.settingsTuning)
+                try:
+                    trained_model = pycaret_exp.tune_model(trained_model, **self.settingsTuning)
+                except Exception as e:
+                    print(f"Warning: Failed to tune model with settings {self.settingsTuning}. Error: {e} \
+                          Attempting to tune with less CPUs.")
+                    pycaret_exp.set_config('n_jobs_param', 5)
+                    trained_model = pycaret_exp.tune_model(trained_model, **self.settingsTuning)
+
                 if self.useTuningGrid:
                     self.CodeHandler.add_line(
                         "code",

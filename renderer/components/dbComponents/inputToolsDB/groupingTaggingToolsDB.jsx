@@ -208,6 +208,7 @@ const GroupingTaggingToolsDB = () => {
         if (jsonResponse.error) {
           toast.error("Error detected while creating tags.")
           console.log("error while creating tags", jsonResponse.error)
+          setLoading(false)
           return
         }
         toast.success("Tags created successfully.")
