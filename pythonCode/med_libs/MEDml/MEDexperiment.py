@@ -213,7 +213,11 @@ class MEDexperiment(ABC):
                     experiment = node_info['experiment']
 
                 self._nb_nodes_done += 1.0
-                self._progress['now'] = round(self._nb_nodes_done / self._nb_nodes * 100.0, 2)
+                progress = round(self._nb_nodes_done / self._nb_nodes * 100.0, 2)
+                if progress >= 100.0 or self._progress['now'] >= 100.0:
+                    # cap progress at 80%
+                    progress = 80.0
+                self._progress['now'] = progress
                 self._results_pipeline[current_node_id] = {
                     'next_nodes': copy.deepcopy(next_nodes_id_json),
                     'results': copy.deepcopy(node_info['results'])
@@ -225,7 +229,7 @@ class MEDexperiment(ABC):
                     results=self._results_pipeline[current_node_id]['next_nodes'],
                     experiment=self.copy_experiment(experiment)
                 )
-
+            self._progress['now'] = 100.0
             print('finished')
             self._progress['currentLabel'] = 'finished'
 
@@ -332,6 +336,11 @@ class MEDexperiment(ABC):
 
                 self._nb_nodes_done += 1
                 self._progress['now'] = round(self._nb_nodes_done / self._nb_nodes * 100, 2)
+                progress = round(self._nb_nodes_done / self._nb_nodes * 100, 2)
+                if progress >= 100.0 or self._progress['now'] >= 100.0:
+                    # cap progress at 80%
+                    progress = 80.0
+                self._progress['now'] = progress
                 results[current_node_id] = {
                     'next_nodes': copy.deepcopy(next_nodes_id_json),
                     'results': node_info['results']
