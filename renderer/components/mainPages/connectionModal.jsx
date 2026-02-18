@@ -1850,208 +1850,60 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
 
         {/* STEP 1: SSH CONNECTION */}
         {activeStep === 0 && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <label>
-              Remote Host:
-              <InputText disabled={tunnelActive || connectionProcessing} value={host} onChange={e => setHost(e.target.value)} placeholder="e.g. example.com" style={{ marginLeft: "5px" }} />
-              {inputErrors.host && <div style={{ color: 'var(--danger)', fontSize: 13 }}>{inputErrors.host}</div>}
-            </label>
-            <label>
-              Username: 
-              <InputText disabled={tunnelActive || connectionProcessing} value={username} onChange={e => setUsername(e.target.value)} placeholder="SSH username" style={{ marginLeft: "5px" }} />
-              {inputErrors.username && <div style={{ color: 'var(--danger)', fontSize: 13 }}>{inputErrors.username}</div>}
-            </label>
-            <label>
-              Password: 
-              <Password disabled={tunnelActive || connectionProcessing} value={password} onChange={e => setPassword(e.target.value)} placeholder="SSH password" style={{ marginLeft: "5px" }} feedback={false} toggleMask />
-            </label>
-            {localPortWarning && (
-              <div style={{ color: 'var(--warning)', fontSize: 12 }}>
-                {localPortWarning}
-              </div>
-            )}
-            <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
-              An SSH key will be used automatically (loaded if available, generated if missing) when you click Connect.
-            </div>
-            {keyGenerated && publicKey && (
-              <div>
-                <button
-                  type="button"
-                  onClick={() => setShowSSHKeyAdvanced(v => !v)}
-                  style={{
-                    color: 'var(--button-bg)',
-                    background: 'transparent',
-                    border: 'none',
-                    cursor: 'pointer',
-                    fontSize: 14,
-                    textDecoration: 'underline',
-                    padding: 0
-                  }}
-                  aria-expanded={showSSHKeyAdvanced}
-                >
-                  {showSSHKeyAdvanced ? 'Hide SSH Key (Advanced)' : 'Show SSH Key (Advanced)'}
-                </button>
-                {showSSHKeyAdvanced && (
-                  <div style={{ marginTop: 8 }}>
-                    <strong>Public Key:</strong>
-                    <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-all', background: 'var(--bg-tertiary)', marginTop: '10px', padding: '0.5em' }}>{publicKey}</pre>
-                    {registerStatus && <div style={{ marginTop: '0.5em', color: registerStatus.includes('success') ? 'var(--success)' : 'var(--danger)' }}>{registerStatus}</div>}
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* STEP 2: REMOTE SERVER SETUP */}
-        {activeStep === 1 && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <h3 style={{ margin: 0, fontSize: '1rem' }}>Remote Express Server</h3>
-              <div style={{ fontSize: 13, color: remoteBackendStatus.includes('running') || remoteBackendStatus.includes(' reachable') ? 'var(--success)' : remoteBackendStatus ? 'var(--warning)' : 'var(--text-muted)' }}>
-                {remoteBackendStatus || 'Unknown'}
-              </div>
-            </div>
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-              <Button onClick={checkRemoteServer} disabled={!tunnelActive || connectionProcessing || serverSetupActionsBusy} style={{ background: 'var(--button-bg)', color: 'var(--button-text)' }}>{shouldRecheck ? 'Recheck status' : 'Check'}</Button>
-              <Button onClick={installRemoteServer} disabled={installButtonDisabled} style={{ background: 'var(--button-bg)', color: 'var(--button-text)' }}>{installButtonLabel}</Button>
-              {remoteInstalled && latestRemoteVersionAvailable && latestRemoteVersionDisplay && (
-                <span style={{ fontSize: 12, color: 'var(--warning)' }}>
-                  New version available to download: {latestRemoteVersionDisplay}
-                </span>
-              )}
-              {(installingRemote || remoteInstallPhase) && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-                  {typeof remoteDownloadPercent === 'number' ? (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <ProgressBar value={Math.max(0, Math.min(100, remoteDownloadPercent))} style={{ width: 240 }} />
-                      <span style={{ fontSize: 12, color: 'var(--text-secondary)', minWidth: 60, textAlign: 'right' }}>
-                        {remoteDownloadPercent.toFixed(0)}%
-                      </span>
-                    </div>
-                  ) : (
-                    <ProgressBar mode="indeterminate" style={{ width: 240 }} />
-                  )}
-                  <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
-                    {remoteInstallText ||
-                      (remoteInstallPhase
-                        ? `Phase: ${remoteInstallPhase}`
-                        : 'Installing...')}
-                    {typeof remoteDownloadSpeed === 'number' && ` · ${(remoteDownloadSpeed / (1024*1024)).toFixed(2)} MB/s`}
-                  </span>
-                </div>
-              )}
-            </div>
-            {lastStartDetails && (
-              <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4 }}>
-                {lastStartDetails}
-              </div>
-            )}
-            <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginTop: 8 }}>
-              <span>Start on port:</span>
-              <InputNumber disabled={!tunnelActive || connectionProcessing || serverSetupActionsBusy} value={remoteStartPort} onChange={e => setRemoteStartPort(e.value)} useGrouping={false} min={1} max={65535} />
-              {!remoteServerRunning ? (
-                <Button onClick={startRemoteServer} disabled={!tunnelActive || connectionProcessing || serverSetupActionsBusy} style={{ background: 'var(--button-bg)', color: 'var(--button-text)' }}>Start Server</Button>
-              ) : (
-                <Button onClick={stopRemoteServer} disabled={!tunnelActive || connectionProcessing || serverSetupActionsBusy} style={{ background: 'var(--danger)', color: 'var(--button-text)' }}>Stop Server</Button>
-              )}
-              {remoteBackendVersion && (
-                <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
-                  Version: {remoteBackendVersion}
-                </span>
-              )}
-              <Button onClick={async () => {
-                if (!tunnelActive) return toast.error('SSH tunnel not active.')
-                setCheckingRemotePortBusy(true)
-                try {
-                  const res = await ipcRenderer.invoke('remoteCheckPort', { port: Number(remoteStartPort) })
-                  if (res && res.success) {
-                    if (res.open) {
-                      toast.success(`Port ${remoteStartPort} is listening remotely.`)
-                    } else {
-                      toast.warn(`Port ${remoteStartPort} is not listening on remote host.`)
-                    }
-                  } else {
-                    toast.error(`Port check failed: ${res?.error || 'unknown error'}`)
-                  }
-                } catch (e) {
-                  toast.error(`Port check error: ${e.message || e}`)
-                } finally {
-                  setCheckingRemotePortBusy(false)
-                }
-              }} disabled={!tunnelActive || connectionProcessing || serverSetupActionsBusy} style={{ background: 'var(--bg-secondary)', color: 'var(--text-secondary)' }}>Check Port</Button>
-            </div>
-            <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--border-color)' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                <h4 style={{ margin: 0 }}>Remote Requirements</h4>
-                <Tag value={requirementsMetRemote ? 'OK' : 'Missing'} severity={requirementsMetRemote ? 'success' : 'warning'} rounded />
-              </div>
-              <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4 }}>
-                Python: <strong style={{ color: requirementsDetailsRemote.pythonInstalled ? 'var(--success)' : 'var(--danger)' }}>{requirementsDetailsRemote.pythonInstalled ? 'Installed' : 'Missing'}</strong> · MongoDB: <strong style={{ color: requirementsDetailsRemote.mongoInstalled ? 'var(--success)' : 'var(--danger)' }}>{requirementsDetailsRemote.mongoInstalled ? 'Installed' : 'Missing'}</strong>
-              </div>
-              <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 8, flexWrap: 'wrap' }}>
-                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                  <Button onClick={checkRequirementsRemote} disabled={!remoteServerRunning || requirementsChecking || requirementsInstalling} style={{ background: 'var(--button-bg)', color: 'var(--button-text)' }}>Check</Button>
-                  <Button onClick={installRequirementsRemote} disabled={!remoteServerRunning || requirementsInstalling || requirementsChecking || requirementsMetRemote} style={{ background: 'var(--button-bg)', color: 'var(--button-text)' }}>Install Missing</Button>
-                  {(requirementsChecking || requirementsInstalling) && <ProgressBar mode="indeterminate" style={{ width: 200 }} />}
-                </div>
-                <span style={{ fontSize: 11, color: 'var(--text-secondary)', maxWidth: 420 }}>
-                  Note: On some Windows systems MongoDB cannot be installed automatically because the Windows Installer service is unavailable. In that case you may need to install MongoDB manually using the official instructions.
-                </span>
-              </div>
-            </div>
-            {/* Page navigation moved to the global footer */}
-          </div>
-        )}
-        {activeStep === 2 && (
-        <div style={{ marginBottom: 8 }}>
-          <button
-            type="button"
-            onClick={() => setShowAdvanced(v => !v)}
-            style={{
-              color: 'var(--button-bg)',
-              background: 'transparent',
-              border: 'none',
-              cursor: 'pointer',
-              fontSize: 14,
-              textDecoration: 'underline',
-              marginBottom: 4
-            }}
-            aria-expanded={showAdvanced}
-          >
-            {showAdvanced ? 'Hide Advanced Settings' : 'Show Advanced Settings'}
-            {showAdvanced ? <GoChevronUp style={{ fontSize: 20, marginLeft: '5px' }}></GoChevronUp> : <GoChevronDown style={{ fontSize: 20, marginLeft: '5px' }}></GoChevronDown>}
-          </button>
-          <div
-            style={{
-              display: 'flex',
-              maxHeight: showAdvanced ? 1000 : 0,
-              overflow: 'hidden',
-              transition: 'max-height 0.35s cubic-bezier(0.4,0,0.2,1)',
-              opacity: showAdvanced ? 1 : 0,
-              transitionProperty: 'max-height, opacity',
-              border: showAdvanced ? '1px solid var(--border-color)' : '1px solid transparent',
-              borderRadius: 4,
-              padding: showAdvanced ? 12 : 0,
-              marginTop: showAdvanced ? 6 : 0,
-              background: showAdvanced ? 'var(--bg-secondary)' : 'transparent',
-            }}
-            aria-hidden={!showAdvanced}
-          >
-            {showAdvanced && <>
-            <div style={{ width: '100%'}}>
-              <label style={{ marginRight: '10px'}}>
-                Local GO Port:
-                <InputNumber disabled={connectionProcessing} value={localGoPort} onChange={e => setLocalGoPort(e.value == null ? '' : String(e.value))} placeholder="54380" useGrouping={false} min={1} max={65535} />
+          <div> 
+            <h3 style={{ marginBottom: '20px'}}>Establish SSH connection:</h3>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <label>
+                Remote Host:
+                <InputText disabled={tunnelActive || connectionProcessing} value={host} onChange={e => setHost(e.target.value)} placeholder="e.g. example.com" style={{ marginLeft: "5px" }} />
+                {inputErrors.host && <div style={{ color: 'var(--danger)', fontSize: 13 }}>{inputErrors.host}</div>}
               </label>
               <label>
-                Local MongoDB Port:
-                <InputNumber disabled={connectionProcessing} value={localDBPort} onChange={e => setLocalDBPort(e.value == null ? '' : String(e.value))} placeholder="54020" useGrouping={false} min={1} max={65535} />
+                Username: 
+                <InputText disabled={tunnelActive || connectionProcessing} value={username} onChange={e => setUsername(e.target.value)} placeholder="SSH username" style={{ marginLeft: "5px" }} />
+                {inputErrors.username && <div style={{ color: 'var(--danger)', fontSize: 13 }}>{inputErrors.username}</div>}
               </label>
+              <label>
+                Password: 
+                <Password disabled={tunnelActive || connectionProcessing} value={password} onChange={e => setPassword(e.target.value)} placeholder="SSH password" style={{ marginLeft: "5px" }} feedback={false} toggleMask />
+              </label>
+              {localPortWarning && (
+                <div style={{ color: 'var(--warning)', fontSize: 12 }}>
+                  {localPortWarning}
+                </div>
+              )}
+              <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+                An SSH key will be used automatically (loaded if available, generated if missing) when you click Connect.
+              </div>
+              {keyGenerated && publicKey && (
+                <div>
+                  <button
+                    type="button"
+                    onClick={() => setShowSSHKeyAdvanced(v => !v)}
+                    style={{
+                      color: 'var(--button-bg)',
+                      background: 'transparent',
+                      border: 'none',
+                      cursor: 'pointer',
+                      fontSize: 14,
+                      textDecoration: 'underline',
+                      padding: 0
+                    }}
+                    aria-expanded={showSSHKeyAdvanced}
+                  >
+                    {showSSHKeyAdvanced ? 'Hide SSH Key (Advanced)' : 'Show SSH Key (Advanced)'}
+                  </button>
+                  {showSSHKeyAdvanced && (
+                    <div style={{ marginTop: 8 }}>
+                      <strong>Public Key:</strong>
+                      <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-all', background: 'var(--bg-tertiary)', marginTop: '10px', padding: '0.5em' }}>{publicKey}</pre>
+                      {registerStatus && <div style={{ marginTop: '0.5em', color: registerStatus.includes('success') ? 'var(--success)' : 'var(--danger)' }}>{registerStatus}</div>}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
-            </>}
           </div>
-        </div>
         )}
         {activeStep === 0 && (
           <div style={{ display: "flex", gap: "1rem", justifyContent: "flex-end" }}>
@@ -2059,313 +1911,368 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
             <Button className="disconnect-btn" onClick={handleDisconnect} disabled={!tunnelActive || connectionProcessing} style={{ background: "var(--danger)", color: "var(--button-text)" }}>Disconnect</Button>
           </div>
         )}
-        {/* Remote server (GO backend) status and actions (kept for reference, used in Step 2)
-        {activeStep === 2 && (
-        <div style={{ border: '1px solid var(--border-color)', borderRadius: 4, padding: 12, background: 'var(--bg-secondary)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <h3 style={{ margin: 0, fontSize: '1rem' }}>Remote Server</h3>
-            <div style={{ fontSize: 13, color: remoteBackendStatus.includes('running') ? 'var(--success)' : remoteBackendStatus ? 'var(--warning)' : 'var(--text-muted)' }}>
-              {remoteBackendStatus || 'Unknown'}
+
+        {/* STEP 2: REMOTE SERVER SETUP */}
+        {activeStep === 1 && (
+          <div> 
+            <h3 style={{ marginBottom: '10px'}}>Setup remote server:</h3>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <h3 style={{ margin: 0, fontSize: '1rem' }}>Remote Express Server</h3>
+                <div style={{ fontSize: 13, color: remoteBackendStatus.includes('running') || remoteBackendStatus.includes(' reachable') ? 'var(--success)' : remoteBackendStatus ? 'var(--warning)' : 'var(--text-muted)' }}>
+                  {remoteBackendStatus || 'Unknown'}
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                <Button onClick={checkRemoteServer} disabled={!tunnelActive || connectionProcessing || serverSetupActionsBusy} style={{ background: 'var(--button-bg)', color: 'var(--button-text)' }}>{shouldRecheck ? 'Recheck status' : 'Check'}</Button>
+                <Button onClick={installRemoteServer} disabled={installButtonDisabled} style={{ background: 'var(--button-bg)', color: 'var(--button-text)' }}>{installButtonLabel}</Button>
+                {remoteInstalled && latestRemoteVersionAvailable && latestRemoteVersionDisplay && (
+                  <span style={{ fontSize: 12, color: 'var(--warning)' }}>
+                    New version available to download: {latestRemoteVersionDisplay}
+                  </span>
+                )}
+                {(installingRemote || remoteInstallPhase) && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                    {typeof remoteDownloadPercent === 'number' ? (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <ProgressBar value={Math.max(0, Math.min(100, remoteDownloadPercent))} style={{ width: 240 }} />
+                        <span style={{ fontSize: 12, color: 'var(--text-secondary)', minWidth: 60, textAlign: 'right' }}>
+                          {remoteDownloadPercent.toFixed(0)}%
+                        </span>
+                      </div>
+                    ) : (
+                      <ProgressBar mode="indeterminate" style={{ width: 240 }} />
+                    )}
+                    <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+                      {remoteInstallText ||
+                        (remoteInstallPhase
+                          ? `Phase: ${remoteInstallPhase}`
+                          : 'Installing...')}
+                      {typeof remoteDownloadSpeed === 'number' && ` · ${(remoteDownloadSpeed / (1024*1024)).toFixed(2)} MB/s`}
+                    </span>
+                  </div>
+                )}
+              </div>
+              {lastStartDetails && (
+                <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4 }}>
+                  {lastStartDetails}
+                </div>
+              )}
+              <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginTop: 8 }}>
+                <span>Start on port:</span>
+                <InputNumber disabled={!tunnelActive || connectionProcessing || serverSetupActionsBusy} value={remoteStartPort} onChange={e => setRemoteStartPort(e.value)} useGrouping={false} min={1} max={65535} />
+                {!remoteServerRunning ? (
+                  <Button onClick={startRemoteServer} disabled={!tunnelActive || connectionProcessing || serverSetupActionsBusy} style={{ background: 'var(--button-bg)', color: 'var(--button-text)' }}>Start Server</Button>
+                ) : (
+                  <Button onClick={stopRemoteServer} disabled={!tunnelActive || connectionProcessing || serverSetupActionsBusy} style={{ background: 'var(--danger)', color: 'var(--button-text)' }}>Stop Server</Button>
+                )}
+                {remoteBackendVersion && (
+                  <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+                    Version: {remoteBackendVersion}
+                  </span>
+                )}
+                <Button onClick={async () => {
+                  if (!tunnelActive) return toast.error('SSH tunnel not active.')
+                  setCheckingRemotePortBusy(true)
+                  try {
+                    const res = await ipcRenderer.invoke('remoteCheckPort', { port: Number(remoteStartPort) })
+                    if (res && res.success) {
+                      if (res.open) {
+                        toast.success(`Port ${remoteStartPort} is listening remotely.`)
+                      } else {
+                        toast.warn(`Port ${remoteStartPort} is not listening on remote host.`)
+                      }
+                    } else {
+                      toast.error(`Port check failed: ${res?.error || 'unknown error'}`)
+                    }
+                  } catch (e) {
+                    toast.error(`Port check error: ${e.message || e}`)
+                  } finally {
+                    setCheckingRemotePortBusy(false)
+                  }
+                }} disabled={!tunnelActive || connectionProcessing || serverSetupActionsBusy} style={{ background: 'var(--bg-secondary)', color: 'var(--text-secondary)' }}>Check Port</Button>
+              </div>
+              <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--border-color)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <h4 style={{ margin: 0 }}>Remote Requirements</h4>
+                  <Tag value={requirementsMetRemote ? 'OK' : 'Missing'} severity={requirementsMetRemote ? 'success' : 'warning'} rounded />
+                </div>
+                <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 4 }}>
+                  Python: <strong style={{ color: requirementsDetailsRemote.pythonInstalled ? 'var(--success)' : 'var(--danger)' }}>{requirementsDetailsRemote.pythonInstalled ? 'Installed' : 'Missing'}</strong> · MongoDB: <strong style={{ color: requirementsDetailsRemote.mongoInstalled ? 'var(--success)' : 'var(--danger)' }}>{requirementsDetailsRemote.mongoInstalled ? 'Installed' : 'Missing'}</strong>
+                </div>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 8, flexWrap: 'wrap' }}>
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                    <Button onClick={checkRequirementsRemote} disabled={!remoteServerRunning || requirementsChecking || requirementsInstalling} style={{ background: 'var(--button-bg)', color: 'var(--button-text)' }}>Check</Button>
+                    <Button onClick={installRequirementsRemote} disabled={!remoteServerRunning || requirementsInstalling || requirementsChecking || requirementsMetRemote} style={{ background: 'var(--button-bg)', color: 'var(--button-text)' }}>Install Missing</Button>
+                    {(requirementsChecking || requirementsInstalling) && <ProgressBar mode="indeterminate" style={{ width: 200 }} />}
+                  </div>
+                  <span style={{ fontSize: 11, color: 'var(--text-secondary)', maxWidth: 420 }}>
+                    Note: On some Windows systems MongoDB cannot be installed automatically because the Windows Installer service is unavailable. In that case you may need to install MongoDB manually using the official instructions.
+                  </span>
+                </div>
+              </div>
             </div>
           </div>
-          <div style={{ display: 'flex', gap: 8, marginTop: 8, alignItems: 'center' }}>
-            <Button
-              onClick={async () => {
-                if (!tunnelActive) {
-                  toast.error('SSH tunnel is not active. Connect first.')
-                  return
-                }
-                try {
-                  setRemoteBackendStatus('Checking remote server...')
-                  const ensure = await ipcRenderer.invoke('ensureRemoteBackend', { port: Number(remoteExpressPort) })
-                  if (ensure && ensure.success && ensure.status === 'running') {
-                    setRemoteBackendStatus(`Remote server running on port ${remoteExpressPort}`)
-                    ensure.path && setRemoteBackendPath(ensure.path)
-                  } else if (ensure && ensure.status === 'not-found') {
-                    setRemoteBackendStatus('Remote server not found. Install or locate it.')
-                  } else {
-                    setRemoteBackendStatus(`Remote server not running (${ensure?.status || 'unknown'}). You can install or locate it.`)
-                  }
-                } catch (e) {
-                  setRemoteBackendStatus('Failed to check/start remote server: ' + (e?.message || String(e)))
-                }
-              }}
-              disabled={!tunnelActive || connectionProcessing}
-              style={{ background: 'var(--button-bg)', color: 'var(--button-text)' }}
-              title="Detect and start remote server if present"
-            >
-              Ensure Remote Server
-            </Button>
-            <Button
-              onClick={async () => {
-                if (!tunnelActive) {
-                  toast.error('SSH tunnel is not active. Connect first.')
-                  return
-                }
-                try {
-                  setRemoteBackendStatus('Installing remote server...')
-                  const res = await ipcRenderer.invoke('installRemoteBackend')
-                  if (res && res.success) {
-                    setRemoteBackendPath(res.path)
-                    toast.success('Remote server installed.')
-                    const ensure = await ipcRenderer.invoke('ensureRemoteBackend', { port: Number(remoteExpressPort) })
-                    if (ensure && ensure.success && ensure.status === 'running') {
-                      setRemoteBackendStatus(`Remote server running on port ${remoteExpressPort}`)
-                    } else {
-                      setRemoteBackendStatus('Installed, but failed to start automatically. Try Ensure again.')
-                    }
-                  } else {
-                    setRemoteBackendStatus('Install failed: ' + (res?.error || 'unknown error'))
-                    toast.error('Failed to install remote server: ' + (res?.error || 'unknown error'))
-                  }
-                } catch (e) {
-                  setRemoteBackendStatus('Install failed: ' + (e?.message || String(e)))
-                }
-              }}
-              disabled={!tunnelActive || connectionProcessing}
-              style={{ background: 'var(--button-bg)', color: 'var(--button-text)' }}
-              title="Upload and install the server binary on the remote host"
-            >
-              Install on Remote
-            </Button>
-            <Button
-              onClick={async () => {
-                if (!tunnelActive) {
-                  toast.error('SSH tunnel is not active. Connect first.')
-                  return
-                }
-                const p = window.prompt('Enter full path to remote server executable:')
-                if (!p) return
-                setRemoteBackendPath(p)
-                await ipcRenderer.invoke('setRemoteBackendPath', p)
-                const res = await ipcRenderer.invoke('startRemoteBackendUsingPath', { path: p, port: Number(remoteExpressPort) })
-                if (res && res.success) {
-                  setRemoteBackendStatus('Attempted to start. Verifying...')
-                  const ensure = await ipcRenderer.invoke('ensureRemoteBackend', { port: Number(remoteExpressPort) })
-                  if (ensure && ensure.success && ensure.status === 'running') {
-                    setRemoteBackendStatus(`Remote server running on port ${remoteExpressPort}`)
-                  } else {
-                    setRemoteBackendStatus('Failed to start with the provided path.')
-                    toast.error('Failed to start remote server with provided path.')
-                  }
-                } else {
-                  setRemoteBackendStatus('Failed to start: ' + (res?.error || 'unknown error'))
-                }
-              }}
-              disabled={!tunnelActive || connectionProcessing}
-              style={{ background: 'var(--bg-secondary)', color: 'var(--text-secondary)' }}
-              title="Manually provide the path on the remote host"
-            >
-              Locate manually...
-            </Button>
-          </div>
-          {remoteBackendPath && (
-            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 6 }}>Path: <span style={{ fontFamily: 'monospace' }}>{remoteBackendPath}</span></div>
-          )}
-        </div>
-        )} */}
-        {activeStep === 2 && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <Button onClick={verifyGoTunnel} disabled={!tunnelActive || goVerifyLoading} style={{ background: 'var(--button-bg)', color: 'var(--button-text)' }}>
-            {goVerifyLoading ? 'Checking…' : 'Verify GO tunnel'}
-          </Button>
-          {goVerifyLoading && (
-            <ProgressSpinner style={{ width: '18px', height: '18px' }} strokeWidth="6" />
-          )}
-          {goVerifyStatus !== 'idle' && !goVerifyLoading && (
-            <Tag
-              value={goVerifyStatus === 'ok' ? 'Verified' : 'Failed'}
-              severity={goVerifyStatus === 'ok' ? 'success' : 'danger'}
-              icon={goVerifyStatus === 'ok' ? 'pi pi-check' : 'pi pi-times'}
-              rounded
-            />
-          )}
-          {goProbeInfo && !goVerifyLoading && (
-            <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
-              Probe: remoteOpen={goProbeInfo.remoteOpen ? 'yes' : 'no'} · localReachable={goProbeInfo.localReachable ? 'yes' : 'no'}
-            </span>
-          )}
-        </div>
         )}
+        
         {/* Directory Browser Section - Step 3 */}
         {activeStep === 2 && (
-        <div style={{ marginTop: '2rem', borderTop: '1px solid #eee', paddingTop: '1rem' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-            <h3 style={{ fontSize: '1.1rem', margin: 0 }}>Remote Directory Browser</h3>
-            <Button
-              className="refresh-btn"
-              disabled={!tunnelActive || navigationProcessing}
-              onClick={refreshRemoteDirectory}
-              title="Refresh directory contents"
-            >
-              <IoIosRefresh style={{ height: '21px', width: '18px' }} />
-            </Button>
-            <Button
-              className="new-folder-btn"
-              onClick={() => {
-                setNewFolderName("")
-                setShowNewFolderModal(true)
-              }}
-              title="Create new folder"
-              disabled={!tunnelActive || navigationProcessing}
-            >
-              <FaFolderPlus style={{ height: '21px', width: '18px' }} />
-            </Button>
-            <Button
-              id="set-workspace-btn"
-              className="set-workspace-btn"
-              icon="folder-open"
-              onClick={async () => {
-                if (!remoteDirPath) {
-                  toast.error('Select a workspace directory first.')
-                  return
-                }
-                if (!tunnelActive) {
-                  toast.error('SSH tunnel is not active. Connect first.')
-                  return
-                }
-                if (!remoteServerRunning) {
-                  toast.error('Remote server not ready. Start the server first.')
-                  return
-                }
-                if (!requirementsMetRemote) {
-                  toast.error('Remote requirements not met. Cannot set workspace.')
-                  return
-                }
+        <div>
+          <h3 style={{ marginBottom: '10px'}}>Select a workspace directory:</h3>
+          <div style={{ marginBottom: '10px', borderBottom: '1px solid #eee' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+              <h3 style={{ fontSize: '1.1rem', margin: 0 }}>Remote Directory Browser</h3>
+              <Button
+                className="refresh-btn"
+                disabled={!tunnelActive || navigationProcessing}
+                onClick={refreshRemoteDirectory}
+                title="Refresh directory contents"
+              >
+                <IoIosRefresh style={{ height: '21px', width: '18px' }} />
+              </Button>
+              <Button
+                className="new-folder-btn"
+                onClick={() => {
+                  setNewFolderName("")
+                  setShowNewFolderModal(true)
+                }}
+                title="Create new folder"
+                disabled={!tunnelActive || navigationProcessing}
+              >
+                <FaFolderPlus style={{ height: '21px', width: '18px' }} />
+              </Button>
+              <Button
+                id="set-workspace-btn"
+                className="set-workspace-btn"
+                icon="folder-open"
+                onClick={async () => {
+                  if (!remoteDirPath) {
+                    toast.error('Select a workspace directory first.')
+                    return
+                  }
+                  if (!tunnelActive) {
+                    toast.error('SSH tunnel is not active. Connect first.')
+                    return
+                  }
+                  if (!remoteServerRunning) {
+                    toast.error('Remote server not ready. Start the server first.')
+                    return
+                  }
+                  if (!requirementsMetRemote) {
+                    toast.error('Remote requirements not met. Cannot set workspace.')
+                    return
+                  }
 
-                setConnectionProcessing(true)
+                  setConnectionProcessing(true)
+                  setNavigationProcessing(true)
+                  try {
+                    let tunnelState = await ipcRenderer.invoke('getTunnelState')
+                    const forwardedPort = tunnelState?.localExpressPort || Number(localExpressPort)
+                    if (!forwardedPort) throw new Error('No forwarded Express port available')
+
+                    const response = await window.backend.requestExpress({
+                      method: 'post',
+                      path: '/set-working-directory',
+                      host: '127.0.0.1',
+                      port: Number(forwardedPort),
+                      body: { workspacePath: remoteDirPath }
+                    })
+                    console.log("Recieved workspace object from remote:", response.data.workspace)
+
+                    if (response?.data?.success) {
+                      toast.success('Workspace set successfully on remote app.')
+
+                      // Establish mongoDB tunnel
+                      try {
+                        const mongoPort = Number(response?.data?.workspace?.newPort || remoteDBPort)
+                        await ipcRenderer.invoke('startPortTunnel', { name: 'mongo', localPort: Number(localDBPort), remotePort: mongoPort, ensureRemoteOpen: true })
+                        setRemoteDBPort(String(mongoPort))
+                      } catch (e) {
+                        console.warn('Failed to start mongo tunnel:', e)
+                      }
+
+                      // Confirm tunnel established, otherwise cancel showing the workspace
+                      tunnelState = await ipcRenderer.invoke('getTunnelState')
+                      if (!(Array.isArray(tunnelState?.tunnels) || !tunnelState.tunnels.some(t => t?.name === 'mongo'))) {
+                        throw new Error('MongoDB tunnel not active after workspace set, cannot show workspace.')
+                      }
+
+                      if (response.data.workspace !== workspace) {
+                        setWorkspace(response.data.workspace)
+                        ipcRenderer.invoke("setRemoteWorkspacePath", response.data.workspace.workingDirectory.path || '')
+                      }
+                    } else {
+                      toast.error('Failed to set workspace on remote app: ' + (response?.data?.error || 'Unknown error'))
+                    }
+                  } catch (error) {
+                    const msg = error && error.message ? error.message : String(error)
+                    toast.error('Error setting workspace on remote app: ' + msg)
+                  } finally {
+                    setConnectionProcessing(false)
+                    setNavigationProcessing(false)
+                  }
+                }}
+                title="Set this directory as workspace (and connect when ready)"
+                disabled={!tunnelActive || navigationProcessing || connectionProcessing || !remoteDirPath}
+              >
+                Set as Workspace
+              </Button>
+              <Button
+                className="leave-workspace-btn"
+                onClick={async () => {
+                  try {
+                    setConnectionProcessing(true)
+                    // Stop Mongo if possible
+                    await window.backend.requestExpress({ method: 'post', path: '/stop-mongo', host, port: Number(localExpressPort) })
+                    setWorkspace({
+                      hasBeenSet: false,
+                      workingDirectory: "",
+                      isRemote: false
+                    })
+                    // Stop mongo tunnel but ignore errors (in case it was started outside of this workflow or already stopped)
+                    try {
+                      await ipcRenderer.invoke('stopPortTunnel', { name: 'mongo' })
+                    } catch (e) {
+                      console.warn('Failed to stop mongo tunnel:', e)
+                    }
+                  } catch (e) {
+                    console.warn('Error leaving workspace:', e)
+                  }
+                  finally {
+                    setConnectionProcessing(false)
+                  }
+                }}
+                title="Disconnect from the current mongoDB workspace"
+                disabled={!tunnelActive || connectionProcessing}
+                style={{ background: 'var(--danger)', color: 'var(--button-text)' }}
+              >
+                Leave workspace
+              </Button>
+            </div>
+            <div style={{ color: 'var(--text-muted)', fontSize: 13, marginBottom: 8, marginLeft: 2 }}>
+              Path: <span style={{ fontFamily: 'monospace' }}>{remoteDirPath}</span>
+            </div>
+            <DirectoryBrowser
+              directoryContents={
+                // Add parent dir '..' if not at root
+                remoteDirPath !== '' && remoteDirPath !== '/'
+                  ? [{ name: '..', type: 'dir' }, ...directoryContents]
+                  : directoryContents
+              }
+              onDirClick={async (dirName) => {
+                if (!tunnelActive || navigationProcessing) return
                 setNavigationProcessing(true)
                 try {
-                  let tunnelState = await ipcRenderer.invoke('getTunnelState')
-                  const forwardedPort = tunnelState?.localExpressPort || Number(localExpressPort)
-                  if (!forwardedPort) throw new Error('No forwarded Express port available')
-
-                  const response = await window.backend.requestExpress({
-                    method: 'post',
-                    path: '/set-working-directory',
-                    host: '127.0.0.1',
-                    port: Number(forwardedPort),
-                    body: { workspacePath: remoteDirPath }
-                  })
-                  console.log("Recieved workspace object from remote:", response.data.workspace)
-
-                  if (response?.data?.success) {
-                    toast.success('Workspace set successfully on remote app.')
-                    
-                    // Establish mongoDB tunnel
-                    try {
-                      const mongoPort = Number(response?.data?.workspace?.newPort || remoteDBPort)
-                      await ipcRenderer.invoke('startPortTunnel', { name: 'mongo', localPort: Number(localDBPort), remotePort: mongoPort, ensureRemoteOpen: true })
-                      setRemoteDBPort(String(mongoPort))
-                    } catch (e) {
-                      console.warn('Failed to start mongo tunnel:', e)
-                    }
-
-                    // Confirm tunnel established, otherwise cancel showing the workspace
-                    tunnelState = await ipcRenderer.invoke('getTunnelState')
-                    if (!(Array.isArray(tunnelState?.tunnels) || !tunnelState.tunnels.some(t => t?.name === 'mongo'))) {
-                      throw new Error('MongoDB tunnel not active after workspace set, cannot show workspace.')
-                    }
-
-                    if (response.data.workspace !== workspace) {
-                      setWorkspace(response.data.workspace)
-                      ipcRenderer.invoke("setRemoteWorkspacePath", response.data.workspace.workingDirectory.path || '')
-                    }
+                  let navResult
+                  if (dirName === '..') {
+                    navResult = await ipcRenderer.invoke('navigateRemoteDirectory', {
+                      action: 'up',
+                      path: remoteDirPath
+                    })
                   } else {
-                    toast.error('Failed to set workspace on remote app: ' + (response?.data?.error || 'Unknown error'))
+                    navResult = await ipcRenderer.invoke('navigateRemoteDirectory', {
+                      action: 'into',
+                      path: remoteDirPath,
+                      dirName
+                    })
                   }
-                } catch (error) {
-                  const msg = error && error.message ? error.message : String(error)
-                  toast.error('Error setting workspace on remote app: ' + msg)
+                  if (navResult && navResult.path) setRemoteDirPath(navResult.path)
+                  if (Array.isArray(navResult?.contents)) {
+                    setDirectoryContents(navResult.contents.map(item => ({
+                      name: item.name,
+                      type: item.type === 'dir' ? 'dir' : 'file'
+                    })))
+                  } else {
+                    setDirectoryContents([])
+                  }
+                } catch {
+                  setDirectoryContents([])
                 } finally {
-                  setConnectionProcessing(false)
                   setNavigationProcessing(false)
                 }
-              }}
-              title="Set this directory as workspace (and connect when ready)"
-              disabled={!tunnelActive || navigationProcessing || connectionProcessing || !remoteDirPath}
-            >
-              Set as Workspace
-            </Button>
-            <Button
-              className="leave-workspace-btn"
-              onClick={async () => {
-                try {
-                  setConnectionProcessing(true)
-                  // Stop Mongo if possible
-                  await window.backend.requestExpress({ method: 'post', path: '/stop-mongo', host, port: Number(localExpressPort) })
-                  setWorkspace({
-                    hasBeenSet: false,
-                    workingDirectory: "",
-                    isRemote: false
-                  })
-                  // Stop mongo tunnel but ignore errors (in case it was started outside of this workflow or already stopped)
-                  try {
-                    await ipcRenderer.invoke('stopPortTunnel', { name: 'mongo' })
-                  } catch (e) {
-                    console.warn('Failed to stop mongo tunnel:', e)
-                  }
-                } catch (e) {
-                  console.warn('Error leaving workspace:', e)
-                }
-                finally {
-                  setConnectionProcessing(false)
-                }
-              }}
-              title="Disconnect from the current mongoDB workspace"
-              disabled={!tunnelActive || connectionProcessing}
-              style={{ background: 'var(--danger)', color: 'var(--button-text)' }}
-            >
-              Leave workspace
-            </Button>
-          </div>
-          <div style={{ color: 'var(--text-muted)', fontSize: 13, marginBottom: 8, marginLeft: 2 }}>
-            Path: <span style={{ fontFamily: 'monospace' }}>{remoteDirPath}</span>
-          </div>
-          <DirectoryBrowser
-            directoryContents={
-              // Add parent dir '..' if not at root
-              remoteDirPath !== '' && remoteDirPath !== '/'
-                ? [{ name: '..', type: 'dir' }, ...directoryContents]
-                : directoryContents
-            }
-            onDirClick={async (dirName) => {
-              if (!tunnelActive || navigationProcessing) return
-              setNavigationProcessing(true)
-              try {
-                let navResult
-                if (dirName === '..') {
-                  navResult = await ipcRenderer.invoke('navigateRemoteDirectory', {
-                    action: 'up',
-                    path: remoteDirPath
-                  })
-                } else {
-                  navResult = await ipcRenderer.invoke('navigateRemoteDirectory', {
-                    action: 'into',
-                    path: remoteDirPath,
-                    dirName
-                  })
-                }
-                if (navResult && navResult.path) setRemoteDirPath(navResult.path)
-                if (Array.isArray(navResult?.contents)) {
-                  setDirectoryContents(navResult.contents.map(item => ({
-                    name: item.name,
-                    type: item.type === 'dir' ? 'dir' : 'file'
-                  })))
-                } else {
-                  setDirectoryContents([])
-                }
-              } catch {
-                setDirectoryContents([])
-              } finally {
-                setNavigationProcessing(false)
               }
             }
-          }
-          navigationProcessing={navigationProcessing}
-          />
+            navigationProcessing={navigationProcessing}
+            />
+          </div>
         </div>
         )}
+        {activeStep === 2 && (
+          <div style={{ marginBottom: 8 }}>
+            <button
+              type="button"
+              onClick={() => setShowAdvanced(v => !v)}
+              style={{
+                color: 'var(--button-bg)',
+                background: 'transparent',
+                border: 'none',
+                cursor: 'pointer',
+                fontSize: 14,
+                textDecoration: 'underline',
+                marginBottom: 4
+              }}
+              aria-expanded={showAdvanced}
+            >
+              {showAdvanced ? 'Hide Advanced Settings' : 'Show Advanced Settings'}
+              {showAdvanced ? <GoChevronUp style={{ fontSize: 20, marginLeft: '5px' }}></GoChevronUp> : <GoChevronDown style={{ fontSize: 20, marginLeft: '5px' }}></GoChevronDown>}
+            </button>
+            <div
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 12,
+                maxHeight: showAdvanced ? 1000 : 0,
+                overflow: 'hidden',
+                transition: 'max-height 0.35s cubic-bezier(0.4,0,0.2,1)',
+                opacity: showAdvanced ? 1 : 0,
+                transitionProperty: 'max-height, opacity',
+                border: showAdvanced ? '1px solid var(--border-color)' : '1px solid transparent',
+                borderRadius: 4,
+                padding: showAdvanced ? 12 : 0,
+                marginTop: showAdvanced ? 6 : 0,
+                background: showAdvanced ? 'var(--bg-secondary)' : 'transparent',
+              }}
+              aria-hidden={!showAdvanced}
+            >
+              {showAdvanced && <>
+              <div style={{ width: '100%'}}>
+                <label style={{ marginRight: '10px'}}>
+                  Local GO Port:
+                  <InputNumber disabled={connectionProcessing} value={localGoPort} onChange={e => setLocalGoPort(e.value == null ? '' : String(e.value))} placeholder="54380" useGrouping={false} min={1} max={65535} />
+                </label>
+                <label>
+                  Local MongoDB Port:
+                  <InputNumber disabled={connectionProcessing} value={localDBPort} onChange={e => setLocalDBPort(e.value == null ? '' : String(e.value))} placeholder="54020" useGrouping={false} min={1} max={65535} />
+                </label>
+              </div>
+              </>}
+              {showAdvanced && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <Button onClick={verifyGoTunnel} disabled={!tunnelActive || goVerifyLoading} style={{ background: 'var(--button-bg)', color: 'var(--button-text)' }}>
+                    {goVerifyLoading ? 'Checking…' : 'Verify GO tunnel'}
+                  </Button>
+                  {goVerifyLoading && (
+                    <ProgressSpinner style={{ width: '18px', height: '18px' }} strokeWidth="6" />
+                  )}
+                  {goVerifyStatus !== 'idle' && !goVerifyLoading && (
+                    <Tag
+                      value={goVerifyStatus === 'ok' ? 'Verified' : 'Failed'}
+                      severity={goVerifyStatus === 'ok' ? 'success' : 'danger'}
+                      icon={goVerifyStatus === 'ok' ? 'pi pi-check' : 'pi pi-times'}
+                      rounded
+                    />
+                  )}
+                  {goProbeInfo && !goVerifyLoading && (
+                    <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+                      Probe: remoteOpen={goProbeInfo.remoteOpen ? 'yes' : 'no'} · localReachable={goProbeInfo.localReachable ? 'yes' : 'no'}
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Global wizard footer navigation */}
         {tunnelStatus && (
           <div>
