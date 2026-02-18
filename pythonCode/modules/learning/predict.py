@@ -5,6 +5,7 @@ import uuid
 from pathlib import Path
 
 import pandas as pd
+from sklearn import pipeline
 
 sys.path.append(
     str(Path(os.path.dirname(os.path.abspath(__file__))).parent.parent))
@@ -62,12 +63,20 @@ class GoExecScriptPredict(GoExecutionScript):
             raise ValueError("The model could not be loaded from the database.")
 
         # Get Dataset (if entry is dataset) and prediction
+        pred_target = ""
+        pred_score = ""
         if json_config['entry']["type"] == "table":
             dataset_infos = json_config['entry']['dataset']
             dataset_original = get_dataset_as_pd_df(dataset_infos['id'])
             if model_metadata["target"] in dataset_original.columns:
                 dataset_original = dataset_original.drop(columns=[model_metadata['target']])
             dataset = dataset_original.copy()
+            # Reindex the dataset to have the same columns as the model expects
+            if hasattr(model, 'feature_names_in_'):
+                 dataset = dataset.reindex(columns=[col for col in model.feature_names_in_ if col in dataset.columns])
+            # Transfrom the data
+            if hasattr(model, 'transform'):
+                dataset = model.transform(dataset)
             y_pred = model.predict(dataset)
             pred_name = "pred_" + dataset_infos['name']
 
@@ -75,44 +84,16 @@ class GoExecScriptPredict(GoExecutionScript):
         else:
             data = json_config['entry']['data']
             dataset = pd.DataFrame(data)
-
-            # Convert data if it's not in the right format
-            #TODO : preserve data type in mongoDB to avoid this conversion
-            def convert_column_to_type(col):
-                # First, convert everything to string
-                col = col.astype(str)
-                
-                # Now check each value to see if it's an integer or a float
-                def convert_value(value):
-                    try:
-                        # Try to convert to float
-                        value = float(value)
-                        # Check if integer
-                        if value.is_integer():
-                            value = int(value)
-                        return value
-                    except ValueError:
-                        pass
-                    
-                    try:
-                        # Try to convert to string if integer conversion fails
-                        value = str(value)
-                        return value
-                    except ValueError:
-                        pass
-                    
-                    # Return as it is if it's neither integer nor float
-                    return value
-                
-                # Apply the conversion to each element in the column
-                return col.apply(convert_value)
-
-            # Loop through each column and apply the conversion function
-            for col in dataset.columns:
-                if dataset[col].dtype == 'object':  #TODO : preserve data type in mongoDB to avoid this conversion
-                    dataset[col] = convert_column_to_type(dataset[col])
-            
+            # Reindex the dataset to have the same columns as the model expects
+            if hasattr(model, 'feature_names_in_'):
+                dataset = dataset.reindex(columns=[col for col in model.feature_names_in_ if col in dataset.columns])
+            # Transfrom the data
+            if hasattr(model, 'transform'):
+                dataset = model.transform(dataset)
+            model = model.steps[-1][1] if hasattr(model, 'steps') else model
             y_pred = model.predict(dataset)
+            pred_score = model.predict_proba(dataset).max() if y_pred[0] else model.predict_proba(dataset).min()
+            pred_target = str(y_pred[0])
             pred_name = str("pred_" + model_metadata['target']) + ".csv"
 
         # Save predictions
@@ -127,7 +108,7 @@ class GoExecScriptPredict(GoExecutionScript):
         # If the prediction already exists we update the content
         if prediction_med_object_id != prediction_object.id:
             overwrite_med_data_object_content(prediction_med_object_id, dataset.to_dict(orient="records"))
-        self.results = {"collection_id": prediction_med_object_id}
+        self.results = {"collection_id": prediction_med_object_id, "pred_target": pred_target, "pred_score": f"{pred_score:.2f}" if pred_score != "" else ""}
         return self.results
 
 

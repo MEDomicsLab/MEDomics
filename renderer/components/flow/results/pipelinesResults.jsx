@@ -57,6 +57,10 @@ function getNodeResults(flowResults, flowContent, pipeline, targetId) {
 
     // Iterate through the flowResults to find the targetId
     for (const [key, value] of Object.entries(flowResults)) {
+      // Check if key is part of the pipeline
+      if (!pipeline.some(p => key.includes(p))) {
+        continue
+      }
       nodeResults = traverse(value, key)
       if (nodeResults) {
         break // Exit loop when we get a non-empty result
@@ -209,7 +213,7 @@ const PipelineResult = ({ index, pipeline, selectionMode, flowContent, highlight
         setBody(createBody())
       }
     }
-  }, [pipeline, selectedId])
+  }, [selectedId])
 
   /**
    * @returns {JSX.Element} The body of the accordion tab
@@ -395,7 +399,7 @@ const PipelinesResults = ({ pipelines, fullPipelines, selectionMode, flowContent
           modelNode = flowContent.nodes.find((node) => node.data.internal.type == "combine_models" && pipeline.includes(node.id))
         } else {
           modelNode = flowContent.nodes.find((node) => node.data.internal.type == "model" && pipeline.includes(node.id))
-          newName = modelNode.data.internal.name !== "Model" ? modelNode.data.internal.name : ''
+          newName = modelNode.data.internal.nameID !== "Model" ? modelNode.data.internal.nameID : ''
         }
         if (!modelNode || !modelNode.id) {
           toast.error("No model node found in the pipeline")
@@ -405,7 +409,6 @@ const PipelinesResults = ({ pipelines, fullPipelines, selectionMode, flowContent
       }
 
       /**
-       *
        * @param {Event} e click event
        * @returns {void}
        *

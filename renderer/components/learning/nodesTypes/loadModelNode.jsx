@@ -170,7 +170,7 @@ const LoadModelNode = ({ id, data }) => {
                       <Col>
                         <p>Needed columns:</p>
                         <ul>
-                          {modelDataFormatted.columns.map((col) => {
+                          {modelDataFormatted.columns.sort().map((col) => {
                             return <li key={col}>{col}</li>
                           })}
                         </ul>
@@ -178,7 +178,7 @@ const LoadModelNode = ({ id, data }) => {
                       <Col>
                         <p>Received columns:</p>
                         <ul>
-                          {datasetNodeModelDataFormatted.columns.map((col) => {
+                          {datasetNodeModelDataFormatted.columns.sort().map((col) => {
                             return <li key={col}>{col}</li>
                           })}
                         </ul>
@@ -266,7 +266,7 @@ const LoadModelNode = ({ id, data }) => {
           </>
         }
         // Link to documentation
-        nodeLink={"https://medomics-udes.gitbook.io/medomicslab-docs/tutorials/development/learning-module#id-1.-available-nodes"}
+        nodeLink={"https://medomicslab.gitbook.io/medomics-docs/tutorials/development/learning-module#id-1.-available-nodes"}
       />
     </>
   )

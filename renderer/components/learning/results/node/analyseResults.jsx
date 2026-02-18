@@ -1,6 +1,6 @@
 /* eslint-disable */
-import React, { useEffect, useState, useContext } from "react"
 import { Image } from "primereact/image"
+import { useContext, useEffect, useState } from "react"
 import { DataContext } from "../../../workspace/dataContext"
 import { MEDDataObject } from "../../../workspace/NewMedDataObject"
 import { WorkspaceContext } from "../../../workspace/workspaceContext"
@@ -74,6 +74,7 @@ const AnalyseResults = ({ selectedResults }) => {
 
   return (
     <div className="height-100 width-100 flex-grid-gap-1rem">
+      {images.length === 0 && <p>Image with ID {Object.values(selectedResults.data)[0]} not found</p>}
       {images.map((image) => {
         return image
       })}

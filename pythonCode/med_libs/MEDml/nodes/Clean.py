@@ -47,7 +47,7 @@ class Clean(Node):
             print("Conflicting setup keys (Clean overrides Dataset):", sorted(overlap))
 
         # --- Merge with priority: Clean > Dataset ---
-        effective = {**ds, **cl}
+        effective = {**ds, **cl, **self.settings}
         print("SETUP (Dataset):", ds)
         print("SETUP (Clean):", cl)
         print("SETUP (final):", effective)

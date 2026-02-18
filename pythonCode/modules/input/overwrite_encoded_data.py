@@ -2,6 +2,7 @@ import json
 import os
 import sys
 from pathlib import Path
+import pandas as pd
 
 sys.path.append(
     str(Path(os.path.dirname(os.path.abspath(__file__))).parent.parent))
@@ -28,6 +29,17 @@ class GoExecScriptOverwrite(GoExecutionScript):
         super().__init__(json_params, _id)
         self.results = None  # Initially set to None
 
+    def __one_hot_encode_column(self, data, column_name):
+        df = pd.DataFrame(data)
+
+        # One-hot encode the column
+        encoded = pd.get_dummies(df[column_name], prefix=column_name)
+
+        # Replace original column with encoded columns
+        df = df.drop(columns=[column_name]).join(encoded)
+        
+        return df.to_dict(orient='records')
+
     def _custom_process(self, json_config: dict) -> dict:
         """
         Overwrites the specified collection with new data.
@@ -38,11 +50,17 @@ class GoExecScriptOverwrite(GoExecutionScript):
         try:
             # Set local variables
             collection_name = json_config["collectionName"]
-            new_data = json_config["data"]
+            column_to_encode = json_config.get("columnToEncode", None)
+            if not collection_name or not column_to_encode:
+                raise ValueError("Invalid JSON format: 'collectionName' or 'columnToEncode' missing.")
 
             # Connect to MongoDB
             db = connect_to_mongo()
             collection = db[collection_name]
+            new_data = list(collection.find())
+
+            # One-hot encode column
+            new_data = self.__one_hot_encode_column(new_data, column_to_encode)
 
             # Overwrite the data
             go_print(f"Overwriting data in collection: {collection_name}")
@@ -53,8 +71,8 @@ class GoExecScriptOverwrite(GoExecutionScript):
             self.results = {"status": "success", "message": "Data overwritten successfully."}
         except Exception as e:
             # Handle exceptions
-            self.results = {"status": "error", "message": str(e)}
             go_print(f"Error: {str(e)}")
+            return {"error": "Error occured: " + str(e)}
 
         return self.results
 

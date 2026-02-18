@@ -10,6 +10,7 @@ import numpy as np
 import pandas as pd
 from explainerdashboard import ClassifierExplainer, ExplainerDashboard, RegressionExplainer
 from explainerdashboard.explainer_methods import guess_shap
+from pycaret.internal.pipeline import Pipeline
 
 sys.path.append(str(Path(os.path.dirname(os.path.abspath(__file__))).parent.parent))
 from med_libs.GoExecutionScript import GoExecutionScript, parse_arguments
@@ -109,22 +110,8 @@ class GoExecScriptOpenDashboard(GoExecutionScript):
         if pickle_object_id is None:
             raise ValueError("Could not find the model.pkl in the database.")
         
-        # Load the model
-        self.model = get_pickled_model_from_collection(pickle_object_id)
-        go_print(f"model loaded: {self.model}")
-
-        # Check if model is not None
-        if self.model is None:
-            raise ValueError("The model could not be loaded from the database.")
-
-        # Determine columns used by the trained model (if exposed)
-        columns_to_keep = None
-        if "feature_names_in_" in dir(self.model):
-            columns_to_keep = list(getattr(self.model, "feature_names_in_"))
-        if "feature_name_" in dir(self.model) and columns_to_keep is None:
-            columns_to_keep = getattr(self.model, "feature_name_")
-
         # Load dataset
+        self.set_progress(label="Loading the dataset and model")
         use_med_standard = json_config["useMedStandard"]
         if use_med_standard:
             temp_df = load_med_standard_data(
@@ -141,9 +128,30 @@ class GoExecScriptOpenDashboard(GoExecutionScript):
             print("dataset_infos", dataset_infos)
             raise ValueError("Dataset has no ID and is not MEDomicsLab standard")
 
+        # Load the model
+        self.model = get_pickled_model_from_collection(pickle_object_id)
+        go_print(f"model loaded: {self.model}")
+
+        # Check if model is not None
+        if self.model is None:
+            raise ValueError("The model could not be loaded from the database.")
+
+        # Apply all model transformations on the dataset
+        self.set_progress(label="Applying model transformations")
+        if type(self.model) == Pipeline and hasattr(self.model, 'transform'):
+            temp_df = self.model.transform(temp_df)
+            self.model = self.model.steps[-1][1]    # Unwrap the Pipeline to get the actual model
+
         # Optional downsample for SHAP performance and stability
         if sample_size < 1:
             temp_df = temp_df.sample(frac=sample_size, random_state=42)
+        
+        # Determine columns used by the trained model (if exposed)
+        columns_to_keep = None
+        if "feature_names_in_" in dir(self.model):
+            columns_to_keep = list(getattr(self.model, "feature_names_in_"))
+        if "feature_name_" in dir(self.model) and columns_to_keep is None:
+            columns_to_keep = list(getattr(self.model, "feature_name_"))
 
         go_print(f"MODEL NAME: {self.model.__class__.__name__}")
 
@@ -167,16 +175,24 @@ class GoExecScriptOpenDashboard(GoExecutionScript):
 
         # 2) Align to model's expected columns if available
         if columns_to_keep is not None:
-            if target not in columns_to_keep:
-                columns_to_keep.append(target)
-            # Reindex to preserve order and fill missing features with 0
-            temp_df = temp_df.reindex(columns=columns_to_keep, fill_value=0)
+            try:
+                if target not in columns_to_keep:
+                    columns_to_keep.append(target)
+                # Reindex to preserve order and fill missing features with 0
+                temp_df = temp_df.reindex(columns=columns_to_keep, fill_value=0)
+            except Exception as e:
+                raise ValueError(f"Error aligning dataset to model's expected features: {e}")
 
         # 3) Split features/target with guards
         if target not in temp_df.columns:
             raise ValueError(f"Target column '{target}' not found after preprocessing.")
         X_test = temp_df.drop(columns=target)
         y_test = temp_df[target]
+
+        # Handle binary classification string labels
+        if type(y_test.unique()[0]) == str:
+            mapping = {'False': 0, 'True': 1, 'false': 0, 'true': 1}
+            y_test = y_test.map(mapping)
 
         if X_test.shape[0] == 0:
             raise ValueError("Dataset has zero rows after preprocessing (nothing to explain).")
@@ -190,19 +206,16 @@ class GoExecScriptOpenDashboard(GoExecutionScript):
 
         # Build Explainer with SHAP additivity check disabled (avoids reduction errors)
         explainer = None
+
+        # Init shap kwargs
         shap_kwargs = None
         shap_type = guess_shap(self.model)
         if shap_type == "tree":
             shap_kwargs = {"check_additivity": False}
-        if ml_type == "classification":
-            # If y is non-binary but has exactly two unique values, map to {0,1}
-            unique_values = y_test.squeeze().unique()
-            if len(unique_values) == 2:
-                print(
-                    f"Converting y to binary {unique_values[0]} -> 0 and {unique_values[1]} -> 1"
-                )
-                y_test = y_test.apply(lambda x: 1 if x == unique_values[1] else 0)
 
+        # Handle binary classification edge case
+        self.set_progress(label="Testing SHAP computations")
+        if ml_type == "classification":
             explainer = ClassifierExplainer(
                 self.model,
                 X_test,
@@ -233,6 +246,7 @@ class GoExecScriptOpenDashboard(GoExecutionScript):
                 )
 
         # Progress & dashboard startup
+        self.set_progress(label="Building the dashboard")
         self.row_count = len(y_test)
         self._progress["duration"] = "{:.2f}".format(self.row_count / self.speed / 60.0)
         self.now = 0

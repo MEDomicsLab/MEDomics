@@ -95,9 +95,9 @@ label {
 }
 
 /* Card and panel styles */
-.card,
-.panel,
-.p-card {
+.card:not(.misplaced),
+.panel:not(.misplaced),
+.p-card:not(.misplaced) {
   background-color: var(--card-bg);
   border-color: var(--card-border) !important;
   color: var(--text-primary) !important;
@@ -111,7 +111,7 @@ label {
 }
 
 /* PrimeReact panel styles */
-.p-panel {
+.p-panel:not(.misplaced) {
   background-color: var(--card-bg) !important;
   border-color: var(--card-border) !important;
   color: var(--text-primary) !important;

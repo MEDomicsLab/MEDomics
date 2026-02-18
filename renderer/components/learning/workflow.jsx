@@ -5,7 +5,7 @@ import { toast } from "react-toastify"
 import Form from "react-bootstrap/Form"
 import { useNodesState, useEdgesState, useReactFlow, addEdge } from "reactflow"
 import WorkflowBase from "../flow/workflowBase"
-import { loadJsonSync } from "../../utilities/fileManagementUtils"
+import { downloadFile, loadJsonSync } from "../../utilities/fileManagementUtils"
 import { requestBackend } from "../../utilities/requests"
 import EditableLabel from "react-simple-editlabel"
 import BtnDiv from "../flow/btnDiv"
@@ -46,6 +46,7 @@ import { getCollectionData } from "../dbComponents/utils.js"
 import { MEDDataObject } from "../workspace/NewMedDataObject.js"
 import { Tooltip } from "primereact/tooltip"
 import { Tag } from "primereact/tag"
+import { isEqual } from "lodash"
 
 const staticNodesParams = nodesParams // represents static nodes parameters
 
@@ -82,7 +83,7 @@ const Workflow = forwardRef(({ setWorkflowType, workflowType, isExperiment }, re
 
   const { groupNodeId, changeSubFlow, hasNewConnection } = useContext(FlowFunctionsContext)
   const { pageId } = useContext(PageInfosContext) // used to get the page infos such as id and config path
-  const { updateFlowResults, saveFlowResults, isResults, flowResults } = useContext(FlowResultsContext)
+  const { updateFlowResults, saveFlowResults, isResults } = useContext(FlowResultsContext)
   const { canRun, sceneName, setSceneName } = useContext(FlowInfosContext)
   const { port } = useContext(WorkspaceContext)
   const { setError } = useContext(ErrorRequestContext)
@@ -94,7 +95,7 @@ const Workflow = forwardRef(({ setWorkflowType, workflowType, isExperiment }, re
       standardNode: StandardNode,
       splitNode: SplitNode,
       selectionNode: SelectionNode,
-      boxNode, boxNode,
+      boxNode: boxNode,
       analysisBoxNode: analysisBoxNode,
       ResizableGroupNode: ResizableGroupNode,
       CombineModelsNode: CombineModelsNode,
@@ -231,6 +232,7 @@ const Workflow = forwardRef(({ setWorkflowType, workflowType, isExperiment }, re
             node.data.setupParam.possibleSettingsTuning = deepCopy(staticNodesParams["optimize"]["tune_model"]["possibleSettings"][MLType])
             node.data.internal.checkedOptionsTuning = []
             node.data.internal.settingsTuning = {}
+            node.data.internal.threshOptimizationMetric = "Accuracy"
             node.data.internal.settingsCalibration = {}
             node.data.internal.settingsEnsembling = {}
           }
@@ -366,7 +368,13 @@ const Workflow = forwardRef(({ setWorkflowType, workflowType, isExperiment }, re
     } else {
       // Remove warnings if no duplicates are found
       nodes.forEach((node) => {
-        if (node.data.internal.hasWarning && node.data.internal.hasWarning.state && node.data.internal.hasWarning.tooltip && node.data.internal.hasWarning.tooltip.props && node.data.internal.hasWarning.tooltip.props.children.startsWith("This node shares the same ID")) {
+        if (node.data.internal.hasWarning && 
+            node.data.internal.hasWarning.state && 
+            node.data.internal.hasWarning.tooltip && 
+            node.data.internal.hasWarning.tooltip.props && 
+            node.data.internal.hasWarning.tooltip.props.children && 
+            node.data.internal.hasWarning.tooltip.props.children.startsWith("This node shares the same ID")
+        ) {
           node.data.internal.hasWarning = { state: false }
           setNodes((nds) =>
             nds.map((n) => {
@@ -444,11 +452,11 @@ const Workflow = forwardRef(({ setWorkflowType, workflowType, isExperiment }, re
       const splitNodeId = dataSplitCouples[datasetNodeId]
       const datasetNode = nodes.find((node) => node.id === datasetNodeId)
       const splitNode = nodes.find((node) => node.id === splitNodeId)
-      if (datasetNode.data.internal.settings.columns && splitNode.data.internal.settings.columns && datasetNode.data.internal.settings.columns === splitNode.data.internal.settings.columns) return
+      if (isEqual(datasetNode.data.internal.settings.columns, splitNode.data.internal.settings.columns)) return
       splitNode.data.internal.datasetId = datasetNodeId
-      if (datasetNode && splitNode && datasetNode.data.internal.settings.columns) {
+      if (datasetNode && splitNode && datasetNode.data.internal.settings.columns && !isEqual(datasetNode.data.internal.settings.files, splitNode.data.internal.settings?.files)) {
         splitNode.data.internal.settings.columns = datasetNode.data.internal.settings.columns
-        if (datasetNode.data.internal.settings.files) {
+        if (datasetNode.data.internal.settings.files && datasetNode.data.internal.settings.files != splitNode.data.internal.settings?.files) {
           splitNode.data.internal.settings.files = datasetNode.data.internal.settings.files
         }
         splitNode.data.internal.settings.useTags = splitNode.data.internal.settings.useTags || false
@@ -980,6 +988,26 @@ const Workflow = forwardRef(({ setWorkflowType, workflowType, isExperiment }, re
   }, [setNodes, setViewport, nodes])
 
   /**
+   * this function exports the current workflow to a json file
+   * it is called when the user clicks on the export button
+   */
+  const onExport = useCallback(() => {
+    try {
+      if (reactFlowInstance) {
+        const flow = deepCopy(reactFlowInstance.toObject())
+        flow.MLType = MLType
+        flow.intersections = intersections
+        flow.isExperiment = isExperiment
+        downloadFile(flow, `${sceneName ? sceneName + '_ML_Scene' : "workflow"}.json`)
+      }
+    } catch (error) {
+      console.error("Error exporting workflow:", error)
+      toast.error("An error occurred while exporting the workflow. Check console for more details.")
+    }
+  }, [MLType, reactFlowInstance, intersections, isExperiment])
+
+
+  /**
    *
    * @param {Object} newScene new scene to update the workflow
    *
@@ -1079,6 +1107,7 @@ const Workflow = forwardRef(({ setWorkflowType, workflowType, isExperiment }, re
         setupParams.possibleSettingsTuning = setupParamsTuning["possibleSettings"][MLType]
         newNode.data.internal.checkedOptionsTuning = []
         newNode.data.internal.settingsTuning = {}
+        newNode.data.internal.threshOptimizationMetric = "Accuracy"
         newNode.data.internal.settingsCalibration = {}
         newNode.data.internal.settingsEnsembling = {}
       }
@@ -1155,6 +1184,23 @@ const Workflow = forwardRef(({ setWorkflowType, workflowType, isExperiment }, re
     
 
     return newNode
+  }
+
+  const duplicateNode = (id) => {
+    const nodeToDuplicate = nodes.find((node) => node.id === id)
+    if (!nodeToDuplicate) return
+
+    const newNode = {
+      ...deepCopy(nodeToDuplicate),
+      id: `node_${uuid.v4()}`,
+      position: {
+        x: nodeToDuplicate.position.x + 40,
+        y: nodeToDuplicate.position.y + 100
+      },
+      selected: false
+    }
+
+    setNodes((nds) => [...nds, newNode])
   }
 
   /**
@@ -1241,8 +1287,9 @@ const Workflow = forwardRef(({ setWorkflowType, workflowType, isExperiment }, re
             return
           }
           if (!jsonResponse.error) {
+            MEDDataObject.updateWorkspaceDataObject()
             setCurrentResults(jsonResponse)
-            updateFlowResults(jsonResponse, saveAndFinalize, modelToFinalize)
+            updateFlowResults(jsonResponse, saveAndFinalize)
             setProgress({
               now: 100,
               currentLabel: "Done!"
@@ -1284,10 +1331,11 @@ const Workflow = forwardRef(({ setWorkflowType, workflowType, isExperiment }, re
       // Check if all nodes are in place
       const misPlacedNode = nodes.find(node => node.data.className === "misplaced")
       if (misPlacedNode) {
+        const nameNode = misPlacedNode.data.internal.name === misPlacedNode.data.internal.nameID ? misPlacedNode.data.internal.name : misPlacedNode.data.internal.nameID
         if (misPlacedNode?.data?.setupParam?.section) {
-          toast.error(`Node "${misPlacedNode.data.internal.name}" is misplaced. Please place it inside the "${misPlacedNode.data.setupParam.section}" box.`)
+          toast.error(`Node "${nameNode}" is misplaced. Please place it inside the "${misPlacedNode.data.setupParam.section}" box.`)
         } else {
-          toast.error(`Node "${misPlacedNode.data.internal.name}" is misplaced. Please place them inside their designated boxes.`)
+          toast.error(`Node "${nameNode}" is misplaced. Please place them inside their designated boxes.`)
         }
         return
       }
@@ -1598,6 +1646,7 @@ const Workflow = forwardRef(({ setWorkflowType, workflowType, isExperiment }, re
           reactFlowInstance: reactFlowInstance,
           setReactFlowInstance: setReactFlowInstance,
           addSpecificToNode: addSpecificToNode,
+          duplicateNode: duplicateNode,
           nodeTypes: nodeTypes,
           nodes: nodes,
           setNodes: setNodes,
@@ -1634,7 +1683,8 @@ const Workflow = forwardRef(({ setWorkflowType, workflowType, isExperiment }, re
                     { type: "run", onClick: onRun, disabled: !canRun },
                     { type: "clear", onClick: onClear },
                     { type: "save", onClick: onSave },
-                    { type: "load", onClick: onLoad }
+                    { type: "load", onClick: onLoad },
+                    { type: "export", onClick: onExport }
                   ]}
                 />
               </div>

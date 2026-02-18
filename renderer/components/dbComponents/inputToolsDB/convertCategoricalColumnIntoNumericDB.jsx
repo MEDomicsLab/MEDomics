@@ -1,17 +1,17 @@
-import React, { useState, useEffect, useContext } from "react"
-import { Message } from "primereact/message"
-import { DataTable } from "primereact/datatable"
-import { Column } from "primereact/column"
 import { Button } from "primereact/button"
-import { toast } from "react-toastify"
-import { connectToMongoDB } from "../../mongoDB/mongoDBUtils"
-import { DataContext } from "../../workspace/dataContext"
 import { Card } from "primereact/card"
-import { Slider } from "primereact/slider"
+import { Column } from "primereact/column"
+import { DataTable } from "primereact/datatable"
 import { InputNumber } from "primereact/inputnumber"
-import { requestBackend } from "../../../utilities/requests"
-import { ServerConnectionContext } from "../../serverConnection/connectionContext"
+import { Message } from "primereact/message"
+import { Slider } from "primereact/slider"
 import { Tooltip } from 'primereact/tooltip'
+import { useContext, useEffect, useState } from "react"
+import { toast } from "react-toastify"
+import { requestBackend } from "../../../utilities/requests"
+import { connectToMongoDB } from "../../mongoDB/mongoDBUtils"
+import { ServerConnectionContext } from "../../serverConnection/connectionContext"
+import { DataContext } from "../../workspace/dataContext"
 
 const ConvertCategoricalColumnIntoNumericDB = ({ currentCollection }) => {
   const { globalData } = useContext(DataContext)
@@ -21,17 +21,14 @@ const ConvertCategoricalColumnIntoNumericDB = ({ currentCollection }) => {
   const [loadingData, setLoadingData] = useState(false)
   const [loadingOW, setLoadingOW] = useState(false)
   const [loadingAP, setLoadingAP] = useState(false)
-  const [originalData, setOriginalData] = useState([])
   const [modifiedColumns, setModifiedColumns] = useState([])
   const [highlightedColumns, setHighlightedColumns] = useState([])
   const [previousData, setPreviousData] = useState(null)
   const [previousColumns, setPreviousColumns] = useState(null)
-  const [categoricalThreshold, setCategoricalThreshold] = useState(20)
-  const [categoricalThresholdPercentage, setCategoricalThresholdPercentage] = useState("20%")
+  const [categoricalThreshold, setCategoricalThreshold] = useState(3)
   const [allKeys, setAllKeys] = useState([])
   const [cleanedDocuments, setCleanedDocuments] = useState([])
   const { port } = useContext(ServerConnectionContext)
-  const [removedColumns, setRemovedColumns] = useState([])
 
   const fetchData = async () => {
     setLoadingData(true)
@@ -45,12 +42,11 @@ const ConvertCategoricalColumnIntoNumericDB = ({ currentCollection }) => {
       const collection = db.collection(globalData[currentCollection].id)
 
       const documents = await collection.find({}).limit(10).toArray()
+      
       // Clean all the data
       const cleanedDocuments = cleanData(documents)
 
       setData(cleanedDocuments)
-      // Stock the original data
-      setOriginalData(cleanedDocuments)
 
       const allKeys = Object.keys(cleanedDocuments[0] || {}).filter((key) => key !== "_id")
       const columnStructure = allKeys.map((key) => ({
@@ -91,22 +87,22 @@ const ConvertCategoricalColumnIntoNumericDB = ({ currentCollection }) => {
     setModifiedColumns((prev) => [...new Set([...prev, column])])
   }
 
-  const isDataModified = () => {
-    // Compare both data to dectect any modification
-    return JSON.stringify(data) !== JSON.stringify(originalData)
-  }
-
   // Identify categorical columns
   const identifyCategoricalColumns = (allKeys, documents) => {
     const detectedColumns = allKeys.filter((key) => {
       const uniqueValues = [...new Set(documents.filter((doc) => doc[key]).map((doc) => doc[key]))]
       // Categorical threshold represent the minimum number of different value a column must have to be consider categorical
-      return uniqueValues.length <= categoricalThreshold && uniqueValues.some((val) => isNaN(parseFloat(val)))
+      //return uniqueValues.length <= categoricalThreshold && uniqueValues.some((val) => isNaN(parseFloat(val)))
+    
+      if (uniqueValues.length > 0 && uniqueValues.length == categoricalThreshold) {
+        // Identify already encoded columns
+        const encodedColumn = allKeys.filter((col) => uniqueValues.some((cat) => col == `${key}_${cat}`))
+        if (encodedColumn.length !== uniqueValues.length) {
+          return key
+        }
+      }
     })
-    // Identify already encoded columns
-    const alreadyEncodedColumn = allKeys.filter((key) => allKeys.some((col) => col.startsWith(`${key}__`)))
-
-    setCategoricalColumns(detectedColumns.filter((col) => !alreadyEncodedColumn.includes(col)))
+    setCategoricalColumns(detectedColumns)
   }
 
   const oneHotEncodeColumn = (data, column) => {
@@ -143,8 +139,6 @@ const ConvertCategoricalColumnIntoNumericDB = ({ currentCollection }) => {
       setData(encodedData)
       setHighlightedColumns(newColumns.map((col) => col.field))
 
-      setRemovedColumns((prev) => [...prev, column])
-
       markColumnAsModified(column)
 
       toast.success(`Column "${column}" has been one-hot encoded.`)
@@ -175,19 +169,9 @@ const ConvertCategoricalColumnIntoNumericDB = ({ currentCollection }) => {
         throw new Error("Missing database configuration or data")
       }
 
-      const cleanedData = data.map((row) => {
-        let newRow = { ...row }
-
-        modifiedColumns.forEach((col) => {
-          delete newRow[col]
-        })
-
-        return newRow
-      })
-
       const requestBody = {
         collectionName: globalData[currentCollection]?.id,
-        data: cleanedData
+        columnToEncode: modifiedColumns[0],
       }
 
       setLoadingOW(true)
@@ -197,18 +181,19 @@ const ConvertCategoricalColumnIntoNumericDB = ({ currentCollection }) => {
         requestBody,
         (response) => {
           setLoadingOW(false)
-          if (response?.status === "success") {
+          if (!response?.error) {
             toast.success("Encoded data has been overwritten in the database!")
             setModifiedColumns([])
             setHighlightedColumns([])
             fetchData()
           } else {
-            throw new Error("Failed to overwrite data")
+            throw new Error("Failed to overwrite data. Error: " + response.error)
           }
         },
         (error) => {
           setLoadingOW(false)
           console.error("Error from backend:", error)
+          toast.error("An error occurred. Check the console for more details.")
         }
       )
     } catch (error) {
@@ -224,27 +209,9 @@ const ConvertCategoricalColumnIntoNumericDB = ({ currentCollection }) => {
         throw new Error("Missing database configuration or data")
       }
 
-      const restoredData = data.map((row) => {
-        let restoredRow = { ...row }
-
-        if (modifiedColumns.length > 0) {
-          removedColumns.forEach((col) => {
-            if (!(col in restoredRow)) {
-              const originalValue = originalData.find((origRow) => origRow._id === row._id)?.[col]
-
-              if (originalValue !== undefined) {
-                restoredRow[col] = originalValue
-              }
-            }
-          })
-        }
-
-        return restoredRow
-      })
-
       const requestBody = {
         collectionName: globalData[currentCollection]?.id,
-        data: restoredData
+        columnToEncode: modifiedColumns[0],
       }
 
       setLoadingAP(true)
@@ -253,19 +220,21 @@ const ConvertCategoricalColumnIntoNumericDB = ({ currentCollection }) => {
         "/input/append_encoded_data",
         requestBody,
         (response) => {
+          console.log("response from backend:", response)
           setLoadingAP(false)
-          if (response?.status === "success") {
+          if (!response?.error) {
             toast.success("Encoded data has been appended to the database!")
             setModifiedColumns([])
             setHighlightedColumns([])
             fetchData()
           } else {
-            throw new Error("Failed to append data")
+            throw new Error("Failed to append data. Error: " + response.error)
           }
         },
         (error) => {
           setLoadingAP(false)
           console.error("Error from backend:", error)
+          toast.error("An error occurred. Check the console for more details.")
         }
       )
     } catch (error) {
@@ -292,9 +261,15 @@ const ConvertCategoricalColumnIntoNumericDB = ({ currentCollection }) => {
     >
       {loadingData && <Message severity="info" text="Loading..." style={{ marginBottom: "15px" }} />}
       <Tooltip
-      target=".experimental-tag"
-      content="This tool is experimental and mostly intended for visual exploration. We recommand using the Learning Module for validated pipelines."
-    />
+        target=".experimental-tag"
+        content="This tool is experimental and mostly intended for visual exploration. We recommand using the Learning Module for validated pipelines."
+      />
+      <Tooltip
+        target=".input-threshold"
+        content="Number of unique values to consider a column as categorical."
+        position="bottom"
+      />
+
 
     <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "-5px" }}>
       <div
@@ -332,23 +307,22 @@ const ConvertCategoricalColumnIntoNumericDB = ({ currentCollection }) => {
           value={categoricalThreshold}
           onChange={(e) => {
             setCategoricalThreshold(e.value)
-            setCategoricalThresholdPercentage(`${e.value}%`)
             identifyCategoricalColumns(allKeys, cleanedDocuments)
           }}
           style={{ width: "70%", marginLeft: "10px", marginRight: "10px" }}
-          min={1}
-          max={100}
+          min={3}
+          max={20}
         />
         <InputNumber
-          value={categoricalThresholdPercentage.replace("%", "")}
+          className="input-threshold"
+          value={categoricalThreshold}
           onValueChange={(e) => {
             setCategoricalThreshold(e.value)
-            setCategoricalThresholdPercentage(`${e.value}%`)
             identifyCategoricalColumns(allKeys, cleanedDocuments)
           }}
           mode="decimal"
-          min={1}
-          max={100}
+          min={3}
+          max={20}
           useGrouping={false}
           showButtons
           style={{ width: "80px", marginLeft: "10px" }}
@@ -381,37 +355,54 @@ const ConvertCategoricalColumnIntoNumericDB = ({ currentCollection }) => {
         </Card>
       )}
       {categoricalColumns.length === 0 && (
-        <Message severity="warn" text="No categorical columns detected." style={{ marginTop: "15px" }} />
+        <Message severity="warn" text="No categorical columns detected." style={{ marginTop: "15px", marginBottom: "15px" }} />
       )}
       {categoricalColumns.length > 0 && (
-        <div style={{ marginTop: "20px" }}>
-          <h4>Categorical Columns</h4>
-          <ul
-            style={{
-              display: "flex",
-              alignItems: "center",
-              marginBottom: "10px"
-            }}
-          >
-            {modifiedColumns.length == 0 && (
-              <span>
-                {" "}
-                {categoricalColumns
-                  .map((col, index) => (
-                    <li key={index} style={{ marginBottom: "10px" }}>
-                      <span style={{ marginRight: "10px" }}>Convert Categorical Column into Numeric :</span>
-                      <Button label={col} onClick={() => convertColumnToOneHot(col)} style={{ marginLeft: "10px", marginTop: "5px", display: "inline-block" }} />
-                    </li>
-                  ))}
-              </span>
-            )}
-          </ul>
+        <div style={{ marginTop: "20px", marginBottom: "20px" }}>
+          {modifiedColumns.length === 0 && (
+            <div style={{ marginTop: "10px", display: "flex", flexDirection: "column", alignItems: "center" }}>
+              <p style={{ marginBottom: "10px", color: "#666" }}>
+                Select columns to convert using one-hot encoding:
+              </p>
+              <div style={{ 
+                display: "flex", 
+                flexWrap: "wrap", 
+                gap: "10px" 
+              }}>
+                {categoricalColumns.map((col, index) => (
+                  <Button 
+                    key={index}
+                    label={col} 
+                    onClick={() => convertColumnToOneHot(col)}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
-      {modifiedColumns.length > 0 && <Button label={`Undo Changes:  ${modifiedColumns}`} className="p-button-danger" onClick={undoChanges} style={{ marginTop: "20px", marginRight: "10px" }} />}
-      {isDataModified() && <Button label="Overwrite Current Dataset" className="p-button-success" loading={loadingOW} onClick={overwriteEncodedDataToDB} style={{ marginTop: "20px" }} />}{" "}
-      {isDataModified() && <Button label="Append New Columns to Dataset" className="p-button-success" loading={loadingAP} onClick={appendEncodedDataToDB} style={{ marginTop: "20px" }} />}{" "}
+      {/* Warning for target encoding */}
+      <Message
+        severity="warn"
+        text="If your target appears among the columns, don’t encode it here. It will be encoded automatically (using one-hot encoding) in the Learning module via PyCaret’s setup(). See the documentation for details."
+        style={{
+          marginBottom: "12px",
+          background: "#FEF3C7",
+          border: "1px solid #F59E0B",
+          borderLeft: "8px solid #D97706",
+          color: "#7C2D12",
+          fontWeight: 600
+        }}
+      />
+      {modifiedColumns.length > 0 && 
+        <>
+          <Button label={`Undo Changes:  ${modifiedColumns}`} className="p-button-danger" onClick={undoChanges} style={{ marginTop: "20px", marginRight: "10px" }} />
+          <Button label="Overwrite Current Dataset" className="p-button-success" loading={loadingOW} onClick={overwriteEncodedDataToDB} style={{ marginTop: "20px" }} />
+          <Button label="Append New Columns to Dataset" className="p-button-success" loading={loadingAP} onClick={appendEncodedDataToDB} style={{ marginTop: "20px" }} />
+        </>
+      }
     </div>
+    
   )
 }
 

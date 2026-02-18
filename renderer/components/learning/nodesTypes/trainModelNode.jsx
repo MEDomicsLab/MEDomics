@@ -26,59 +26,65 @@ import ModalSettingsChooser from "../modalSettingsChooser"
  */
 const TrainModelNode = ({ id, data }) => {
   const [modalShow, setModalShow] = useState(false) // state of the modal
-  const [usePycaretSearchSpace, setUsePycaretSearchSpace] = useState(true) // state of the checkbox
+  const [usePycaretSearchSpace, setUsePycaretSearchSpace] = useState(("useTuningGrid" in data.internal) ? !data.internal.useTuningGrid : true) // state of the checkbox
   const [modalShowTuning, setModalShowTuning] = useState(false)
   const { updateNode } = useContext(FlowFunctionsContext)
   const [IntegrateTuning, setIntegrateTuning] = useState(data.internal.isTuningEnabled ?? false)
+  const [optimizeThresh, setOptimizeThresh] = useState(data.internal.isOptimizeThreshold ?? false)
   const [ensembleEnabled, setEnsembleEnabled] = useState(data.internal.settings.isEnsembleEnabled ?? false)
   const [calibrateEnabled, setCalibrateEnabled] = useState(data.internal.settings.isCalibrateEnabled ?? false)
 
   // Check if isTuningEnabled exists in data.internal, if not initialize it
   useEffect(() => {
+    let hasUpdates = false
+
+    // Initialize tuningGrid structure without wiping existing data
     if (data.internal.tuningGrid && Object.keys(data.internal.tuningGrid).length > 0) {
-      Object.keys(data.internal.tuningGrid).map((model) => {
-        data.internal[model] = {}
-        data.internal[model].custom_grid = {}
-      })
-    }
-    if (!("isTuningEnabled" in Object.keys(data.internal))) {
-      data.internal.isTuningEnabled = false
-      updateNode({
-        id: id,
-        updatedData: data.internal
-      })
-    }
-    if (!("useTuningGrid" in Object.keys(data.internal))) {
-      data.internal.useTuningGrid = false
-      updateNode({
-        id: id,
-        updatedData: data.internal
+      Object.keys(data.internal.tuningGrid).forEach((model) => {
+        // Initialize model object only if missing
+        if (!data.internal[model]) {
+          data.internal[model] = {}
+          hasUpdates = true
+        }
+        // Initialize custom_grid only if missing
+        if (!data.internal[model].custom_grid) {
+          data.internal[model].custom_grid = {}
+          hasUpdates = true
+        }
       })
     }
 
-    if (!("isEnsembleEnabled" in Object.keys(data.internal))) {
-      data.internal.isEnsembleEnabled = false
+    // Define default values for missing keys
+    const defaults = {
+      isTuningEnabled: false,
+      useTuningGrid: false,
+      isEnsembleEnabled: false,
+      isCalibrateEnabled: false,
+      settingsEnsembling: {},
+      settingsCalibration: {}
+    }
+
+    // Apply defaults only where keys are missing
+    Object.entries(defaults).forEach(([key, defaultValue]) => {
+      if (!(key in data.internal)) {
+        data.internal[key] = defaultValue
+        hasUpdates = true
+      }
+    })
+
+    // Handle special case: optimizeThreshold (coupled with threshOptimizationMetric)
+    if (!("optimizeThreshold" in data.internal)) {
+      data.internal.optimizeThreshold = false
+      data.internal.threshOptimizationMetric = "Accuracy"
+      hasUpdates = true
+    }
+
+    // Perform a single update if any changes were made
+    if (hasUpdates) {
       updateNode({
         id: id,
         updatedData: data.internal
       })
-    }
-
-    if (!("isCalibrateEnabled" in Object.keys(data.internal))) {
-      data.internal.isCalibrateEnabled = false
-      updateNode({
-        id: id,
-        updatedData: data.internal
-      })
-    }
-
-    if (!("settingsEnsembling" in data.internal)) {
-      data.internal.settingsEnsembling = {}
-    }
-  
-    // saving it for later
-    if (!("settingsCalibration" in data.internal)) {
-      data.internal.settingsCalibration = {}
     }
   }, [])
 
@@ -104,6 +110,20 @@ const TrainModelNode = ({ id, data }) => {
    */
   const onInputChangeTuning = (inputUpdate) => {
     data.internal.settingsTuning[inputUpdate.name] = inputUpdate.value
+    updateNode({
+      id: id,
+      updatedData: data.internal
+    })
+  }
+
+  /**
+   * 
+   * @param {Object} inputUpdate the object containing the name and the value of the input
+   * @description
+   * This function is used to update the threshold optimization settings of the node
+   */
+  const onInputChangeThreshold = (inputUpdate) => {
+    data.internal.threshOptimizationMetric = inputUpdate.value
     updateNode({
       id: id,
       updatedData: data.internal
@@ -219,7 +239,6 @@ const TrainModelNode = ({ id, data }) => {
             <div style={{
               border: "1px solid #e0e0e0",          // bordure grise très claire
               borderRadius: "10px",                 // coins arrondis
-              backgroundColor: "#fcfcfc",           // fond légèrement différent
               padding: "10px 12px",
               marginBottom: "12px",
               boxShadow: "0 1px 2px rgba(0,0,0,0.05)" // petite ombre douce
@@ -227,7 +246,7 @@ const TrainModelNode = ({ id, data }) => {
             {/* === TRAINING OPTIONS SECTION === */}
             <div className="p-2 mb-1 d-flex justify-content-between align-items-center"
                 style={{ border: "1px solid #ccc", borderRadius: "8px" }}>
-              <span className="text-muted" style={{ fontSize: "0.9rem" }}>General Options</span>
+              <span style={{ fontSize: "0.9rem" }}>General Options</span>
               <Button
                 variant="light"
                 className="btn-contour ms-2"
@@ -255,7 +274,7 @@ const TrainModelNode = ({ id, data }) => {
               </>
             )}
             </div>
-            
+
             {/* === INTEGRATE TUNING SECTION === */}
             <div style={{ border: "1px solid #ccc", borderRadius: "8px" }}>
               <div className="p-2 mb-1 d-flex justify-content-between align-items-center">
@@ -274,7 +293,6 @@ const TrainModelNode = ({ id, data }) => {
                   onChange={(e) => {
                     setIntegrateTuning(e.value)
                     data.internal.isTuningEnabled = e.value
-                    updateNode({ id, updatedData: data.internal })
                   }}
                 />
               </div>
@@ -284,7 +302,7 @@ const TrainModelNode = ({ id, data }) => {
                     className="p-2 mb-2 d-flex justify-content-between align-items-center"
                     style={{ border: "1px solid #ccc", borderRadius: "8px" }}
                   >
-                    <span className="text-muted" style={{ fontSize: "0.9rem" }}>
+                    <span style={{ fontSize: "0.9rem" }}>
                       Tuning Options
                     </span>
                     <Button
@@ -323,7 +341,7 @@ const TrainModelNode = ({ id, data }) => {
                 {!usePycaretSearchSpace && (
                   <>
                   <div style={{ 
-                    backgroundColor: "#e7f3ff",  // bleu clair doux
+                    backgroundColor: "#82abd4",  // bleu clair doux
                     border: "1px solid #b6daff", // bordure bleu clair
                     borderRadius: "8px", 
                     padding: "12px", 
@@ -344,18 +362,40 @@ const TrainModelNode = ({ id, data }) => {
                     return (
                       <Panel header={header} key={model} collapsed toggleable>
                         {Object.keys(data.internal.tuningGrid[model].options).filter((setting => data.internal.tuningGrid[model].hasOwnProperty(setting))).map((setting) => {
+                        const baseParamInfo = data.internal.tuningGrid[model].options[setting]
+
+                        let resolvedType = baseParamInfo.type
+
+                        if (baseParamInfo.type === "multi") {
+                          const currentVal =
+                            data.internal.settings?.[setting] ??
+                            baseParamInfo.default_val
+
+                          if (typeof currentVal === "number") {
+                            resolvedType = Number.isInteger(currentVal) ? "int" : "float"
+                          } else if (typeof currentVal === "string") {
+                            resolvedType = "string"
+                          }
+                        }
+
                         return (
                           <HyperParameterInput
+                            key={setting}
                             name={setting}
                             model={model}
-                            paramInfo={data.internal.tuningGrid[model].options[setting]}
-                            currentValue={data.internal.tuningGrid[model].options[setting].default_val}
-                            currentGridValues={data.internal[model] ? data.internal[model]?.custom_grid[setting] : null}
+                            paramInfo={{
+                              ...baseParamInfo,
+                              resolvedType  
+                            }}
+                            currentValue={baseParamInfo.default_val}
+                            currentGridValues={
+                              data.internal[model]?.custom_grid?.[setting] ?? null
+                            }
                             onParamChange={onTuningParamChange}
                           />
                         )
-                        
-                      })}
+                      })
+                      }
 
                     </Panel>
                   )
@@ -376,7 +416,7 @@ const TrainModelNode = ({ id, data }) => {
                       key={optionName}
                       name={optionName}
                       settingInfos={data.setupParam.possibleSettingsTuning.options[optionName]}
-                      currentValue={data.internal.settingsTuning[optionName]}
+                      currentValue={data.internal.settingsTuning[optionName] || data.setupParam.possibleSettingsTuning.options[optionName].default_val}
                       onInputChange={onInputChangeTuning}
                     />
                   )
@@ -486,6 +526,56 @@ const TrainModelNode = ({ id, data }) => {
               })}
             </div>
 
+            {/* THRESHOLD OPTIMIZATION SECTION */}
+            <div className="p-1 mb-1" style={{ border: "1px solid #ccc", borderRadius: "8px" }}>
+              <div className="mb-1 d-flex align-items-center justify-content-between">
+                <div className="d-flex align-items-center">
+                  <label className="me-2">Optimize Threshold</label>
+                  <AiOutlineInfoCircle
+                    className="btn-info-node"
+                    onClick={() => {
+                      shell.openExternal("https://pycaret.readthedocs.io/en/stable/api/classification.html#pycaret.classification.optimize_threshold")
+                  }}
+                  />
+                </div>
+                <InputSwitch
+                  checked={optimizeThresh}
+                  onChange={(e) => {
+                    const newState = e.value
+                    setOptimizeThresh(newState)
+                    data.internal.optimizeThreshold = newState
+                    updateNode({ id, updatedData: data.internal })
+                  }}
+                />
+              </div>
+
+              {/* Optimize Threshold Options */}
+              {optimizeThresh && (
+                <div>
+                  {/* optimization metric */}
+                  <Input
+                    key={"optimization_metric"}
+                    name="optimization_metric"
+                    settingInfos={{
+                      type: "list",
+                      tooltip: "<p>Metric to be used for selecting best model's threshold.</p>",
+                      default_val: "BAC",
+                      choices: {
+                        "Accuracy": "Accuracy",
+                        "BAC": "Balanced Accuracy",
+                        "F1": "F1 score", 
+                        "MCC": "Mathew's Correlation Coefficient", 
+                        "Youden": "Youden Index"
+                      }
+                    }}
+                    currentValue={data.internal.threshOptimizationMetric || "BAC"}
+                    onInputChange={onInputChangeThreshold}
+                    setHasWarning={handleWarning}
+                  />
+                </div>
+              )}
+            </div>
+
             {/* the modal component*/}
             <ModalSettingsChooser
               show={modalShow}
@@ -509,7 +599,7 @@ const TrainModelNode = ({ id, data }) => {
           </>
         }
         // Link to documentation
-        nodeLink={"https://medomics-udes.gitbook.io/medomicslab-docs/tutorials/development/learning-module"}
+        nodeLink={"https://medomicslab.gitbook.io/medomics-docs/tutorials/development/learning-module"}
       />
     </>
   )
