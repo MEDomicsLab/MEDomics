@@ -184,6 +184,7 @@ class Dataset(Node):
             # move keys to front (cosmetic, helps readability)
             other_cols = [c for c in df.columns if c not in (first_col, target)]
             df = df[[first_col, target] + other_cols]
+            df.set_index(first_col, inplace=True)  # set index for merging
             aligned.append(df)
 
         if not aligned:
@@ -220,14 +221,15 @@ class Dataset(Node):
         vars_list = vars_list or []
 
         base_keep = set(vars_list) | set(tags_list)
-        cols_2_keep = [first_col, target]
+        cols_2_keep = [target] # Keep the target only
 
         if base_keep:
             for col in df_merged.columns:
-                if col in (first_col, target):
+                if col == target:  # Skip target as it's already in cols_2_keep
                     continue
                 if _base(col) in base_keep:
                     cols_2_keep.append(col)
+            # Ensure target is included and no ID column
             df_merged = df_merged[cols_2_keep]
         # else: if no filters provided, keep all columns (besides we already merged).
 
