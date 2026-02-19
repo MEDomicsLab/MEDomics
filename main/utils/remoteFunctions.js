@@ -498,7 +498,8 @@ async function startRemoteExpress(conn, remoteOS, remotePort) {
       const posixVersionDir = versionDir.replace(/'/g, "'\\''")
       const posixScriptName = path.basename(scriptPath).replace(/'/g, "'\\''")
       const posixLogPath = logPath.replace(/'/g, "'\\''")
-      cmd = `bash -lc "cd '${posixVersionDir}' && export NODE_ENV=production && export MEDOMICS_EXPRESS_PORT='${remotePort}' && echo '[launcher] cwd='\"$PWD\"' NODE_ENV='\"$NODE_ENV\"' MEDOMICS_EXPRESS_PORT='\"$MEDOMICS_EXPRESS_PORT\" >> '${posixLogPath}' && nohup bash './${posixScriptName}' >> '${posixLogPath}' 2>&1 &"`
+      cmd = `bash -lc "export NODE_ENV=production; export MEDOMICS_EXPRESS_PORT='${remotePort}'; echo '[launcher] NODE_ENV='\"$NODE_ENV\"' MEDOMICS_EXPRESS_PORT='\"$MEDOMICS_EXPRESS_PORT\" >> '${logPath.replace(/'/g, "'\\''")}'; nohup '${scriptPath}' >> '${logPath.replace(/'/g, "'\\''")}' 2>&1 &"`
+
       console.log('[remote] startRemoteExpress exec cmd', cmd)
       const r2 = await execRemote(conn, cmd)
       console.log('[remote] startRemoteExpress exec result', r2)
