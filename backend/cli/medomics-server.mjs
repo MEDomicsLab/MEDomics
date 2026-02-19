@@ -42,7 +42,13 @@ function getStateFile(flags) {
   const hasValidString = typeof raw === 'string' && raw.trim().length > 0
   const f = hasValidString ? raw : null
   const defaultState = path.resolve(os.homedir(), '.medomics', 'medomics-server', 'state.json')
-  const p = f ? path.resolve(f) : defaultState
+  let p = f ? path.resolve(f) : defaultState
+  // If --state-file points to a directory, place state.json inside it.
+  try {
+    if (fs.existsSync(p) && fs.statSync(p).isDirectory()) {
+      p = path.join(p, 'state.json')
+    }
+  } catch (e) { /* ignore and keep p as-is */ }
   return p
 }
 
@@ -51,8 +57,33 @@ function log(msg) {
 }
 
 function writeStateAt(stateFile, state) {
-  try { fs.mkdirSync(path.dirname(stateFile), { recursive: true }) } catch (e) { /* ignore */ }
-  fs.writeFileSync(stateFile, JSON.stringify(state, null, 2))
+  const targetPath = path.resolve(String(stateFile || ''))
+  if (!targetPath) return false
+  const parentDir = path.dirname(targetPath)
+  const payload = JSON.stringify(state, null, 2)
+
+  const tryWrite = () => {
+    fs.mkdirSync(parentDir, { recursive: true })
+    fs.writeFileSync(targetPath, payload)
+  }
+
+  try {
+    tryWrite()
+    return true
+  } catch (e) {
+    // Rare race/ordering issue: parent removed between checks, retry once.
+    if (e && e.code === 'ENOENT') {
+      try {
+        tryWrite()
+        return true
+      } catch (retryErr) {
+        console.warn('[state-file] write failed after retry:', retryErr && retryErr.message ? retryErr.message : retryErr)
+        return false
+      }
+    }
+    console.warn('[state-file] write failed:', e && e.message ? e.message : e)
+    return false
+  }
 }
 
 function readStateAt(stateFile) {

@@ -154,17 +154,8 @@ func StartPythonScripts(jsonParam string, filename string, id string) (string, e
 	}
 	log.Println("filename: " + filename)
 	script, _ := filepath.Abs(filepath.Join(cwd, filename))
-	condaEnv := os.Getenv("MED_ENV")
-	if condaEnv == "" {
-		// Fall back to PATH lookup. This prevents "exec: no command" when MED_ENV isn't provided.
-		if runtime.GOOS == "windows" {
-			condaEnv = "python"
-		} else {
-			// Prefer python3 on Unix, but python is also common.
-			condaEnv = "python3"
-		}
-		log.Println("MED_ENV was empty; falling back to: " + condaEnv)
-	}
+	condaEnv := resolvePythonExecutable(os.Getenv("MED_ENV"))
+	log.Println("Resolved python executable: " + condaEnv)
 	Mu.Lock()
 	if runMode == "prod" {
 		prodDir := ""
@@ -238,6 +229,49 @@ func StartPythonScripts(jsonParam string, filename string, id string) (string, e
 	}
 	log.Println("Finished running script: " + filename + " with id: " + id)
 	return response, nil
+}
+
+func resolvePythonExecutable(preferred string) string {
+	candidates := []string{}
+	if preferred != "" {
+		candidates = append(candidates, preferred)
+	}
+
+	if home, err := os.UserHomeDir(); err == nil && home != "" {
+		if runtime.GOOS == "windows" {
+			candidates = append(candidates, filepath.Join(home, ".medomics", "python", "python.exe"))
+		} else {
+			candidates = append(candidates, filepath.Join(home, ".medomics", "python", "bin", "python"))
+		}
+	}
+
+	if runtime.GOOS == "windows" {
+		candidates = append(candidates, "python")
+	} else {
+		candidates = append(candidates, "python3", "python")
+	}
+
+	for _, candidate := range candidates {
+		if candidate == "" {
+			continue
+		}
+
+		if strings.Contains(candidate, string(filepath.Separator)) {
+			if st, err := os.Stat(candidate); err == nil && !st.IsDir() {
+				return candidate
+			}
+			continue
+		}
+
+		if p, err := exec.LookPath(candidate); err == nil && p != "" {
+			return p
+		}
+	}
+
+	if runtime.GOOS == "windows" {
+		return "python"
+	}
+	return "python3"
 }
 
 // It is used to transfer stdout and stderr to the terminal
