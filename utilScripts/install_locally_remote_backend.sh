@@ -81,7 +81,7 @@ echo "==> Bundle ready: ${ZIP_PATH}"
 #-----------------------------------------------------------------------
 BASE_DIR="${HOME}/.medomics/medomics-server"
 VERSIONS_DIR="${BASE_DIR}/versions"
-VERSION_DIR="${VERSIONS_DIR}/${VERSION}"
+VERSION_DIR="${VERSIONS_DIR}/server-v${VERSION}"
 DOWNLOADS_DIR="${BASE_DIR}/downloads"
 
 echo "==> Creating directories..."
