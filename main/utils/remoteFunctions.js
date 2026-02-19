@@ -273,6 +273,11 @@ async function startRemoteBackend(conn, remoteOS, exePath, remotePort) {
     // If we're launching a packaged server binary, prefer using the shipped
     // start script (start.bat/start.sh) so it can set NODE_ENV=production and
     // any other required environment/config.
+    //
+    // IMPORTANT: If the script exists but fails (common case: Linux start.sh uses
+    // `set -e` and calls `ensure` before `start`), do not abort; fall back to
+    // directly running the executable with `start --json`.
+    let scriptFailure = null
     if (!isScript) {
       try { setRemoteBackendExecutablePath(exePath) } catch {}
       try {
@@ -280,13 +285,13 @@ async function startRemoteBackend(conn, remoteOS, exePath, remotePort) {
         if (viaScript && viaScript.success) {
           return { success: true, status: 'express-running', port: remotePort }
         }
-        // If the script exists but failed, bubble that up.
         if (viaScript && viaScript.status && viaScript.status !== 'script-not-found') {
-          return viaScript
+          scriptFailure = viaScript
+          console.warn('[remote] startRemoteBackend startRemoteExpress failed; attempting direct start fallback:', viaScript)
         }
       } catch (e) {
-        // Fall back to direct executable start below.
-        console.warn('[remote] startRemoteBackend startRemoteExpress failed; falling back:', e && e.message ? e.message : e)
+        scriptFailure = { success: false, status: 'failed-to-start', error: e && e.message ? e.message : String(e) }
+        console.warn('[remote] startRemoteBackend startRemoteExpress threw; attempting direct start fallback:', e && e.message ? e.message : e)
       }
     }
     let cmd
@@ -356,6 +361,10 @@ async function startRemoteBackend(conn, remoteOS, exePath, remotePort) {
       await sleep(600)
     }
     console.log('[remote] startRemoteBackend timeout waiting for port', remotePort)
+    if (scriptFailure) {
+      const scriptMsg = scriptFailure.error ? String(scriptFailure.error) : 'unknown'
+      return { success: false, status: 'timeout', error: `Express did not open port ${remotePort} in time (start script failed first: ${scriptMsg})` }
+    }
     return { success: false, status: 'timeout', error: `Express did not open port ${remotePort} in time` }
   } catch (e) {
     return { success: false, status: 'failed-to-start', error: e && e.message ? e.message : String(e) }
@@ -683,8 +692,24 @@ ipcMain.handle('ensureRemoteBackend', async (_event, { port } = {}) => {
     let isOpen = await checkRemotePortOpen(conn, targetPort)
     if (!isOpen) {
       const remoteOS = await detectRemoteOS()
+      // Prefer start scripts, but fall back to direct executable start if scripts fail.
       const startRes = await startRemoteExpress(conn, remoteOS, targetPort)
-      if (!startRes.success) return startRes
+      if (!startRes.success) {
+        try {
+          const exe = await findRemoteBackendExecutable(conn, remoteOS)
+          const exePath = (typeof exe === 'object' && exe && exe.path) ? exe.path : exe
+          if (exePath) {
+            const fallback = await startRemoteBackend(conn, remoteOS, exePath, targetPort)
+            if (!fallback.success) {
+              return { success: false, status: 'failed-to-start', error: `start script failed: ${startRes.error || startRes.status || 'unknown'}; direct start failed: ${fallback.error || fallback.status || 'unknown'}` }
+            }
+          } else {
+            return startRes
+          }
+        } catch (e) {
+          return { success: false, status: startRes.status || 'failed-to-start', error: startRes.error || (e && e.message ? e.message : String(e)) }
+        }
+      }
       isOpen = await checkRemotePortOpen(conn, targetPort)
       if (!isOpen) return { success: false, status: 'timeout', error: `Express did not open port ${targetPort}` }
     }
