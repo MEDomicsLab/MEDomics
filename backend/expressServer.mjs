@@ -6,19 +6,6 @@ import * as serverWorkspace from "./utils/serverWorkspace.js"
 const { createServerMedomicsDirectory, createServerWorkingDirectory, getServerWorkingDirectory } = serverWorkspace
 import * as mongoDBServer from "./utils/mongoDBServer.js"
 const { startMongoDB, stopMongoDB, getMongoDBPath, checkMongoIsRunning, getMongoDebugInfo } = mongoDBServer
-
-async function waitForMongoUp(port, timeoutMs = 12000) {
-	const start = Date.now()
-	while (Date.now() - start < timeoutMs) {
-		try {
-			if (await checkMongoIsRunning(port)) return true
-		} catch (_) {
-			// ignore
-		}
-		await new Promise(r => setTimeout(r, 250))
-	}
-	return false
-}
 import cors from "cors"
 import dirTree from "directory-tree"
 import { exec, execSync } from "child_process"
@@ -99,7 +86,6 @@ function setupGracefulShutdownState() {
 
 let isProd = process.env.NODE_ENV && process.env.NODE_ENV === "production"
 let goServerProcess = null
-let goServerState = { serverIsRunning: false }
 
 export async function startExpressServer() {
 	try {
@@ -202,7 +188,7 @@ async function startGoServer(preferredPort = null) {
 			throw pyErr
 		}
 
-		const { process: proc, port } = await runServer(isProd, preferredPort, goServerProcess, goServerState, null)
+		const { process: proc, port } = await runServer(isProd, preferredPort, goServerProcess, serviceState.go, null)
 		goServerProcess = proc
 		serviceState.go.running = true
 		serviceState.go.port = port
@@ -262,7 +248,6 @@ expressApp.post("/stop-express", async (req, res) => {
 			await new Promise(r => setTimeout(r, 500))
 			try { goServerProcess.kill('SIGKILL') } catch (_) { /* ignore */ }
 			goServerProcess = null
-			goServerState.serverIsRunning = false
 			serviceState.go.running = false
 			serviceState.go.port = null
 		}
@@ -315,6 +300,16 @@ expressApp.post("/set-working-directory", async (req, res) =>{
 expressApp.get("/status", async (req, res) => {
 		try {
       console.log("Received request to get service status")
+			// Refresh GO runtime state by probing the recorded port.
+			try {
+				if (serviceState.go.port) {
+					const goUp = await checkGoIsListening(serviceState.go.port, 300)
+					serviceState.go.running = !!goUp
+					if (!goUp) serviceState.go.port = null
+				}
+			} catch (_) {
+				// ignore detection failure
+			}
 			// Optionally refresh Jupyter runtime status on demand
 			try {
 				const jStatus = await checkJupyterIsRunning()
@@ -744,6 +739,42 @@ export async function setWorkspaceDirectoryServer(workspacePath) {
 		} catch (error) {
 			console.error("Failed to change workspace: ", error)
 		}
+}
+
+async function waitForMongoUp(port, timeoutMs = 12000) {
+	const start = Date.now()
+	while (Date.now() - start < timeoutMs) {
+		try {
+			if (await checkMongoIsRunning(port)) return true
+		} catch (_) {
+			// ignore
+		}
+		await new Promise(r => setTimeout(r, 250))
+	}
+	return false
+}
+
+async function checkGoIsListening(port, timeoutMs = 300) {
+	return await new Promise(resolve => {
+		try {
+			if (!port || typeof port !== 'number') return resolve(false)
+			const socket = new net.Socket()
+			let settled = false
+			const finish = (ok) => {
+				if (settled) return
+				settled = true
+				try { socket.destroy() } catch (_) { /* ignore */ }
+				resolve(ok)
+			}
+			socket.setTimeout(timeoutMs)
+			socket.once('connect', () => finish(true))
+			socket.once('timeout', () => finish(false))
+			socket.once('error', () => finish(false))
+			socket.connect(port, '127.0.0.1')
+		} catch (_) {
+			resolve(false)
+		}
+	})
 }
 
 if (process.argv[1] && process.argv[1].endsWith('expressServer.mjs')) {

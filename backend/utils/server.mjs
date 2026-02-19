@@ -166,7 +166,8 @@ export async function runServer(isProd, serverPort, serverProcess, serverState, 
         chosenPort = port
         // ensure the spawned process receives the actual chosen port as first argument
         if (Array.isArray(args) && args.length > 0) args[0] = serverPort
-        serverState.serverIsRunning = true
+        serverState.running = true
+        serverState.port = serverPort
         serverProcess = execFile(`${process.platform == "win32" ? "main.exe" : "./main"}`, args, {
           windowsHide: false,
           cwd: path.join(process.cwd(), "go_server"),
@@ -186,7 +187,8 @@ export async function runServer(isProd, serverPort, serverProcess, serverState, 
             console.log(`disconnected`)
           })
           serverProcess.on("close", (code) => {
-            serverState.serverIsRunning = false
+            serverState.running = false
+            serverState.port = null
             console.log(`server child process close all stdio with code ${code}`)
           })
         }
@@ -246,7 +248,8 @@ export async function runServer(isProd, serverPort, serverProcess, serverState, 
               windowsHide: false,
               env: env
             })
-            serverState.serverIsRunning = true
+            serverState.running = true
+            serverState.port = serverPort
           }
         } else if (process.platform == "linux") {
           const goPathLinux = path.join(baseRoot, "go_executables", "server_go")
@@ -258,7 +261,8 @@ export async function runServer(isProd, serverPort, serverProcess, serverState, 
             serverProcess = execFile(goPathLinux, args, {
               windowsHide: false
             })
-            serverState.serverIsRunning = true
+            serverState.running = true
+            serverState.port = serverPort
           }
         } else if (process.platform == "darwin") {
           const goPathDarwin = path.join(baseRoot, "go_executables", "server_go")
@@ -270,7 +274,8 @@ export async function runServer(isProd, serverPort, serverProcess, serverState, 
             serverProcess = execFile(goPathDarwin, args, {
               windowsHide: false
             })
-            serverState.serverIsRunning = true
+            serverState.running = true
+            serverState.port = serverPort
           }
         }
         if (serverProcess) {
@@ -279,11 +284,24 @@ export async function runServer(isProd, serverPort, serverProcess, serverState, 
           })
           serverProcess.stderr.on("data", (data) => {
             console.log(`stderr: ${data}`)
-            serverState.serverIsRunning = true
+            serverState.running = true
+            serverState.port = serverPort
+          })
+          serverProcess.on("error", (err) => {
+            // Covers spawn failures and async child_process errors.
+            // Ensure the exported serverState reflects the process not running.
+            try {
+              console.log(`[go] server process error: ${err && err.message ? err.message : String(err)}`)
+            } catch {
+              // ignore logging errors
+            }
+            serverState.running = false
+            serverState.port = null
           })
           serverProcess.on("close", (code) => {
-            serverState.serverIsRunning = false
-            console.log(`my server child process close all stdio with code ${code}`)
+            serverState.running = false
+            serverState.port = null
+            console.log(`[go] process close all stdio with code ${code}`)
           })
         }
       })
