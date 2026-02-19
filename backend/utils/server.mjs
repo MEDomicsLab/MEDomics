@@ -155,10 +155,9 @@ export async function runServer(isProd, serverPort, serverProcess, serverState, 
     let args = [serverPort, "dev", process.cwd()]
     // Get the temporary directory path
     args.push(os.tmpdir())
-
-    if (condaPath !== null) {
-      args.push(condaPath)
-    }
+    // Always pass the effective python executable path as last arg so Go can use it.
+    // This avoids stale conda paths overriding bundled Python.
+    args.push(pythonForGo)
 
     await findAvailablePort(MEDconfig.defaultPort)
       .then((port) => {

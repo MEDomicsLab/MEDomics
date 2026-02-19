@@ -189,7 +189,7 @@ async function findRemoteBackendExecutable(conn, remoteOS) {
         const r = await execRemote(conn, `powershell -NoProfile -Command "If (Test-Path '${remoteBackendExecutablePath.replace(/'/g, "''")}') { Write-Output '${remoteBackendExecutablePath.replace(/'/g, "''")}' }"`)
         if ((r.stdout||'').trim()) return { path: remoteBackendExecutablePath }
       } else {
-        const r = await execRemote(conn, `[ -x '${remoteBackendExecutablePath.replace(/'/g, "'\\''")}'] && echo '${remoteBackendExecutablePath.replace(/'/g, "'\\''")}' || true`)
+        const r = await execRemote(conn, `bash -lc "[ -x '${remoteBackendExecutablePath.replace(/'/g, "'\\''")}' ] && echo '${remoteBackendExecutablePath.replace(/'/g, "'\\''")}' || true"`)
         if ((r.stdout||'').trim()) return { path: remoteBackendExecutablePath }
       }
     }
@@ -219,7 +219,7 @@ async function findRemoteBackendExecutable(conn, remoteOS) {
       const curChk = await execRemote(conn, `bash -lc "[ -x '${currentBin.replace(/'/g, "'\\''")}' ] && echo '${currentBin.replace(/'/g, "'\\''")}' || true"`)
       const curFound = (curChk.stdout||'').trim()
       if (curFound) return { path: currentBin }
-      const findCmd = `bash -lc "if [ -d '${versionsDir.replace(/'/g, "'\\''")}' ]; then find '${versionsDir.replace(/'/g, "'\\''")}' -type f -name 'medomics-server' -perm +111 -print -quit; fi || true"`
+      const findCmd = `bash -lc "if [ -d '${versionsDir.replace(/'/g, "'\\''")}' ]; then find '${versionsDir.replace(/'/g, "'\\''")}' -type f -name 'medomics-server' -print -quit; fi || true"`
       const r = await execRemote(conn, findCmd)
       const found = (r.stdout||'').trim()
       if (found) return { path: found }
@@ -495,7 +495,11 @@ async function startRemoteExpress(conn, remoteOS, remotePort) {
         console.log('[remote] startRemoteExpress exec exception', e && e.message ? e.message : String(e))
       }
     } else {
+      const posixVersionDir = versionDir.replace(/'/g, "'\\''")
+      const posixScriptName = path.basename(scriptPath).replace(/'/g, "'\\''")
+      const posixLogPath = logPath.replace(/'/g, "'\\''")
       cmd = `bash -lc "export NODE_ENV=production; export MEDOMICS_EXPRESS_PORT='${remotePort}'; echo '[launcher] NODE_ENV='\"$NODE_ENV\"' MEDOMICS_EXPRESS_PORT='\"$MEDOMICS_EXPRESS_PORT\" >> '${logPath.replace(/'/g, "'\\''")}'; nohup '${scriptPath}' >> '${logPath.replace(/'/g, "'\\''")}' 2>&1 &"`
+
       console.log('[remote] startRemoteExpress exec cmd', cmd)
       const r2 = await execRemote(conn, cmd)
       console.log('[remote] startRemoteExpress exec result', r2)
@@ -1050,7 +1054,7 @@ ipcMain.handle('installRemoteBackendFromURL', async (_event, { manifestUrl, vers
       const findExe = await execRemote(conn, `powershell -NoProfile -Command "Get-ChildItem -Path '${versionDir.replace(/'/g, "''")}' -Recurse -Filter medomics-server.exe | Select-Object -First 1 -ExpandProperty FullName"`)
       exePath = (findExe.stdout || '').trim()
     } else {
-      const findExe = await execRemote(conn, `bash -lc "( [ -x '${candidateExePosix.replace(/'/g, "'\\''")}' ] && echo '${candidateExePosix.replace(/'/g, "'\\''")}' ) || find '${versionDir.replace(/'/g, "'\\''")}' -type f -name 'medomics-server' -perm +111 -print -quit || true"`)
+      const findExe = await execRemote(conn, `bash -lc "( [ -x '${candidateExePosix.replace(/'/g, "'\\''")}' ] && echo '${candidateExePosix.replace(/'/g, "'\\''")}' ) || find '${versionDir.replace(/'/g, "'\\''")}' -type f -name 'medomics-server' -print -quit || true"`)
       exePath = (findExe.stdout || '').trim()
     }
     if (!exePath) { sendInstallProgress({ phase: 'error', step: 'locate-exe' }); return { success: false, error: 'executable-not-found' } }
