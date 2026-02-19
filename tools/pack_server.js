@@ -210,8 +210,8 @@ async function main() {
 `- Windows: start.bat, stop.bat\n` +
 `- Linux/mac: start.sh, stop.sh (chmod +x *.sh)\n\n` +
 `Start script runs:\n` +
-`node ./backend/cli/medomics-server.mjs ensure --json --go --mongo --jupyter\n` +
-`node ./backend/cli/medomics-server.mjs start --json\n`;
+`node ./backend/cli/medomics-server.mjs start --json\n` +
+`node ./backend/cli/medomics-server.mjs ensure --json --go --mongo --jupyter\n`;
   await fsp.writeFile(path.join(outBase, 'README.txt'), readme, 'utf8');
 
     if (platform === 'win32') {
@@ -227,7 +227,6 @@ async function main() {
       ')',
       ':main',
       'set NODE_ENV=production',
-      'medomics-server.exe ensure --json --go --mongo --jupyter',
       'medomics-server.exe start --json',
       ''
     ].join('\r\n'), 'utf8');
@@ -241,7 +240,6 @@ async function main() {
       '#!/usr/bin/env bash',
       'set -e',
       'export NODE_ENV=production',
-      './medomics-server ensure --json --go --mongo --jupyter',
       './medomics-server start --json',
       ''
     ].join('\n'), 'utf8');
