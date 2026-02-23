@@ -32,7 +32,13 @@ export const requestBackend = (port, topic, json2send, jsonReceivedCB, onError) 
  * @param {Function} onError executed when an error occurs
  */
 export const requestJson = (port, topic, json2send, jsonReceivedCB, onError) => {
-  let url = "http://localhost:" + port + (topic[0] != "/" ? "/" : "") + topic
+  const tunnel = getTunnelState()
+  let finalPort = port
+  // Prefer direct GO tunnel when available
+  if (tunnel && tunnel.tunnelActive && tunnel.localGoPort) {
+    finalPort = tunnel.localGoPort
+  }
+  let url = "http://localhost:" + finalPort + (topic[0] != "/" ? "/" : "") + topic
   if (topic.includes("http")) {
     url = topic
   }

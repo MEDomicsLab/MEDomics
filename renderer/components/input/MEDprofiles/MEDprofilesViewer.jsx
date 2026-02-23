@@ -25,7 +25,7 @@ import MEDcohortFigure from "./MEDcohortFigure"
  */
 const MEDprofilesViewer = ({ pageId, MEDclassesFolder, MEDprofilesBinaryFile }) => {
   const [jsonID, setJsonID] = useState(null)
-  const { port } = useContext(WorkspaceContext) // we get the port for server connexion
+  const { port, workspace } = useContext(WorkspaceContext) // we get the port for server connexion and workspace info
   const [jsonDataIsLoaded, setJsonDataIsLoaded] = useState(false)
 
   /**
@@ -97,7 +97,7 @@ const MEDprofilesViewer = ({ pageId, MEDclassesFolder, MEDprofilesBinaryFile }) 
             <ProgressSpinner />
           </div>
         )}
-        {jsonID && <MEDcohortFigure jsonID={jsonID} setJsonDataIsLoaded={setJsonDataIsLoaded} />}
+        {jsonID && <MEDcohortFigure jsonID={jsonID} setJsonDataIsLoaded={setJsonDataIsLoaded} isRemote={workspace?.isRemote} />}
       </ModulePage>
     </>
   )

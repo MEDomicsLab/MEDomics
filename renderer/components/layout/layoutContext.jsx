@@ -35,12 +35,13 @@ function LayoutModelProvider({ children, layoutModel, setLayoutModel }) {
   const REMOTE_READY_COMPONENTS = new Set([
     // Add components here as they become validated for remote workspaces.
     // Examples: 'terminal', 'Settings', 'remoteServer'
+    'inputPage'
   ])
 
   const REMOTE_BLOCKED_COMPONENTS = new Set([
     // Core modules (not yet validated for remote)
     'learningPage',
-    'inputPage',
+    
     'exploratoryPage',
     'evaluationPage',
     'applicationPage',
