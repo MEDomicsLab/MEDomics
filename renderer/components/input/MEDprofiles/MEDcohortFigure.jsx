@@ -21,7 +21,7 @@ import { mkdirp } from "../../../utilities/fileManagement/fileOps"
 import { deepCopy } from "../../../utilities/staticFunctions"
 import { connectToMongoDB, insertMEDDataObjectIfNotExists } from "../../mongoDB/mongoDBUtils"
 import { MEDDataObject } from "../../workspace/NewMedDataObject"
-import { getPathSeparator } from "../../../utilities/fileManagementUtils"
+import { getPathSeparator } from "../../../utilities/fileManagement/fileOps"
 
 /**
  * @class MEDcohortFigureClass

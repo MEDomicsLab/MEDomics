@@ -1862,6 +1862,50 @@ export async function getRemoteLStat(filePath) {
   }
 }
 
+/**
+ * @description Read a remote file over SFTP and return text or base64 content.
+ * @param {string} filePath - remote file path
+ * @param {{ encoding?: BufferEncoding | 'base64' }} [opts]
+ * @returns {Promise<{ success: boolean, content?: string, error?: string }>}
+ */
+export async function readRemoteFile(filePath, opts = {}) {
+  const conn = getActiveTunnel()
+  if (!conn) return { success: false, error: "tunnel inactive" }
+
+  const encoding = opts && opts.encoding ? opts.encoding : "utf8"
+  const remotePath = (filePath || "").replace(/\\/g, "/")
+
+  const getSftp = () => new Promise((resolve, reject) => {
+    conn.sftp((err, sftp) => err ? reject(err) : resolve(sftp))
+  })
+
+  try {
+    const sftp = await getSftp()
+    const chunks = []
+    const content = await new Promise((resolve, reject) => {
+      const stream = sftp.createReadStream(remotePath)
+      stream.on("data", (chunk) => chunks.push(chunk))
+      stream.on("error", (err) => reject(err))
+      stream.on("end", () => {
+        const buffer = Buffer.concat(chunks)
+        if (encoding === "base64") {
+          resolve(buffer.toString("base64"))
+        } else {
+          resolve(buffer.toString(encoding))
+        }
+      })
+    })
+
+    if (typeof sftp.end === "function") { try { sftp.end() } catch {} }
+    else if (typeof sftp.close === "function") { try { sftp.close() } catch {} }
+
+    return { success: true, content }
+  } catch (error) {
+    console.error("SFTP readRemoteFile error:", error)
+    return { success: false, error: error && error.message ? error.message : String(error) }
+  }
+}
+
 
 /**
  * @description This function uses SFTP to rename a remote file.
@@ -2255,6 +2299,10 @@ ipcMain.handle('getRemoteLStat', async (_event, path) => {
 
 ipcMain.handle('checkRemoteFileExists', async (_event, path) => {
   return checkRemoteFileExists(path)
+})
+
+ipcMain.handle('readRemoteFile', async (_event, { path, encoding = 'utf8' } = {}) => {
+  return readRemoteFile(path, { encoding })
 })
 
 ipcMain.handle('setRemoteWorkspacePath', async (_event, path) => {

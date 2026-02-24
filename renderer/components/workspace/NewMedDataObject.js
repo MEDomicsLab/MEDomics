@@ -3,7 +3,7 @@ import { ipcRenderer } from "electron"
 import fs from "fs-extra"
 import path from "path"
 import { toast } from "react-toastify"
-import { getPathSeparator } from "../../utilities/fileManagementUtils"
+import { getPathSeparator, mkdirp, pathExists, remoteDirname, renamePath, rmrf } from "../../utilities/fileManagement/fileOps"
 import {
   deleteMEDDataObject,
   downloadCollectionToFile,
@@ -12,7 +12,6 @@ import {
   updateMEDDataObjectName,
   updateMEDDataObjectPath
 } from "../mongoDB/mongoDBUtils"
-import { remoteDirname } from "../../utilities/fileManagementUtils"
 import { getTunnelState } from "../../utilities/tunnelState"
 
 /**
@@ -193,8 +192,8 @@ export class MEDDataObject {
    * @returns {String} pathToCreate the path where the file was saved
    */
   static writeFileSync(exportObj, path, name, extension) {
-    let newPath = typeof path === "string" ? path : path.join(getPathSeparator())
-    const pathToCreate = `${newPath}${getPathSeparator()}${name}.${extension}`
+    let newPath = typeof path === "string" ? path : path.join(getPathSeparator({ isRemote: false }))
+    const pathToCreate = `${newPath}${getPathSeparator({ isRemote: false })}${name}.${extension}`
     if (!fs.existsSync(newPath)) {
       this.createFolderFSsync(newPath).then(() => {
         let convertedExportObj = typeof exportObj === "string" ? exportObj : JSON.stringify(exportObj, null, 2)
@@ -251,23 +250,12 @@ export class MEDDataObject {
     if (objectToDelete.inWorkspace) {
       // Get the full path of the object in the workspace
       const fullPath = this.getFullPath(dict, id, workspacePath)
-      if (isRemote) {
-        try {
-          const result = await ipcRenderer.invoke('deleteRemoteFile', { path: fullPath, recursive: true })
-          if (result && result.success) {
-            console.log(`Deleted ${fullPath} from remote workspace`)
-          } else {
-            console.error(`Failed to delete ${fullPath} from remote workspace: ${result ? result.error : 'unknown error'}`)
-            toast.error(`Failed to delete ${objectToDelete.name} from remote workspace: ${result ? result.error : 'unknown error'}`)
-            return
-          }
-        } catch (error) {
-          console.error(`Failed to delete ${fullPath} from remote workspace: ${error.message}`)
-          toast.error(`Failed to delete ${objectToDelete.name} from remote workspace: ${error.message}`)
-          return
-        }
-      } else {
-        fs.rmSync(fullPath, { recursive: true, force: true })
+      try {
+        await rmrf(fullPath, { isRemote })
+      } catch (error) {
+        console.error(`Failed to delete ${fullPath} from ${isRemote ? "remote" : "local"} workspace: ${error.message}`)
+        toast.error(`Failed to delete ${objectToDelete.name}: ${error.message}`)
+        return
       }
       console.log(`Deleted ${fullPath} from workspace`)
     }
@@ -298,23 +286,12 @@ export class MEDDataObject {
     if (objectToDelete.inWorkspace) {
       // Get the full path of the object in the workspace
       const fullPath = this.getFullPath(dict, id, workspacePath)
-      if (isRemote) {
-        try {
-          const result = await ipcRenderer.invoke('deleteRemoteFile', { path: fullPath, recursive: true })
-          if (result && result.success) {
-            console.log(`Deleted ${fullPath} from remote workspace`)
-          } else {
-            console.error(`Failed to delete ${fullPath} from remote workspace: ${result ? result.error : 'unknown error'}`)
-            toast.error(`Failed to delete ${objectToDelete.name} from remote workspace: ${result ? result.error : 'unknown error'}`)
-            return
-          }
-        } catch (error) {
-          console.error(`Failed to delete ${fullPath} from remote workspace: ${error.message}`)
-          toast.error(`Failed to delete ${objectToDelete.name} from remote workspace: ${error.message}`)
-          return
-        }
-      } else {
-        fs.rmSync(fullPath, { recursive: true, force: true })
+      try {
+        await rmrf(fullPath, { isRemote })
+      } catch (error) {
+        console.error(`Failed to delete ${fullPath} from ${isRemote ? "remote" : "local"} workspace: ${error.message}`)
+        toast.error(`Failed to delete ${objectToDelete.name}: ${error.message}`)
+        return
       }
       console.log(`Deleted ${fullPath} from workspace`)
       const success = await overwriteMEDDataObjectProperties(id, { inWorkspace: false })
@@ -465,14 +442,8 @@ export class MEDDataObject {
       }
       if (isRemote) {
         try {
-          const result = await ipcRenderer.invoke('renameRemoteFile', { oldPath: oldPath, newPath: newPath })
-          if (result && result.success) {
-            console.log(`Renamed ${oldPath} to ${newPath} on remote`)
-          } else {
-            console.error(`Failed to rename ${oldPath} to ${newPath} on remote: ${result ? result.error : 'unknown error'}`)
-            toast.error(`Failed to rename ${object.name} on remote: ${result ? result.error : 'unknown error'}`)
-            return
-          }
+          await renamePath(oldPath, newPath, { isRemote: true })
+          console.log(`Renamed ${oldPath} to ${newPath} on remote`)
         } catch (error) {
           console.error(`Failed to rename ${oldPath} to ${newPath} on remote: ${error.message}`)
           toast.error(`Failed to rename ${object.name} on remote: ${error.message}`)
@@ -507,7 +478,7 @@ export class MEDDataObject {
     }
 
     // Check if the object is already in workspace
-    if (medDataObject.type == "directory" && medDataObject.inWorkspace && fs.existsSync(this.getFullPath(dict, id, workspacePath))) {
+    if (medDataObject.type == "directory" && medDataObject.inWorkspace && (await pathExists(this.getFullPath(dict, id, workspacePath), { isRemote }))) {
       console.log(`MEDDataObject with id ${id} is already saved locally in workspace`)
       toast.info(`${medDataObject.name} is already saved locally in workspace`)
       return
@@ -528,16 +499,17 @@ export class MEDDataObject {
     const filePath = this.getFullPath(dict, id, workspacePath)
     // Ensure the directory exists
     if (isRemote) {
-      const directoryPath = remoteDirname(filePath)
+      const directoryPath = remoteDirname(filePath, { isRemote: true })
       console.log(`Creating directory at ${directoryPath} for remote sync`)
-      const fileExists = await ipcRenderer.invoke('checkRemoteFileExists', directoryPath)
-      if (fileExists === "does not exist") {
-        await ipcRenderer.invoke('createRemoteFolder', { path: directoryPath, recursive: true })
+      const dirExists = await pathExists(directoryPath, { isRemote: true })
+      if (!dirExists) {
+        await mkdirp(directoryPath, { isRemote: true })
       }
     } else {
       const directoryPath = path.dirname(filePath)
-      if (!fs.existsSync(directoryPath)) {
-        fs.mkdirSync(directoryPath, { recursive: true })
+      const dirExists = await pathExists(directoryPath, { isRemote: false })
+      if (!dirExists) {
+        await mkdirp(directoryPath, { isRemote: false })
       }
     }
 

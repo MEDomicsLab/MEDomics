@@ -4,7 +4,7 @@ import Iframe from "react-iframe"
 import { DataContext } from "../workspace/dataContext"
 import { MEDDataObject } from "../workspace/NewMedDataObject"
 import { WorkspaceContext } from "../workspace/workspaceContext"
-import { toLocalPath } from "../../utilities/fileManagementUtils"
+import { toLocalPath } from "../../utilities/fileManagement/fileOps"
 
 /**
  * @param config currently a MEDDataObject

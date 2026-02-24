@@ -6,7 +6,8 @@ Here are some utility files containing javascript functions for general purposes
 
 | File        | Description                                                                        |
 | ------------- | ---------------------------------------------------------------------------------- |
-| /fileManagementUtils.js          | File management functions for reading/writing files|
+| /fileManagement/fileOps.js          | Preferred public file management API (routes local vs remote operations) |
+| /fileManagementUtils.js          | Local workspace implementation + compatibility helpers (still used by fileOps and older call sites) |
 | /requests.js          | Functions for communications between frontend and backend  |
-| /storageManager.js          | Class for file management purposes (same thing as fileManagementUtils.js but in a class approach)  |
+| /storageManager.js          | Class-based file management utilities (older alternative approach)  |
 

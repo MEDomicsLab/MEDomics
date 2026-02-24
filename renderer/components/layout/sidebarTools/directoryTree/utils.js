@@ -1,11 +1,10 @@
 import { randomUUID } from "crypto"
-import fs from "fs"
 import path from "path"
 import { confirmDialog } from "primereact/confirmdialog"
 import { toast } from "react-toastify"
 import { insertMEDDataObjectIfNotExists } from "../../../mongoDB/mongoDBUtils"
 import { MEDDataObject } from "../../../workspace/NewMedDataObject"
-import { ipcRenderer } from "electron"
+import { mkdirp } from "../../../../utilities/fileManagement/fileOps"
 
 const untouchableIDs = ["ROOT", "DATA", "EXPERIMENTS"]
 
@@ -230,19 +229,7 @@ export async function createFolder(globalData, selectedItems, workspacePath, isR
     MEDDataObject.updateWorkspaceDataObject()
 
     // Check if the folder already exists
-    if (isRemote) {
-      await ipcRenderer.invoke('createRemoteFolder', { path: medObject.path })
-    } else {
-      if (!fs.existsSync(medObject.path)) {
-        fs.mkdir(medObject.path, { recursive: true }, (err) => {
-          if (err) {
-            console.error(err)
-            return
-          }
-          console.log("Folder created successfully!")
-        })
-      }
-    }
+    await mkdirp(medObject.path, { isRemote })
   } else {
     toast.warning("Please select a directory")
   }

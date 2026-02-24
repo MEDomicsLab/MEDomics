@@ -28,7 +28,7 @@ import * as React from "react"
 import * as Icons from "react-bootstrap-icons"
 import Iframe from "react-iframe"
 import { toast, ToastOptions } from "react-toastify"
-import { getPathSeparator, loadCSVFromPath, loadJSONFromPath, loadJsonPath, loadXLSXFromPath } from "../../../utilities/fileManagementUtils"
+import { getPathSeparator, loadCSVFromPath, loadJSONFromPath, loadJsonPath, loadXLSXFromPath } from "../../../utilities/fileManagement/fileOps"
 import DataTableWrapperBPClass from "../../dataTypeVisualisation/dataTableWrapperBPClass"
 import DataTableFromDB from "../../dbComponents/dataTableFromDB"
 import InputToolsComponent from "../../dbComponents/InputToolsComponent"
@@ -811,7 +811,24 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
     } else if (component === "jsonViewer") {
       const config = node.getConfig()
       if (node.getExtraData().data == null) {
-        node.getExtraData().data = loadJsonPath(config.path)
+        const loaded = loadJsonPath(
+          config.path,
+          { isRemote: !!this.props.workspace?.isRemote },
+          (jsonData) => {
+            node.getExtraData().data = jsonData
+            this.forceUpdate()
+          }
+        )
+        if (loaded && typeof (loaded as any).then !== "function") {
+          node.getExtraData().data = loaded
+        }
+      }
+      if (node.getExtraData().data == null) {
+        return (
+          <ModulePage pageId={"jsonViewer-" + config.path} shadow>
+            <pre>Loading...</pre>
+          </ModulePage>
+        )
       }
       const jsonText = JSON.stringify(node.getExtraData().data, null, "\t")
       const html = Prism.highlight(jsonText, Prism.languages.javascript, "javascript")
@@ -838,9 +855,9 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
           extension = config.path.split(".").pop()
         }
         config.name = node.getName()
-        if (extension === "csv") loadCSVFromPath(config.path, whenDataLoaded)
-        else if (extension === "json") loadJSONFromPath(config.path, whenDataLoaded)
-        else if (extension === "xlsx") loadXLSXFromPath(config.path, whenDataLoaded)
+        if (extension === "csv") loadCSVFromPath(config.path, whenDataLoaded, { isRemote: !!this.props.workspace?.isRemote })
+        else if (extension === "json") loadJSONFromPath(config.path, whenDataLoaded, { isRemote: !!this.props.workspace?.isRemote })
+        else if (extension === "xlsx") loadXLSXFromPath(config.path, whenDataLoaded, { isRemote: !!this.props.workspace?.isRemote })
       }
       return (
         <>

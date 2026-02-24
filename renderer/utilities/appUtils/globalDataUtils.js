@@ -1,7 +1,7 @@
 import { MEDDataObject } from "../../components/workspace/NewMedDataObject"
 import { recursivelyRecenseWorkspaceTree } from "./workspaceUtils"
 import { connectToMongoDB, insertMEDDataObjectIfNotExists } from "../../components/mongoDB/mongoDBUtils"
-import { ipcRenderer } from "electron"
+import { pathExists } from "../fileManagement/fileOps"
 
 /**
  * @description Used to update the data present in the DB with local files not present in the database
@@ -36,7 +36,6 @@ export async function loadMEDDataObjects(isRemote = false) {
   let medDataObjectsDict = {}
   try {
     // Get global data
-    const fs = require("fs")
     const db = await connectToMongoDB()
     const collection = db.collection("medDataObjects")
     const medDataObjectsArray = await collection.find().toArray()
@@ -45,50 +44,23 @@ export async function loadMEDDataObjects(isRemote = false) {
       const medDataObject = new MEDDataObject(data)
       // Check if local objects still exist
       if (medDataObject.inWorkspace && medDataObject.path) {
-        if (isRemote) {
-          // Check if remote objects still exist
-          const fileStatus = await ipcRenderer.invoke('checkRemoteFileExists', medDataObject.path)
-          if (fileStatus == "exists") {
-            medDataObjectsDict[medDataObject.id] = medDataObject
-          } else if (fileStatus == "does not exist") {
-            console.error(`${medDataObject.name}: not found remotely, path will be set to null`, medDataObject)
-            medDataObject.path = null
-            medDataObject.inWorkspace = false
-            medDataObjectsDict[medDataObject.id] = medDataObject
-            
-            // Update database
-            collection.updateOne(
-              { id: medDataObject.id },
-              { $set: { path: null, inWorkspace: false } }
-            ).then(() => {
-              console.log(`Database updated for MEDDataObject with id ${medDataObject.id}: path set to null and inWorkspace set to false`)
-            }).catch((updateError) => {
-              console.error(`Failed to update MEDDataObject with id ${medDataObject.id} in database: `, updateError)
-            })
-          } else {
-            console.error(`${medDataObject.name}: error checking remote file`, medDataObject)
-          } 
+        const exists = await pathExists(medDataObject.path, { isRemote })
+        if (exists) {
+          medDataObjectsDict[medDataObject.id] = medDataObject
         } else {
-          // Check if local objects still exist
-          try {
-            fs.accessSync(medDataObject.path)
-            medDataObjectsDict[medDataObject.id] = medDataObject
-          } catch (error) {
-            console.error(`${medDataObject.name}: not found locally, path will be set to null`, medDataObject)
-            medDataObject.path = null
-            medDataObject.inWorkspace = false
-            medDataObjectsDict[medDataObject.id] = medDataObject
+          console.error(`${medDataObject.name}: not found ${isRemote ? "remotely" : "locally"}, path will be set to null`, medDataObject)
+          medDataObject.path = null
+          medDataObject.inWorkspace = false
+          medDataObjectsDict[medDataObject.id] = medDataObject
 
-            // Update database
-            collection.updateOne(
-              { id: medDataObject.id },
-              { $set: { path: null, inWorkspace: false } }
-            ).then(() => {
-              console.log(`Database updated for MEDDataObject with id ${medDataObject.id}: path set to null and inWorkspace set to false`)
-            }).catch((updateError) => {
-              console.error(`Failed to update MEDDataObject with id ${medDataObject.id} in database: `, updateError)
-            })
-          }
+          collection.updateOne(
+            { id: medDataObject.id },
+            { $set: { path: null, inWorkspace: false } }
+          ).then(() => {
+            console.log(`Database updated for MEDDataObject with id ${medDataObject.id}: path set to null and inWorkspace set to false`)
+          }).catch((updateError) => {
+            console.error(`Failed to update MEDDataObject with id ${medDataObject.id} in database: `, updateError)
+          })
         }
       } else {
         medDataObjectsDict[medDataObject.id] = medDataObject

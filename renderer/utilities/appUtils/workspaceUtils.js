@@ -1,11 +1,7 @@
 import { MEDDataObject } from "../../components/workspace/NewMedDataObject"
 import { randomUUID } from "crypto"
 import { insertMEDDataObjectIfNotExists } from "../../components/mongoDB/mongoDBUtils"
-import { ipcRenderer } from "electron"
-
-
-// Import fs and path
-const fs = require("fs")
+import { lstat } from "../fileManagement/fileOps"
 const path = require("path")
 
 /**
@@ -20,35 +16,22 @@ const path = require("path")
 export async function recursivelyRecenseWorkspaceTree(children, parentID, isRemote = false) {
   let childType
   for (const child of children) {
-    if (isRemote) {
-      let fileInfo
-      try {
-        fileInfo = await ipcRenderer.invoke('getRemoteLStat', child.path)
-      }
-      catch (error) {
-        console.error(`Error getting remote file info for ${child.path}:`, error)
-        continue
-      }
-      if (!fileInfo) return
-      const fileExt = child.name.includes(".") ? "." + child.name.split(".")[1] : child.name
-      childType = fileInfo.isDir && 
-        fileExt.slice(1) != "medml" &&
-        fileExt.slice(1) != "medmlres" &&
-        fileExt.slice(1) != "medeval" &&
-        fileExt.slice(1) != "medmodel"
-          ? "directory"
-          : fileExt.slice(1)
-    } else {
-      const stats = fs.lstatSync(child.path)
-      if (!stats) return
-      childType = stats.isDirectory() &&
-        path.extname(child.path).slice(1) != "medml" &&
-        path.extname(child.path).slice(1) != "medmlres" &&
-        path.extname(child.path).slice(1) != "medeval" &&
-        path.extname(child.path).slice(1) != "medmodel"
-          ? "directory"
-          : path.extname(child.path).slice(1)
+    let fileInfo
+    try {
+      fileInfo = await lstat(child.path, { isRemote })
+    } catch (error) {
+      console.error(`Error getting file info for ${child.path}:`, error)
+      continue
     }
+    if (!fileInfo) return
+    const fileExt = isRemote ? (child.name.includes(".") ? "." + child.name.split(".")[1] : child.name) : path.extname(child.path)
+    childType = fileInfo.isDir &&
+      fileExt.slice(1) != "medml" &&
+      fileExt.slice(1) != "medmlres" &&
+      fileExt.slice(1) != "medeval" &&
+      fileExt.slice(1) != "medmodel"
+        ? "directory"
+        : fileExt.slice(1)
     let uuid = child.name == "DATA" || child.name == "EXPERIMENTS" ? child.name : randomUUID()
     
     let childObject = new MEDDataObject({

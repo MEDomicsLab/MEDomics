@@ -8,6 +8,7 @@ import { ProgressSpinner } from 'primereact/progressspinner'
 import { Tag } from 'primereact/tag'
 import { ipcRenderer } from "electron"
 import { requestBackend } from "../../utilities/requests"
+import { mkdirp, pathExists } from "../../utilities/fileManagement/fileOps"
 import { ServerConnectionContext } from "../serverConnection/connectionContext"
 import { useTunnel } from "../tunnel/TunnelContext"
 import { getTunnelState } from "../../utilities/tunnelState"
@@ -1094,8 +1095,8 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
       let pathToUse = remoteBackendPath
       // Sanity check: verify saved path exists remotely; if not, auto-locate once
       if (pathToUse) {
-        const existsStatus = await ipcRenderer.invoke('checkRemoteFileExists', pathToUse)
-        if (existsStatus !== 'exists') {
+        const existsStatus = await pathExists(pathToUse, { isRemote: true })
+        if (!existsStatus) {
           const locate = await ipcRenderer.invoke('locateRemoteBackendExecutable')
           if (locate && locate.success && locate.path) {
             pathToUse = locate.path
@@ -1646,11 +1647,8 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
   const handleCreateFolder = async () => {
     setCreatingFolder(true)
     try {
-      const result = await ipcRenderer.invoke('createRemoteFolder', {
-        path: remoteDirPath,
-        folderName: newFolderName.trim()
-      })
-      if (result && result.success) {
+      await mkdirp(`${remoteDirPath.replace(/[\\/]$/, "")}/${newFolderName.trim()}`, { isRemote: true })
+      {
         const navResult = await ipcRenderer.invoke('navigateRemoteDirectory', {
           action: 'list',
           path: remoteDirPath
@@ -1666,8 +1664,6 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
         }
         setShowNewFolderModal(false)
         setNewFolderName("")
-      } else {
-        toast.error('Failed to create folder: ' + (result && result.error ? result.error : 'Unknown error'))
       }
     } catch (err) {
       toast.error('Failed to create folder: ' + (err && err.message ? err.message : String(err)))
@@ -2349,11 +2345,8 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
                   setNavigationProcessing(true)
                   setCreatingFolder(true)
                   try {
-                    const result = await ipcRenderer.invoke('createRemoteFolder', {
-                      path: remoteDirPath,
-                      folderName: newFolderName.trim()
-                    })
-                    if (result && result.success) {
+                    await mkdirp(`${remoteDirPath.replace(/[\\/]$/, "")}/${newFolderName.trim()}`, { isRemote: true })
+                    {
                       // Refresh directory after creation
                       const navResult = await ipcRenderer.invoke('navigateRemoteDirectory', {
                         action: 'list',
@@ -2370,8 +2363,6 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
                       }
                       setShowNewFolderModal(false)
                       setNewFolderName("")
-                    } else {
-                      toast.error('Failed to create folder: ' + (result && result.error ? result.error : 'Unknown error'))
                     }
                   } catch (err) {
                     toast.error('Failed to create folder: ' + (err && err.message ? err.message : String(err)))
