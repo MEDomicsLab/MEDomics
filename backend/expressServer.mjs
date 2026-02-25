@@ -20,8 +20,9 @@ import { runServer, findAvailablePort } from "./utils/server.mjs"
 import fs from "fs"
 import path from "path"
 import os from "os"
-import { MongoClient } from "mongodb"
+import mongodb from "mongodb"
 import Papa from "papaparse"
+const { MongoClient } = mongodb
 
 const expressApp = express()
 expressApp.use(bodyParser.json())
