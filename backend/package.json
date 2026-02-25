@@ -7,7 +7,7 @@
     "cors": "^2.8.5",
     "directory-tree": "^3.5.1",
     "express": "^4.19.2",
-    "mongodb": "^6.6.2",
+    "mongodb": "^4.17.2",
     "papaparse": "^5.4.1"
   }
 }
