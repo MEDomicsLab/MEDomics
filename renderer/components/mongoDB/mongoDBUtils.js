@@ -159,18 +159,22 @@ export async function insertMEDDataObjectIfNotExists(medData, path = null, jsonD
     console.log(`Data inserted with ${result.insertedCount} documents`)
   } else if (path) {
     const tunnel = getTunnelState()
+    console.log("tunnel before insert-object-into-collection:", tunnel)
     if (tunnel && tunnel.tunnelActive && tunnel.localDBPort) { // run remotely
-  window.backend.requestExpress({ method: 'post', path: '/insert-object-into-collection', host: tunnel.host, body: { objectPath: path, medDataObject: medData } })
-        .then(response => {
-          if (response.data.success) {
-            console.log(`${medData.type} object successfully inserted remotely.`)
-          } else {
-            console.error(`Failed to insert ${medData.type} : ` + response.data.error)
-          }
-        })
-        .catch(err => {
-          console.error(`Failed to insert ${medData.type} : ` + (err && err.message ? err.message : String(err)))
-        })
+      try {
+        const response = await window.backend.requestExpress({ method: 'post', path: '/insert-object-into-collection', host: tunnel.host, body: { objectPath: path, medDataObject: medData } })
+        if (response?.data?.success) {
+          console.log(`${medData.type} object successfully inserted remotely.`)
+        } else {
+          const errorMsg = response?.data?.error || `Failed to insert ${medData.type} remotely`
+          console.error(errorMsg)
+          throw new Error(errorMsg)
+        }
+      } catch (err) {
+        const errorMsg = err && err.message ? err.message : String(err)
+        console.error(`Failed to insert ${medData.type} : ` + errorMsg)
+        throw err
+      }
     } else { // run locally
       switch (medData.type) {
         case "csv":

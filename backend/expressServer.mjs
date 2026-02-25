@@ -20,6 +20,8 @@ import { runServer, findAvailablePort } from "./utils/server.mjs"
 import fs from "fs"
 import path from "path"
 import os from "os"
+import { MongoClient } from "mongodb"
+import Papa from "papaparse"
 
 const expressApp = express()
 expressApp.use(bodyParser.json())
@@ -86,6 +88,245 @@ function setupGracefulShutdownState() {
 
 let isProd = process.env.NODE_ENV && process.env.NODE_ENV === "production"
 let goServerProcess = null
+let mongoClient = null
+
+function getMongoUri() {
+	const mongoPort = serviceState?.mongo?.port || 54017
+	return `mongodb://127.0.0.1:${mongoPort}`
+}
+
+async function connectToDataDB() {
+	if (!mongoClient) {
+		mongoClient = new MongoClient(getMongoUri())
+		await mongoClient.connect()
+	}
+	return mongoClient.db("data")
+}
+
+function normalizeValue(value) {
+	if (value === null || value === undefined) return null
+	if (typeof value === "number" && Number.isNaN(value)) return null
+	if (typeof value === "string") {
+		const trimmed = value.trim()
+		if (!trimmed) return null
+		const lowered = trimmed.toLowerCase()
+		if (["nan", "null", "none"].includes(lowered)) return null
+	}
+	return value
+}
+
+function stripIds(doc = {}) {
+	const { _id, id, ...rest } = doc
+	return rest
+}
+
+async function insertBigCSVIntoCollection(filePath, collectionName) {
+	const db = await connectToDataDB()
+	const collection = db.collection(collectionName)
+
+	let allowedColumns = null
+	const batchSize = 1000
+	let batch = []
+	let totalInserted = 0
+
+	return new Promise((resolve, reject) => {
+		Papa.parse(fs.createReadStream(filePath), {
+			header: true,
+			dynamicTyping: true,
+			skipEmptyLines: true,
+			transformHeader: (h) => (h || "").trim(),
+			transform: (value) => normalizeValue(value),
+			step: (results, parser) => {
+				const row = results.data
+
+				if (!allowedColumns && Object.keys(row).length > 0) {
+					allowedColumns = Object.keys(row)
+				}
+
+				const cleanedRow = stripIds(
+					Object.fromEntries(
+						Object.entries(row)
+							.filter(([key]) => allowedColumns.includes(key))
+							.map(([key, value]) => [key, normalizeValue(value)])
+					)
+				)
+
+				batch.push(cleanedRow)
+
+				if (batch.length >= batchSize) {
+					parser.pause()
+					collection
+						.insertMany(batch)
+						.then(() => {
+							totalInserted += batch.length
+							batch = []
+							parser.resume()
+						})
+						.catch((error) => {
+							reject(error)
+							parser.abort()
+						})
+				}
+			},
+			complete: async () => {
+				try {
+					if (batch.length > 0) {
+						await collection.insertMany(batch)
+						totalInserted += batch.length
+						resolve({ insertedCount: totalInserted })
+					} else {
+						resolve({ insertedCount: totalInserted })
+					}
+				} catch (error) {
+					reject(error)
+				}
+			},
+			error: (error) => reject(error)
+		})
+	})
+}
+
+async function insertCSVIntoCollection(filePath, collectionName) {
+	const db = await connectToDataDB()
+	const collection = db.collection(collectionName)
+	const fileSize = fs.statSync(filePath).size
+	const maxBSONSize = 16 * 1024 * 1024
+
+	if (fileSize > maxBSONSize) {
+		return await insertBigCSVIntoCollection(filePath, collectionName)
+	}
+
+	return new Promise((resolve, reject) => {
+		Papa.parse(fs.createReadStream(filePath), {
+			header: true,
+			dynamicTyping: true,
+			transform: (value) => normalizeValue(value),
+			complete: async (results) => {
+				try {
+					const rows = (results.data || []).map((row) =>
+						Object.fromEntries(Object.entries(row || {}).map(([key, value]) => [key, normalizeValue(value)]))
+					)
+
+					if (!rows.length) {
+						resolve({ insertedCount: 0 })
+						return
+					}
+
+					const result = await collection.insertMany(rows)
+					resolve({ insertedCount: result.insertedCount || 0 })
+				} catch (err) {
+					reject(err)
+				}
+			},
+			error: (error) => reject(error)
+		})
+	})
+}
+
+async function insertHTMLIntoCollection(filePath, collectionName) {
+	const db = await connectToDataDB()
+	const collection = db.collection(collectionName)
+	const htmlContent = fs.readFileSync(filePath, "utf8")
+	await collection.insertOne({ htmlContent })
+	return { insertedCount: 1 }
+}
+
+async function insertImageIntoCollection(filePath, collectionName) {
+	const db = await connectToDataDB()
+	const collection = db.collection(collectionName)
+	const data = fs.readFileSync(filePath)
+	await collection.insertOne({ path: filePath, data })
+	return { insertedCount: 1 }
+}
+
+async function insertPKLIntoCollection(filePath, collectionName) {
+	const db = await connectToDataDB()
+	const collection = db.collection(collectionName)
+	const fileSize = fs.statSync(filePath).size
+	const maxBSONSize = 16 * 1024 * 1024
+	if (fileSize > maxBSONSize) {
+		throw new Error(`PKL file ${filePath} size exceeds the maximum BSON document size of 16MB`)
+	}
+	const pklContent = fs.readFileSync(filePath)
+	await collection.insertOne({ pklContent })
+	return { insertedCount: 1 }
+}
+
+async function insertObjectIntoCollectionRemote(objectPath, medDataObject) {
+	if (!objectPath || !medDataObject || !medDataObject.id || !medDataObject.type) {
+		throw new Error("Invalid insert payload")
+	}
+
+	if (!fs.existsSync(objectPath)) {
+		throw new Error(`Input file does not exist: ${objectPath}`)
+	}
+
+	const type = String(medDataObject.type).toLowerCase()
+	const collectionName = medDataObject.id
+
+	switch (type) {
+		case "csv":
+			return await insertCSVIntoCollection(objectPath, collectionName)
+		case "html":
+			return await insertHTMLIntoCollection(objectPath, collectionName)
+		case "png":
+		case "jpg":
+		case "jpeg":
+			return await insertImageIntoCollection(objectPath, collectionName)
+		case "pkl":
+			return await insertPKLIntoCollection(objectPath, collectionName)
+		default:
+			throw new Error(`Unsupported object type: ${medDataObject.type}`)
+	}
+}
+
+async function downloadCollectionToFileRemote(collectionId, filePath, type) {
+	const db = await connectToDataDB()
+	const collection = db.collection(collectionId)
+	const documents = await collection.find({}, { projection: { _id: 0 } }).toArray()
+
+	if (!documents.length) {
+		throw new Error(`No documents found in collection ${collectionId}`)
+	}
+
+	const normalizedType = String(type || "").toLowerCase()
+	if (normalizedType === "csv") {
+		const csv = Papa.unparse(documents)
+		fs.writeFileSync(filePath, csv)
+		return
+	}
+
+	if (normalizedType === "html") {
+		const htmlDocuments = documents.map((doc) => doc.htmlContent).filter((content) => content)
+		if (!htmlDocuments.length) throw new Error(`No valid HTML content found in collection ${collectionId}`)
+		fs.writeFileSync(filePath, htmlDocuments.join("\n"))
+		return
+	}
+
+	if (normalizedType === "json") {
+		fs.writeFileSync(filePath, JSON.stringify(documents, null, 2))
+		return
+	}
+
+	if (normalizedType === "png" || normalizedType === "jpg" || normalizedType === "jpeg") {
+		const imageDocument = documents.find((doc) => doc.data)
+		if (!imageDocument) throw new Error(`No valid image content found in collection ${collectionId}`)
+		const imageBuffer = Buffer.from(imageDocument.data.buffer || imageDocument.data)
+		fs.writeFileSync(filePath, imageBuffer)
+		return
+	}
+
+	if (normalizedType === "pkl") {
+		const firstDocument = documents[0] || {}
+		const source = firstDocument.model || firstDocument.pklContent || firstDocument.base64
+		if (!source) throw new Error(`No valid PKL content found in collection ${collectionId}`)
+		const pklBuffer = Buffer.isBuffer(source) ? source : Buffer.from(source.buffer || source, firstDocument.base64 ? "base64" : undefined)
+		fs.writeFileSync(filePath, pklBuffer)
+		return
+	}
+
+	throw new Error(`Unsupported file type: ${type}`)
+}
 
 export async function startExpressServer() {
 	try {
@@ -491,9 +732,8 @@ expressApp.post("/insert-object-into-collection", async (req, res) => {
 			return res.status(400).json({ success: false, error: "Invalid request body" })
 		}
 		console.log("Received request to insert object into collection: ", req.body)
-		// This would need to be refactored for headless mode (no mainWindow)
-		// await mainWindow.webContents.send("insertObjectIntoCollection", req.body)
-		res.status(200).json({ success: true, message: "Object insertion request received (headless mode: not implemented)" })
+		const result = await insertObjectIntoCollectionRemote(req.body.objectPath, req.body.medDataObject)
+		res.status(200).json({ success: true, insertedCount: result.insertedCount || 0 })
 	} catch (err) {
 		console.error("Error inserting object into remote collection: ", err)
 		res.status(500).json({ success: false, error: err.message })
@@ -510,9 +750,8 @@ expressApp.post("/download-collection-to-file", async (req, res) => {
 			return res.status(400).json({ success: false, error: "Invalid request body" })
 		}
 		console.log("Received request to download collection to file: ", req.body)
-		// This would need to be refactored for headless mode (no mainWindow)
-		// await mainWindow.webContents.send("downloadCollectionToFile", req.body)
-		res.status(200).json({ success: true, message: "Collection download request received (headless mode: not implemented)" })
+		await downloadCollectionToFileRemote(req.body.collectionId, req.body.filePath, req.body.type)
+		res.status(200).json({ success: true })
 	} catch (err) {
 		console.error("Error downloading object to file: ", err)
 		res.status(500).json({ success: false, error: err.message })

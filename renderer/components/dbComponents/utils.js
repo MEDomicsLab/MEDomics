@@ -4,6 +4,7 @@ const MongoClient = require("mongodb").MongoClient
 function getMongoUrl() {
   // Use tunnel state if available
   const tunnel = getTunnelState()
+  console.log("tunnel in getMongoUrl:", tunnel)
   return "mongodb://127.0.0.1:" + (tunnel && tunnel.tunnelActive && tunnel.localDBPort ? tunnel.localDBPort : "54017")
 } 
 
@@ -14,6 +15,7 @@ function getMongoUrl() {
  */
 export const collectionExists = async (collectionName, dbname = "data") => {
   const client = new MongoClient(getMongoUrl())
+  console.log("Checking if collection exists with URL:", getMongoUrl())
   try {
     await client.connect()
     const db = client.db(dbname)
@@ -37,6 +39,7 @@ export const collectionExists = async (collectionName, dbname = "data") => {
  */
 export const getCollectionData = async (collectionName, first = null, rows = null, dbname = "data") => {
   const client = new MongoClient(getMongoUrl())
+  console.log("Fetching data from collection with URL:", getMongoUrl())
   let fetchedData = []
   try {
     await client.connect()
