@@ -162,7 +162,7 @@ export async function insertMEDDataObjectIfNotExists(medData, path = null, jsonD
     console.log("tunnel before insert-object-into-collection:", tunnel)
     if (tunnel && tunnel.tunnelActive && tunnel.localDBPort) { // run remotely
       try {
-        const response = await window.backend.requestExpress({ method: 'post', path: '/insert-object-into-collection', host: tunnel.host, body: { objectPath: path, medDataObject: medData } })
+        const response = await window.backend.requestExpress({ method: 'post', path: '/insert-object-into-collection', host: tunnel.host, port: tunnel.localDBPort, body: { objectPath: path, medDataObject: medData } })
         if (response?.data?.success) {
           console.log(`${medData.type} object successfully inserted remotely.`)
         } else {

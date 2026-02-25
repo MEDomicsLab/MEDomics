@@ -228,7 +228,7 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
     }
     const { setJupyterStatus } = this.props as LayoutContextType
     if (this.props.workspace?.isRemote) {
-  window.backend.requestExpress({ method: 'post', path: '/start-jupyter-server', host: this.props.tunnel.host, body: { workspacePath: this.props.workspace?.workingDirectory?.path } })
+    window.backend.requestExpress({ method: 'post', path: '/start-jupyter-server', host: this.props.tunnel.host, body: { workspacePath: this.props.workspace?.workingDirectory?.path } })
         .then((response) => {
           setJupyterStatus(response.data)
           if (response.data.running) {
