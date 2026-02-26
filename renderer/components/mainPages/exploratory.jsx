@@ -1,6 +1,5 @@
 import React, { useContext } from "react"
 import ModulePage from "./moduleBasics/modulePage"
-import { WorkspaceContext } from "../workspace/workspaceContext"
 import { ErrorRequestContext } from "../generalPurpose/errorRequestContext"
 import DTale from "../exploratory/dtale"
 import SweetViz from "../exploratory/sweetViz"
@@ -12,7 +11,6 @@ import { shell } from 'electron'
  * @returns the exploratory page
  */
 const ExploratoryPage = () => {
-  const { port } = useContext(WorkspaceContext)
   const { setError } = useContext(ErrorRequestContext)
 
   return (
@@ -42,9 +40,9 @@ const ExploratoryPage = () => {
           </u>
         </p>
 
-        <SweetViz pageId="SweetViz" port={port} setError={setError} />
-        <YDataProfiling pageId="ydata-profiling" port={port} setError={setError} />
-        <DTale pageId="D-Tale" port={port} setError={setError} />
+        <SweetViz pageId="SweetViz" setError={setError} />
+        <YDataProfiling pageId="ydata-profiling" setError={setError} />
+        <DTale pageId="D-Tale" setError={setError} />
       </div>
     </>
   )

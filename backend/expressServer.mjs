@@ -2,6 +2,7 @@ import * as serverPathUtils from "./utils/serverPathUtils.js"
 const { setAppPath } = serverPathUtils
 import express from "express"
 import bodyParser from "body-parser"
+import axios from "axios"
 import * as serverWorkspace from "./utils/serverWorkspace.js"
 const { createServerMedomicsDirectory, createServerWorkingDirectory, getServerWorkingDirectory } = serverWorkspace
 import * as mongoDBServer from "./utils/mongoDBServer.js"
@@ -20,6 +21,7 @@ import { runServer, findAvailablePort } from "./utils/server.mjs"
 import fs from "fs"
 import path from "path"
 import os from "os"
+import crypto from "crypto"
 import mongodb from "mongodb"
 import Papa from "papaparse"
 const { MongoClient } = mongodb
@@ -42,7 +44,12 @@ const serviceState = {
 	expressPort: null,
 	go: { running: false, port: null },
 	mongo: { running: false, port: null },
-	jupyter: { running: false, port: null }
+	jupyter: { running: false, port: null },
+	exploratory: {
+		dtale: { sessions: {} },
+		sweetviz: { sessions: {} },
+		ydata: { sessions: {} }
+	}
 }
 
 // Keep a handle to the HTTP server to support graceful stop via endpoint
@@ -442,6 +449,65 @@ async function startGoServer(preferredPort = null) {
 	}
 }
 
+function cleanGoResponsePayload(payload = "") {
+	let response = payload || ""
+	if (typeof response !== "string") return response
+	response = response.replaceAll("NaN", "null")
+	try {
+		return JSON.parse(response)
+	} catch (_) {
+		try {
+			const trimmed = response.substring(response.indexOf("{"), response.lastIndexOf("}") + 1)
+			return JSON.parse(trimmed)
+		} catch {
+			return response
+		}
+	}
+}
+
+async function callGoEndpoint(topic, payload = {}) {
+	if (!serviceState.go.port) {
+		throw new Error("GO server is not running")
+	}
+	const url = `http://127.0.0.1:${serviceState.go.port}${topic.startsWith("/") ? "" : "/"}${topic}`
+	const response = await axios.post(url, { message: JSON.stringify(payload) }, { headers: { "Content-Type": "application/json" }, timeout: 120000 })
+	const data = response && response.data ? response.data : {}
+	if (data.type === "toParse") {
+		return cleanGoResponsePayload(data.response_message)
+	}
+	return data.response_message
+}
+
+function parseDtalePort(webServerUrl) {
+	if (!webServerUrl) return null
+	try {
+		const u = new URL(webServerUrl)
+		const p = Number(u.port)
+		return Number.isFinite(p) ? p : null
+	} catch (_) {
+		return null
+	}
+}
+
+async function waitForDtaleReady(progressTopic, timeoutMs = 120000) {
+	const start = Date.now()
+	while (Date.now() - start < timeoutMs) {
+		const progress = await callGoEndpoint(progressTopic, {})
+		if (progress && progress.web_server_url) {
+			const remotePort = parseDtalePort(progress.web_server_url)
+			if (remotePort) {
+				return {
+					webServerUrl: progress.web_server_url,
+					remotePort,
+					name: progress.name || "D-Tale"
+				}
+			}
+		}
+		await new Promise((resolve) => setTimeout(resolve, 1000))
+	}
+	throw new Error("Timed out waiting for D-Tale web server to become ready")
+}
+
 expressApp.post("/run-go-server", async (req, res) => {
   try {
     console.log("Received request to run Go server")
@@ -464,6 +530,182 @@ expressApp.post("/run-go-server", async (req, res) => {
   }
 	res.json({ success: true, running: true, port: serviceState.go.port })
 })
+
+expressApp.post("/exploratory/dtale/start", async (req, res) => {
+	try {
+		const body = req.body || {}
+		const requestId = body.requestId || crypto.randomUUID()
+		const pageId = body.pageId || "D-Tale"
+		const dataset = body.dataset
+		if (!dataset || !dataset.id || !dataset.name) {
+			return res.status(400).json({ success: false, error: "dataset with id and name is required" })
+		}
+
+		if (!serviceState.go.running || !serviceState.go.port) {
+			await startGoServer()
+		}
+
+		const routeId = `${requestId}/${pageId}-${dataset.name}`
+		await callGoEndpoint(`/removeId/${routeId}`, { dataset })
+		const startDtalePromise = callGoEndpoint(`/exploratory/start_dtale/${routeId}`, { dataset })
+		const dtaleInfo = await waitForDtaleReady(`/exploratory/progress/${routeId}`)
+		await startDtalePromise
+		serviceState.exploratory.dtale.sessions[requestId] = {
+			requestId,
+			pageId,
+			dataset,
+			remotePort: dtaleInfo.remotePort,
+			webServerUrl: dtaleInfo.webServerUrl,
+			name: dtaleInfo.name,
+			updatedAt: Date.now()
+		}
+
+		return res.json({
+			success: true,
+			requestId,
+			remotePort: dtaleInfo.remotePort,
+			webServerUrl: dtaleInfo.webServerUrl,
+			name: dtaleInfo.name
+		})
+	} catch (err) {
+		console.error("Error starting D-Tale service:", err)
+		return res.status(500).json({ success: false, error: err.message })
+	}
+})
+
+expressApp.post("/exploratory/dtale/stop", async (req, res) => {
+	try {
+		const body = req.body || {}
+		const requestId = body.requestId
+		const session = requestId ? serviceState.exploratory.dtale.sessions[requestId] : null
+		const remotePort = Number(body.remotePort || (session && session.remotePort))
+
+		if (remotePort && Number.isFinite(remotePort)) {
+			try {
+				await axios.get(`http://127.0.0.1:${remotePort}/shutdown`, { timeout: 5000 })
+			} catch (e) {
+				console.warn("D-Tale shutdown warning:", e && e.message ? e.message : e)
+			}
+		}
+
+		if (requestId && serviceState.exploratory.dtale.sessions[requestId]) {
+			delete serviceState.exploratory.dtale.sessions[requestId]
+		}
+
+		return res.json({ success: true })
+	} catch (err) {
+		console.error("Error stopping D-Tale service:", err)
+		return res.status(500).json({ success: false, error: err.message })
+	}
+})
+
+expressApp.post("/exploratory/sweetviz/start", async (req, res) => {
+	try {
+		const body = req.body || {}
+		const pageId = body.pageId || "SweetViz"
+		const mainDataset = body.mainDataset
+		const compDataset = body.compDataset || ""
+		const target = body.target
+		if (!mainDataset || !mainDataset.id || !mainDataset.name) {
+			return res.status(400).json({ success: false, error: "mainDataset with id and name is required" })
+		}
+
+		if (!serviceState.go.running || !serviceState.go.port) {
+			await startGoServer()
+		}
+
+		const htmlFileID = body.htmlFileID || crypto.randomUUID()
+		await callGoEndpoint(`/exploratory/start_sweetviz/${pageId}`, {
+			mainDataset,
+			compDataset,
+			htmlFileID,
+			target
+		})
+
+		serviceState.exploratory.sweetviz.sessions[htmlFileID] = {
+			htmlFileID,
+			pageId,
+			mainDataset,
+			compDataset,
+			updatedAt: Date.now()
+		}
+
+		return res.json({
+			success: true,
+			htmlFileID,
+			reportPath: `/exploratory/report/${htmlFileID}`,
+			expressPort: serviceState.expressPort
+		})
+	} catch (err) {
+		console.error("Error starting SweetViz report generation:", err)
+		return res.status(500).json({ success: false, error: err.message })
+	}
+})
+
+expressApp.post("/exploratory/ydata/start", async (req, res) => {
+	try {
+		const body = req.body || {}
+		const pageId = body.pageId || "ydata-profiling"
+		const mainDataset = body.mainDataset
+		const compDataset = body.compDataset || ""
+		if (!mainDataset || !mainDataset.id || !mainDataset.name) {
+			return res.status(400).json({ success: false, error: "mainDataset with id and name is required" })
+		}
+
+		if (!serviceState.go.running || !serviceState.go.port) {
+			await startGoServer()
+		}
+
+		const htmlFileID = body.htmlFileID || crypto.randomUUID()
+		await callGoEndpoint(`/exploratory/start_ydata_profiling/${pageId}`, {
+			mainDataset,
+			compDataset,
+			htmlFileID
+		})
+
+		serviceState.exploratory.ydata.sessions[htmlFileID] = {
+			htmlFileID,
+			pageId,
+			mainDataset,
+			compDataset,
+			updatedAt: Date.now()
+		}
+
+		return res.json({
+			success: true,
+			htmlFileID,
+			reportPath: `/exploratory/report/${htmlFileID}`,
+			expressPort: serviceState.expressPort
+		})
+	} catch (err) {
+		console.error("Error starting YData report generation:", err)
+		return res.status(500).json({ success: false, error: err.message })
+	}
+})
+
+async function serveExploratoryHtmlReport(req, res) {
+	try {
+		const reportId = req.params.reportId
+		if (!reportId) {
+			return res.status(400).send("Missing reportId")
+		}
+
+		const db = await connectToDataDB()
+		const collection = db.collection(reportId)
+		const doc = await collection.findOne({}, { projection: { _id: 0, htmlContent: 1 } })
+		if (!doc || !doc.htmlContent) {
+			return res.status(404).send("Exploratory report not found")
+		}
+
+		res.setHeader("Content-Type", "text/html; charset=utf-8")
+		return res.status(200).send(doc.htmlContent)
+	} catch (err) {
+		console.error("Error serving exploratory report:", err)
+		return res.status(500).send("Failed to load exploratory report")
+	}
+}
+
+expressApp.get("/exploratory/report/:reportId", serveExploratoryHtmlReport)
 
 // Stop Express server gracefully
 expressApp.post("/stop-express", async (req, res) => {

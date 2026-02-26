@@ -154,7 +154,6 @@ const LayoutManager = (props) => {
       'extractionText',
       'extractionTS',
       'extractionImage',
-      'exploratory',
       'results',
       'evaluation',
       'application'

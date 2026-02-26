@@ -5,7 +5,10 @@ const isIsolated = process.contextIsolated === true
 function buildBackendAPI() {
   return {
     requestExpress: (req) => ipcRenderer.invoke('express-request', req),
-    getExpressPort: () => ipcRenderer.invoke('get-express-port')
+    getExpressPort: () => ipcRenderer.invoke('get-express-port'),
+    startPortTunnel: (payload) => ipcRenderer.invoke('startPortTunnel', payload),
+    stopPortTunnel: (payload) => ipcRenderer.invoke('stopPortTunnel', payload),
+    listPortTunnels: () => ipcRenderer.invoke('listPortTunnels')
   }
 }
 

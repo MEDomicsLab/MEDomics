@@ -5,15 +5,12 @@ import { Button } from "primereact/button"
 import { ToggleButton } from "primereact/togglebutton"
 import { Card } from "primereact/card"
 import { LayoutModelContext } from "../layout/layoutContext"
-import { requestBackend } from "../../utilities/requests"
 import { Stack } from "react-bootstrap"
 import { toast } from "react-toastify"
 import Input from "../learning/input"
 import ProgressBarRequests from "../generalPurpose/progressBarRequests"
-import { randomUUID } from "crypto"
-import { insertMEDDataObjectIfNotExists } from "../mongoDB/mongoDBUtils"
-import { DataContext } from "../workspace/dataContext"
-import { MEDDataObject } from "../workspace/NewMedDataObject"
+import { WorkspaceContext } from "../workspace/workspaceContext"
+import { openExploratoryReportInIframe, resolveExploratoryExpressPort, resolveExploratoryReportUrl } from "./exploratoryRemoteUtils"
 
 /**
  *
@@ -22,7 +19,7 @@ import { MEDDataObject } from "../workspace/NewMedDataObject"
  * @param {Function} setError The function to set the error
  * @returns
  */
-const YDataProfiling = ({ pageId, port, setError }) => {
+const YDataProfiling = ({ pageId, setError }) => {
   const [mainDataset, setMainDataset] = useState()
   const [compDataset, setCompDataset] = useState()
   const [mainDatasetHasWarning, setMainDatasetHasWarning] = useState({ state: false, tooltip: "" })
@@ -30,92 +27,50 @@ const YDataProfiling = ({ pageId, port, setError }) => {
   const [compareChecked, setCompareChecked] = useState(false)
   const { dispatchLayout } = useContext(LayoutModelContext)
   const [isCalculating, setIsCalculating] = useState(false)
-  const [report, setReport] = useState(null)
+  const [reportUrl, setReportUrl] = useState("")
   const [progress, setProgress] = useState({ now: 0, currentLabel: 0 })
-  const { globalData } = useContext(DataContext)
+  const { workspace } = useContext(WorkspaceContext)
 
-  var path = require("path")
-
-  /**
-   *
-   * @param {String} filePath The file path to open
-   * @returns The file path to open
-   */
-  const handleOpenFile = (localReport) => () => {
-    const objectToRet = {
-      index: localReport.id,
-      data: localReport.name,
-      extension: localReport.type
-    }
-    dispatchLayout({ type: "openHtmlViewer", payload: objectToRet })
-  }
-
-  /**
-   * @description Load the generated report in database
-   */
-  const setReportInDB = async (htmlFileID) => {
-    let globalDataCopy = { ...globalData }
-    const ydataprofilingFolder = new MEDDataObject({
-      id: randomUUID(),
-      name: "ydataProfiling_reports",
-      type: "directory",
-      parentID: "DATA",
-      childrenIDs: [],
-      inWorkspace: false
-    })
-    const parentId = await insertMEDDataObjectIfNotExists(ydataprofilingFolder)
-    // Append the new object to a local global data copy to avoid calling MEDDataObject.updateWorkspaceDataObject() twice
-    if (parentId == ydataprofilingFolder.id) {
-      globalDataCopy[parentId] = ydataprofilingFolder
-    }
-    let medObjectName =
-      compDataset && compareChecked ? 
-      path.basename(mainDataset.value.name, ".csv") + 
-      "_" + path.basename(compDataset.name, ".csv") + 
-      ".html" : path.basename(mainDataset.value.name, ".csv") + 
-      ".html"
-    medObjectName = MEDDataObject.getUniqueNameForCopy(globalDataCopy, medObjectName, parentId)
-    const newReport = new MEDDataObject({
-      id: htmlFileID,
-      name: medObjectName,
-      type: "html",
-      parentID: parentId,
-      childrenIDs: [],
-      inWorkspace: false
-    })
-    await insertMEDDataObjectIfNotExists(newReport)
-    setReport(newReport)
-    MEDDataObject.updateWorkspaceDataObject()
+  const openReportInIframe = (url) => {
+    openExploratoryReportInIframe({ dispatchLayout, url, name: "YData Profiling", idPrefix: "ydata" })
   }
 
   /**
    * @description This function is used to open the html viewer with the given file path
    */
   const generateReport = () => {
-    const htmlFileID = randomUUID()
     setIsCalculating(true)
-    setReport(null)
-    requestBackend(
-      port,
-      "exploratory/start_ydata_profiling/" + pageId,
-      { mainDataset: mainDataset.value, compDataset: compDataset && compareChecked ? compDataset : "", htmlFileID: htmlFileID },
-      (response) => {
-        console.log(response)
-        if (response.error) {
-          setError(response.error)
-          toast.error("Error generating report")
-        } else {
-          setReportInDB(htmlFileID)
-          toast.success("Report generated successfully")
+    setReportUrl("")
+    ;(async () => {
+      try {
+        const isRemoteMode = !!workspace?.isRemote
+        const expressPort = await resolveExploratoryExpressPort(isRemoteMode)
+        const response = await window.backend.requestExpress({
+          method: "post",
+          port: expressPort,
+          path: "/exploratory/ydata/start",
+          body: {
+            pageId,
+            mainDataset: mainDataset.value,
+            compDataset: compDataset && compareChecked ? compDataset : ""
+          },
+          timeout: 180000
+        })
+        const payload = response?.data || {}
+        if (!payload.success) {
+          throw new Error(payload.error || "Error generating report")
         }
-        setIsCalculating(false)
-      },
-      (error) => {
-        console.log(error)
-        setError(error)
+        const url = resolveExploratoryReportUrl({ reportPath: payload.reportPath, localExpressPort: expressPort, isRemoteMode, reportType: "YData" })
+        setReportUrl(url)
+        toast.success("Report generated successfully")
+      } catch (error) {
+        console.error(error)
+        setError(error?.message || "Error generating report")
         toast.error("Error generating report")
+      } finally {
+        setIsCalculating(false)
       }
-    )
+    })()
   }
 
   return (
@@ -193,7 +148,7 @@ const YDataProfiling = ({ pageId, port, setError }) => {
             </div>
           </div>
         )}
-        {isCalculating && !report && (
+        {isCalculating && !reportUrl && (
           <ProgressBarRequests
             delayMS={500}
             progressBarProps={{ animated: true, variant: "success" }}
@@ -204,9 +159,9 @@ const YDataProfiling = ({ pageId, port, setError }) => {
             requestTopic={"exploratory/progress/" + pageId}
           />
         )}
-        {report && (
+        {reportUrl && (
           <div className="finish-btn-group">
-            <Button onClick={handleOpenFile(report)} className="btn btn-primary" label="Open generated file" icon="pi pi-chart-bar" iconPos="right" severity="success" />
+            <Button onClick={() => openReportInIframe(reportUrl)} className="btn btn-primary" label="Open generated report" icon="pi pi-chart-bar" iconPos="right" severity="success" />
           </div>
         )}
       </Stack>
