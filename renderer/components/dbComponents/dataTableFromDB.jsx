@@ -12,7 +12,9 @@ import { Message } from "primereact/message"
 import { Skeleton } from "primereact/skeleton"
 import React, { useEffect, useState } from "react"
 import { toast } from "react-toastify"
-import { connectToMongoDB, getCollectionTags, insertMEDDataObjectIfNotExists } from "../mongoDB/mongoDBUtils"
+import { connectToMongoDB, getCollectionTags, getPathFromMEDDataObject, insertMEDDataObjectIfNotExists, insertObjectIntoCollection, overwriteMEDDataObjectProperties } from "../mongoDB/mongoDBUtils"
+import { getTunnelState } from "../../utilities/tunnelState"
+import { lstat } from "../../utilities/fileManagement/fileOps"
 import { MEDDataObject } from "../workspace/NewMedDataObject"
 import InputToolsComponent from "./InputToolsComponent"
 import { collectionExists, getCollectionData } from "./utils"
@@ -90,10 +92,38 @@ const DataTableFromDB = ({ data, tablePropsData, tablePropsColumn, isReadOnly })
   // Fetch data from MongoDB on component mount
   useEffect(() => {
     const getData = async () => {
-      // Get total count of documents in the collection
       const db = await connectToMongoDB()
       const collection = db.collection(data.id)
-      const count = await collection.countDocuments()
+
+      let count = await collection.countDocuments()
+      const objectPath = await resolveObjectPath()
+      const tunnel = getTunnelState()
+      const isRemoteMode = !!(tunnel && tunnel.tunnelActive)
+      const medDataObject = await db.collection("medDataObjects").findOne({ id: data.id })
+      const currentMTimeMs = await getSourceMTimeMs(objectPath, isRemoteMode)
+      const lastIngestedMTimeMs = medDataObject?.sourceMTimeMs
+      const shouldReingestForChange =
+        !!objectPath &&
+        !!currentMTimeMs &&
+        !!lastIngestedMTimeMs &&
+        Number(lastIngestedMTimeMs) !== Number(currentMTimeMs)
+      const shouldReingestForEmpty = !!objectPath && count === 0
+
+      if (shouldReingestForChange || shouldReingestForEmpty) {
+        try {
+          await reingestFromSourceFile({
+            silent: true,
+            resolvedPath: objectPath,
+            sourceMTimeMs: currentMTimeMs
+          })
+          count = await collection.countDocuments()
+        } catch (error) {
+          console.error("Auto re-ingest failed:", error)
+        }
+      } else if (objectPath && currentMTimeMs && !lastIngestedMTimeMs && count > 0) {
+        await overwriteMEDDataObjectProperties(data.id, { sourceMTimeMs: currentMTimeMs })
+      }
+
       setCollectionSize(count)
       console.log("Fetching data with:", data)
       let collectionName = data.extension === "view" ? data.name : data.id
@@ -378,6 +408,85 @@ const DataTableFromDB = ({ data, tablePropsData, tablePropsColumn, isReadOnly })
       toast.warn("Please select a format to export")
     }
     setLoadingData(false)
+  }
+
+  const resolveObjectPath = async () => {
+    if (data?.path) {
+      return data.path
+    }
+    if (!data?.id) {
+      return null
+    }
+    try {
+      const dbPath = await getPathFromMEDDataObject(data.id)
+      return dbPath || null
+    } catch (error) {
+      console.error("Failed to resolve object path:", error)
+      return null
+    }
+  }
+
+  const getSourceMTimeMs = async (objectPath, isRemoteMode) => {
+    if (!objectPath) return null
+    try {
+      const fileInfo = await lstat(objectPath, { isRemote: isRemoteMode })
+      if (!fileInfo || !fileInfo.stats) return null
+      const stats = fileInfo.stats
+      if (typeof stats.mtimeMs === "number") return stats.mtimeMs
+      if (stats.mtime instanceof Date) return stats.mtime.getTime()
+      if (typeof stats.mtime === "number") return stats.mtime * 1000
+      return null
+    } catch (error) {
+      console.error("Failed to read source file mtime:", error)
+      return null
+    }
+  }
+
+
+  const reingestFromSourceFile = async ({ silent = false, resolvedPath = null, sourceMTimeMs = null } = {}) => {
+    if (!data?.id) {
+      if (!silent) toast.error("No collection ID available for re-ingest.")
+      return
+    }
+    setLoadingData(true)
+    try {
+      const objectPath = resolvedPath || (await resolveObjectPath())
+      if (!objectPath) {
+        if (!silent) toast.error("Could not find source file path for this dataset.")
+        return
+      }
+
+      const inferredType = (data?.extension || data?.name?.split(".")?.pop() || "csv").toLowerCase()
+      const medDataObject = { id: data.id, type: inferredType }
+      const tunnel = getTunnelState()
+
+      if (tunnel && tunnel.tunnelActive && tunnel.localExpressPort) {
+        const response = await window.backend.requestExpress({
+          method: "post",
+          path: "/insert-object-into-collection",
+          host: tunnel.host,
+          port: tunnel.localExpressPort,
+          body: { objectPath, medDataObject }
+        })
+        if (!response?.data?.success) {
+          throw new Error(response?.data?.error || "Remote re-ingest failed")
+        }
+      } else {
+        await insertObjectIntoCollection({ objectPath, medDataObject })
+      }
+
+      if (sourceMTimeMs) {
+        await overwriteMEDDataObjectProperties(data.id, { sourceMTimeMs })
+      }
+
+      await refreshData()
+      if (!silent) toast.success("Re-ingest completed. Data refreshed.")
+    } catch (error) {
+      console.error("Re-ingest failed:", error)
+      if (!silent) toast.error("Re-ingest failed. See console for details.")
+    } finally {
+      setLoadingData(false)
+    }
   }
 
   // Function to generate a random UUID
