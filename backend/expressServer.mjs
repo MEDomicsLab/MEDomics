@@ -466,7 +466,7 @@ async function startGoServer(preferredPort = null) {
 function cleanGoResponsePayload(payload = "") {
 	let response = payload || ""
 	if (typeof response !== "string") return response
-	response = response.replaceAll("NaN", "null")
+	response = response.split("NaN").join("null")
 	try {
 		return JSON.parse(response)
 	} catch (_) {
