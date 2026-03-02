@@ -98,6 +98,20 @@ let isProd = process.env.NODE_ENV && process.env.NODE_ENV === "production"
 let goServerProcess = null
 let mongoClient = null
 
+function createRequestUUID() {
+	if (typeof crypto.randomUUID === "function") {
+		return crypto.randomUUID()
+	}
+	if (typeof crypto.randomBytes === "function") {
+		const bytes = crypto.randomBytes(16)
+		bytes[6] = (bytes[6] & 0x0f) | 0x40
+		bytes[8] = (bytes[8] & 0x3f) | 0x80
+		const hex = bytes.toString("hex")
+		return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`
+	}
+	return `${Date.now()}-${Math.random().toString(16).slice(2, 10)}`
+}
+
 function getMongoUri() {
 	const mongoPort = serviceState?.mongo?.port || 54017
 	return `mongodb://127.0.0.1:${mongoPort}`
@@ -534,7 +548,7 @@ expressApp.post("/run-go-server", async (req, res) => {
 expressApp.post("/exploratory/dtale/start", async (req, res) => {
 	try {
 		const body = req.body || {}
-		const requestId = body.requestId || crypto.randomUUID()
+		const requestId = body.requestId || createRequestUUID()
 		const pageId = body.pageId || "D-Tale"
 		const dataset = body.dataset
 		if (!dataset || !dataset.id || !dataset.name) {
@@ -614,7 +628,7 @@ expressApp.post("/exploratory/sweetviz/start", async (req, res) => {
 			await startGoServer()
 		}
 
-		const htmlFileID = body.htmlFileID || crypto.randomUUID()
+		const htmlFileID = body.htmlFileID || createRequestUUID()
 		await callGoEndpoint(`/exploratory/start_sweetviz/${pageId}`, {
 			mainDataset,
 			compDataset,
@@ -656,7 +670,7 @@ expressApp.post("/exploratory/ydata/start", async (req, res) => {
 			await startGoServer()
 		}
 
-		const htmlFileID = body.htmlFileID || crypto.randomUUID()
+		const htmlFileID = body.htmlFileID || createRequestUUID()
 		await callGoEndpoint(`/exploratory/start_ydata_profiling/${pageId}`, {
 			mainDataset,
 			compDataset,
