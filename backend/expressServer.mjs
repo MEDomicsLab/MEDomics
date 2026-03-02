@@ -479,12 +479,13 @@ function cleanGoResponsePayload(payload = "") {
 	}
 }
 
-async function callGoEndpoint(topic, payload = {}) {
+async function callGoEndpoint(topic, payload = {}, options = {}) {
 	if (!serviceState.go.port) {
 		throw new Error("GO server is not running")
 	}
 	const url = `http://127.0.0.1:${serviceState.go.port}${topic.startsWith("/") ? "" : "/"}${topic}`
-	const response = await axios.post(url, { message: JSON.stringify(payload) }, { headers: { "Content-Type": "application/json" }, timeout: 120000 })
+	const timeoutMs = Number.isFinite(options?.timeoutMs) ? Number(options.timeoutMs) : 120000
+	const response = await axios.post(url, { message: JSON.stringify(payload) }, { headers: { "Content-Type": "application/json" }, timeout: timeoutMs <= 0 ? 0 : timeoutMs })
 	const data = response && response.data ? response.data : {}
 	if (data.type === "toParse") {
 		return cleanGoResponsePayload(data.response_message)
@@ -503,10 +504,22 @@ function parseDtalePort(webServerUrl) {
 	}
 }
 
-async function waitForDtaleReady(progressTopic, timeoutMs = 120000) {
+async function waitForDtaleReady(progressTopic, timeoutMs = 300000) {
 	const start = Date.now()
 	while (Date.now() - start < timeoutMs) {
-		const progress = await callGoEndpoint(progressTopic, {})
+		let progress = null
+		try {
+			progress = await callGoEndpoint(progressTopic, {}, { timeoutMs: 10000 })
+		} catch (err) {
+			console.warn("D-Tale progress polling warning:", err && err.message ? err.message : err)
+			await new Promise((resolve) => setTimeout(resolve, 1000))
+			continue
+		}
+
+		if (typeof progress === "string") {
+			progress = cleanGoResponsePayload(progress)
+		}
+
 		if (progress && progress.web_server_url) {
 			const remotePort = parseDtalePort(progress.web_server_url)
 			if (remotePort) {
@@ -515,6 +528,15 @@ async function waitForDtaleReady(progressTopic, timeoutMs = 120000) {
 					remotePort,
 					name: progress.name || "D-Tale"
 				}
+			}
+		}
+
+		const progressPort = Number(progress && progress.port)
+		if (Number.isFinite(progressPort) && progressPort > 0) {
+			return {
+				webServerUrl: `http://127.0.0.1:${progressPort}/`,
+				remotePort: progressPort,
+				name: (progress && progress.name) || "D-Tale"
 			}
 		}
 		await new Promise((resolve) => setTimeout(resolve, 1000))
@@ -561,9 +583,10 @@ expressApp.post("/exploratory/dtale/start", async (req, res) => {
 
 		const routeId = `${requestId}/${pageId}-${dataset.name}`
 		await callGoEndpoint(`/removeId/${routeId}`, { dataset })
-		const startDtalePromise = callGoEndpoint(`/exploratory/start_dtale/${routeId}`, { dataset })
+		void callGoEndpoint(`/exploratory/start_dtale/${routeId}`, { dataset }, { timeoutMs: 0 }).catch((err) => {
+			console.warn("D-Tale start request warning:", err && err.message ? err.message : err)
+		})
 		const dtaleInfo = await waitForDtaleReady(`/exploratory/progress/${routeId}`)
-		await startDtalePromise
 		serviceState.exploratory.dtale.sessions[requestId] = {
 			requestId,
 			pageId,
