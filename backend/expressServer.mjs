@@ -467,16 +467,33 @@ function cleanGoResponsePayload(payload = "") {
 	let response = payload || ""
 	if (typeof response !== "string") return response
 	response = response.split("NaN").join("null")
-	try {
-		return JSON.parse(response)
-	} catch (_) {
+
+	let candidate = response
+	for (let i = 0; i < 4; i++) {
+		if (typeof candidate !== "string") return candidate
+
 		try {
-			const trimmed = response.substring(response.indexOf("{"), response.lastIndexOf("}") + 1)
-			return JSON.parse(trimmed)
-		} catch {
-			return response
+			const parsed = JSON.parse(candidate)
+			if (typeof parsed === "string") {
+				candidate = parsed
+				continue
+			}
+			return parsed
+		} catch (_) {
+			const startIdx = candidate.indexOf("{")
+			const endIdx = candidate.lastIndexOf("}")
+			if (startIdx >= 0 && endIdx > startIdx) {
+				const trimmed = candidate.substring(startIdx, endIdx + 1)
+				if (trimmed !== candidate) {
+					candidate = trimmed
+					continue
+				}
+			}
+			break
 		}
 	}
+
+	return candidate
 }
 
 async function callGoEndpoint(topic, payload = {}, options = {}) {
@@ -523,10 +540,11 @@ function extractDtaleReadyInfo(progressPayload) {
 	}
 
 	const raw = typeof progressPayload === "string" ? progressPayload : String(progressPayload || "")
-	const urlMatch = raw.match(/"web_server_url"\s*:\s*"([^"]+)"/)
-	const portMatch = raw.match(/"port"\s*:\s*(\d+)/)
-	const nameMatch = raw.match(/"name"\s*:\s*"([^"]+)"/)
-	const errorMatch = raw.match(/"error"\s*:\s*"([^"]+)"/)
+	const rawNormalized = raw.split('\\"').join('"')
+	const urlMatch = rawNormalized.match(/"web_server_url"\s*:\s*"([^"]+)"/)
+	const portMatch = rawNormalized.match(/"port"\s*:\s*(\d+)/)
+	const nameMatch = rawNormalized.match(/"name"\s*:\s*"([^"]+)"/)
+	const errorMatch = rawNormalized.match(/"error"\s*:\s*"([^"]+)"/)
 
 	const urlFromRaw = urlMatch ? urlMatch[1] : null
 	const portFromRaw = portMatch ? Number(portMatch[1]) : parseDtalePort(urlFromRaw)
@@ -537,7 +555,7 @@ function extractDtaleReadyInfo(progressPayload) {
 		remotePort: Number.isFinite(portFromRaw) && portFromRaw > 0 ? portFromRaw : null,
 		webServerUrl: urlFromRaw,
 		name: nameMatch ? nameMatch[1] : null,
-		snapshot: raw
+		snapshot: rawNormalized
 	}
 }
 

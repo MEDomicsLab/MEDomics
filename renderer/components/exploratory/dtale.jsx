@@ -32,6 +32,42 @@ const DTaleProcess = ({ uniqueId, pageId, setError, onDelete }) => {
   const [currentRouteId, setCurrentRouteId] = useState("")
   const [progressPercent, setProgressPercent] = useState(null)
 
+  const parseProgressPayload = (payload) => {
+    if (payload && typeof payload === "object") {
+      return payload
+    }
+    if (typeof payload !== "string") {
+      return null
+    }
+
+    let candidate = payload
+    for (let i = 0; i < 4; i++) {
+      if (typeof candidate !== "string") {
+        return candidate && typeof candidate === "object" ? candidate : null
+      }
+      try {
+        const parsed = JSON.parse(candidate)
+        if (typeof parsed === "string") {
+          candidate = parsed
+          continue
+        }
+        return parsed && typeof parsed === "object" ? parsed : null
+      } catch (_) {
+        const startIdx = candidate.indexOf("{")
+        const endIdx = candidate.lastIndexOf("}")
+        if (startIdx >= 0 && endIdx > startIdx) {
+          const trimmed = candidate.substring(startIdx, endIdx + 1)
+          if (trimmed !== candidate) {
+            candidate = trimmed
+            continue
+          }
+        }
+        break
+      }
+    }
+    return null
+  }
+
   const resolveExpressPort = async (isRemoteMode) => {
     const tunnel = getTunnelState()
     if (isRemoteMode && tunnel?.tunnelActive && tunnel.localExpressPort) {
@@ -154,7 +190,8 @@ const DTaleProcess = ({ uniqueId, pageId, setError, onDelete }) => {
 
         if (isDisposed) return
         const payload = response?.data || {}
-        const nowValue = payload?.progress?.now
+        const progressData = parseProgressPayload(payload?.progress)
+        const nowValue = progressData?.now
         const progressNumber = Number(nowValue)
         if (Number.isFinite(progressNumber)) {
           const bounded = Math.max(0, Math.min(100, Math.round(progressNumber)))
