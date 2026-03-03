@@ -506,6 +506,7 @@ function parseDtalePort(webServerUrl) {
 
 async function waitForDtaleReady(progressTopic, timeoutMs = 300000) {
 	const start = Date.now()
+	let lastProgress = null
 	while (Date.now() - start < timeoutMs) {
 		let progress = null
 		try {
@@ -518,6 +519,14 @@ async function waitForDtaleReady(progressTopic, timeoutMs = 300000) {
 
 		if (typeof progress === "string") {
 			progress = cleanGoResponsePayload(progress)
+		}
+
+		if (progress && typeof progress === "object") {
+			lastProgress = progress
+		}
+
+		if (progress && typeof progress === "object" && progress.error) {
+			throw new Error(`D-Tale startup failed: ${progress.error}`)
 		}
 
 		if (progress && progress.web_server_url) {
@@ -541,7 +550,8 @@ async function waitForDtaleReady(progressTopic, timeoutMs = 300000) {
 		}
 		await new Promise((resolve) => setTimeout(resolve, 1000))
 	}
-	throw new Error("Timed out waiting for D-Tale web server to become ready")
+	const lastSnapshot = lastProgress ? JSON.stringify(lastProgress) : "no-progress-snapshot"
+	throw new Error(`Timed out waiting for D-Tale web server to become ready (last progress: ${lastSnapshot})`)
 }
 
 expressApp.post("/run-go-server", async (req, res) => {
