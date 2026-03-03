@@ -29,6 +29,8 @@ const DTaleProcess = ({ uniqueId, pageId, setError, onDelete }) => {
   const { dispatchLayout } = useContext(LayoutModelContext)
   const { workspace } = useContext(WorkspaceContext)
   const [name, setName] = useState("")
+  const [currentRouteId, setCurrentRouteId] = useState("")
+  const [progressPercent, setProgressPercent] = useState(null)
 
   const resolveExpressPort = async (isRemoteMode) => {
     const tunnel = getTunnelState()
@@ -93,11 +95,14 @@ const DTaleProcess = ({ uniqueId, pageId, setError, onDelete }) => {
   const generateReport = () => {
     setIsCalculating(true)
     setServerPath("")
+    setProgressPercent(0)
     ;(async () => {
       try {
         await shutdownDTale()
         const isRemoteMode = !!workspace?.isRemote
         const expressPort = await resolveExpressPort(isRemoteMode)
+        const routeId = `${uniqueId}/${pageId}-${mainDataset.value.name}`
+        setCurrentRouteId(routeId)
         const response = await window.backend.requestExpress({
           method: "post",
           port: expressPort,
@@ -113,17 +118,63 @@ const DTaleProcess = ({ uniqueId, pageId, setError, onDelete }) => {
         if (!payload.success) {
           throw new Error(payload.error || "Failed to start D-Tale")
         }
+        setProgressPercent(100)
         const localUrl = await resolveLocalDtaleUrl(uniqueId, payload.remotePort, isRemoteMode)
         setServerPath(localUrl)
         setName(payload.name || mainDataset.value.name)
       } catch (error) {
         console.error(error)
+        setProgressPercent(null)
         setError(error?.message || "Failed to start D-Tale")
       } finally {
         setIsCalculating(false)
+        setCurrentRouteId("")
       }
     })()
   }
+
+  useEffect(() => {
+    if (!isCalculating || !currentRouteId) {
+      return
+    }
+
+    let isDisposed = false
+
+    const pollProgress = async () => {
+      try {
+        const isRemoteMode = !!workspace?.isRemote
+        const expressPort = await resolveExpressPort(isRemoteMode)
+        const response = await window.backend.requestExpress({
+          method: "post",
+          port: expressPort,
+          path: "/exploratory/dtale/progress",
+          body: { routeId: currentRouteId },
+          timeout: 10000
+        })
+
+        if (isDisposed) return
+        const payload = response?.data || {}
+        const nowValue = payload?.progress?.now
+        const progressNumber = Number(nowValue)
+        if (Number.isFinite(progressNumber)) {
+          const bounded = Math.max(0, Math.min(100, Math.round(progressNumber)))
+          setProgressPercent(bounded)
+        }
+      } catch (error) {
+        if (!isDisposed) {
+          console.warn("Failed to fetch D-Tale progress:", error)
+        }
+      }
+    }
+
+    pollProgress()
+    const intervalId = setInterval(pollProgress, 1000)
+
+    return () => {
+      isDisposed = true
+      clearInterval(intervalId)
+    }
+  }, [isCalculating, currentRouteId, workspace?.isRemote])
 
   /**
    *
@@ -163,7 +214,7 @@ const DTaleProcess = ({ uniqueId, pageId, setError, onDelete }) => {
           />
         </div>
       </div>
-      {isCalculating && <div style={{ fontSize: "0.9rem", opacity: 0.85 }}>Starting D-Tale service...</div>}
+      {isCalculating && <div style={{ fontSize: "0.9rem", opacity: 0.85 }}>Starting D-Tale service{Number.isFinite(progressPercent) ? ` (${progressPercent}%)` : ""}...</div>}
     </>
   )
 }

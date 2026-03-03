@@ -504,6 +504,43 @@ function parseDtalePort(webServerUrl) {
 	}
 }
 
+function extractDtaleReadyInfo(progressPayload) {
+	let parsed = progressPayload
+	if (typeof parsed === "string") {
+		parsed = cleanGoResponsePayload(parsed)
+	}
+
+	if (parsed && typeof parsed === "object") {
+		const remotePort = Number(parsed.port) || parseDtalePort(parsed.web_server_url)
+		return {
+			parsed,
+			error: parsed.error || null,
+			remotePort: Number.isFinite(remotePort) && remotePort > 0 ? remotePort : null,
+			webServerUrl: parsed.web_server_url || null,
+			name: parsed.name || null,
+			snapshot: JSON.stringify(parsed)
+		}
+	}
+
+	const raw = typeof progressPayload === "string" ? progressPayload : String(progressPayload || "")
+	const urlMatch = raw.match(/"web_server_url"\s*:\s*"([^"]+)"/)
+	const portMatch = raw.match(/"port"\s*:\s*(\d+)/)
+	const nameMatch = raw.match(/"name"\s*:\s*"([^"]+)"/)
+	const errorMatch = raw.match(/"error"\s*:\s*"([^"]+)"/)
+
+	const urlFromRaw = urlMatch ? urlMatch[1] : null
+	const portFromRaw = portMatch ? Number(portMatch[1]) : parseDtalePort(urlFromRaw)
+
+	return {
+		parsed: null,
+		error: errorMatch ? errorMatch[1] : null,
+		remotePort: Number.isFinite(portFromRaw) && portFromRaw > 0 ? portFromRaw : null,
+		webServerUrl: urlFromRaw,
+		name: nameMatch ? nameMatch[1] : null,
+		snapshot: raw
+	}
+}
+
 async function waitForDtaleReady(progressTopic, timeoutMs = 300000) {
 	const start = Date.now()
 	let lastProgress = null
@@ -517,40 +554,26 @@ async function waitForDtaleReady(progressTopic, timeoutMs = 300000) {
 			continue
 		}
 
-		if (typeof progress === "string") {
-			progress = cleanGoResponsePayload(progress)
+		const readyInfo = extractDtaleReadyInfo(progress)
+		if (readyInfo.snapshot) {
+			lastProgress = readyInfo.snapshot
 		}
 
-		if (progress && typeof progress === "object") {
-			lastProgress = progress
+		if (readyInfo.error) {
+			throw new Error(`D-Tale startup failed: ${readyInfo.error}`)
 		}
 
-		if (progress && typeof progress === "object" && progress.error) {
-			throw new Error(`D-Tale startup failed: ${progress.error}`)
-		}
-
-		if (progress && progress.web_server_url) {
-			const remotePort = parseDtalePort(progress.web_server_url)
-			if (remotePort) {
-				return {
-					webServerUrl: progress.web_server_url,
-					remotePort,
-					name: progress.name || "D-Tale"
-				}
-			}
-		}
-
-		const progressPort = Number(progress && progress.port)
-		if (Number.isFinite(progressPort) && progressPort > 0) {
+		if (readyInfo.remotePort) {
+			const resolvedUrl = readyInfo.webServerUrl || `http://127.0.0.1:${readyInfo.remotePort}/`
 			return {
-				webServerUrl: `http://127.0.0.1:${progressPort}/`,
-				remotePort: progressPort,
-				name: (progress && progress.name) || "D-Tale"
+				webServerUrl: resolvedUrl,
+				remotePort: readyInfo.remotePort,
+				name: readyInfo.name || "D-Tale"
 			}
 		}
 		await new Promise((resolve) => setTimeout(resolve, 1000))
 	}
-	const lastSnapshot = lastProgress ? JSON.stringify(lastProgress) : "no-progress-snapshot"
+	const lastSnapshot = lastProgress || "no-progress-snapshot"
 	throw new Error(`Timed out waiting for D-Tale web server to become ready (last progress: ${lastSnapshot})`)
 }
 
@@ -616,6 +639,26 @@ expressApp.post("/exploratory/dtale/start", async (req, res) => {
 		})
 	} catch (err) {
 		console.error("Error starting D-Tale service:", err)
+		return res.status(500).json({ success: false, error: err.message })
+	}
+})
+
+expressApp.post("/exploratory/dtale/progress", async (req, res) => {
+	try {
+		const routeId = req?.body?.routeId
+		if (!routeId || typeof routeId !== "string") {
+			return res.status(400).json({ success: false, error: "routeId is required" })
+		}
+
+		if (!serviceState.go.running || !serviceState.go.port) {
+			await startGoServer()
+		}
+
+		const progress = await callGoEndpoint(`/exploratory/progress/${routeId}`, {}, { timeoutMs: 10000 })
+		const parsedProgress = typeof progress === "string" ? cleanGoResponsePayload(progress) : progress
+		return res.json({ success: true, progress: parsedProgress })
+	} catch (err) {
+		console.error("Error getting D-Tale progress:", err)
 		return res.status(500).json({ success: false, error: err.message })
 	}
 })
