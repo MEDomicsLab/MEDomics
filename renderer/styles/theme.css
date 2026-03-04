@@ -105,7 +105,6 @@ label {
 
 .card-header,
 .p-card-header {
-  background-color: var(--card-bg) !important;
   border-bottom-color: var(--border-color) !important;
   color: var(--text-primary) !important;
 }
