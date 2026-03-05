@@ -186,8 +186,8 @@ const NormalizeToolsDB = ({ currentCollection }) => {
               <label style={{ marginLeft: 8 }}>Keep tags</label>
             </span>
         <Button
-          icon="pi pi-plus"
-          style={{ margin: "5px", fontSize: "1rem", width: "150px", height: "50px" }}
+          icon="pi pi-save"
+          style={{ margin: "5px", fontSize: "1rem" }}
           loading={loading}
           onClick={(e) => op.current.toggle(e)}
           tooltip="Normalize columns and save"

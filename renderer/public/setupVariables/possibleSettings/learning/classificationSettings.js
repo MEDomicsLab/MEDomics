@@ -950,7 +950,7 @@ const classificationSettings = {
         default_val: "None"
       },
       search_library: {
-        type: "string",
+        type: "list",
         tooltip:
           "<p>The search library used for tuning hyperparameters. Possible values:</p>\n" +
 
@@ -991,7 +991,14 @@ const classificationSettings = {
           "</dl></li>\n" +
 
           "</ul>",
-        default_val: "scikit-learn"
+        type: "list",
+        default_val: "scikit-learn",
+        choices: {
+          "scikit-learn": "scikit-learn",
+          "scikit-optimize": "scikit-optimize",
+          "tune-sklearn": "tune-sklearn",
+          "optuna": "optuna"
+        }
       },
       search_algorithm: {
         type: "string",

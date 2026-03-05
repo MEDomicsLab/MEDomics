@@ -76,7 +76,9 @@ const SettingsPage = ({pageId = "settings", checkJupyterIsRunning, startJupyterS
     ipcRenderer.invoke("get-settings").then((receivedSettings) => {
       console.log("received settings", receivedSettings)
       setSettings(receivedSettings)
-      if (receivedSettings?.condaPath) {
+      if (pythonEmbedded.pythonEmbedded) {
+        setCondaPath(pythonEmbedded.pythonEmbedded)
+      } else if (receivedSettings?.condaPath) {
         setCondaPath(receivedSettings?.condaPath)
       }
       if (receivedSettings?.seed) {

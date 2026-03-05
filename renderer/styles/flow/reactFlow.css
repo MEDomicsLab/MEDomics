@@ -717,7 +717,7 @@ input.node-editableLabel {
 }
 
 .misplaced {
-  border: 0.15rem solid var(--misplaced-color);
+  border: 0.15rem solid var(--misplaced-color) !important;
 }
 
 .beenSelected {

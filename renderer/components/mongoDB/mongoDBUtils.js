@@ -1,4 +1,4 @@
-/* eslint-disable no-unused-vars no-case-declarations */
+/* eslint-disable no-unused-vars, no-case-declarations, camelcase */
 import { toast } from "react-toastify"
 
 const { MongoClient } = require("mongodb")
