@@ -80,7 +80,7 @@ const nodesParams = {
     type: "flStrategyNode",
     classes: "object",
     nbInput: 1,
-    nbOutput: 1,
+    nbOutput: 0,
     input: ["model"],
     output: ["fl_strategy"],
     img: "strategy.png",

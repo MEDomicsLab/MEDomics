@@ -14,12 +14,12 @@ export default function FlRunServerNode({ id, data }) {
   const [numRounds, setNumRounds] = useState(data.internal.settings.numRounds || 10)
   const [fractionFit, setFractionFit] = useState(data.internal.settings.fractionFit || 1)
   const [fractionEvaluate, setFractionEvaluate] = useState(data.internal.settings.fractionEvaluate || 1)
-  const [minFitClients, setMinFitClients] = useState(data.internal.settings.minFitClients || 3)
-  const [minEvaluateClients, setMinEvaluateClients] = useState(data.internal.settings.minEvaluateClients || 3)
-  const [minAvailableClients, setMinAvailableClients] = useState(data.internal.settings.minAvailableClients || 3)
+  const [minFitClients, setMinFitClients] = useState(data.internal.settings.minFitClients || 2)
+  const [minEvaluateClients, setMinEvaluateClients] = useState(data.internal.settings.minEvaluateClients || 2)
+  const [minAvailableClients, setMinAvailableClients] = useState(data.internal.settings.minAvailableClients || 2)
   const [strategy, setStrategy] = useState(data.internal.settings.strategy || "FedAvg")
   const [isSaveModel, setIsSaveModel] = useState(data.internal.settings.isSaveModel || false)
-  const [saveOnRounds, setSaveRounds] = useState(data.internal.settings.saveOnRounds || 5)
+  const [saveOnRounds, setSaveRounds] = useState(data.internal.settings.saveOnRounds || 11 )
 
   useEffect(() => {
     data.internal.settings.strategy = strategy

@@ -367,9 +367,12 @@ class GoExecScriptRunPipelineFromMEDfl(GoExecutionScript):
                     model.parameters(), lr=config["flModelNode"]["learning rate"]
                 )
 
-            pos_weight = torch.tensor([4.0])
+            
+            device = torch.device("cpu")
+            model = model.to(device)
 
-            criterion = nn.BCEWithLogitsLoss(pos_weight=pos_weight)
+            # IMPORTANT: ensure criterion tensors are on same device
+            criterion = nn.BCEWithLogitsLoss()
 
             # Creating a new Model instance using the specific model
             global_model = Model(model, optimizer, criterion)

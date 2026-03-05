@@ -167,7 +167,7 @@ const NewServerLogsModal = ({ show, onHide, nodes, onSaveScean, setRunServer, co
   // selection, ws agents
   const [wsAgents, setWSAgents] = useState(null)
   const [selectedAgents, setSelectedAgents] = useState([]) // array of maps per index
-  const [minAvailableClients, setMinAvailableClients] = useState(3)
+  const [minAvailableClients, setMinAvailableClients] = useState(strategyConfigs[0]?.data.internal.settings.minAvailableClients || 2)
   const [canRun, setCanRun] = useState(false)
 
   // per-config buckets (arrays indexed by config)
@@ -193,9 +193,9 @@ const NewServerLogsModal = ({ show, onHide, nodes, onSaveScean, setRunServer, co
   const [numRounds, setNumRounds] = useState(strategyConfigs[0]?.data.internal.settings.numRounds || 10)
   const [fractionFit, setFractionFit] = useState(strategyConfigs[0]?.data.internal.settings.fractionFit || 1)
   const [fractionEvaluate, setFractionEvaluate] = useState(strategyConfigs[0]?.data.internal.settings.fractionEvaluate || 1)
-  const [minFitClients, setMinFitClients] = useState(strategyConfigs[0]?.data.internal.settings.minFitClients || 3)
-  const [minEvaluateClients, setMinEvaluateClients] = useState(strategyConfigs[0]?.data.internal.settings.minEvaluateClients || 3)
-  const [minAvailableClientsForm, setMinAvailableClientsForm] = useState(strategyConfigs[0]?.data.internal.settings.minAvailableClients || 3)
+  const [minFitClients, setMinFitClients] = useState(strategyConfigs[0]?.data.internal.settings.minFitClients || 2)
+  const [minEvaluateClients, setMinEvaluateClients] = useState(strategyConfigs[0]?.data.internal.settings.minEvaluateClients || 2)
+  const [minAvailableClientsForm, setMinAvailableClientsForm] = useState(strategyConfigs[0]?.data.internal.settings.minAvailableClients || 2)
 
   const [startRunningConfig, setStartRunningConfig] = useState(false)
   const [fileName, setFileName] = useState("")
@@ -563,7 +563,7 @@ const NewServerLogsModal = ({ show, onHide, nodes, onSaveScean, setRunServer, co
         optimizer: modelConfigs[0]?.data.internal.settings.optimizer || "SGD",
         learning_rate: modelConfigs[0]?.data.internal.settings["Learning rate"] || 0.01,
         savingPath: savingPath + "/models",
-        saveOnRounds: strategyConfigs[0]?.data.internal.settings.saveOnRounds || 5,
+        saveOnRounds: strategyConfigs[0]?.data.internal.settings.saveOnRounds || 11,
         datasetConfig: datasetConfig
       },
       (json) => {
@@ -614,7 +614,7 @@ const NewServerLogsModal = ({ show, onHide, nodes, onSaveScean, setRunServer, co
     console.log("experimentConfig", experimentConfig)
     console.log("selectedAgents", selectedAgents)
     console.log("Ruuning config ", index)
-
+    setMinAvailableClients(conf.flRunServerNode.minAvailableClients)
     requestBackend(
       port,
       "/medfl/rw/run-server/" + pageId,
@@ -635,7 +635,7 @@ const NewServerLogsModal = ({ show, onHide, nodes, onSaveScean, setRunServer, co
         optimizer: conf.flModelNode.optimizer || "SGD",
         learning_rate: conf.flModelNode["Learning rate"] || 0.01,
         savingPath: savingPath + "/models",
-        saveOnRounds: conf.flRunServerNode.saveOnRounds || 5,
+        saveOnRounds: conf.flRunServerNode.saveOnRounds || 11,
 
         features: conf.mlStrategyNode.selectedColumns.join(","),
         target: "label",
@@ -791,7 +791,7 @@ const NewServerLogsModal = ({ show, onHide, nodes, onSaveScean, setRunServer, co
         threshold: experimentConfig[currentExecConfig]?.flModelNode.Threshold || 0.5,
         learning_rate: experimentConfig[currentExecConfig]?.flModelNode["Learning rate"] || 0.01,
         optimizer_name: experimentConfig[currentExecConfig]?.flModelNode.optimizer || "SGD",
-        saveOnRounds: experimentConfig[currentExecConfig]?.flRunServerNode.saveOnRounds || 5,
+        saveOnRounds: experimentConfig[currentExecConfig]?.flRunServerNode.saveOnRounds || 11,
         savingPath: "/.",
         total_rounds: experimentConfig[currentExecConfig]?.flRunServerNode.numRounds || 10
       }
@@ -801,8 +801,7 @@ const NewServerLogsModal = ({ show, onHide, nodes, onSaveScean, setRunServer, co
 
     console.log(servernoteBook)
 
-    if (configPath == ""){
-
+    if (configPath == "") {
       let dirPath = savingPath != "" ? savingPath : await onSaveScean("FL_code")
 
       console.log(dirPath)
@@ -898,16 +897,13 @@ const NewServerLogsModal = ({ show, onHide, nodes, onSaveScean, setRunServer, co
                               {key}
                             </div>
 
-                            {key == "mlStrategyNode" &&
-                              Object.values(config[key]["perClientConfig"]).some((client) => {
-                                return client.idsCheck && client.idsCheck.missing_ids.length > 0
-                              }) && (
-                                <div className="p-3">
-                                  <Alert variant="warning" className="">
-                                    <strong>Warning:</strong> One or more clients are missing required IDs for training. Please ensure all clients have the necessary identifiers configured.
-                                  </Alert>
-                                </div>
-                              )}
+                            {key === "mlStrategyNode" && Object.values(config?.[key]?.perClientConfig ?? {}).some((client) => (client?.idsCheck?.missing_ids?.length ?? 0) > 0) && (
+                              <div className="p-3">
+                                <Alert variant="warning">
+                                  <strong>Warning:</strong> One or more clients are missing required IDs for training. Please ensure all clients have the necessary identifiers configured.
+                                </Alert>
+                              </div>
+                            )}
                             <div className="card-body p-3">
                               <div className="bg-body-tertiary rounded p-2">
                                 <JsonView data={config[key]} shouldExpandNode={allExpanded} className="bg-transparent" />

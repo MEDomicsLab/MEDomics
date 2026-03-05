@@ -72,9 +72,9 @@ const ServerLogosModal = ({ show, onHide, nodes, onSaveScean, setRunServer, conf
   const [numRounds, setNumRounds] = useState(strategyConfigs[0]?.data.internal.settings.numRounds || 10)
   const [fractionFit, setFractionFit] = useState(strategyConfigs[0]?.data.internal.settings.fractionFit || 1)
   const [fractionEvaluate, setFractionEvaluate] = useState(strategyConfigs[0]?.data.internal.settings.fractionEvaluate || 1)
-  const [minFitClients, setMinFitClients] = useState(strategyConfigs[0]?.data.internal.settings.minFitClients || 3)
-  const [minEvaluateClients, setMinEvaluateClients] = useState(strategyConfigs[0]?.data.internal.settings.minEvaluateClients || 3)
-  const [minAvailableClients, setMinAvailableClients] = useState(strategyConfigs[0]?.data.internal.settings.minAvailableClients || 3)
+  const [minFitClients, setMinFitClients] = useState(strategyConfigs[0]?.data.internal.settings.minFitClients || 2)
+  const [minEvaluateClients, setMinEvaluateClients] = useState(strategyConfigs[0]?.data.internal.settings.minEvaluateClients || 2)
+  const [minAvailableClients, setMinAvailableClients] = useState(strategyConfigs[0]?.data.internal.settings.minAvailableClients || 2)
 
   const [currentExecConfig, setCurrentExecConfig] = useState(0)
   const [startRunningConfig, setStartRunningConfig] = useState(false)
@@ -253,9 +253,9 @@ const ServerLogosModal = ({ show, onHide, nodes, onSaveScean, setRunServer, conf
       setNumRounds(config.numRounds || 10)
       setFractionFit(config.fractionFit || 1)
       setFractionEvaluate(config.fractionEvaluate || 1)
-      setMinFitClients(config.minFitClients || 3)
-      setMinEvaluateClients(config.minEvaluateClients || 3)
-      setMinAvailableClients(config.minAvailableClients || 3)
+      setMinFitClients(config.minFitClients || 2)
+      setMinEvaluateClients(config.minEvaluateClients || 2)
+      setMinAvailableClients(config.minAvailableClients || 2)
 
       const isSaveModel = strategyConfigs[0].data.internal.settings.isSaveModel || false
       setTheSavingpath(isSaveModel)

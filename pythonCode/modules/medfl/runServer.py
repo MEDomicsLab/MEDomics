@@ -37,7 +37,7 @@ class GoExecScriptRunPipelineFromMEDfl(GoExecutionScript):
         self.results = {"data": "nothing to return"}
         self.server_process = None
 
-    def _load_initial_weights(self, model_path: str):
+    def _load_initial_weights(self, model_path: str , json_config: dict):
         """
         Load pretrained model weights and return as a list of numpy arrays.
         """
@@ -45,14 +45,19 @@ class GoExecScriptRunPipelineFromMEDfl(GoExecutionScript):
 
         go_print(f"Loading pretrained model from: {model_path}")
         loaded_model = Model.load_model(model_path)
-        model = Net(7)
+        features_str = json_config['features']
+
+        features_list = [f.strip() for f in features_str.split(",")]
+
+        num_features = len(features_list)
+        model = Net(num_features)
         model.load_state_dict(loaded_model)
         model.eval()
 
         state_dict = model.state_dict()
         weights = [val.cpu().numpy() for val in state_dict.values()]  # Include buffers
         return weights
-
+    
     def _start_server(self, json_config: dict):
         go_print(str(json_config))
         """The function that starts the Flower server."""
@@ -66,7 +71,7 @@ class GoExecScriptRunPipelineFromMEDfl(GoExecutionScript):
             model_path = json_config.get("pretrained_model_path")
             if not model_path:
                 raise ValueError("use_transfer_learning is true but no pretrained_model_path provided.")
-            initial_weights = self._load_initial_weights(model_path)
+            initial_weights = self._load_initial_weights(model_path , json_config)
 
         else:
             go_print("Transfer learning not enabled. Starting with random weights.")

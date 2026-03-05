@@ -239,10 +239,7 @@ export default function NetworkCheckModal({ show, onHide, setNetworkChecked, net
 
         <Modal.Body>
           {/* Current Group */}
-          <div className="mb-2">
-            <small className="text-muted">Current groupNodeId:</small>
-            <div className="fw-bold">{currentGroupId}</div>
-          </div>
+    
 
           {/* Info Box */}
           <div

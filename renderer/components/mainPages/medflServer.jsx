@@ -25,7 +25,7 @@ const MEDflSeverPage = ({ pageId, configPath = "" }) => {
   const [fractionEvaluate, setFractionEvaluate] = useState(0.1)
   const [minFitClients, setMinFitClients] = useState(2)
   const [minEvaluateClients, setMinEvaluateClients] = useState(2)
-  const [minAvailableClients, setMinAvailableClients] = useState(3)
+  const [minAvailableClients, setMinAvailableClients] = useState(2)
   const [strategy, setStrategy] = useState("FedAvg")
   const [serverRunning, setServerRunning] = useState(false)
   const { port } = useContext(WorkspaceContext)
