@@ -1,3 +1,4 @@
+import ast
 import copy
 import json
 from typing import Union
@@ -131,6 +132,7 @@ class ModelHandler(Node):
             metrics['MCC'] = round(matthews_corrcoef(y_true, y_pred), 3)
 
         except Exception as e:
+            raise ValueError(f"Error calculating metrics: {e}")
             print(f"Error calculating metrics: {e}")
             # Set default values for all metrics
             default_metrics = ["AUC", "Sensitivity", "Specificity", "PPV", "NPV", "Accuracy", "F1", "MCC"]
@@ -145,7 +147,7 @@ class ModelHandler(Node):
         log_metrics = {}
         
         if not fold_metrics:
-            return overall_metrics
+            return overall_metrics, log_metrics
         
         # Get all metric names from first fold
         first_fold_metrics = list(fold_metrics.values())[0]
@@ -401,7 +403,7 @@ class ModelHandler(Node):
                 if self.optimize_threshold:
                     if len(pycaret_exp.get_config('y').unique()) == 2 and not self.ensembleEnabled:
                         self.CodeHandler.add_line("code", f"# Optimizing model threshold based on {self.threshold_optimization_metric}", indent=0)
-                        self.CodeHandler.add_line("code", f"best_model = pycaret_exp.optimize_threshold(best_model, metric='{self.threshold_optimization_metric}')", indent=0)
+                        self.CodeHandler.add_line("code", f"best_model = pycaret_exp.optimize_threshold(best_model, optimize='{self.threshold_optimization_metric}')", indent=0)
 
                 # Finalize the model
                 if finalize:
@@ -552,7 +554,7 @@ class ModelHandler(Node):
                     )
                     self.CodeHandler.add_line(
                         "code",
-                        f"trained_models = [pycaret_exp.optimize_threshold(trained_models[0], metric='{self.threshold_optimization_metric}')]"
+                        f"trained_models = [pycaret_exp.optimize_threshold(trained_models[0], optimize='{self.threshold_optimization_metric}')]"
                     )
 
             if finalize:
@@ -756,7 +758,7 @@ class ModelHandler(Node):
 
                 else:
                     trained_models = [experiment['pycaret_exp'].optimize_threshold(trained_models[0], optimize=self.threshold_optimization_metric)]
-                    self.CodeHandler.add_line("code", f"trained_models = [pycaret_exp.optimize_threshold(trained_models[0], metric='{self.threshold_optimization_metric}')]")
+                    self.CodeHandler.add_line("code", f"trained_models = [pycaret_exp.optimize_threshold(trained_models[0], optimize='{self.threshold_optimization_metric}')]")
 
             if finalize:
                 trained_models = [experiment['pycaret_exp'].finalize_model(model) for model in trained_models]

@@ -254,7 +254,7 @@ const SplitNode = ({ id, data }) => {
       key={id}
       id={id}
       data={data}
-      color="#EAD196"
+      color="#cea037"
       setupParam={data.setupParam}
       nodeLink="/documentation/split"
       defaultSettings={
