@@ -393,7 +393,7 @@ class ModelHandler(Node):
                     self.CodeHandler.add_line("code", f"best_model = pycaret_exp.calibrate_model(best_model, {self.CodeHandler.convert_dict_to_params(self.settingsCalibrate)})", indent=0)
                 if self.optimize_threshold:
                     self.CodeHandler.add_line("code", f"# Optimizing model threshold based on {self.threshold_optimization_metric}", indent=0)
-                    self.CodeHandler.add_line("code", f"best_model = pycaret_exp.optimize_threshold(best_model, metric='{self.threshold_optimization_metric}')", indent=0)
+                    self.CodeHandler.add_line("code", f"best_model = pycaret_exp.optimize_threshold(best_model, optimize='{self.threshold_optimization_metric}')", indent=0)
 
                 # Finalize the model
                 if finalize:
@@ -541,7 +541,7 @@ class ModelHandler(Node):
                     )
                     self.CodeHandler.add_line(
                         "code",
-                        f"trained_models = [pycaret_exp.optimize_threshold(trained_models[0], metric='{self.threshold_optimization_metric}')]"
+                        f"trained_models = [pycaret_exp.optimize_threshold(trained_models[0], optimize='{self.threshold_optimization_metric}')]"
                     )
 
                 #trained_model = pycaret_exp.optimize_threshold(trained_model, optimize=self.threshold_optimization_metric)
@@ -697,7 +697,7 @@ class ModelHandler(Node):
 
             if self.optimize_threshold:
                 trained_models = [experiment['pycaret_exp'].optimize_threshold(trained_models[0], optimize=self.threshold_optimization_metric)]
-                self.CodeHandler.add_line("code", f"trained_models = [pycaret_exp.optimize_threshold(trained_models[0], metric='{self.threshold_optimization_metric}')]")
+                self.CodeHandler.add_line("code", f"trained_models = [pycaret_exp.optimize_threshold(trained_models[0], optimize='{self.threshold_optimization_metric}')]")
 
             if finalize:
                 trained_models = [experiment['pycaret_exp'].finalize_model(model) for model in trained_models]
