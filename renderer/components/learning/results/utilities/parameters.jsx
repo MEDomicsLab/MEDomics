@@ -15,19 +15,45 @@ import { Column } from "primereact/column"
 const Parameters = ({ params, tableProps, columnNames }) => {
   const [data, setData] = useState([])
   const [selectedRows, setSelectedRows] = useState([])
+
+  const isEmptyOrNull = (value) => {
+    // Check specifically for null or undefined
+    if (value == null) { // Using loose equality (==) checks for both null and undefined
+      return true
+    }
+
+    // Check if the value is an object (but not null, which typeof also calls "object")
+    if (typeof value === 'object') {
+      // A robust check for an empty object: ensure its constructor is Object and it has no own properties
+      return Object.keys(value).length === 0 && value.constructor === Object
+    }
+
+    // Other non-object, non-null values (like strings, numbers, booleans)
+    // are not considered "empty objects" or "null" by this definition.
+    return false
+  }
+
   useEffect(() => {
     if (params) {
       let dataList = []
       Object.keys(params).forEach((key) => {
-        let value = params[key]
-        // For array values
-        if (Array.isArray(value)) {
-          value = JSON.stringify(value)
+        // skip null or undefined values
+        if (isEmptyOrNull(params[key])) {
+          dataList.push({
+            param: key,
+            Value: "null"
+          })
+        } else {
+          let value = params[key]
+          // For array values
+          if (Array.isArray(value)) {
+            value = JSON.stringify(value)
+          }
+          dataList.push({
+            param: key,
+            Value: value != null ? value : "null"
+          })
         }
-        dataList.push({
-          param: key,
-          Value: value != null ? value : "null"
-        })
       })
       setData(dataList)
     }
