@@ -41,7 +41,21 @@ class SupersetEnvManager:
         """
         
         env = os.environ.copy()
-        if sys.platform != "win32":
+        if sys.platform == "darwin":
+            # Force the compiler to use the system SDK and headers
+            cc = shutil.which("clang") or shutil.which("gcc")
+            cxx = shutil.which("clang++") or shutil.which("g++")
+            if cc:
+                env["CC"] = cc
+            if cxx:
+                env["CXX"] = cxx
+            
+            # Critical for 'cryptography' and 'python-geohash' compilation
+            env["LDFLAGS"] = "-L/usr/local/opt/openssl/lib -L/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/lib"
+            env["CPPFLAGS"] = "-I/usr/local/opt/openssl/include -I/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include"
+            # Prevents error: 'implicit declaration of function' during geohash build
+            env["CFLAGS"] = "-Wno-error=implicit-function-declaration"
+        elif sys.platform != "win32":
             cc = shutil.which("gcc") or shutil.which("cc")
             cxx = shutil.which("g++") or shutil.which("c++")
             if cc:

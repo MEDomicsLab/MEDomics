@@ -299,7 +299,7 @@ const SupersetDashboard = () => {
         })
       } else if (system === "darwin") {
         // macOS
-        exec(`pkill -f superset`, (err, stdout, stderr) => {
+        exec(`/usr/bin/pkill -f superset`, (err, stdout, stderr) => {
           if (err) {
             console.error(err)
             toast.error("Error killing Superset", {autoClose: 5000})
