@@ -402,7 +402,7 @@ const TrainModelNode = ({ id, data }) => {
                       key={optionName}
                       name={optionName}
                       settingInfos={data.setupParam.possibleSettingsTuning.options[optionName]}
-                      currentValue={data.internal.settingsTuning[optionName]}
+                      currentValue={data.internal.settingsTuning[optionName] || data.setupParam.possibleSettingsTuning.options[optionName].default_val}
                       onInputChange={onInputChangeTuning}
                     />
                   )
@@ -513,7 +513,7 @@ const TrainModelNode = ({ id, data }) => {
             </div>
 
             {/* THRESHOLD OPTIMIZATION SECTION */}
-            <div className="p-2 mb-1" style={{ border: "1px solid #ccc", borderRadius: "8px" }}>
+            <div className="p-1 mb-1" style={{ border: "1px solid #ccc", borderRadius: "8px" }}>
               <div className="mb-1 d-flex align-items-center justify-content-between">
                 <div className="d-flex align-items-center">
                   <label className="me-2">Optimize Threshold</label>
@@ -543,11 +543,18 @@ const TrainModelNode = ({ id, data }) => {
                     key={"optimization_metric"}
                     name="optimization_metric"
                     settingInfos={{
-                      type: "string",
+                      type: "list",
                       tooltip: "<p>Metric to be used for selecting best model's threshold.</p>",
-                      default_val: "Accuracy"
+                      default_val: "BAC",
+                      choices: {
+                        "Accuracy": "Accuracy",
+                        "BAC": "Balanced Accuracy",
+                        "F1": "F1 score", 
+                        "MCC": "Mathew's Correlation Coefficient", 
+                        "Youden": "Youden Index"
+                      }
                     }}
-                    currentValue={data.internal.threshOptimizationMetric || "Accuracy"}
+                    currentValue={data.internal.threshOptimizationMetric || "BAC"}
                     onInputChange={onInputChangeThreshold}
                     setHasWarning={handleWarning}
                   />

@@ -62,7 +62,9 @@ class ModelIO(Node):
                 elif dir(fitted_model).__contains__('classifier_') and dir(fitted_model.classifier_).__contains__('feature_names_in_'):
                     model_features = fitted_model.classifier_.feature_names_in_
                 else:
-                    raise ValueError(f"Model with type {type(fitted_model)} does not have retrievable feature names.")
+                    raise ValueError(f"Could not find model features. Model attributes : {dir(fitted_model)}, model type: {type(fitted_model)}")
+                if model_features is None:
+                    raise ValueError(f"Could not find model features. Model attributes : {dir(fitted_model)}, model type: {type(fitted_model)}")
 
                 model_features = list(model_features)
 

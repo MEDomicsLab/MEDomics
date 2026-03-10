@@ -21,7 +21,6 @@ const ConvertCategoricalColumnIntoNumericDB = ({ currentCollection }) => {
   const [loadingData, setLoadingData] = useState(false)
   const [loadingOW, setLoadingOW] = useState(false)
   const [loadingAP, setLoadingAP] = useState(false)
-  const [originalData, setOriginalData] = useState([])
   const [modifiedColumns, setModifiedColumns] = useState([])
   const [highlightedColumns, setHighlightedColumns] = useState([])
   const [previousData, setPreviousData] = useState(null)
@@ -30,7 +29,6 @@ const ConvertCategoricalColumnIntoNumericDB = ({ currentCollection }) => {
   const [allKeys, setAllKeys] = useState([])
   const [cleanedDocuments, setCleanedDocuments] = useState([])
   const { port } = useContext(ServerConnectionContext)
-  const [removedColumns, setRemovedColumns] = useState([])
 
   const fetchData = async () => {
     setLoadingData(true)
@@ -49,8 +47,6 @@ const ConvertCategoricalColumnIntoNumericDB = ({ currentCollection }) => {
       const cleanedDocuments = cleanData(documents)
 
       setData(cleanedDocuments)
-      // Stock the original data
-      setOriginalData(cleanedDocuments)
 
       const allKeys = Object.keys(cleanedDocuments[0] || {}).filter((key) => key !== "_id")
       const columnStructure = allKeys.map((key) => ({
@@ -142,8 +138,6 @@ const ConvertCategoricalColumnIntoNumericDB = ({ currentCollection }) => {
 
       setData(encodedData)
       setHighlightedColumns(newColumns.map((col) => col.field))
-
-      setRemovedColumns((prev) => [...prev, column])
 
       markColumnAsModified(column)
 

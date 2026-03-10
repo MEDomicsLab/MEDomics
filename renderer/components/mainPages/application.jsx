@@ -358,9 +358,8 @@ const ApplicationPage = ({ pageId }) => {
      * @param {Array} columnsArray An array of the columns of the dataset
      */
     const checkWarnings = (columnsArray) => {
-      let datasetColsString = JSON.stringify(columnsArray)
-      let modelColsString = JSON.stringify(modelFeatures)
-      if (datasetColsString !== modelColsString && modelFeatures && columnsArray) {
+      if (!modelFeatures.every((col) => columnsArray.includes(col)) && modelFeatures && columnsArray) {
+        const missingCols = modelFeatures.filter(col => !columnsArray.includes(col))
         setDatasetHasWarning({
           state: true,
           tooltip: (
@@ -371,17 +370,9 @@ const ApplicationPage = ({ pageId }) => {
                 <div style={{ maxHeight: "400px", overflowY: "auto", overflowX: "hidden" }}>
                   <Row>
                     <Col>
-                      <p>Needed columns:</p>
+                      <p>Missing columns:</p>
                       <ul>
-                        {modelFeatures.sort().map((col) => {
-                          return <li key={col}>{col}</li>
-                        })}
-                      </ul>
-                    </Col>
-                    <Col>
-                      <p>Received columns:</p>
-                      <ul>
-                        {columnsArray.sort().map((col) => {
+                        {missingCols.map((col) => {
                           return <li key={col}>{col}</li>
                         })}
                       </ul>

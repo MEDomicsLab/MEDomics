@@ -1331,10 +1331,11 @@ const Workflow = forwardRef(({ setWorkflowType, workflowType, isExperiment }, re
       // Check if all nodes are in place
       const misPlacedNode = nodes.find(node => node.data.className === "misplaced")
       if (misPlacedNode) {
+        const nameNode = misPlacedNode.data.internal.name === misPlacedNode.data.internal.nameID ? misPlacedNode.data.internal.name : misPlacedNode.data.internal.nameID
         if (misPlacedNode?.data?.setupParam?.section) {
-          toast.error(`Node "${misPlacedNode.data.internal.name}" is misplaced. Please place it inside the "${misPlacedNode.data.setupParam.section}" box.`)
+          toast.error(`Node "${nameNode}" is misplaced. Please place it inside the "${misPlacedNode.data.setupParam.section}" box.`)
         } else {
-          toast.error(`Node "${misPlacedNode.data.internal.name}" is misplaced. Please place them inside their designated boxes.`)
+          toast.error(`Node "${nameNode}" is misplaced. Please place them inside their designated boxes.`)
         }
         return
       }
