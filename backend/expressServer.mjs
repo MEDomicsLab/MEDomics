@@ -921,6 +921,11 @@ expressApp.get("/status", async (req, res) => {
 		res.json({
 			success: true,
 			expressPort: serviceState.expressPort,
+			serverIdentity: {
+				hostName: os.hostname(),
+				pid: process.pid,
+				platform: process.platform
+			},
 			go: { running: serviceState.go.running, port: serviceState.go.port },
 			mongo: { running: serviceState.mongo.running, port: serviceState.mongo.port },
 			jupyter: { running: serviceState.jupyter.running, port: serviceState.jupyter.port }

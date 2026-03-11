@@ -608,20 +608,59 @@ ipcMain.handle('backendStatus', async (_event, { target = 'local' } = {}) => {
     if (target === 'remote') {
       const tunnel = getTunnelState()
       const localExpressPort = tunnel && tunnel.localExpressPort
-      // First try: use existing local→remote forwarding to /status
-      if (localExpressPort) {
-        try {
-          const res = await axios.get(`http://127.0.0.1:${localExpressPort}/status`, { timeout: 3000 })
-          if (res && res.data) return res.data
-        } catch {}
-      }
-
-      // Fallback: sweep remote ports 5000–8000 to discover an Express server
       const conn = getActiveTunnel && getActiveTunnel()
       if (!conn) return { success: false, error: 'no-active-ssh' }
 
-      // Single-shot list of listening ports on remote for performance
+      const normalizeHost = (value) => String(value || '').trim().toLowerCase().replace(/\.+$/, '')
+      const shortHost = (value) => normalizeHost(value).split('.')[0]
+      const isValidStatusPayload = (payload) => {
+        return !!(payload && typeof payload === 'object' && payload.success === true)
+      }
+
       const remoteOS = await detectRemoteOS()
+      const remoteHostName = await new Promise((resolve) => {
+        try {
+          const hostCmd = remoteOS === 'win32'
+            ? `powershell -NoProfile -Command "$env:COMPUTERNAME"`
+            : `bash -lc "hostname -f 2>/dev/null || hostname 2>/dev/null || uname -n"`
+          conn.exec(hostCmd, (err, stream) => {
+            if (err) return resolve(null)
+            let out = ''
+            stream.on('data', (d) => { out += d.toString() })
+            stream.stderr.on('data', () => {})
+            stream.on('close', () => resolve((out || '').trim() || null))
+          })
+        } catch {
+          resolve(null)
+        }
+      })
+
+      // First try: use existing local→remote forwarding to /status only when the express
+      // tunnel is already known to be active, and verify identity against remote host.
+      const tunnels = Array.isArray(tunnel?.tunnels) ? tunnel.tunnels : []
+      const expressForward = tunnels.find((t) => t?.name === 'express')
+      const hasActiveExpressForward = !!(
+        localExpressPort &&
+        expressForward &&
+        expressForward.status === 'forwarding' &&
+        Number(expressForward.localPort) === Number(localExpressPort)
+      )
+      if (hasActiveExpressForward) {
+        try {
+          const res = await axios.get(`http://127.0.0.1:${localExpressPort}/status`, { timeout: 3000 })
+          const data = res && res.data
+          const reportedHost = data && data.serverIdentity && data.serverIdentity.hostName
+          const matchesRemoteHost = remoteHostName && reportedHost && (
+            normalizeHost(remoteHostName) === normalizeHost(reportedHost) ||
+            shortHost(remoteHostName) === shortHost(reportedHost)
+          )
+          if (isValidStatusPayload(data) && matchesRemoteHost) return data
+        } catch {}
+      }
+
+      // Fallback: sweep remote ports 5000-8000 to discover an Express server
+
+      // Single-shot list of listening ports on remote for performance
       const listCmd = remoteOS === 'win32'
         ? `netstat -an | findstr LISTEN`
         : `bash -c "command -v ss >/dev/null 2>&1 && ss -ltn || netstat -an | grep LISTEN"`
@@ -692,7 +731,7 @@ ipcMain.handle('backendStatus', async (_event, { target = 'local' } = {}) => {
 
       for (const rp of ports) {
         const found = await tryPortStatus(rp)
-        if (found && found.data) {
+        if (found && isValidStatusPayload(found.data)) {
           // Persistently start Express forward using discovered remote port
           try {
             await startExpressForward({ remoteExpressPort: rp })

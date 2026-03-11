@@ -921,7 +921,7 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
         if (!withinGrace) setRemoteServerRunning(false)
         setShouldRecheck(true)
       } else {
-        setRemoteBackendStatus('Remote server not found. Install or locate it.')
+        setRemoteBackendStatus('Remote server not found. Please install it first.')
         setRemoteServerRunning(false)
         setShouldRecheck(false)
       }
@@ -1679,6 +1679,7 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
   ]
 
   const serverSetupActionsBusy = checkingRemoteServerBusy || installingRemote || startingRemoteServerBusy || checkingRemotePortBusy
+  const startServerButtonDisabled = !tunnelActive || connectionProcessing || serverSetupActionsBusy || !remoteInstalled
 
   const formatReleaseTagForDisplay = (tag) => {
     const cleaned = String(tag || '').trim().replace(/^server[-_]?/i, '')
@@ -1958,7 +1959,14 @@ const ConnectionModal = ({ visible, closable, onClose, onConnect }) =>{
                 <span>Start on port:</span>
                 <InputNumber disabled={!tunnelActive || connectionProcessing || serverSetupActionsBusy} value={remoteStartPort} onChange={e => setRemoteStartPort(e.value)} useGrouping={false} min={1} max={65535} />
                 {!remoteServerRunning ? (
-                  <Button onClick={startRemoteServer} disabled={!tunnelActive || connectionProcessing || serverSetupActionsBusy} style={{ background: 'var(--button-bg)', color: 'var(--button-text)' }}>Start Server</Button>
+                  <Button
+                    onClick={startRemoteServer}
+                    disabled={startServerButtonDisabled}
+                    title={!remoteInstalled ? 'Please install the remote server first.' : 'Start remote server'}
+                    style={{ background: 'var(--button-bg)', color: 'var(--button-text)' }}
+                  >
+                    Start Server
+                  </Button>
                 ) : (
                   <Button onClick={stopRemoteServer} disabled={!tunnelActive || connectionProcessing || serverSetupActionsBusy} style={{ background: 'var(--danger)', color: 'var(--button-text)' }}>Stop Server</Button>
                 )}
