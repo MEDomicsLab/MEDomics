@@ -8,6 +8,35 @@ import json
 from .nodes.NodeObj import *
 from .nodes import *
 
+PYCARET_SETUP_ALLOWED_KEYS = {
+    "target",
+    "train_size",
+    "fold",
+    "fold_strategy",
+    "session_id",
+    "normalize",
+    "normalize_method",
+    "transformation",
+    "transformation_method",
+    "handle_unknown_categorical",
+    "remove_outliers",
+    "outliers_method",
+    "fix_imbalance",
+    "fix_imbalance_method",
+    "feature_selection",
+    "feature_selection_method",
+    "pca",
+    "pca_method",
+    "class_weight",
+    "numeric_features",
+    "categorical_features",
+    "ignore_features",
+    "date_features",
+    "ordinal_features",
+    "log_experiment",
+    "index"
+}
+
 
 def create_pycaret_exp(ml_type: str) -> json:
     """
@@ -148,7 +177,8 @@ class MEDexperimentLearning(MEDexperiment):
         temp_df.dropna(how='all', axis=1, inplace=True)
         if 'variables' in node.settings and node.settings['variables']:
             first_col = temp_df.columns[0]
-            temp_df = temp_df[[first_col] + [kwargs['target']] + node.settings['variables']]
+            unique_columns = list(set([first_col] + [kwargs['target']] + node.settings['variables']))
+            temp_df = temp_df[unique_columns]
         node.CodeHandler.add_line("code", f"temp_df.dropna(how='all', axis=1, inplace=True)")
         medml_logger = MEDml_logger()
 
@@ -160,7 +190,17 @@ class MEDexperimentLearning(MEDexperiment):
             del kwargs['test_data']
             pycaret_exp.setup(temp_df, test_data=test_data_df, log_experiment=medml_logger, **kwargs)
         else:
-            pycaret_exp.setup(temp_df, log_experiment=medml_logger, **kwargs)
+            clean_kwargs = {
+                k: v for k, v in kwargs.items()
+                if k in PYCARET_SETUP_ALLOWED_KEYS
+            }
+
+            pycaret_exp.setup(
+                temp_df,
+                log_experiment=medml_logger,
+                **clean_kwargs
+            )
+
             node.CodeHandler.add_line("code", f"pycaret_exp.setup(temp_df, {node.CodeHandler.convert_dict_to_params(kwargs)})")
         
         node.CodeHandler.add_line(

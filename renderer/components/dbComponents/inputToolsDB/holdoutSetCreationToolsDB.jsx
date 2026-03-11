@@ -297,7 +297,7 @@ const HoldoutSetCreationToolsDB = ({ currentCollection }) => {
               <label style={{ marginLeft: 8 }}>Keep tags</label>
             </span>
             <Button
-              icon="pi pi-plus"
+              icon="pi pi-save"
               style={{ margin: "10px" }}
               onClick={() => {
                 createHoldoutSet()

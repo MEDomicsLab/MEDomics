@@ -34,7 +34,7 @@ const ExploratoryPage = () => {
           <p className="gitbook-link">
           📖 Learn how to use these tools in our
           <u
-            onClick={() => shell.openExternal("https://medomics-udes.gitbook.io/medomicslab-docs/tutorials/design/exploratory-module")}
+            onClick={() => shell.openExternal("https://medomicslab.gitbook.io/medomics-docs/tutorials/design/exploratory-module")}
             style={{ color: "#4991dfff", textDecoration: "none", cursor: "pointer" }}
           > documentation. 🔗
           </u>

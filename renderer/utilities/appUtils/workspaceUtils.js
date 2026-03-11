@@ -46,8 +46,8 @@ export async function recursivelyRecenseWorkspaceTree(children, parentID, isRemo
     })
     // Real ID in DataBase if object already exists
     const IDinDB = await insertMEDDataObjectIfNotExists(childObject, child.path)
-    if (childType == "directory" && child.name != ".medomics") {
-      await recursivelyRecenseWorkspaceTree(child.children, IDinDB, isRemote)
+    if ((childType == "directory" || childType == "medmodel") && child.name != ".medomics") {
+      await recursivelyRecenseWorkspaceTree(child.children, IDinDB)
     }
   }
 }

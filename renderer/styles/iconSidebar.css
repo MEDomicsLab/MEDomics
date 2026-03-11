@@ -105,3 +105,46 @@ a.btnSidebar.nav-link.active {
 .extractionNav .btn-group-ext .p-button:hover {
   box-shadow: 0rem 0rem 0.5rem 1px #000000e0;
 }
+
+.evaluationNav {
+  width: 41px;
+  height: 41px;
+}
+
+.evaluationNav.disabled {
+  color: var(--bs-nav-link-disabled-color);
+  pointer-events: none;
+  cursor: default;
+}
+
+.evaluationNav .btn-group-ext {
+  position: absolute;
+  left: 0rem;
+  transition: all 0.3s ease-in-out;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  z-index: -1;
+  opacity: 0;
+}
+
+.evaluationNav .btn-group-ext.clicked {
+  left: 3.4rem;
+  opacity: 1;
+  z-index: 4;
+}
+
+.evaluationNav .btn-group-ext .p-button {
+  width: auto;
+  height: auto;
+  padding: 0.5rem;
+  background-color: #313131;
+  border-color: var(--gray-800);
+}
+.evaluationNav .btn-group-ext .p-button .p-button-icon {
+  font-size: 1.25rem;
+}
+
+.evaluationNav .btn-group-ext .p-button:hover {
+  box-shadow: 0rem 0rem 0.5rem 1px #000000e0;
+}

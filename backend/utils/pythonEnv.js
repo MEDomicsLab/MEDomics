@@ -218,8 +218,8 @@ function getPythonEnvironment(medCondaEnv = "med_conda_env") {
     }
   }
   // If the python environment is found, the conda path is saved in the settings file if it is not already defined
-  if (pythonEnvironment !== undefined && pythonEnvironment !== null) {
-    if (settingsFound && settings.condaPath === undefined) {
+  if (pythonEnvironment) {
+    if (settingsFound && (settings.condaPath === undefined || settings.condaPath !== pythonEnvironment)) {
       settings.condaPath = pythonEnvironment
       fs.writeFileSync(settingsFilePath, JSON.stringify(settings))
     }
@@ -262,7 +262,6 @@ function getCondaPath(parentPath) {
       condaPath = checkDirectories(parentPath, possibleCondaPaths)
     }
     if (condaPath === null && process.platform !== "darwin") {
-      // Replaced dialog usage (Electron) with console output to keep backend headless.
       console.log("No conda environment found. Please install Anaconda or Miniconda and try again.")
     }
   }

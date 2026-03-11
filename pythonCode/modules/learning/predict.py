@@ -5,6 +5,7 @@ import uuid
 from pathlib import Path
 
 import pandas as pd
+from sklearn import pipeline
 
 sys.path.append(
     str(Path(os.path.dirname(os.path.abspath(__file__))).parent.parent))
@@ -70,6 +71,12 @@ class GoExecScriptPredict(GoExecutionScript):
             if model_metadata["target"] in dataset_original.columns:
                 dataset_original = dataset_original.drop(columns=[model_metadata['target']])
             dataset = dataset_original.copy()
+            # Reindex the dataset to have the same columns as the model expects
+            if hasattr(model, 'feature_names_in_'):
+                 dataset = dataset.reindex(columns=[col for col in model.feature_names_in_ if col in dataset.columns])
+            # Transfrom the data
+            if hasattr(model, 'transform'):
+                dataset = model.transform(dataset)
             y_pred = model.predict(dataset)
             pred_name = "pred_" + dataset_infos['name']
 
@@ -77,6 +84,13 @@ class GoExecScriptPredict(GoExecutionScript):
         else:
             data = json_config['entry']['data']
             dataset = pd.DataFrame(data)
+            # Reindex the dataset to have the same columns as the model expects
+            if hasattr(model, 'feature_names_in_'):
+                dataset = dataset.reindex(columns=[col for col in model.feature_names_in_ if col in dataset.columns])
+            # Transfrom the data
+            if hasattr(model, 'transform'):
+                dataset = model.transform(dataset)
+            model = model.steps[-1][1] if hasattr(model, 'steps') else model
             y_pred = model.predict(dataset)
             pred_score = model.predict_proba(dataset).max() if y_pred[0] else model.predict_proba(dataset).min()
             pred_target = str(y_pred[0])

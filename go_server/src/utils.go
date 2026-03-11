@@ -306,7 +306,8 @@ func copyOutput(r io.Reader, response *string) {
 
 // ReadFile reads a file and returns its content as a string
 func ReadFile(filename string) string {
-	absPath, _ := filepath.Abs(filename)
+	cleanPath := strings.Trim(filename, "\" \t\n\r")
+	absPath, _ := filepath.Abs(cleanPath)
 	log.Println("Reading file: " + absPath)
 	data, err := os.ReadFile(absPath)
 	if err != nil {

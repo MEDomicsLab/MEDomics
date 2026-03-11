@@ -113,7 +113,7 @@ const HomePage = () => {
   // Get app's version
   useEffect(() => {
     ipcRenderer.invoke("getAppVersion").then((data) => {
-      setAppVersion(data)
+      setAppVersion(data.replace(/v/, ""))
     })
   }, [])
 

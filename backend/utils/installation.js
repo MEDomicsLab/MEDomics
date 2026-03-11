@@ -112,11 +112,10 @@ export const installMongoDB = async () => {
     let installMongoDBPromise = exec(`brew tap mongodb/brew && brew install mongodb-community@7.0.12`)
     execCallbacksForChildWithNotifications(installMongoDBPromise.child, "Installing MongoDB", null)
     
-
-    
     return getMongoDBPath() !== null
   } else if (process.platform === "linux") {
     const linuxURLDict = {
+      "Ubuntu 24.04 x86_64": "https://fastdl.mongodb.org/linux/mongodb-linux-x86_64-ubuntu2404-8.0.9.tgz",
       "Ubuntu 20.04 x86_64": "https://fastdl.mongodb.org/linux/mongodb-linux-x86_64-ubuntu2004-7.0.15.tgz",
       "Ubuntu 22.04 x86_64": "https://fastdl.mongodb.org/linux/mongodb-linux-x86_64-ubuntu2204-7.0.15.tgz",
       "Ubuntu 20.04 aarch64": "https://fastdl.mongodb.org/linux/mongodb-linux-aarch64-ubuntu2004-7.0.15.tgz",
@@ -127,44 +126,45 @@ export const installMongoDB = async () => {
     // Check if MongoDB is installed
     if (getMongoDBPath() !== null) {
       return true
+    }
+    // Check which Linux distribution is being used
+    let { stdout, stderr } = await exec(`cat /etc/os-release`)
+    let osRelease = stdout
+    let isUbuntu = osRelease.includes("Ubuntu")
+    if (!isUbuntu) {
+      return false
     } else {
-      // Check which Linux distribution is being used
-      let { stdout, stderr } = await exec(`cat /etc/os-release`)
-      let osRelease = stdout
-      let isUbuntu = osRelease.includes("Ubuntu")
-      if (!isUbuntu) {
-        console.log("Only Ubuntu is supported for now")
-        return false
-      } else {
-        // osRelease is a string with the contents of /etc/os-release
-        // Get the version of Ubuntu
-        let ubuntuVersion = osRelease.match(/VERSION_ID="(.*)"/)[1]
-        // Get the architecture of the system
-        let architecture = "x86_64"
-        if (process.arch === "arm64") {
-          architecture = "aarch64"
-        }
-        // Get the download URL
-        let downloadUrl = linuxURLDict[`Ubuntu ${ubuntuVersion} ${architecture}`]
-        // Download MongoDB installer
-        const downloadPath = path.join(app.getPath("downloads"), `mongodb-linux-${architecture}-ubuntu${ubuntuVersion}-7.0.15.tgz`)
-        let downloadMongoDBPromise = exec(`curl -o ${downloadPath} ${downloadUrl}`)
-        execCallbacksForChildWithNotifications(downloadMongoDBPromise.child, "Downloading MongoDB installer", null)
-        await downloadMongoDBPromise
-        // Install MongoDB in the .medomics directory in the user's home directory
-        ubuntuVersion = ubuntuVersion.replace(".", "")
-        let command = `tar -xvzf ${downloadPath} -C /home/${process.env.USER}/.medomics/ && mv /home/${process.env.USER}/.medomics/mongodb-linux-${architecture}-ubuntu${ubuntuVersion}-7.0.15 /home/${process.env.USER}/.medomics/mongodb`
-        let installMongoDBPromise = exec(command)
-
-        // let installMongoDBPromise = exec(`tar -xvzf ${downloadPath} && mv mongodb-linux-${architecture}-ubuntu${ubuntuVersion}-7.0.15 /home/${process.env.USER}/.medomics/mongodb`)
-        execCallbacksForChildWithNotifications(installMongoDBPromise.child, "Installing MongoDB", null)
-        await installMongoDBPromise
-        
-        
-        
-
-        return getMongoDBPath() !== null
+      // osRelease is a string with the contents of /etc/os-release
+      // Get the version of Ubuntu
+      let ubuntuVersion = osRelease.match(/VERSION_ID="(.*)"/)[1]
+      // Get the architecture of the system
+      let architecture = "x86_64"
+      if (process.arch === "arm64") {
+        architecture = "aarch64"
       }
+      // Get the download URL
+      let downloadUrl = linuxURLDict[`Ubuntu ${ubuntuVersion} ${architecture}`]
+      // Download MongoDB installer
+      let mongoDBVersion = "7.0.15"
+      if (ubuntuVersion === "24.04") {
+        mongoDBVersion = "8.0.9"
+      }
+      const downloadPath = path.join(app.getPath("downloads"), `mongodb-linux-${architecture}-ubuntu${ubuntuVersion}-${mongoDBVersion}.tgz`)
+      let downloadMongoDBPromise = exec(`curl -o ${downloadPath} ${downloadUrl}`)
+      execCallbacksForChildWithNotifications(downloadMongoDBPromise.child, "Downloading MongoDB installer", mainWindow)
+      await downloadMongoDBPromise
+      // Install MongoDB in the .medomics directory in the user's home directory
+      ubuntuVersion = ubuntuVersion.replace(".", "")
+      let command = `tar -xvzf ${downloadPath} -C ${process.env.HOME}/.medomics/ && mv ${process.env.HOME}/.medomics/mongodb-linux-${architecture}-ubuntu${ubuntuVersion}-${mongoDBVersion} ${process.env.HOME}/.medomics/mongodb`
+      let installMongoDBPromise = exec(command)
+
+      // let installMongoDBPromise = exec(`tar -xvzf ${downloadPath} && mv mongodb-linux-${architecture}-ubuntu${ubuntuVersion}-7.0.15 ${process.env.HOME}/.medomics/mongodb`)
+      execCallbacksForChildWithNotifications(installMongoDBPromise.child, "Installing MongoDB", mainWindow)
+      await installMongoDBPromise
+
+      const test = getMongoDBPath()
+
+      return getMongoDBPath() !== null
     }
   }
 }

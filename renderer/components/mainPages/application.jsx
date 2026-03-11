@@ -40,7 +40,7 @@ import ModulePage from "./moduleBasics/modulePage"
  *
  * @returns {React.Component} The entry component
  */
-const Entry = ({ pageId, setRequestSettings, chosenModel, modelMetadata, updateWarnings, mode, setMode, setIsValid2Predict, inputsData, setInputsData, imputedColumns }) => {
+const Entry = ({ pageId, setRequestSettings, chosenModel, modelMetadata, updateWarnings, mode, setMode, setIsValid2Predict, inputsData, setInputsData, modelColumns, imputedColumns }) => {
   const [chosenDataset, setChosenDataset] = useState(null)
   const [datasetHasWarning, setDatasetHasWarning] = useState({ state: true, tooltip: "No dataset selected" })
   const [isColsValid, setIsColsValid] = useState(false)
@@ -52,7 +52,7 @@ const Entry = ({ pageId, setRequestSettings, chosenModel, modelMetadata, updateW
 
   useEffect(() => {
     if (modelMetadata) {
-      let columns = modelMetadata.columns
+      let columns = modelColumns
       columns = columns.filter((col) => !imputedColumns.includes(col))
       let isValid = true
       columns.forEach((columnName) => {
@@ -68,7 +68,7 @@ const Entry = ({ pageId, setRequestSettings, chosenModel, modelMetadata, updateW
 
   useEffect(() => {
     updateWarnings(chosenDataset, setDatasetHasWarning)
-  }, [chosenDataset])
+  }, [chosenDataset, chosenModel])
 
   useEffect(() => {
     if (mode === "table") {
@@ -77,19 +77,6 @@ const Entry = ({ pageId, setRequestSettings, chosenModel, modelMetadata, updateW
       setIsValid2Predict(isColsValid)
     }
   }, [mode, datasetHasWarning, isColsValid])
-
-  useEffect(() => {
-    if (imputedColumns.length > 0){
-      let inputInit = {}
-      imputedColumns.map((col) => {
-        inputInit[col] = [undefined]
-      })
-      setInputsData(inputInit)
-    } else {
-      setInputsData({})
-    }
-    updateWarnings(chosenDataset, setDatasetHasWarning)
-  }, [chosenModel])
 
   useEffect(() => {
     setRequestSettings({
@@ -101,6 +88,10 @@ const Entry = ({ pageId, setRequestSettings, chosenModel, modelMetadata, updateW
   }, [chosenModel, chosenDataset, inputsData, mode])
 
   const handleInputUpdate = (inputUpdate) => {
+    if (!Object.keys(inputsData).includes(inputUpdate.name)) {
+      toast.error(`Column ${inputUpdate.name} is not a required column for the model.`)
+      return
+    }
     const newInputsData = { ...inputsData, [inputUpdate.name]: [inputUpdate.value] }
     setInputsData(newInputsData)
   }
@@ -131,20 +122,27 @@ const Entry = ({ pageId, setRequestSettings, chosenModel, modelMetadata, updateW
 
       {mode === "unique" && (
         <div className="columns-filling">
-          {modelMetadata.columns.map((columnName, index) => {
+          {modelColumns.map((columnName, index) => {
             if (columnName !== modelMetadata.target) {
               return (
-                <Input
-                  key={index}
-                  name={imputedColumns.includes(columnName) ? columnName : columnName+"*"}
-                  settingInfos={{ type: "string", tooltip: "" }}
-                  currentValue={inputsData[columnName] ?? ""}
-                  onInputChange={handleInputUpdate}
-                />
+                <div key={index} style={{ 
+                  boxShadow: imputedColumns.includes(columnName) 
+                    ? 'none' 
+                    : '0 0 4px rgba(239, 68, 68, 0.4)',
+                  borderRadius: '4px'
+                }}>
+                  <Input
+                    key={index}
+                    name={columnName}
+                    settingInfos={{ type: "string", tooltip: "" }}
+                    currentValue={inputsData[columnName] ?? ""}
+                    onInputChange={handleInputUpdate}
+                  />
+                </div>
               )
             }
           })}
-          <label>* Required columns</label>
+          <label style={{color: "rgba(239, 68, 68, 0.8)"}}>Required columns</label>
         </div>
       )}
 
@@ -183,6 +181,7 @@ const Entry = ({ pageId, setRequestSettings, chosenModel, modelMetadata, updateW
 const ApplicationPage = ({ pageId }) => {
   const [chosenModel, setChosenModel] = useState("")
   const [modelMetadata, setModelMetadata] = useState(null)
+  const [modelFeatures, setModelFeatures] = useState([])
   const [optionalColumns, setOptionalColumns] = useState([])
   const [isCalibrated, setIsCalibrated] = useState(false)
   const [inputsData, setInputsData] = useState({})
@@ -199,16 +198,23 @@ const ApplicationPage = ({ pageId }) => {
   const [mode, setMode] = useState("unique")
   const [requestSettings, setRequestSettings] = useState({})
 
+  const fetchModelMetadata = async (metadataObjectID) => {
+    const metadata = await getCollectionData(metadataObjectID)
+    return metadata ? metadata[0] : null
+  }
+
   // when the chosen model changes, update the model metadata
   useEffect(() => {
     setModelMetadata(null)
     const fetchData = async (metadataObjectID) => {
-      await getOptionalColumns()
-      setModelMetadata(null)
-      const metadata = await getCollectionData(metadataObjectID)
+      const metadata = await fetchModelMetadata(metadataObjectID)
       if (metadata) {
-        setModelMetadata(metadata[0])
+        setModelMetadata(metadata)
         updateWarnings()
+        await getOptionalColumns()
+      } else {
+        toast.error('Failed to retrieve model metadata.')
+        return
       }
     }
     if (chosenModel.id) {
@@ -229,6 +235,16 @@ const ApplicationPage = ({ pageId }) => {
       toast.error('No model selected to retrieve optional columns from.')
       return
     }
+    let metadata = null
+    if (!modelMetadata) {
+      metadata = await fetchModelMetadata(MEDDataObject.getChildIDWithName(globalData, chosenModel.id, "metadata.json"))
+      if (metadata) {
+        setModelMetadata(metadata)
+      } else {
+        toast.error('Failed to retrieve model metadata.')
+        return
+      }
+    }
     setLoadingModelColumns(true)
     requestBackend(
       port,
@@ -247,21 +263,31 @@ const ApplicationPage = ({ pageId }) => {
           toast.error('Failed to retrieve optional columns from the model.')
         } else {
           setOptionalColumns(response.imputed_columns)
+          let target = null
+          if (modelMetadata && Object.keys(modelMetadata).includes("target")) {
+            target = modelMetadata.target
+          } else if (metadata && Object.keys(metadata).includes("target")) {
+            target = metadata.target
+          } else {
+            throw new Error("Model metadata does not contain target information.")
+          }
+          setModelFeatures(response.required_columns.filter(col => col !== target))
           setIsCalibrated(response.is_calibrated || false)
           let inputInit = {}
-          response.imputed_columns.map((col) => {
+          response.required_columns.filter(col => col !== target).map((col) => {
             inputInit[col] = [undefined]
           })
           setInputsData(inputInit)
         }
       },
-      () => {
+      (error) => {
         setPredictions(null)
         setOptionalColumns([])
         setIsCalibrated(false)
         setLoadingModelColumns(false)
         setPredictedTarget(null)
         setPredictionScore(null)
+        console.error("Error while retrieving optional columns from the model", error)
         toast.error('Failed to retrieve optional columns from the model.')
       }
     )
@@ -332,12 +358,10 @@ const ApplicationPage = ({ pageId }) => {
     /**
      *
      * @param {Array} columnsArray An array of the columns of the dataset
-     * @param {Array} modelData An array of the required columns of the model
      */
-    const checkWarnings = (columnsArray, modelData) => {
-      let datasetColsString = JSON.stringify(columnsArray)
-      let modelColsString = JSON.stringify(modelData)
-      if (datasetColsString !== modelColsString && modelData && columnsArray) {
+    const checkWarnings = (columnsArray) => {
+      if (!modelFeatures.every((col) => columnsArray.includes(col)) && modelFeatures && columnsArray) {
+        const missingCols = modelFeatures.filter(col => !columnsArray.includes(col))
         setDatasetHasWarning({
           state: true,
           tooltip: (
@@ -348,17 +372,9 @@ const ApplicationPage = ({ pageId }) => {
                 <div style={{ maxHeight: "400px", overflowY: "auto", overflowX: "hidden" }}>
                   <Row>
                     <Col>
-                      <p>Needed columns:</p>
+                      <p>Missing columns:</p>
                       <ul>
-                        {modelData.map((col) => {
-                          return <li key={col}>{col}</li>
-                        })}
-                      </ul>
-                    </Col>
-                    <Col>
-                      <p>Received columns:</p>
-                      <ul>
-                        {columnsArray.map((col) => {
+                        {missingCols.map((col) => {
                           return <li key={col}>{col}</li>
                         })}
                       </ul>
@@ -389,7 +405,7 @@ const ApplicationPage = ({ pageId }) => {
           missingCols.push(col)
         }
       })
-      checkWarnings(columnsArray, modelColumns)
+      checkWarnings(columnsArray)
     }
   }
 
@@ -423,9 +439,9 @@ const ApplicationPage = ({ pageId }) => {
         {modelMetadata && (
           <>
             {isCalibrated === false ? (
-              <Tag className="app-model-uncalibrated-tag" severity="warning" value="Uncalibrated Model" />
+              <Tag className="app-model-uncalibrated-tag" severity="warning" value="This model is uncalibrated" />
             ) : (
-              <Tag className="app-model-calibrated-tag" severity="success" value="Calibrated Model" />
+              <Tag className="app-model-calibrated-tag" severity="success" value="This model is calibrated" />
             )}
             <Entry
               pageId={pageId}
@@ -438,6 +454,7 @@ const ApplicationPage = ({ pageId }) => {
               setIsValid2Predict={setIsValid2Predict}
               inputsData={inputsData}
               setInputsData={setInputsData}
+              modelColumns={modelFeatures}
               imputedColumns={optionalColumns}
             />
             <Button label="Predict" outlined severity="success" onClick={() => handlePredictClick()} disabled={!isValid2Predict} />
@@ -523,7 +540,7 @@ const ApplicationPageWithModulePage = ({ pageId = "application-456" }) => {
               <p>
                 📖 Learn more about this tool in our{' '}
                 <u
-                  onClick={() => shell.openExternal("https://medomics-udes.gitbook.io/medomicslab-docs/tutorials/deployment/application-module")}
+                  onClick={() => shell.openExternal("https://medomicslab.gitbook.io/medomics-docs/tutorials/deployment/application-module")}
                   style={{ color: "#4991dfff", textDecoration: "none", cursor: "pointer" }}
                 >
                   documentation. 🔗
