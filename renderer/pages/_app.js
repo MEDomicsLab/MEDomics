@@ -14,7 +14,12 @@ import { MEDDataObject } from "../components/workspace/NewMedDataObject"
 import { WorkspaceProvider } from "../components/workspace/workspaceContext"
 import { loadMEDDataObjects, updateGlobalData } from "../utilities/appUtils/globalDataUtils"
 import { NotificationContextProvider } from "../components/generalPurpose/notificationContext"
+import { TunnelProvider } from "../components/tunnel/TunnelContext";
+import { setTunnelState, clearTunnelState } from "../utilities/tunnelState"
+import { downloadCollectionToFile, insertObjectIntoCollection } from "../components/mongoDB/mongoDBUtils"
 import { ThemeProvider } from "../components/theme/themeContext"
+import { SidebarLoadingProvider } from "../components/layout/sidebarTools/SidebarLoadingContext"
+import SidebarLoadingController from "../components/layout/sidebarTools/SidebarLoadingController"
 import { SupersetRequestProvider } from "../components/mainPages/superset/supersetRequestContext"
 
 // CSS
@@ -124,7 +129,8 @@ function App() {
   const [layoutModel, setLayoutModel] = useState(initialLayout)
   const [workspaceObject, setWorkspaceObject] = useState({
     hasBeenSet: false,
-    workingDirectory: ""
+    workingDirectory: "",
+    isRemote: false 
   })
   const [recentWorkspaces, setRecentWorkspaces] = useState([]) // The list of recent workspaces
   const [port, setPort] = useState() // The port of the server
@@ -183,6 +189,32 @@ function App() {
       setRecentWorkspaces(data)
     })
 
+    ipcRenderer.on("tunnelStateUpdate", (event, state) => {
+      setTunnelState(state)
+    })
+
+    ipcRenderer.on("tunnelStateClear", () => {
+      clearTunnelState()
+    })
+
+    ipcRenderer.on("insertObjectIntoCollection", (event, data) => {
+      if (process.platform === "win32") {
+        if (data.objectPath.startsWith("/")) {
+          data.objectPath = data.ObjectPath.slice(1)
+        } 
+      }
+      insertObjectIntoCollection(data)
+    })
+
+    ipcRenderer.on("downloadCollectionToFile", (event, data) => {
+      if (process.platform === "win32") {
+        if (data.filePath.startsWith("/")) {
+          data.filePath = data.filePath.slice(1)
+        } 
+      }
+      downloadCollectionToFile(data.collectionId, data.filePath, data.type)
+    })
+
     /**
      * This is to log messages from the main process in the console
      */
@@ -198,10 +230,16 @@ function App() {
     }
   }, []) // Here, we specify that the hook should only be called at the launch of the app
 
+  // Helper to dispatch custom sidebar loading event
+  function setSidebarLoadingCustom(processing, message) {
+    window.dispatchEvent(new CustomEvent("sidebarLoading", { detail: { processing, message } }))
+  }
+
   // This useEffect hook is called whenever the `globalData` state changes.
   useEffect(() => {
     console.log("globalData changed", globalData)
     MEDDataObject.verifyLockedObjects(globalData)
+    setSidebarLoadingCustom(false, "")
   }, [globalData])
 
   // This useEffect hook is called whenever the `layoutModel` state changes.
@@ -213,13 +251,24 @@ function App() {
   // This useEffect hook is called whenever the `workspaceObject` state changes.
   useEffect(() => {
     async function getGlobalData() {
-      await updateGlobalData(workspaceObject)
-      const newGlobalData = await loadMEDDataObjects()
-      setGlobalData(newGlobalData)
+      let result
+      if (workspaceObject.isRemote) {
+        result = await ipcRenderer.invoke("confirmMongoTunnel", true)
+      }
+      setSidebarLoadingCustom(true, "Loading workspace data...")
+      if (!result || (result && result.success)) {
+        await updateGlobalData(workspaceObject)
+        const newGlobalData = await loadMEDDataObjects(workspaceObject.isRemote)
+        setGlobalData(newGlobalData)
+      }
+      setSidebarLoadingCustom(false, "")
     }
     if (workspaceObject.hasBeenSet == true) {
       console.log("workspaceObject changed", workspaceObject)
       getGlobalData()
+    } else {
+      console.log("Clearing global data because workspaceObject has not been set yet", workspaceObject)
+      setGlobalData({})
     }
   }, [workspaceObject])
 
@@ -252,15 +301,20 @@ function App() {
                       setSupersetPort={setSupersetPort}
                     >
                     <ServerConnectionProvider port={port} setPort={setPort}>
-                      <LayoutModelProvider // This is the LayoutContextProvider, which provides the layout model to all the children components of the LayoutManager
-                        layoutModel={layoutModel}
-                        setLayoutModel={setLayoutModel}
-                      >
-                        {/* This is the WorkspaceProvider, which provides the workspace model to all the children components of the LayoutManager */}
-                        {/* This is the LayoutContextProvider, which provides the layout model to all the children components of the LayoutManager */}
-                        <LayoutManager layout={initialLayout} />
-                        {/** We pass the initialLayout as a parameter */}
-                      </LayoutModelProvider>
+                      <TunnelProvider>
+                        <SidebarLoadingProvider>
+                          <SidebarLoadingController />
+                          <LayoutModelProvider // This is the LayoutContextProvider, which provides the layout model to all the children components of the LayoutManager
+                            layoutModel={layoutModel}
+                            setLayoutModel={setLayoutModel}
+                          >
+                            {/* This is the WorkspaceProvider, which provides the workspace model to all the children components of the LayoutManager */}
+                            {/* This is the LayoutContextProvider, which provides the layout model to all the children components of the LayoutManager */}
+                            <LayoutManager layout={initialLayout} />
+                            {/** We pass the initialLayout as a parameter */}
+                          </LayoutModelProvider>
+                        </SidebarLoadingProvider>
+                      </TunnelProvider>
                     </ServerConnectionProvider>
                     </SupersetRequestProvider>
                   </WorkspaceProvider>

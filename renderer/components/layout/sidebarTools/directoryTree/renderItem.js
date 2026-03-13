@@ -111,7 +111,12 @@ const cx = (...classNames) => classNames.filter((cn) => !!cn).join(" ")
 const renderItem = ({ item, depth, children, title, context, arrow }, additionalParams) => {
   const InteractiveComponent = context.isRenaming ? "div" : "button"
   const type = context.isRenaming ? undefined : "button"
-  const itemInMongoDB = collectionExists(item.index)
+  let itemInMongoDB = false
+  try {
+    itemInMongoDB = collectionExists(item.index)
+  } catch (error) {
+    console.error("Error checking collection existence, MongoDB is no longer active:", error)
+  }
 
   const folderItemContent = (
     <li

@@ -1,15 +1,15 @@
 import React, { useState, useContext, useEffect } from "react"
 import { LayoutModelContext } from "../layout/layoutContext"
-import { requestBackend } from "../../utilities/requests"
 import { Tag } from "primereact/tag"
 import { Tooltip } from "primereact/tooltip"
 import { Button } from "primereact/button"
-import ProgressBarRequests from "../generalPurpose/progressBarRequests"
 import { IoClose } from "react-icons/io5"
 import { getId } from "../../utilities/staticFunctions"
 import { Stack } from "react-bootstrap"
 import { Card } from "primereact/card"
 import Input from "../learning/input"
+import { WorkspaceContext } from "../workspace/workspaceContext"
+import { getTunnelState } from "../../utilities/tunnelState"
 
 /**
  *
@@ -21,30 +21,107 @@ import Input from "../learning/input"
  *
  * @returns A card with the D-Tale module
  */
-const DTaleProcess = ({ uniqueId, pageId, port, setError, onDelete }) => {
+const DTaleProcess = ({ uniqueId, pageId, setError, onDelete }) => {
   const [mainDataset, setMainDataset] = useState()
   const [mainDatasetHasWarning, setMainDatasetHasWarning] = useState({ state: false, tooltip: "" })
   const [isCalculating, setIsCalculating] = useState(false)
-  const [progress, setProgress] = useState({ now: 0, currentLabel: 0 })
   const [serverPath, setServerPath] = useState("")
   const { dispatchLayout } = useContext(LayoutModelContext)
+  const { workspace } = useContext(WorkspaceContext)
   const [name, setName] = useState("")
+  const [currentRouteId, setCurrentRouteId] = useState("")
+  const [progressPercent, setProgressPercent] = useState(null)
+
+  const parseProgressPayload = (payload) => {
+    if (payload && typeof payload === "object") {
+      return payload
+    }
+    if (typeof payload !== "string") {
+      return null
+    }
+
+    let candidate = payload
+    for (let i = 0; i < 4; i++) {
+      if (typeof candidate !== "string") {
+        return candidate && typeof candidate === "object" ? candidate : null
+      }
+      try {
+        const parsed = JSON.parse(candidate)
+        if (typeof parsed === "string") {
+          candidate = parsed
+          continue
+        }
+        return parsed && typeof parsed === "object" ? parsed : null
+      } catch (_) {
+        const startIdx = candidate.indexOf("{")
+        const endIdx = candidate.lastIndexOf("}")
+        if (startIdx >= 0 && endIdx > startIdx) {
+          const trimmed = candidate.substring(startIdx, endIdx + 1)
+          if (trimmed !== candidate) {
+            candidate = trimmed
+            continue
+          }
+        }
+        break
+      }
+    }
+    return null
+  }
+
+  const resolveExpressPort = async (isRemoteMode) => {
+    const tunnel = getTunnelState()
+    if (isRemoteMode && tunnel?.tunnelActive && tunnel.localExpressPort) {
+      return Number(tunnel.localExpressPort)
+    }
+    const expressPort = await window.backend.getExpressPort()
+    return Number(expressPort)
+  }
+
+  const resolveLocalDtaleUrl = async (requestId, remotePort, isRemoteMode) => {
+    if (!isRemoteMode) {
+      return `http://127.0.0.1:${remotePort}/`
+    }
+
+    const tunnelName = `dtale-${requestId}`
+    const startRes = await window.backend.startPortTunnel({
+      name: tunnelName,
+      localPort: 0,
+      remotePort: Number(remotePort),
+      ensureRemoteOpen: true
+    })
+
+    let localPort = startRes?.localPort
+    if (!localPort) {
+      const tunnel = getTunnelState()
+      const existing = (tunnel?.tunnels || []).find((entry) => entry.name === tunnelName && entry.status === "forwarding")
+      localPort = existing?.localPort
+    }
+    if (!localPort) {
+      throw new Error("Failed to resolve local D-Tale tunnel port")
+    }
+    return `http://127.0.0.1:${localPort}/`
+  }
 
   /**
    *
    * @param {String} serverPath The server path
    * @description This function is used to shutdown the dtale server
    */
-  const shutdownDTale = (serverPath) => {
-    console.log("shutting down dtale: ", serverPath)
-    if (serverPath != "") {
-      fetch(serverPath + "/shutdown", {
-        mode: "no-cors",
-        credentials: "include",
-        method: "GET"
+  const shutdownDTale = async () => {
+    try {
+      const isRemoteMode = !!workspace?.isRemote
+      const expressPort = await resolveExpressPort(isRemoteMode)
+      await window.backend.requestExpress({
+        method: "post",
+        port: expressPort,
+        path: "/exploratory/dtale/stop",
+        body: { requestId: uniqueId }
       })
-        .then((response) => console.log(response))
-        .catch((error) => console.log(error))
+      if (isRemoteMode) {
+        await window.backend.stopPortTunnel({ name: `dtale-${uniqueId}` })
+      }
+    } catch (error) {
+      console.warn("Error while stopping D-Tale service:", error)
     }
   }
 
@@ -52,49 +129,89 @@ const DTaleProcess = ({ uniqueId, pageId, port, setError, onDelete }) => {
    * @description This function is used to open the html viewer with the given file path
    */
   const generateReport = () => {
-    shutdownDTale(serverPath)
-    requestBackend(
-      port,
-      "removeId/" + uniqueId + "/" + pageId + "-" + mainDataset.value.name,
-      { dataset: mainDataset.value },
-      (response) => {
-        console.log(response)
-        setIsCalculating(true)
-        setServerPath("")
-        requestBackend(
-          port,
-          "exploratory/start_dtale/" + uniqueId + "/" + pageId + "-" + mainDataset.value.name,
-          { dataset: mainDataset.value },
-          (response) => {
-            console.log(response)
-            if (response.error) {
-              setError(response.error)
-            }
-            setServerPath("")
+    setIsCalculating(true)
+    setServerPath("")
+    setProgressPercent(0)
+    ;(async () => {
+      try {
+        await shutdownDTale()
+        const isRemoteMode = !!workspace?.isRemote
+        const expressPort = await resolveExpressPort(isRemoteMode)
+        const routeId = `${uniqueId}/${pageId}-${mainDataset.value.name}`
+        setCurrentRouteId(routeId)
+        const response = await window.backend.requestExpress({
+          method: "post",
+          port: expressPort,
+          path: "/exploratory/dtale/start",
+          body: {
+            requestId: uniqueId,
+            pageId,
+            dataset: mainDataset.value
           },
-          (error) => {
-            console.log(error)
-            setIsCalculating(false)
-          }
-        )
-      },
-      (error) => {
-        console.log(error)
+          timeout: 180000
+        })
+        const payload = response?.data || {}
+        if (!payload.success) {
+          throw new Error(payload.error || "Failed to start D-Tale")
+        }
+        setProgressPercent(100)
+        const localUrl = await resolveLocalDtaleUrl(uniqueId, payload.remotePort, isRemoteMode)
+        setServerPath(localUrl)
+        setName(payload.name || mainDataset.value.name)
+      } catch (error) {
+        console.error(error)
+        setProgressPercent(null)
+        setError(error?.message || "Failed to start D-Tale")
+      } finally {
+        setIsCalculating(false)
+        setCurrentRouteId("")
       }
-    )
+    })()
   }
 
-  /**
-   *
-   * @param {Object} data Data received from the server on progress update
-   */
-  const onProgressDataReceived = (data) => {
-    if (data.web_server_url) {
-      setServerPath(data.web_server_url)
-      setName(data.name)
-      setIsCalculating(false)
+  useEffect(() => {
+    if (!isCalculating || !currentRouteId) {
+      return
     }
-  }
+
+    let isDisposed = false
+
+    const pollProgress = async () => {
+      try {
+        const isRemoteMode = !!workspace?.isRemote
+        const expressPort = await resolveExpressPort(isRemoteMode)
+        const response = await window.backend.requestExpress({
+          method: "post",
+          port: expressPort,
+          path: "/exploratory/dtale/progress",
+          body: { routeId: currentRouteId },
+          timeout: 10000
+        })
+
+        if (isDisposed) return
+        const payload = response?.data || {}
+        const progressData = parseProgressPayload(payload?.progress)
+        const nowValue = progressData?.now
+        const progressNumber = Number(nowValue)
+        if (Number.isFinite(progressNumber)) {
+          const bounded = Math.max(0, Math.min(100, Math.round(progressNumber)))
+          setProgressPercent(bounded)
+        }
+      } catch (error) {
+        if (!isDisposed) {
+          console.warn("Failed to fetch D-Tale progress:", error)
+        }
+      }
+    }
+
+    pollProgress()
+    const intervalId = setInterval(pollProgress, 1000)
+
+    return () => {
+      isDisposed = true
+      clearInterval(intervalId)
+    }
+  }, [isCalculating, currentRouteId, workspace?.isRemote])
 
   /**
    *
@@ -129,23 +246,12 @@ const DTaleProcess = ({ uniqueId, pageId, port, setError, onDelete }) => {
             className="btn-close-output-card"
             onClick={() => {
               onDelete(uniqueId)
-              shutdownDTale(serverPath)
+              shutdownDTale()
             }}
           />
         </div>
       </div>
-      {isCalculating && (
-        <ProgressBarRequests
-          delayMS={1000}
-          progressBarProps={{ animated: true, variant: "success" }}
-          isUpdating={isCalculating}
-          setIsUpdating={setIsCalculating}
-          progress={progress}
-          setProgress={setProgress}
-          requestTopic={"exploratory/progress/" + uniqueId + "/" + pageId + "-" + mainDataset.value.name}
-          onDataReceived={onProgressDataReceived}
-        />
-      )}
+      {isCalculating && <div style={{ fontSize: "0.9rem", opacity: 0.85 }}>Starting D-Tale service{Number.isFinite(progressPercent) ? ` (${progressPercent}%)` : ""}...</div>}
     </>
   )
 }
@@ -158,7 +264,7 @@ const DTaleProcess = ({ uniqueId, pageId, port, setError, onDelete }) => {
  *
  * @returns the exploratory page with the module page
  */
-const DTale = ({ pageId, port, setError }) => {
+const DTale = ({ pageId, setError }) => {
   const [processes, setProcesses] = useState([])
 
   // when the component is mounted, add a new process
@@ -216,7 +322,7 @@ const DTale = ({ pageId, port, setError }) => {
     >
       <Stack gap={2}>
         {processes.map((id) => (
-          <DTaleProcess onDelete={onDelete} uniqueId={id} key={id} port={port} pageId={pageId} setError={setError} />
+          <DTaleProcess onDelete={onDelete} uniqueId={id} key={id} pageId={pageId} setError={setError} />
         ))}
         <Button className="add-compare" label="Add new D-Tale analysis" onClick={handleAddDTaleComp} />
       </Stack>

@@ -4,7 +4,7 @@ import { toast } from "react-toastify"
 
 // Import utilities
 import uuid from "react-native-uuid"
-import { downloadFile, loadJsonSync } from "../../utilities/fileManagementUtils"
+import { downloadFile, loadJsonSync } from "../../utilities/fileManagement/fileOps"
 import { requestJson } from "../../utilities/requests"
 
 
@@ -647,7 +647,7 @@ const FlowCanvas = ({ workflowType, setWorkflowType }) => {
       const restoreFlow = async () => {
         try {
           // Ask user for the json file to open
-          const flow = await loadJsonSync() // wait for the json file to be loaded (see /utilities/fileManagementUtils.js)
+          const flow = await loadJsonSync() // wait for the json file to be loaded (via fileOps)
           console.log("loaded flow", flow)
 
           // TODO : should have conditions regarding json file used for import!

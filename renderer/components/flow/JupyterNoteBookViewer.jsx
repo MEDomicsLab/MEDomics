@@ -1,19 +1,20 @@
-import React, { useContext, useEffect, useState } from "react"
+import { useEffect, useState } from "react"
 import path from "node:path"
 import Iframe from "react-iframe"
 import { defaultJupyterPort } from "../layout/flexlayout/mainContainerClass"
-import { LayoutModelContext } from "../layout/layoutContext"
 import { ipcRenderer } from "electron"
+import { useTunnel } from "../tunnel/TunnelContext"
 
 /**
  * Jupyter Notebook viewer
  * @param {string} filePath - the path of the file to edit
+ * @param {string} startJupyterServer - function to start the Jupyter server
+ * @param {boolean} isRemote - whether the file is remote or local
+ * @param {object} jupyterStatus - status of the Jupyter server (running, error)
+ * @param {function} setJupyterStatus - function to set the Jupyter server status
  * @returns {JSX.Element} - A Jupyter Notebook viewer
  */
-const JupyterNotebookViewer = ({ filePath, startJupyterServer }) => {
-  const exec = require("child_process").exec
-  const {jupyterStatus, setJupyterStatus} = useContext(LayoutModelContext)
-  const [jupyterURL, setJupyterURL] = useState("")
+const JupyterNotebookViewer = ({ filePath, startJupyterServer, isRemote = false, jupyterStatus, setJupyterStatus }) => {
   const [loading, setLoading] = useState(true)
   const fileName = path.basename(filePath) // Get the file name from the path
   // Get the relative path after "DATA" in the filePath
@@ -28,67 +29,68 @@ const JupyterNotebookViewer = ({ filePath, startJupyterServer }) => {
   }
   const relativePath = match ? match[0] : filePath
 
-  const getPythonPath = async () => {
-    let pythonPath = ""
-    await ipcRenderer.invoke("getBundledPythonEnvironment").then((res) => {
-      pythonPath = res
-    })
-    // Check if pythonPath is set
-    if (pythonPath === "") {
-      return null
-    }
-    return pythonPath
-  }
+  const tunnel = useTunnel()
 
   const checkJupyterServerRunning = async () => {
-    try {
-      const pythonPath = await getPythonPath()
-      if (!pythonPath) {
-        console.error("Python path is not set. Cannot check Jupyter server status.")
-        return false
-      }
-      const result = await exec(`${pythonPath} -m jupyter notebook list`)
-      if (result.stderr) {
-        return false
-      }
-      return result.stdout.includes(defaultJupyterPort.toString())
-    } catch (error) {
-      console.error("Error checking Jupyter server status:", error)
-      return false
-    }
+    return await ipcRenderer.invoke("checkJupyterIsRunning")
   }
 
+  ipcRenderer.on("jupyterReady", () => {
+    if (filePath) {
+      refreshIframe()
+    }
+  })
+
   useEffect(() => {
+    console.log("JupyterNoteBookViewer mounted, checking Jupyter server status...")
+
     const runJupyter = async () => {
       const isRunning = await checkJupyterServerRunning()
-      if (!isRunning) {
+      console.log("Jupyter server running status:", isRunning)
+      if (!isRunning.running) {
         // Start the Jupyter server
         setJupyterStatus({ running: false, error: null })
         setLoading(true)
         try{
           await startJupyterServer()
-          setJupyterStatus({ running: true, error: null })
+          if (isRemote) {
+            let tunnelSuccess = await ipcRenderer.invoke('startJupyterTunnel')
+            console.log("SSH Tunnel start result:", tunnelSuccess, jupyterStatus)
+            if (!tunnelSuccess) {
+              setJupyterStatus({ running: false, error: "Failed to start SSH tunnel for Jupyter. Please check the tunnel settings." })
+              setLoading(false)
+              return
+            }
+          }
           setLoading(false)
+          // Start polling every 2 seconds to check if Jupyter is running, and refresh iframe when ready
+          let hasRefreshed = false
+          const intervalId = setInterval(async () => {
+            const status = await checkJupyterServerRunning()
+            if (status && status.running && !hasRefreshed) {
+              refreshIframe()
+              hasRefreshed = true
+              clearInterval(intervalId)
+            }
+          }, 2000);
         } catch (error) {
           setLoading(false)
           setJupyterStatus({ running: false, error: "Failed to start Jupyter server. Please check the logs." })
           console.error("Error starting Jupyter server:", error)
           return
         }
-        setLoading(false)
-      }
-    }
-    runJupyter()
-  }
-  , [])
-
-  useEffect(() => {
-    if (jupyterStatus.running) {
-      const url = "http://localhost:" + defaultJupyterPort + "/notebooks/" + relativePath
-      setJupyterURL(url)
+      } 
       setLoading(false)
     }
-  }, [filePath, jupyterStatus, relativePath])
+    runJupyter()
+  }, [])
+
+  const getJupyterURL = () => {
+    if (isRemote) {
+      return "http://localhost:" + tunnel.localJupyterPort + "/notebooks/" + relativePath
+    }
+    return "http://localhost:" + defaultJupyterPort + "/notebooks/" + relativePath
+  }
 
   const refreshIframe = () => {
     document.getElementById("iframe-" + fileName).src += ''
@@ -114,7 +116,7 @@ const JupyterNotebookViewer = ({ filePath, startJupyterServer }) => {
       ) : (
       <>
         {!jupyterStatus.running && <p className="error-message">{jupyterStatus.error}</p>}
-        <Iframe id={"iframe-" + fileName} className="jupyter-notebook-frame" src={jupyterURL}></Iframe>
+        <Iframe id={"iframe-" + fileName} className="jupyter-notebook-frame" src={getJupyterURL()}></Iframe>
         <button onClick={refreshIframe} id="reload-button" className="p-button p-component p-button-outlined">Reload</button>
         <style>
           {`

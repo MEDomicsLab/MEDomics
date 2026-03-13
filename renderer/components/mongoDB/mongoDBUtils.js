@@ -4,8 +4,16 @@ import { toast } from "react-toastify"
 const { MongoClient } = require("mongodb")
 const fs = require("fs")
 const Papa = require("papaparse")
+import { getTunnelState } from "../../utilities/tunnelState"
 
-const uri = "mongodb://localhost:54017" // Remplacez par votre URI MongoDB
+function getMongoUri() {
+  const tunnel = getTunnelState()
+  if (tunnel && tunnel.tunnelActive && tunnel.localDBPort) {
+    return `mongodb://localhost:${tunnel.localDBPort}`
+  }
+  return "mongodb://localhost:54017"
+}
+
 const dbName = "data" // Remplacez par le nom de votre base de données
 
 let client
@@ -22,7 +30,7 @@ function stripIds(doc = {}) {
 
 export async function connectToMongoDB() {
   if (!client) {
-    client = new MongoClient(uri, { useNewUrlParser: true, useUnifiedTopology: true })
+    client = new MongoClient(getMongoUri(), { useNewUrlParser: true, useUnifiedTopology: true })
     await client.connect()
   }
   return client.db(dbName)
@@ -357,6 +365,11 @@ async function insertCSVIntoCollection(filePath, collectionName) {
         },
         complete: async (results) => {
           try {
+            if (results.data.length == 0) {
+              console.warn("CSV file is empty or has no valid rows.")
+              resolve(null)
+              return
+            } 
             // Additional cleanup for any remaining NaN values
             const cleanedData = results.data.map(row => {
               const cleanRow = {}
@@ -744,6 +757,28 @@ export async function getAllCollections() {
   return await db.listCollections().toArray()
 }
 
+
+export async function insertObjectIntoCollection(data) {
+  switch (data.medDataObject.type) {
+    case "csv":
+      await insertCSVIntoCollection(data.objectPath, data.medDataObject.id)
+      break
+    case "html":
+      await insertHTMLIntoCollection(data.objectPath, data.medDataObject.id)
+      break
+    case "png":
+      await insertPNGIntoCollection(data.objectPath, data.medDataObject.id)
+      break
+    case "pkl":
+      await insertPKLIntoCollection(data.objectPath, data.medDataObject.id)
+      break
+    case "jpg":
+      await insertJPGIntoCollection(data.objectPath, data.medDataObject.id)
+      break
+    default:
+      break
+  }
+}
 /**
  * @description Compute class imbalance statistics for a dataset
  * @param {String} collectionId MongoDB collection id

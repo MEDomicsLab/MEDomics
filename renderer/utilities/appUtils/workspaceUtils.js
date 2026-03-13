@@ -1,9 +1,7 @@
 import { MEDDataObject } from "../../components/workspace/NewMedDataObject"
 import { randomUUID } from "crypto"
 import { insertMEDDataObjectIfNotExists } from "../../components/mongoDB/mongoDBUtils"
-
-// Import fs and path
-const fs = require("fs")
+import { lstat } from "../fileManagement/fileOps"
 const path = require("path")
 
 /**
@@ -15,23 +13,27 @@ const path = require("path")
  * @description This function is used to recursively recense the directory tree and add the files and folders to the global data object
  * It is called when the working directory is set
  */
-export async function recursivelyRecenseWorkspaceTree(children, parentID) {
+export async function recursivelyRecenseWorkspaceTree(children, parentID, isRemote = false) {
+  let childType
   for (const child of children) {
-    let isDirect = false
-    // Check if the path exists
-    if (fs.existsSync(child.path)) {
-      const stats = fs.lstatSync(child.path)
-      isDirect = stats.isDirectory()
+    let fileInfo
+    try {
+      fileInfo = await lstat(child.path, { isRemote })
+    } catch (error) {
+      console.error(`Error getting file info for ${child.path}:`, error)
+      continue
     }
-    let uuid = child.name == "DATA" || child.name == "EXPERIMENTS" ? child.name : randomUUID()
-    let childType =
-      isDirect &&
-      path.extname(child.path).slice(1) != "medml" &&
-      path.extname(child.path).slice(1) != "medmlres" &&
-      path.extname(child.path).slice(1) != "medeval" &&
-      path.extname(child.path).slice(1) != "medmodel"
+    if (!fileInfo) return
+    const fileExt = isRemote ? (child.name.includes(".") ? "." + child.name.split(".")[1] : child.name) : path.extname(child.path)
+    childType = fileInfo.isDir &&
+      fileExt.slice(1) != "medml" &&
+      fileExt.slice(1) != "medmlres" &&
+      fileExt.slice(1) != "medeval" &&
+      fileExt.slice(1) != "medmodel"
         ? "directory"
-        : path.extname(child.path).slice(1)
+        : fileExt.slice(1)
+    let uuid = child.name == "DATA" || child.name == "EXPERIMENTS" ? child.name : randomUUID()
+    
     let childObject = new MEDDataObject({
       id: uuid,
       name: child.name,

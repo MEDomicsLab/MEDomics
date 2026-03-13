@@ -1,6 +1,6 @@
 import React, { useContext, useEffect, useState } from "react"
 import { WorkspaceContext } from "../../../workspace/workspaceContext"
-import { loadJsonPath } from "../../../../utilities/fileManagementUtils"
+import { loadJsonPath } from "../../../../utilities/fileManagement/fileOps"
 import { MEDDataObject } from "../../../workspace/NewMedDataObject"
 import { DataContext } from "../../../workspace/dataContext"
 import Path from "path"
@@ -79,7 +79,14 @@ const FlowSceneSidebar = ({ type }) => {
     })
     let sceneObjectId = await insertMEDDataObjectIfNotExists(sceneObject)
 
-    let emptyScene = [loadJsonPath(isProd ? Path.join(process.resourcesPath, "baseFiles", "emptyScene.json") : "./baseFiles/emptyScene.json")]
+    let emptyScene = [
+      await Promise.resolve(
+        loadJsonPath(
+          isProd ? Path.join(process.resourcesPath, "baseFiles", "emptyScene.json") : "./baseFiles/emptyScene.json",
+          { isRemote: !!workspace?.isRemote }
+        )
+      )
+    ]
     emptyScene[0] = {
       ...emptyScene[0],
       isExperiment: isExperiment,

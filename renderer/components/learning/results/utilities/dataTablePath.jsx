@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react"
 import DataTable from "../../../dataTypeVisualisation/dataTableWrapper"
-import { loadCSVPath } from "../../../../utilities/fileManagementUtils"
+import { loadCSVPath } from "../../../../utilities/fileManagement/fileOps"
+import { WorkspaceContext } from "../../../workspace/workspaceContext"
 
 /**
  * 
@@ -12,10 +13,11 @@ import { loadCSVPath } from "../../../../utilities/fileManagementUtils"
  */
 const DataTablePath = ({ path }) => {
   const [data, setData] = useState([])
+  const { workspace } = React.useContext(WorkspaceContext)
 
   useEffect(() => {
-    loadCSVPath(path, whenDataLoaded)
-  }, [])
+    loadCSVPath(path, whenDataLoaded, { isRemote: !!workspace?.isRemote })
+  }, [path, workspace?.isRemote])
 
   const whenDataLoaded = (data) => {
     setData(data)

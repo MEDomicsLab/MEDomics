@@ -27,8 +27,8 @@ import "prismjs/themes/prism-coy.css"
 import * as React from "react"
 import * as Icons from "react-bootstrap-icons"
 import Iframe from "react-iframe"
-import { toast } from "react-toastify"
-import { getPathSeparator, loadCSVFromPath, loadJSONFromPath, loadJsonPath, loadXLSXFromPath } from "../../../utilities/fileManagementUtils"
+import { toast, ToastOptions } from "react-toastify"
+import { getPathSeparator, loadCSVFromPath, loadJSONFromPath, loadJsonPath, loadXLSXFromPath } from "../../../utilities/fileManagement/fileOps"
 import DataTableWrapperBPClass from "../../dataTypeVisualisation/dataTableWrapperBPClass"
 import DataTableFromDB from "../../dbComponents/dataTableFromDB"
 import InputToolsComponent from "../../dbComponents/InputToolsComponent"
@@ -55,6 +55,7 @@ import Superset from "../../mainPages/superset/supersetEmbedder"
 import SupersetFrame from "../../mainPages/superset/SupersetFrame"
 import TerminalPage from "../../mainPages/terminal"
 import IPythonPage from "../../mainPages/ipython"
+import RemoteServerPage from "../../mainPages/remoteServer"
 import { getCollectionSize, updateMEDDataObjectName, updateMEDDataObjectPath, updateMEDDataObjectType } from "../../mongoDB/mongoDBUtils"
 import { DataContext } from "../../workspace/dataContext"
 import { MEDDataObject } from "../../workspace/NewMedDataObject"
@@ -68,6 +69,8 @@ import { WorkspaceContext } from "../../workspace/workspaceContext"
 import { confirmDialog } from "primereact/confirmdialog"
 import JupyterNotebookViewer from "../../flow/JupyterNoteBookViewer"
 import { ipcRenderer } from "electron"
+import axios from "axios"
+import { useTunnel } from "../../tunnel/TunnelContext"
 
 const util = require("util")
 const exec = util.promisify(require("child_process").exec)
@@ -111,6 +114,7 @@ const MainContainer = (props) => {
   const { layoutRequestQueue, setLayoutRequestQueue, isEditorOpen, setIsEditorOpen, jupyterStatus, setJupyterStatus } = React.useContext(LayoutModelContext) as unknown as LayoutContextType
   const { globalData, setGlobalData } = React.useContext(DataContext) as unknown as DataContextType
   const { workspace } = React.useContext(WorkspaceContext) as unknown as { workspace: any }
+  const tunnel = useTunnel()
   return (
     <MainInnerContainer
       layoutRequestQueue={layoutRequestQueue}
@@ -122,6 +126,7 @@ const MainContainer = (props) => {
       globalData={globalData}
       setGlobalData={setGlobalData}
       workspace={workspace}
+      tunnel={tunnel}
     />
   )
 }
@@ -139,6 +144,7 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
   saved: { [key: string]: boolean } = {}
   static contextType = LayoutModelContext
   jupyterStarting: boolean = false
+
 
   constructor(props: any) {
     super(props)
@@ -195,222 +201,76 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
       setLayoutRequestQueue([])
     }
   }
-
-  getJupyterPid = async (port) => {
-    if (!port) {
-      throw new Error("Port is required to get Jupyter PID")
-    }
-    const { exec } = require('child_process')
-    const { promisify } = require('util')
-    const execAsync = promisify(exec)
-
-    const platform = process.platform
-    const command = platform === 'win32' 
-      ? `netstat -ano | findstr :${port}`
-      : `lsof -ti :${port} | head -n 1`
-
-    try {
-      const { stdout, stderr } = await execAsync(command)
-      if (stderr) throw new Error(stderr)
-      
-      return platform === 'win32'
-        ? stdout.trim().split('\n')[0]?.split(/\s+/).filter(Boolean).pop() || null
-        : stdout.trim()
-    } catch (error) {
-      throw new Error(`PID lookup failed: ${error.message}`)
-    }
-  }
-
-
-  startJupyterServer = async () => {
-    const { jupyterStatus, setJupyterStatus } = this.props as LayoutContextType
-    // Get Python path
-    const pythonPath = await this.getPythonPath()
-    if (!pythonPath) {
-      toast.error("Python path is not set. Jupyter server cannot be started.")
-      setJupyterStatus({ running: false, error: "Python path is not set. Jupyter server cannot be started." })
-      return
-    }
-    
-    await this.setJupyterConfig()
-    const workspacePath = this.props.workspace?.workingDirectory?.path
-    if (!workspacePath) {
-      toast.error("No workspace path found. Jupyter server cannot be started.")
-      setJupyterStatus({ running: false, error: "No workspace path found. Jupyter server cannot be started." })
-      return
-    }
-
-    // Check jypyter status again
-    const isRunning = await this.checkJupyterIsRunning()
-    if (!isRunning) {
-      const jupyter = spawn(pythonPath, [
-        '-m', 'jupyter', 'notebook',
-        `--NotebookApp.token=''`,
-        `--NotebookApp.password=''`,
-        '--no-browser',
-        `--port=${defaultJupyterPort}`,
-        `${workspacePath}`
-      ])
-      this.jupyterStarting = false
-      setJupyterStatus({running: true, error: null })
-      toast.success("Jupyter server started successfully.")
-    }
-  }
-
-  getPythonPath = async () => {
-    const { setJupyterStatus } = this.props as LayoutContextType
-    let pythonPath = ""
-    await ipcRenderer.invoke("getBundledPythonEnvironment").then((res) => {
-      pythonPath = res
-    })
-    // Check if pythonPath is set
-    if (pythonPath === "") {
-      toast.error("Python path is not set. Jupyter server cannot be started.")
-      setJupyterStatus({ running: false, error: "Python path is not set. Jupyter server cannot be started." })
-      return null
-    }
-    return pythonPath
-  }
-
+  
   checkJupyterIsRunning = async () => {
     const { setJupyterStatus } = this.props as LayoutContextType
-    try {
-      const pythonPath = await this.getPythonPath()
-      if (!pythonPath) {
-        setJupyterStatus({ running: false, error: "Python path is not set. Cannot check Jupyter server status." })
-        console.error("Python path is not set. Cannot check Jupyter server status.")
-        return false
-      }
-      const result = await exec(`${pythonPath} -m jupyter notebook list`)
-      if (result.stderr) {
-        setJupyterStatus({ running: false, error: "Jupyter server is not running. You can start it from the settings page." })
-        console.error("Error checking Jupyter server status:", result.stderr)
-        return false
-      }
-      const isRunning = result.stdout.includes(defaultJupyterPort.toString())
-      setJupyterStatus({ running: isRunning, error: isRunning ? null : "Jupyter server is not running. You can start it from the settings page." })
-      return isRunning
-    } catch (error) {
-      setJupyterStatus({ running: false, error: "Error while checking Jupyter server status." })
-      console.error("Error checking Jupyter server status:", error)
-      return false
-    }
-  }
-
-  setJupyterConfig = async () => {
-    const { setJupyterStatus } = this.props as LayoutContextType
-    let pythonPath = await this.getPythonPath()
-    if (!pythonPath) {
-      setJupyterStatus({ running: false, error: "Python path is not set. Cannot configure Jupyter." })
-      console.error("Python path is not set. Cannot configure Jupyter.")
-      return
-    }
-    // Check if jupyter is installed
-    try {
-      await exec(`${pythonPath} -m jupyter --version`).then((result) => {
-        const trimmedVersion = result.stdout.split("\n")
-        const includesJupyter = trimmedVersion.some((line) => line.startsWith("jupyter"))
-        if (!includesJupyter) {
-          throw new Error("Jupyter is not installed")
-        }
+    if (this.props.workspace?.isRemote) {
+      // Proxy remote Express request via main process
+      // Using new IPC-based request to avoid direct HTTP from renderer
+      window.backend.requestExpress({ method: 'get', path: '/check-jupyter-status', host: this.props.tunnel.host })
+      .then((response: { data: { running: boolean; error: string | null } }) => {
+        setJupyterStatus(response.data)
       })
-    } catch (error) {
-      toast.error("Jupyter is not installed. Please install Jupyter to use this feature.")
-      console.error("Jupyter is not installed", error)
-      return
-    }
-    // Check if jupyter_notebook_config.py exists and update it
-    try {
-      const result = await exec(`${pythonPath} -m jupyter --paths`)
-      if (result.stderr) {
-        setJupyterStatus({ running: false, error: "Failed to get Jupyter paths." })
-        console.error("Error getting Jupyter paths:", result.stderr)
-        toast.error("Failed to locate Jupyter config directory.")
-        return
-      }
-      const configPath = result.stdout.split("\n").find(line => line.includes(".jupyter"))
-      
-      if (configPath) {
-        const configFilePath = configPath.trim() + "/jupyter_notebook_config.py"
-        
-        // Check if the file exists
-        if (!fs.existsSync(configFilePath)) {
-          try {
-            // Await the config generation
-            const output = await exec(`${pythonPath} -m jupyter notebook --generate-config`)            
-            if (output.stderr) {
-              console.error("Error generating Jupyter config:", output.stderr)
-              toast.error("Error generating Jupyter config. Please check the console for more details.")
-              return
-            }
-          } catch (error) {
-            console.error("Error generating config:", error)
-            toast.error("Failed to generate Jupyter config")
-            return
-          }
-        }
-        
-        // Get last line of configfilepath
-        const lastLine = fs.readFileSync(configFilePath, "utf8").split("\n").filter(Boolean).slice(-1)[0]
-        if (!lastLine.includes("c.NotebookApp.tornado_settings")) {
-          // Add config settings
-          fs.appendFileSync(configFilePath, `\nc.ServerApp.allow_unauthenticated_access = True`)
-          fs.appendFileSync(configFilePath, `\nc.ServerApp.token = ''`)
-          fs.appendFileSync(configFilePath, `\nc.ServerApp.password = '' `)
-          fs.appendFileSync(configFilePath, `\nc.ServerApp.allow_unauthenticated_access = True`)
-          fs.appendFileSync(configFilePath, `\nc.NotebookApp.tornado_settings={'headers': {'Content-Security-Policy': "frame-ancestors 'self' http://localhost:8888 http://localhost:3000 http://localhost:8080 http://localhost:8900 'unsafe-eval'"}}\n`)
-        }
-      }
-    } catch (error) {
-      setJupyterStatus({ running: false, error: "Failed to configure Jupyter." })
-      console.error("Error in Jupyter config setup:", error)
-      toast.error("Failed to configure Jupyter")
+      .catch((error: string) => {
+        console.error("Error checking Jupyter on remote server: ", error)
+        toast.error("Error checking Jupyter on remote server: " + error)
+        setJupyterStatus({ running: false, error: "Error checking Jupyter on remote server: " + error })
+      })
+    } else {
+      setJupyterStatus(await ipcRenderer.invoke("checkJupyterIsRunning"))
     }
   }
 
+  startJupyterServer = async () => {
+    console.log("Starting Jupyter server, remote:", this.props.workspace?.isRemote)
+    if (!this.props.workspace?.workingDirectory?.path) {
+      return
+    }
+    const { setJupyterStatus } = this.props as LayoutContextType
+    if (this.props.workspace?.isRemote) {
+    window.backend.requestExpress({ method: 'post', path: '/start-jupyter-server', host: this.props.tunnel.host, body: { workspacePath: this.props.workspace?.workingDirectory?.path } })
+        .then((response) => {
+          setJupyterStatus(response.data)
+          if (response.data.running) {
+            console.log("Jupyter server started on remote server")
+            toast.success("Jupyter server started on remote server")
+          } else {
+            console.error("Error starting Jupyter on remote server: ", response.data.error)
+            toast.error("Error starting Jupyter on remote server: " + response.data.error)
+          }
+        })
+        .catch((error) => {
+          console.error("Error starting Jupyter on remote server: ", error)
+          toast.error("Error starting Jupyter on remote server: ", error)
+          setJupyterStatus({ running: false, error: "Error starting Jupyter on remote server: " + error })
+        })
+    } else {
+      setJupyterStatus(await ipcRenderer.invoke("startJupyterServer", this.props.workspace?.workingDirectory?.path))
+      console.log("Jupyter server started locally, status: ", this.props.jupyterStatus)
+    }
+  }
+  
   stopJupyterServer = async () => {
     const { setJupyterStatus } = this.props as LayoutContextType
-    const pythonPath = await this.getPythonPath()
-    
-    if (!pythonPath) {
-      setJupyterStatus({ running: false, error: "Python path is not set. Cannot stop Jupyter server." })
-      console.error("Python path is not set. Cannot stop Jupyter server.")
-      return
-    }
-
-    try {
-      // Get the PID first
-      const pid = await this.getJupyterPid(defaultJupyterPort)
-      
-      if (!pid) {
-        console.log("No running Jupyter server found")
-        setJupyterStatus({ running: false, error: null })
-        return
-      }
-
-      // Platform-specific kill command
-      const killCommand = process.platform === 'win32'
-        ? `taskkill /PID ${pid} /F`
-        : `kill ${pid}`
-
-      await exec(killCommand)
-      console.log(`Successfully stopped Jupyter server (PID: ${pid})`)
-      setJupyterStatus({ running: false, error: null })
-    } catch (error) {
-      console.error("Error stopping Jupyter server:", error)
-      // Fallback to original method if PID method fails
-      try {
-        await exec(`${pythonPath} -m jupyter notebook stop ${defaultJupyterPort}`)
-        setJupyterStatus({ running: false, error: null })
-      } catch (fallbackError) {
-        console.error("Fallback stop method also failed:", fallbackError)
-        setJupyterStatus({ 
-          running: false, 
-          error: "Failed to stop server" 
+    if (this.props.workspace?.isRemote) {
+  window.backend.requestExpress({ method: 'post', path: '/stop-jupyter-server', host: this.props.tunnel.host })
+        .then((response) => {
+          setJupyterStatus(response.data)
+          if (!response.data.error) {
+            console.log("Jupyter server stopped on remote server")
+            toast.success("Jupyter server stopped on remote server")
+          } else {
+            console.error("Error stopping Jupyter on remote server: ", response.data.error)
+            toast.error("Error stopping Jupyter on remote server: " + response.data.error)
+          }
         })
-      }
-    } finally {
-      this.jupyterStarting = false
+        .catch((error) => {
+          console.error("Error stopping Jupyter on remote server: ", error)
+          toast.error("Error stopping Jupyter on remote server: ", error)
+          setJupyterStatus({ running: this.props.jupyterStatus.running, error: "Error checking Jupyter on remote server: " + error })
+        })
+    } else {
+      setJupyterStatus(await ipcRenderer.invoke("stopJupyterServer"))
     }
   }
 
@@ -951,7 +811,24 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
     } else if (component === "jsonViewer") {
       const config = node.getConfig()
       if (node.getExtraData().data == null) {
-        node.getExtraData().data = loadJsonPath(config.path)
+        const loaded = loadJsonPath(
+          config.path,
+          { isRemote: !!this.props.workspace?.isRemote },
+          (jsonData) => {
+            node.getExtraData().data = jsonData
+            this.forceUpdate()
+          }
+        )
+        if (loaded && typeof (loaded as any).then !== "function") {
+          node.getExtraData().data = loaded
+        }
+      }
+      if (node.getExtraData().data == null) {
+        return (
+          <ModulePage pageId={"jsonViewer-" + config.path} shadow>
+            <pre>Loading...</pre>
+          </ModulePage>
+        )
       }
       const jsonText = JSON.stringify(node.getExtraData().data, null, "\t")
       const html = Prism.highlight(jsonText, Prism.languages.javascript, "javascript")
@@ -978,9 +855,9 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
           extension = config.path.split(".").pop()
         }
         config.name = node.getName()
-        if (extension === "csv") loadCSVFromPath(config.path, whenDataLoaded)
-        else if (extension === "json") loadJSONFromPath(config.path, whenDataLoaded)
-        else if (extension === "xlsx") loadXLSXFromPath(config.path, whenDataLoaded)
+        if (extension === "csv") loadCSVFromPath(config.path, whenDataLoaded, { isRemote: !!this.props.workspace?.isRemote })
+        else if (extension === "json") loadJSONFromPath(config.path, whenDataLoaded, { isRemote: !!this.props.workspace?.isRemote })
+        else if (extension === "xlsx") loadXLSXFromPath(config.path, whenDataLoaded, { isRemote: !!this.props.workspace?.isRemote })
       }
       return (
         <>
@@ -1203,6 +1080,11 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
 
         return <OutputPage />
       }
+    } else if (component === "remoteServer") {
+      if (node.getExtraData().data == null) {
+        const config = node.getConfig()
+        return <RemoteServerPage />
+      }
     } else if (component === "modelViewer") {
       if (node.getExtraData().data == null) {
         const config = node.getConfig()
@@ -1228,10 +1110,40 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
     } else if (component === "jupyterNotebook") {
       if (node.getExtraData().data == null) {
         const config = node.getConfig()
-        return <JupyterNotebookViewer filePath={config.path} startJupyterServer={this.startJupyterServer}/>
+        return <JupyterNotebookViewer 
+          filePath={config.path} 
+          startJupyterServer={this.startJupyterServer}
+          isRemote={this.props.workspace?.isRemote}
+          jupyterStatus={this.props.jupyterStatus}
+          setJupyterStatus={this.props.setJupyterStatus}  
+        />
       }
     } else if (component === "Settings") {
-      return <SettingsPage checkJupyterIsRunning={this.checkJupyterIsRunning} startJupyterServer={this.startJupyterServer} stopJupyterServer={this.stopJupyterServer} />
+      return <SettingsPage 
+        checkJupyterIsRunning={this.checkJupyterIsRunning}
+        startJupyterServer={this.startJupyterServer}
+        stopJupyterServer={this.stopJupyterServer} 
+        jupyterStatus={this.props.jupyterStatus}
+        setJupyterStatus={this.props.setJupyterStatus}
+      />
+    } else if (component === "remoteNotReady") {
+      if (node.getExtraData().data == null) {
+        const config: any = node.getConfig()
+        const moduleName = config?.blockedModule || 'This module'
+        const reason = config?.blockedReason || 'Not yet implemented for online use, please switch to a local workspace.'
+
+        return (
+          <div style={{ padding: 16, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', boxSizing: 'border-box' }}>
+            <h3 style={{ marginTop: 0 }}>{moduleName}</h3>
+            <div style={{ color: 'var(--warning)', fontSize: 14 }}>
+              {reason}
+            </div>
+            <div style={{ marginTop: 8, color: 'var(--text-secondary)', fontSize: 12 }}>
+              Tip: Disconnect from the remote workspace and open a local workspace to use this module.
+            </div>
+          </div>
+        )
+      }
     } else if (component !== "") {
       if (node.getExtraData().data == null) {
         const config = node.getConfig()
@@ -1348,7 +1260,7 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
       if (component === "MEDprofilesViewer") {
         return <span style={{ marginRight: 3 }}>📊</span>
       }
-      if (component === "terminal" || component === "logging") {
+      if (component === "terminal" || component === "logging" || component === "remoteServer") {
         return <span style={{ marginRight: 3 }}>🖥️</span>
       }
       if (component === "ipython") {
@@ -1473,6 +1385,33 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
       })
       setLayoutRequestQueue([])
     }
+
+    // Dynamically ensure Remote Server tab visibility based on tunnel state
+    try {
+      // Always ensure Remote Server tab is visible for debugging
+      if (this.state.model && this.layoutRef && this.layoutRef.current) {
+        const tabId = "remoteServer"
+        const exists = !!this.state.model.getNodeById(tabId)
+        if (!exists) {
+          const borders = (this.state.model as any).getBorderSet().getBorders()
+          const bottomBorder = borders.find((b: any) => (b.getLocation && b.getLocation() === DockLocation.BOTTOM))
+          const tabConfig = {
+            id: tabId,
+            component: "remoteServer",
+            name: "Remote Server",
+            enableClose: false,
+          }
+          if (bottomBorder) {
+            this.layoutRef.current.addTabToTabSet(bottomBorder.getId(), tabConfig)
+          } else {
+            // Fallback: add to active tabset if no bottom border exists
+            this.layoutRef.current.addTabToActiveTabSet(tabConfig)
+          }
+        }
+      }
+    } catch (e) {
+      // Non-fatal UI error; keep layout stable
+    }
   }
 
   /**
@@ -1483,15 +1422,29 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
   addTab = (tabParams: any) => {
     // Your code to add a tab with custom parameters
     console.log("addTab", tabParams)
-    let tabExists = this.checkIfTabIDExists(tabParams.id)
+    if (!tabParams || typeof tabParams !== 'object') {
+      console.warn('[MainContainer] ADD_TAB ignored: missing tab params', tabParams)
+      return
+    }
+
+    // FlexLayout requires an id; if callers omit it, derive one from common fields.
+    const tabId = tabParams.id || tabParams.component || tabParams.name
+    if (!tabId || typeof tabId !== 'string') {
+      console.warn('[MainContainer] ADD_TAB ignored: missing tab id', tabParams)
+      return
+    }
+
+    const normalizedTabParams = tabParams.id ? tabParams : { ...tabParams, id: tabId }
+
+    let tabExists = this.checkIfTabIDExists(tabId)
     if (tabExists) {
       console.log("tab already exists")
       // We select the tab that already exists and set it to active
-      this.state.model!.doAction(Actions.selectTab(tabParams.id))
+      this.state.model!.doAction(Actions.selectTab(tabId))
     } else {
       // We add the tab to the active tabset
-      this.saved[tabParams.id] = true
-      this.layoutRef!.current!.addTabToActiveTabSet(tabParams)
+      this.saved[tabId] = true
+      this.layoutRef!.current!.addTabToActiveTabSet(normalizedTabParams)
     }
   }
 
@@ -1519,6 +1472,7 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
    */
   checkIfTabIDExists = (tabID: string) => {
     let tabExists = false
+    if (!tabID || typeof tabID !== 'string') return false
     this.state.model!.getNodeById(tabID) ? (tabExists = true) : (tabExists = false)
     return tabExists
   }

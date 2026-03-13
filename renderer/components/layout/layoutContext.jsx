@@ -3,6 +3,7 @@ import { useEffect } from "react"
 import { toast } from "react-toastify"
 import { DataContext } from "../workspace/dataContext"
 import { overwriteMEDDataObjectProperties, getCollectionSize } from "../mongoDB/mongoDBUtils"
+import { WorkspaceContext } from "../workspace/workspaceContext"
 
 /**
  * @typedef {React.Context} LayoutModelContext
@@ -28,6 +29,44 @@ function LayoutModelProvider({ children, layoutModel, setLayoutModel }) {
   const [developerMode, setDeveloperMode] = useState(false)
   const [isEditorOpen, setIsEditorOpen] = useState(false)
   const [jupyterStatus, setJupyterStatus] = useState({running: false, port: null, error: null})
+
+  const { workspace } = useContext(WorkspaceContext)
+
+  const REMOTE_READY_COMPONENTS = new Set([
+    // Add components here as they become validated for remote workspaces.
+    // Examples: 'terminal', 'Settings', 'remoteServer'
+    'inputPage',
+    'exploratoryPage'
+  ])
+
+  const REMOTE_BLOCKED_COMPONENTS = new Set([
+    // Core modules (not yet validated for remote)
+    'learningPage',
+    
+    'evaluationPage',
+    'applicationPage',
+    'resultsPage',
+    // Extraction
+    'extractionLandingPage',
+    'extractionTSPage',
+    'extractionMEDimagePage',
+    'extractionTextPage',
+    'extractionImagePage',
+    // Other modules
+    'medflPage',
+    'med3paPage',
+    'supersetPage',
+    'SupersetFramePage',
+    // DB tools
+    'InputToolsDB'
+  ])
+
+  const shouldBlockComponentOnRemote = (component) => {
+    if (!component) return false
+    // Explicit allow always wins
+    if (REMOTE_READY_COMPONENTS.has(component)) return false
+    return REMOTE_BLOCKED_COMPONENTS.has(component)
+  }
 
   /**
    * @param {FlexLayout.Model.Action} action - The actions passed on by the flexlayout-react library
@@ -281,6 +320,11 @@ function LayoutModelProvider({ children, layoutModel, setLayoutModel }) {
       component = type
     }
 
+    const requestedComponent = component
+    const isRemoteWorkspace = !!workspace?.isRemote
+    const blockedOnRemote = isRemoteWorkspace && shouldBlockComponentOnRemote(requestedComponent)
+    const actualComponent = blockedOnRemote ? 'remoteNotReady' : requestedComponent
+
     let id = type
     let isAlreadyIn = checkIfIDIsInLayoutModel(id, layoutModel)
     let path = action.payload?.path ?? null
@@ -288,13 +332,25 @@ function LayoutModelProvider({ children, layoutModel, setLayoutModel }) {
       const newChild = {
         type: "tab",
         name: type,
-        id: component,
-        component: component,
-        config: { path: path, uuid: id, extension: type }
+        // Keep a stable, unique tab id per module even when blocked
+        id: requestedComponent,
+        component: actualComponent,
+        config: {
+          path: path,
+          uuid: id,
+          extension: type,
+          blockedModule: type,
+          blockedComponent: requestedComponent,
+          blockedReason: 'Not yet implemented for online use, please switch to a local workspace.'
+        }
       }
       let layoutRequestQueueCopy = [...layoutRequestQueue]
       layoutRequestQueueCopy.push({ type: "ADD_TAB", payload: newChild })
       setLayoutRequestQueue(layoutRequestQueueCopy)
+
+      if (blockedOnRemote) {
+        toast.info('This module is not yet implemented for online use. Please switch to a local workspace.')
+      }
     }
   }
 

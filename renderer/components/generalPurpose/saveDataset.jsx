@@ -4,7 +4,7 @@ import { InputText } from "primereact/inputtext"
 import { Message } from "primereact/message"
 import React, { useContext, useEffect, useState } from "react"
 import { Col, Row } from "react-bootstrap"
-import { getPathSeparator } from "../../utilities/fileManagementUtils"
+import { getPathSeparator } from "../../utilities/fileManagement/fileOps"
 import { DataContext } from "../workspace/dataContext"
 
 /**

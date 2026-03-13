@@ -11,7 +11,7 @@ import { useContext, useEffect, useState } from "react"
 import ProgressBar from "react-bootstrap/ProgressBar"
 import { toast } from "react-toastify"
 import { DataFrame } from "../../../utilities/danfo.js"
-import { loadCSVPath } from "../../../utilities/fileManagementUtils"
+import { loadCSVPath } from "../../../utilities/fileManagement/fileOps"
 import { requestBackend } from "../../../utilities/requests"
 import { LayoutModelContext } from "../../layout/layoutContext"
 import { insertMEDDataObjectIfNotExists } from "../../mongoDB/mongoDBUtils"
@@ -75,7 +75,7 @@ const MEDprofilesPrepareData = () => {
 
   const { dispatchLayout } = useContext(LayoutModelContext) // used to open the MEDprofiles Viewer tab
   const { globalData } = useContext(DataContext) // we get the global data from the context to retrieve the directory tree of the workspace, thus retrieving the data files
-  const { port } = useContext(WorkspaceContext) // we get the port for server connexion
+  const { port, workspace } = useContext(WorkspaceContext) // we get the port for server connexion
 
 
   /**
@@ -651,7 +651,7 @@ const MEDprofilesPrepareData = () => {
             let dataframe = new DataFrame(data)
             idTypes.push(dataframe.$dtypes[0])
             resolve()
-          })
+          }, { isRemote: !!workspace?.isRemote })
         })
       }
 

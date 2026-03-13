@@ -1,11 +1,144 @@
-import { app, dialog } from "electron"
-const fs = require("fs")
-var path = require("path")
-const { join } = require("path")
-const { readdir, stat, rm } = require("fs/promises")
-const util = require("util")
-const { execSync } = require("child_process")
-const exec = util.promisify(require("child_process").exec)
+import { getAppPath } from "./serverPathUtils.js"
+import path from "path"
+import util from "util"
+import fs from "fs"
+import { execSync, exec as execCb } from "child_process"
+const exec = util.promisify(execCb)
+import { readdir, stat } from "fs/promises"
+
+const _requirementsInstallPromises = new Map()
+let _bundledPythonSizeCheckStarted = false
+
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms))
+}
+
+function getRequirementsInstallLockPath(pythonExecutablePath) {
+  try {
+    // Put the lock next to the interpreter so it is shared across processes.
+    return path.join(path.dirname(pythonExecutablePath), '.requirements-install.lock')
+  } catch {
+    return path.join(process.cwd(), '.requirements-install.lock')
+  }
+}
+
+async function acquireInstallLock(lockPath, timeoutMs = 30 * 60 * 1000) {
+  const started = Date.now()
+  let lockAcquired = false
+  while (!lockAcquired) {
+    try {
+      fs.writeFileSync(lockPath, JSON.stringify({ pid: process.pid, started: new Date().toISOString() }), { flag: 'wx' })
+      lockAcquired = true
+      return
+    } catch (e) {
+      if (e && e.code !== 'EEXIST') throw e
+      try {
+        const st = fs.statSync(lockPath)
+        // If lock is stale (> 60 min), delete it.
+        if (Date.now() - st.mtimeMs > 60 * 60 * 1000) {
+          try { fs.unlinkSync(lockPath) } catch {}
+          continue
+        }
+      } catch {
+        // If stat fails, retry creating lock.
+      }
+      if (Date.now() - started > timeoutMs) {
+        throw new Error(`Timed out waiting for python requirements install lock: ${lockPath}`)
+      }
+      await sleep(2000)
+    }
+  }
+}
+
+async function releaseInstallLock(lockPath) {
+  try {
+    await fs.promises.unlink(lockPath)
+  } catch (e) {
+    if (e && e.code === 'ENOENT') return
+  }
+}
+
+async function rmRecursive(targetPath) {
+  // Node 14.5 (used by nexe targets) does not support `rm` in fs/promises.
+  // Prefer rm when available, otherwise fall back to rmdir(recursive).
+  const fsp = fs.promises
+  try {
+    if (fsp && typeof fsp.rm === "function") {
+      await fsp.rm(targetPath, { recursive: true, force: true })
+      return
+    }
+  } catch (e) {
+    // If rm exists but fails (permissions, etc.), fall through to rmdir.
+  }
+
+  try {
+    if (fsp && typeof fsp.rmdir === "function") {
+      await fsp.rmdir(targetPath, { recursive: true })
+    }
+  } catch (e) {
+    // Match rm({force:true}) semantics as closely as we can.
+    if (e && (e.code === "ENOENT")) return
+    throw e
+  }
+}
+
+function getServerBundleRoot() {
+  // In Electron builds, process.resourcesPath is a good anchor.
+  // In the standalone server (nexe), process.resourcesPath can be undefined.
+  // Fall back to the executable directory and its parent, then cwd.
+  const execDir = (() => {
+    try {
+      return process.execPath ? path.dirname(process.execPath) : null
+    } catch {
+      return null
+    }
+  })()
+
+  const candidates = [
+    (typeof process.resourcesPath === "string" && process.resourcesPath) ? process.resourcesPath : null,
+    execDir,
+    execDir ? path.dirname(execDir) : null,
+    process.cwd(),
+  ].filter(Boolean)
+
+  // Prefer a directory that looks like the server bundle root.
+  for (const candidate of candidates) {
+    try {
+      if (
+        fs.existsSync(path.join(candidate, "pythonEnv")) ||
+        fs.existsSync(path.join(candidate, "pythonCode")) ||
+        fs.existsSync(path.join(candidate, "go_executables")) ||
+        fs.existsSync(path.join(candidate, "backend"))
+      ) {
+        return candidate
+      }
+    } catch {
+      // ignore
+    }
+  }
+  return candidates[0] || process.cwd()
+}
+
+function getMergedRequirementsPath() {
+  const requirementsFileName = "merged_requirements.txt"
+  const bundleRoot = getServerBundleRoot()
+  const candidates = [
+    path.join(bundleRoot, "pythonEnv", requirementsFileName),
+    path.join(bundleRoot, "resources", "pythonEnv", requirementsFileName),
+    path.join(process.cwd(), "pythonEnv", requirementsFileName),
+    path.join(process.cwd(), "resources", "pythonEnv", requirementsFileName),
+  ]
+  for (const p of candidates) {
+    try {
+      if (fs.existsSync(p)) return p
+    } catch {
+      // ignore
+    }
+  }
+  // Fall back to the most likely default; caller can handle missing file.
+  return candidates[0]
+}
+
 
 /**
  * Recursively calculates the size of a directory in bytes.
@@ -16,13 +149,13 @@ async function getDirectorySize(dir) {
     const files = await readdir(dir, { withFileTypes: true })
 
     const paths = files.map(async file => {
-        const path = join(dir, file.name)
+        const filePath = path.join(dir, file.name)
         if (file.isDirectory()) {
             // Recurse into subdirectories
-            return await getDirectorySize(path)
+            return await getDirectorySize(filePath)
         } else if (file.isFile()) {
             // Get size of files
-            const { size } = await stat(path)
+            const { size } = await stat(filePath)
             return size
         }
         return 0
@@ -45,7 +178,7 @@ async function checkSizeAndDeleteIfZero(directoryPath) {
         if (size === 0) {
             console.log(`Directory is empty. Deleting...`)
             // The { recursive: true } option allows deleting a directory and its contents (even if empty)
-            await rm(directoryPath, { recursive: true, force: true }) 
+          await rmRecursive(directoryPath)
             console.log(`Directory deleted: ${directoryPath}`)
         } else {
             console.log(`Directory is not empty (size: ${size} bytes). Not deleting.`)
@@ -55,12 +188,12 @@ async function checkSizeAndDeleteIfZero(directoryPath) {
     }
 }
 
-export function getPythonEnvironment(medCondaEnv = "med_conda_env") {
+function getPythonEnvironment(medCondaEnv = "med_conda_env") {
   // Returns the python environment
   let pythonEnvironment = process.env.MED_ENV
 
   // Retrieve the path to the conda environment from the settings file
-  let userDataPath = app.getPath("userData")
+  let userDataPath = getAppPath("userData")
   let settingsFilePath = path.join(userDataPath, "settings.json")
   let settingsFound = fs.existsSync(settingsFilePath)
   let settings = {}
@@ -129,7 +262,7 @@ function getCondaPath(parentPath) {
       condaPath = checkDirectories(parentPath, possibleCondaPaths)
     }
     if (condaPath === null && process.platform !== "darwin") {
-      console.log("No conda environment found")
+      console.log("No conda environment found. Please install Anaconda or Miniconda and try again.")
     }
   }
   return condaPath
@@ -142,6 +275,9 @@ function getCondaPath(parentPath) {
  * @returns {String} The path to the directory that exists
  */
 function checkDirectories(parentPath, directories) {
+  if (!parentPath) {
+    return null
+  }
   let directoryPath = null
   directories.forEach((directory) => {
     if (directoryPath === null) {
@@ -187,10 +323,14 @@ function getThePythonExecutablePath(condaPath, envName) {
   return pythonExecutablePath
 }
 
-export function getBundledPythonEnvironment() {
+function getBundledPythonEnvironment() {
   let pythonEnvironment = null
 
   let bundledPythonPath = null
+
+  // Check if the python path can be found in the .medomics directory
+  let medomicsDirExists = fs.existsSync(path.join(getAppPath("home"), ".medomics", "python"))
+  console.log("medomicsDirExists: ", medomicsDirExists)
 
   if (process.env.NODE_ENV === "production") {
     // Get the user path followed by .medomics
@@ -212,16 +352,21 @@ export function getBundledPythonEnvironment() {
     bundledPythonPath = path.join(userPath, ".medomics", "python")
   } else {
     // Check if the python path can be found in the .medomics directory
-    let medomicsDirExists = fs.existsSync(path.join(app.getPath("home"), ".medomics", "python"))
+    let medomicsDirExists = fs.existsSync(path.join(getAppPath("home"), ".medomics", "python"))
     if (medomicsDirExists) {
       bundledPythonPath = path.join(getHomePath(), ".medomics", "python")
     } else {
+      console.log("Using process.cwd() path because medomicsDirExists is false: ", process.cwd())
       bundledPythonPath = path.join(process.cwd(), "python")
     }
   }
 
   // Check if the python folder is empty, if yes, delete it
-  checkSizeAndDeleteIfZero(bundledPythonPath)
+  if (!_bundledPythonSizeCheckStarted) {
+    _bundledPythonSizeCheckStarted = true
+    // Fire-and-forget (cannot await from a sync getter); avoid spamming logs by running once.
+    checkSizeAndDeleteIfZero(bundledPythonPath).catch(() => {})
+  }
 
   pythonEnvironment = path.join(bundledPythonPath, "bin", "python")
   if (process.platform == "win32") {
@@ -233,13 +378,53 @@ export function getBundledPythonEnvironment() {
   return pythonEnvironment
 }
 
-export async function installRequiredPythonPackages(mainWindow) {
-  let requirementsFileName = "merged_requirements.txt"
-  if (process.env.NODE_ENV === "production") {
-    installPythonPackage(mainWindow, pythonExecutablePath, null, path.join(process.cwd(), "resources", "pythonEnv", requirementsFileName))
-  } else {
-    installPythonPackage(mainWindow, pythonExecutablePath, null, path.join(process.cwd(), "pythonEnv", requirementsFileName))
+async function ensurePythonRequirementsInstalled(notify, pythonExecutablePath, requirementsFilePath = null) {
+  const pythonPath = pythonExecutablePath || getBundledPythonEnvironment()
+  const reqPath = requirementsFilePath || getMergedRequirementsPath()
+  if (!pythonPath || !fs.existsSync(pythonPath)) {
+    throw new Error(`Python executable not found: ${pythonPath}`)
   }
+  if (!reqPath || !fs.existsSync(reqPath)) {
+    throw new Error(`Requirements file not found: ${reqPath}`)
+  }
+
+  const key = `${pythonPath}::${reqPath}`
+  if (_requirementsInstallPromises.has(key)) {
+    return await _requirementsInstallPromises.get(key)
+  }
+
+  const lockPath = getRequirementsInstallLockPath(pythonPath)
+  const promise = (async () => {
+    await acquireInstallLock(lockPath)
+    try {
+      const ok = checkPythonRequirements(pythonPath, reqPath)
+      if (ok) return { ok: true, installed: false }
+      await installRequiredPythonPackages(notify, pythonPath)
+      const ok2 = checkPythonRequirements(pythonPath, reqPath)
+      if (!ok2) {
+        throw new Error('Python requirements are still missing after install')
+      }
+      return { ok: true, installed: true }
+    } finally {
+      await releaseInstallLock(lockPath)
+    }
+  })()
+
+  _requirementsInstallPromises.set(key, promise)
+  try {
+    return await promise
+  } finally {
+    _requirementsInstallPromises.delete(key)
+  }
+}
+
+async function installRequiredPythonPackages(notify, pythonExecutablePath) {
+  const requirementsPath = getMergedRequirementsPath()
+  if (!fs.existsSync(requirementsPath)) {
+    throw new Error(`Requirements file not found: ${requirementsPath}`)
+  }
+  // Ensure the async install is awaited.
+  await installPythonPackage(notify, pythonExecutablePath, null, requirementsPath)
 }
 
 function comparePythonInstalledPackages(pythonPackages, requirements) {
@@ -271,18 +456,22 @@ function comparePythonInstalledPackages(pythonPackages, requirements) {
   return missingPackages
 }
 
-export function checkPythonRequirements(pythonPath = null, requirementsFilePath = null) {
+function checkPythonRequirements(pythonPath = null, requirementsFilePath = null) {
   let pythonRequirementsMet = false
   if (pythonPath === null) {
     // pythonPath = getPythonEnvironment()
     pythonPath = getBundledPythonEnvironment()
   }
   if (requirementsFilePath === null) {
-    if (process.env.NODE_ENV === "production") {
-      requirementsFilePath = path.join(process.resourcesPath, "pythonEnv", "merged_requirements.txt")
-    } else {
-      requirementsFilePath = path.join(process.cwd(), "pythonEnv", "merged_requirements.txt")
-    }
+    requirementsFilePath = getMergedRequirementsPath()
+  }
+  if (!pythonPath || !fs.existsSync(pythonPath)) {
+    console.warn("Python executable not found for requirements check:", pythonPath)
+    return false
+  }
+  if (!requirementsFilePath || !fs.existsSync(requirementsFilePath)) {
+    console.warn("Requirements file not found for requirements check:", requirementsFilePath)
+    return false
   }
   let pythonPackages = getInstalledPythonPackages(pythonPath)
   let requirements = fs.readFileSync(requirementsFilePath, "utf8").split("\n")
@@ -297,7 +486,7 @@ export function checkPythonRequirements(pythonPath = null, requirementsFilePath 
   return pythonRequirementsMet
 }
 
-export function getInstalledPythonPackages(pythonPath = null) {
+function getInstalledPythonPackages(pythonPath = null) {
   let pythonPackages = []
   if (pythonPath === null) {
     pythonPath = getPythonEnvironment()
@@ -305,7 +494,8 @@ export function getInstalledPythonPackages(pythonPath = null) {
 
   let pythonPackagesOutput = ""
   try {
-    pythonPackagesOutput = execSync(`${pythonPath} -m pip list --format=json`).toString()
+    // Quote path to support spaces (e.g., Program Files).
+    pythonPackagesOutput = execSync(`"${pythonPath}" -m pip list --format=json`).toString()
   } catch (error) {
     console.warn("Error retrieving python packages:", error)
   }
@@ -317,33 +507,57 @@ export function getInstalledPythonPackages(pythonPath = null) {
   return pythonPackages
 }
 
-export async function installPythonPackage(mainWindow, pythonPath, packageName = null, requirementsFilePath = null) {
+async function installPythonPackage(notify, pythonPath, packageName = null, requirementsFilePath = null) {
   console.log("Installing python package: ", packageName, requirementsFilePath, " with pythonPath: ", pythonPath)
-  let execSyncResult = null
-  let pipUpgradePromise = exec(`${pythonPath} -m pip install --upgrade pip`)
-  execCallbacksForChildWithNotifications(pipUpgradePromise.child, "Python pip Upgrade", mainWindow)
-  await pipUpgradePromise
-  if (requirementsFilePath !== null) {
-    let installPythonPackagePromise = exec(`${pythonPath} -m pip install -r ${requirementsFilePath}`)
-    execCallbacksForChildWithNotifications(installPythonPackagePromise.child, "Python Package Installation from requirements", mainWindow)
-    await installPythonPackagePromise
-  } else {
-    let installPythonPackagePromise = exec(`${pythonPath} -m pip install ${packageName}`)
-    execCallbacksForChildWithNotifications(installPythonPackagePromise.child, "Python Package Installation", mainWindow)
-    await installPythonPackagePromise
+  const quotedPython = `"${pythonPath}"`
+  const quotedReq = requirementsFilePath ? `"${requirementsFilePath}"` : null
+  try {
+    const pipUpgradePromise = exec(`${quotedPython} -m pip install --upgrade pip`)
+    execCallbacksForChildWithNotifications(pipUpgradePromise.child, "Python pip Upgrade", notify)
+    await pipUpgradePromise
+  } catch (e) {
+    // Promisified exec rejects, but its error can contain stdout/stderr.
+    console.error('[python] pip upgrade failed:', e && e.message ? e.message : e)
+    if (e && e.stdout) console.error('[python] pip upgrade stdout:', String(e.stdout))
+    if (e && e.stderr) console.error('[python] pip upgrade stderr:', String(e.stderr))
+    throw e
+  }
+
+  try {
+    if (requirementsFilePath !== null) {
+      const installPythonPackagePromise = exec(`${quotedPython} -m pip install -r ${quotedReq}`)
+      execCallbacksForChildWithNotifications(installPythonPackagePromise.child, "Python Package Installation from requirements", notify)
+      await installPythonPackagePromise
+    } else {
+      const installPythonPackagePromise = exec(`${quotedPython} -m pip install ${packageName}`)
+      execCallbacksForChildWithNotifications(installPythonPackagePromise.child, "Python Package Installation", notify)
+      await installPythonPackagePromise
+    }
+  } catch (e) {
+    console.error('[python] pip install failed:', e && e.message ? e.message : e)
+    if (e && e.stdout) console.error('[python] pip install stdout:', String(e.stdout))
+    if (e && e.stderr) console.error('[python] pip install stderr:', String(e.stderr))
+    throw e
   }
 }
 
-export function execCallbacksForChildWithNotifications(child, id, mainWindow) {
-  mainWindow.webContents.send("notification", { id: id, message: `Starting...`, header: `${id} in progress` })
+function execCallbacksForChildWithNotifications(child, id, notify) {
+  if (!notify) notify = () => {}
+  // Always log to console (captured by express.log in packaged server), even
+  // when no UI notifier is provided.
+  console.log(`[python] ${id}: starting...`)
+  notify({ id: id, message: `Starting...`, header: `${id} in progress` })
   child.stdout.on("data", (data) => {
-    mainWindow.webContents.send("notification", { id: id, message: `stdout: ${data}`, header: `${id} in progress` })
+    console.log(`[python] ${id} stdout: ${String(data)}`)
+    notify({ id: id, message: `stdout: ${data}`, header: `${id} in progress` })
   })
   child.stderr.on("data", (data) => {
-    mainWindow.webContents.send("notification", { id: id, message: `stderr: ${data}`, header: `${id} Error` })
+    console.log(`[python] ${id} stderr: ${String(data)}`)
+    notify({ id: id, message: `stderr: ${data}`, header: `${id} Error` })
   })
   child.on("close", (code) => {
-    mainWindow.webContents.send("notification", { id: id, message: `${id} exited with code ${code}`, header: `${id} Finished` })
+    console.log(`[python] ${id}: exited with code ${code}`)
+    notify({ id: id, message: `${id} exited with code ${code}`, header: `${id} Finished` })
   })
 }
 
@@ -354,10 +568,11 @@ function getHomePath() {
   } else {
     homePath = process.env.HOME
   }
+  console.log("homePath: ", homePath)
   return homePath
 }
 
-export async function installBundledPythonExecutable(mainWindow) {
+async function installBundledPythonExecutable(notify) {
   let bundledPythonPath = null
 
   let medomicsPath = null
@@ -384,8 +599,10 @@ export async function installBundledPythonExecutable(mainWindow) {
     }
     bundledPythonPath = pythonPath
   } else {
+    console.log("Using process.cwd() path because not in production env: ", process.cwd())
+    bundledPythonPath = path.join(process.cwd(), "python")
     // Check if the python path can be found in the .medomics directory
-    let medomicsDirExists = fs.existsSync(path.join(app.getPath("home"), ".medomics", "python"))
+    let medomicsDirExists = fs.existsSync(path.join(getAppPath("home"), ".medomics", "python"))
     if (medomicsDirExists) {
       bundledPythonPath = path.join(getHomePath(), ".medomics", "python")
     } else {
@@ -409,25 +626,25 @@ export async function installBundledPythonExecutable(mainWindow) {
 
       let downloadPromise = exec(`wget ${url} -O ${outputFileName}`, { shell: "powershell.exe" })
 
-      execCallbacksForChildWithNotifications(downloadPromise.child, "Python Downloading", mainWindow)
+      execCallbacksForChildWithNotifications(downloadPromise.child, "Python Downloading", notify)
 
       const { stdout, stderr } = await downloadPromise
       let extractCommand = `tar -xvf ${outputFileName} -C ${pythonParentFolderExtractString}`
       let extractionPromise = exec(extractCommand, { shell: "powershell.exe" })
-      execCallbacksForChildWithNotifications(extractionPromise.child, "Python Exec. Extracting", mainWindow)
+      execCallbacksForChildWithNotifications(extractionPromise.child, "Python Exec. Extracting", notify)
 
-      const { stdout: extrac, stderr: extracErr } = await extractionPromise
+      await extractionPromise
 
       // Install the required python packages
       if (process.env.NODE_ENV === "production") {
-        installPythonPackage(mainWindow, pythonExecutablePath, null, path.join(process.cwd(), "resources", "pythonEnv", "merged_requirements.txt"))
+        installPythonPackage(notify, pythonExecutablePath, null, path.join(process.cwd(), "resources", "pythonEnv", "merged_requirements.txt"))
       } else {
-        installPythonPackage(mainWindow, pythonExecutablePath, null, path.join(process.cwd(), "pythonEnv", "merged_requirements.txt"))
+        installPythonPackage(notify, pythonExecutablePath, null, path.join(process.cwd(), "pythonEnv", "merged_requirements.txt"))
       }
       let removeCommand = `rm ${outputFileName}`
       let removePromise = exec(removeCommand, { shell: "powershell.exe" })
-      execCallbacksForChildWithNotifications(removePromise.child, "Python Exec. Removing", mainWindow)
-      const { stdout: remove, stderr: removeErr } = await removePromise
+      execCallbacksForChildWithNotifications(removePromise.child, "Python Exec. Removing", notify)
+      await removePromise
     } else if (process.platform == "darwin") {
       // Download the right python executable (arm64 or x86_64)
       let isArm64 = process.arch === "arm64"
@@ -439,25 +656,25 @@ export async function installBundledPythonExecutable(mainWindow) {
       let url = `https://github.com/indygreg/python-build-standalone/releases/download/20240224/${file}`
       let extractCommand = `tar -xvf ${file} -C ${pythonParentFolderExtractString}`
       let downloadPromise = exec(`/bin/bash -c "$(curl -fsSLO ${url})"`)
-      execCallbacksForChildWithNotifications(downloadPromise.child, "Python Downloading", mainWindow)
-      const { stdout, stderr } = await downloadPromise
+      execCallbacksForChildWithNotifications(downloadPromise.child, "Python Downloading", notify)
+      await downloadPromise
 
       // Extract the python executable
       let extractionPromise = exec(extractCommand)
-      execCallbacksForChildWithNotifications(extractionPromise.child, "Python Exec. Extracting", mainWindow)
-      const { stdout: extrac, stderr: extracErr } = await extractionPromise
+      execCallbacksForChildWithNotifications(extractionPromise.child, "Python Exec. Extracting", notify)
+      await extractionPromise
 
       // Remove the downloaded file
       let removeCommand = `rm ${file}`
       let removePromise = exec(removeCommand)
-      execCallbacksForChildWithNotifications(removePromise.child, "Python Exec. Removing", mainWindow)
-      const { stdout: remove, stderr: removeErr } = await removePromise
+      execCallbacksForChildWithNotifications(removePromise.child, "Python Exec. Removing", notify)
+      await removePromise
 
       // Install the required python packages
       if (process.env.NODE_ENV === "production") {
-        installPythonPackage(mainWindow, pythonExecutablePath, null, path.join(process.resourcesPath, "pythonEnv", "requirements_mac.txt"))
+        installPythonPackage(notify, pythonExecutablePath, null, path.join(process.resourcesPath, "pythonEnv", "requirements_mac.txt"))
       } else {
-        installPythonPackage(mainWindow, pythonExecutablePath, null, path.join(process.cwd(), "pythonEnv", "requirements_mac.txt"))
+        installPythonPackage(notify, pythonExecutablePath, null, path.join(process.cwd(), "pythonEnv", "requirements_mac.txt"))
       }
     } else if (process.platform == "linux") {
       // Download the right python executable (arm64 or x86_64)
@@ -471,29 +688,44 @@ export async function installBundledPythonExecutable(mainWindow) {
 
       // Download the python executable
       let downloadPromise = exec(`wget ${url} -P ${pythonParentFolderExtractString}`)
-      execCallbacksForChildWithNotifications(downloadPromise.child, "Python Downloading", mainWindow)
+      execCallbacksForChildWithNotifications(downloadPromise.child, "Python Downloading", notify)
       const { stdout: download, stderr: downlaodErr } = await downloadPromise
       // Extract the python executable
       let extractCommand = `tar -xvf ${path.join(pythonParentFolderExtractString, file)} -C ${pythonParentFolderExtractString}`
       let extractionPromise = exec(extractCommand)
-      execCallbacksForChildWithNotifications(extractionPromise.child, "Python Exec. Extracting", mainWindow)
-      const { stdout: extrac, stderr: extracErr } = await extractionPromise
+      execCallbacksForChildWithNotifications(extractionPromise.child, "Python Exec. Extracting", notify)
+      await extractionPromise
 
       // Remove the downloaded file
       let removeCommand = `rm ${path.join(pythonParentFolderExtractString, file)}`
       let removePromise = exec(removeCommand)
-      execCallbacksForChildWithNotifications(removePromise.child, "Python Exec. Removing", mainWindow)
-      const { stdout: remove, stderr: removeErr } = await removePromise
+      execCallbacksForChildWithNotifications(removePromise.child, "Python Exec. Removing", notify)
+      await removePromise
 
       console.log("pythonExecutablePath: ", pythonExecutablePath)
       console.log("process.cwd(): ", process)
       console.log("process.resourcesPath: ", process.resourcesPath)
       // Install the required python packages
       if (process.env.NODE_ENV === "production") {
-        installPythonPackage(mainWindow, pythonExecutablePath, null, path.join(process.resourcesPath, "pythonEnv", "merged_requirements.txt"))
+        installPythonPackage(notify, pythonExecutablePath, null, path.join(process.resourcesPath, "pythonEnv", "merged_requirements.txt"))
       } else {
-        installPythonPackage(mainWindow, pythonExecutablePath, null, path.join(process.cwd(), "pythonEnv", "merged_requirements.txt"))
+        installPythonPackage(notify, pythonExecutablePath, null, path.join(process.cwd(), "pythonEnv", "merged_requirements.txt"))
       }
     }
   }
 }
+
+export {
+  getPythonEnvironment,
+  getBundledPythonEnvironment,
+  installRequiredPythonPackages,
+  ensurePythonRequirementsInstalled,
+  checkPythonRequirements,
+  getInstalledPythonPackages,
+  installPythonPackage,
+  execCallbacksForChildWithNotifications,
+  installBundledPythonExecutable,
+  getMergedRequirementsPath,
+  getServerBundleRoot
+}
+

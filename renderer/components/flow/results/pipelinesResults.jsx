@@ -7,7 +7,7 @@ import process from "process"
 import { useCallback, useContext, useEffect, useState } from "react"
 import * as Icon from "react-bootstrap-icons"
 import { toast } from "react-toastify"
-import { getPathSeparator, loadJsonPath } from "../../../utilities/fileManagementUtils"
+import { getPathSeparator, loadJsonPath } from "../../../utilities/fileManagement/fileOps"
 import { deepCopy } from "../../../utilities/staticFunctions"
 import AnalyseResults from "../../learning/results/node/analyseResults"
 import DataParamResults from "../../learning/results/node/dataParamResults"
@@ -267,7 +267,7 @@ const PipelineResult = ({ index, pipeline, selectionMode, flowContent, highlight
  */
 const PipelinesResults = ({ pipelines, fullPipelines, selectionMode, flowContent, runFinalizeAndSave, isExperiment = false }) => {
   const { selectedResultsId, setSelectedResultsId, flowResults, setShowResultsPane, showResultsPane, isResults, pipelineNames } = useContext(FlowResultsContext)
-  const { getBasePath } = useContext(WorkspaceContext)
+  const { getBasePath, workspace } = useContext(WorkspaceContext)
   const { sceneName } = useContext(FlowInfosContext)
   const { updateNode, updateEdge } = useContext(FlowFunctionsContext)
 
@@ -450,8 +450,20 @@ const PipelinesResults = ({ pipelines, fullPipelines, selectionMode, flowContent
        */
       const createNoteBookDoc = async (code, imports) => {
         let newLineChar = "\n" // before was process.platform === "linux" ? "\n" : ""
-        let notebook = loadJsonPath([getBasePath(EXPERIMENTS), sceneName, "notebooks", pipelineNames[index]].join(getPathSeparator()) + ".ipynb")
-        notebook = notebook ? deepCopy(notebook) : deepCopy(loadJsonPath(isProd ? Path.join(process.resourcesPath, "baseFiles", "emptyNotebook.ipynb") : "./baseFiles/emptyNotebook.ipynb"))
+        let notebook = await Promise.resolve(
+          loadJsonPath([getBasePath(EXPERIMENTS), sceneName, "notebooks", pipelineNames[index]].join(getPathSeparator({ isRemote: !!workspace?.isRemote })) + ".ipynb", {
+            isRemote: !!workspace?.isRemote
+          })
+        )
+        notebook = notebook
+          ? deepCopy(notebook)
+          : deepCopy(
+              await Promise.resolve(
+                loadJsonPath(isProd ? Path.join(process.resourcesPath, "baseFiles", "emptyNotebook.ipynb") : "./baseFiles/emptyNotebook.ipynb", {
+                  isRemote: !!workspace?.isRemote
+                })
+              )
+            )
         notebook.cells = []
         let lastType = "md"
         // This function is used to add a code cell to the notebook

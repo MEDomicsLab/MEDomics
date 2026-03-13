@@ -43,7 +43,7 @@ const SidebarDirectoryTreeControlled = ({ setExternalSelectedItems, setExternalD
   const [dirTree, setDirTree] = useState({}) // We get the directory tree from the workspace
   const [isDropping, setIsDropping] = useState(false) // Set if the item is getting dropped something in (for elements outside of the tree)
   const [isDirectoryTreeFocused, setIsDirectoryTreeFocused] = useState(false) // New state to track focus
-
+  
   const { globalData } = useContext(DataContext) // We get the global data from the context to retrieve the directory tree of the workspace, thus retrieving the data files
   const { dispatchLayout, developerMode, isEditorOpen } = useContext(LayoutModelContext)
   const { workspace } = useContext(WorkspaceContext)
@@ -91,10 +91,8 @@ const SidebarDirectoryTreeControlled = ({ setExternalSelectedItems, setExternalD
    * @note - This function is called when the user presses a key.
    */
   const handleKeyPress = (event) => {
-    if (event.key === "Delete" && tree.current.isRenaming === false) {
-      if (selectedItems.length > 0) {
-        onDeleteSequentially(globalData, workspace.workingDirectory.path, setIsDialogShowing, selectedItems)
-      }
+    if (event.key === "Delete" && selectedItems.length > 0 && tree.current.isRenaming === false) {
+      onDeleteSequentially(globalData, workspace.workingDirectory.path, setIsDialogShowing, selectedItems, 0, workspace.isRemote)
     } else if (event.code === "KeyC" && event.ctrlKey) {
       setCopiedItems(selectedItems)
     } else if (event.code === "KeyX" && event.ctrlKey) {
@@ -140,7 +138,7 @@ const SidebarDirectoryTreeControlled = ({ setExternalSelectedItems, setExternalD
         }
       } else if (event.code === "Backspace" && event.metaKey) {
         if (selectedItems.length > 0) {
-          onDeleteSequentially(globalData, workspace.workingDirectory.path, setIsDialogShowing, selectedItems)
+          onDeleteSequentially(globalData, workspace.workingDirectory.path, setIsDialogShowing, selectedItems, 0, workspace.isRemote)
         }
       }
     }
@@ -182,7 +180,7 @@ const SidebarDirectoryTreeControlled = ({ setExternalSelectedItems, setExternalD
       toast.error("Please close the editor before renaming")
       return
     }
-    rename(globalData, workspace.workingDirectory.path, item, newName)
+    rename(globalData, workspace.workingDirectory.path, item, newName, workspace.isRemote)
   }
 
   /**
@@ -246,17 +244,17 @@ const SidebarDirectoryTreeControlled = ({ setExternalSelectedItems, setExternalD
           onOpen(props.index)
           break
         case "sync":
-          MEDDataObject.sync(globalData, props.index, workspace.workingDirectory.path)
+          MEDDataObject.sync(globalData, props.index, workspace.workingDirectory.path, true, new Set(), workspace.isRemote)
           MEDDataObject.updateWorkspaceDataObject()
           break
         case "rename":
           onRename(props.index)
           break
         case "delete":
-          onDeleteSequentially(globalData, workspace.workingDirectory.path, setIsDialogShowing, [props.index])
+          onDeleteSequentially(globalData, workspace.workingDirectory.path, setIsDialogShowing, selectedItems, 0, workspace.isRemote)
           break
         case "rmFromWs":
-          MEDDataObject.deleteObjectAndChildrenFromWorkspace(globalData, props.index, workspace.workingDirectory.path)
+          MEDDataObject.deleteObjectAndChildrenFromWorkspace(globalData, props.index, workspace.workingDirectory.path, true, workspace.isRemote)
           break
         case "revealInFileExplorer":
           if (globalData[props.index]) {
@@ -447,7 +445,7 @@ const SidebarDirectoryTreeControlled = ({ setExternalSelectedItems, setExternalD
 
   return (
     <>
-      <div id="directory-tree-container" className="directory-tree-container">
+      <div id="directory-tree-container" className="directory-tree-container" style={{ position: "relative" }}>
         <Tooltip className="tooltip-small" ref={tooltipRefs.addFolder} target=".add-folder-icon" {...delayOptions} />
         <Tooltip className="tooltip-small" ref={tooltipRefs.refresh} target=".refresh-icon" {...delayOptions} />
         <Tooltip className="tooltip-small" ref={tooltipRefs.contextMenu} target=".context-menu-icon" {...delayOptions} />
@@ -469,7 +467,7 @@ const SidebarDirectoryTreeControlled = ({ setExternalSelectedItems, setExternalD
                         e.stopPropagation()
                         // Hide the tooltip before executing the action
                         tooltipRefs.addFolder.current.hide()
-                        createFolder(globalData, selectedItems, workspace.workingDirectory.path)
+                        createFolder(globalData, selectedItems, workspace.workingDirectory.path, workspace.isRemote)
                       }}
                     >
                       <FolderPlus size={"1rem"} className="context-menu-icon add-folder-icon" data-pr-at="right bottom" data-pr-tooltip="New Folder" data-pr-my="left top" />
@@ -598,10 +596,12 @@ const SidebarDirectoryTreeControlled = ({ setExternalSelectedItems, setExternalD
               PandasProfiling
             </Item>
           </Submenu>
-          <Item id="revealInFileExplorer" onClick={handleContextMenuAction}>
-            <FiFolder size={"1rem"} className="context-menu-icon" />
-            Reveal in File Explorer
-          </Item>
+          { !workspace.isRemote &&
+            <Item id="revealInFileExplorer" onClick={handleContextMenuAction}>
+              <FiFolder size={"1rem"} className="context-menu-icon" />
+              Reveal in File Explorer
+            </Item>
+          }
           <Item id="sync" onClick={handleContextMenuAction}>
             <ArrowRepeat size={"1rem"} className="context-menu-icon" />
             Sync
@@ -639,10 +639,12 @@ const SidebarDirectoryTreeControlled = ({ setExternalSelectedItems, setExternalD
               PandasProfiling
             </Item>
           </Submenu>
-          <Item id="revealInFileExplorer" onClick={handleContextMenuAction}>
-            <FiFolder size={"1rem"} className="context-menu-icon" />
-            Reveal in File Explorer
-          </Item>
+          { !workspace.isRemote &&
+            <Item id="revealInFileExplorer" onClick={handleContextMenuAction}>
+              <FiFolder size={"1rem"} className="context-menu-icon" />
+              Reveal in File Explorer
+            </Item>
+          }
           <Item id="sync" onClick={handleContextMenuAction}>
             <ArrowRepeat size={"1rem"} className="context-menu-icon" />
             Sync
@@ -675,10 +677,12 @@ const SidebarDirectoryTreeControlled = ({ setExternalSelectedItems, setExternalD
               Learning module (default)
             </Item>
           </Submenu>
-          <Item id="revealInFileExplorer" onClick={handleContextMenuAction}>
-            <FiFolder size={"1rem"} className="context-menu-icon" />
-            Reveal in File Explorer
-          </Item>
+          { !workspace.isRemote &&
+            <Item id="revealInFileExplorer" onClick={handleContextMenuAction}>
+              <FiFolder size={"1rem"} className="context-menu-icon" />
+              Reveal in File Explorer
+            </Item>
+          }
           <Item id="sync" onClick={handleContextMenuAction}>
             <ArrowRepeat size={"1rem"} className="context-menu-icon" />
             Sync
@@ -698,10 +702,12 @@ const SidebarDirectoryTreeControlled = ({ setExternalSelectedItems, setExternalD
         </Menu>
 
         <Menu id="MENU_FOLDER">
-          <Item id="revealInFileExplorer" onClick={handleContextMenuAction}>
-            <FiFolder size={"1rem"} className="context-menu-icon" />
-            Reveal in File Explorer
-          </Item>
+          { !workspace.isRemote &&
+            <Item id="revealInFileExplorer" onClick={handleContextMenuAction}>
+              <FiFolder size={"1rem"} className="context-menu-icon" />
+              Reveal in File Explorer
+            </Item>
+          }
           <Item id="sync" onClick={handleContextMenuAction}>
             <ArrowRepeat size={"1rem"} className="context-menu-icon" />
             Sync
@@ -748,10 +754,12 @@ const SidebarDirectoryTreeControlled = ({ setExternalSelectedItems, setExternalD
               VSCode
             </Item>
           </Submenu>
-          <Item id="revealInFileExplorer" onClick={handleContextMenuAction}>
-            <FiFolder size={"1rem"} className="context-menu-icon" />
-            Reveal in File Explorer
-          </Item>
+          { !workspace.isRemote &&
+            <Item id="revealInFileExplorer" onClick={handleContextMenuAction}>
+              <FiFolder size={"1rem"} className="context-menu-icon" />
+              Reveal in File Explorer
+            </Item>
+          }
           <Item id="sync" onClick={handleContextMenuAction}>
             <ArrowRepeat size={"1rem"} className="context-menu-icon" />
             Sync
@@ -794,10 +802,12 @@ const SidebarDirectoryTreeControlled = ({ setExternalSelectedItems, setExternalD
               VSCode
             </Item>
           </Submenu>
-          <Item id="revealInFileExplorer" onClick={handleContextMenuAction}>
-            <FiFolder size={"1rem"} className="context-menu-icon" />
-            Reveal in File Explorer
-          </Item>
+          { !workspace.isRemote &&
+            <Item id="revealInFileExplorer" onClick={handleContextMenuAction}>
+              <FiFolder size={"1rem"} className="context-menu-icon" />
+              Reveal in File Explorer
+            </Item>
+          }
           <Item id="sync" onClick={handleContextMenuAction}>
             <ArrowRepeat size={"1rem"} className="context-menu-icon" />
             Sync
@@ -831,10 +841,12 @@ const SidebarDirectoryTreeControlled = ({ setExternalSelectedItems, setExternalD
               Image viewer (default)
             </Item>
           </Submenu>
-          <Item id="revealInFileExplorer" onClick={handleContextMenuAction}>
-            <FiFolder size={"1rem"} className="context-menu-icon" />
-            Reveal in File Explorer
-          </Item>
+          { !workspace.isRemote &&
+            <Item id="revealInFileExplorer" onClick={handleContextMenuAction}>
+              <FiFolder size={"1rem"} className="context-menu-icon" />
+              Reveal in File Explorer
+            </Item>
+          }
           <Item id="sync" onClick={handleContextMenuAction}>
             <ArrowRepeat size={"1rem"} className="context-menu-icon" />
             Sync
@@ -867,10 +879,12 @@ const SidebarDirectoryTreeControlled = ({ setExternalSelectedItems, setExternalD
               PDF viewer (default)
             </Item>
           </Submenu>
-          <Item id="revealInFileExplorer" onClick={handleContextMenuAction}>
-            <FiFolder size={"1rem"} className="context-menu-icon" />
-            Reveal in File Explorer
-          </Item>
+          { !workspace.isRemote &&
+            <Item id="revealInFileExplorer" onClick={handleContextMenuAction}>
+              <FiFolder size={"1rem"} className="context-menu-icon" />
+              Reveal in File Explorer
+            </Item>
+          }
           <Item id="sync" onClick={handleContextMenuAction}>
             <ArrowRepeat size={"1rem"} className="context-menu-icon" />
             Sync
@@ -904,10 +918,12 @@ const SidebarDirectoryTreeControlled = ({ setExternalSelectedItems, setExternalD
               Text editor (default)
             </Item>
           </Submenu>
-          <Item id="revealInFileExplorer" onClick={handleContextMenuAction}>
-            <FiFolder size={"1rem"} className="context-menu-icon" />
-            Reveal in File Explorer
-          </Item>
+          { !workspace.isRemote &&
+            <Item id="revealInFileExplorer" onClick={handleContextMenuAction}>
+              <FiFolder size={"1rem"} className="context-menu-icon" />
+              Reveal in File Explorer
+            </Item>
+          }
           <Item id="sync" onClick={handleContextMenuAction}>
             <ArrowRepeat size={"1rem"} className="context-menu-icon" />
             Sync
@@ -946,10 +962,12 @@ const SidebarDirectoryTreeControlled = ({ setExternalSelectedItems, setExternalD
               Application Module
             </Item>
           </Submenu>
-          <Item id="revealInFileExplorer" onClick={handleContextMenuAction}>
-            <FiFolder size={"1rem"} className="context-menu-icon" />
-            Reveal in File Explorer
-          </Item>
+          { !workspace.isRemote &&
+            <Item id="revealInFileExplorer" onClick={handleContextMenuAction}>
+              <FiFolder size={"1rem"} className="context-menu-icon" />
+              Reveal in File Explorer
+            </Item>
+          }
           <Item id="sync" onClick={handleContextMenuAction}>
             <ArrowRepeat size={"1rem"} className="context-menu-icon" />
             Sync
@@ -969,10 +987,12 @@ const SidebarDirectoryTreeControlled = ({ setExternalSelectedItems, setExternalD
         </Menu>
 
         <Menu id="MENU_DEFAULT">
-          <Item id="revealInFileExplorer" onClick={handleContextMenuAction}>
-            <FiFolder size={"1rem"} className="context-menu-icon" />
-            Reveal in File Explorer
-          </Item>
+          { !workspace.isRemote &&
+            <Item id="revealInFileExplorer" onClick={handleContextMenuAction}>
+              <FiFolder size={"1rem"} className="context-menu-icon" />
+              Reveal in File Explorer
+            </Item>
+          }
           <Item id="sync" onClick={handleContextMenuAction}>
             <ArrowRepeat size={"1rem"} className="context-menu-icon" />
             Sync

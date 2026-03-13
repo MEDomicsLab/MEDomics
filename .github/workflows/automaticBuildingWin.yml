@@ -97,16 +97,19 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: windows-built
+          path: .
 
       - name: Download Windows blockmap
         uses: actions/download-artifact@v4
         with:
           name: windows-built-blockmap
+          path: .
 
       - name: Download Windows latest.yml file
         uses: actions/download-artifact@v4
         with:
           name: windows-built-latest
+          path: .
 
       - name: Install zip
         run: sudo apt-get install zip

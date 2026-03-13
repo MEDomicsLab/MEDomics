@@ -17,11 +17,11 @@ import React from "react"
 import { Col, Row, Spinner } from "react-bootstrap"
 import { XSquare } from "react-bootstrap-icons"
 import { toast } from "react-toastify"
-import { createFolderFromPath } from "../../../utilities/fileManagementUtils"
+import { mkdirp } from "../../../utilities/fileManagement/fileOps"
 import { deepCopy } from "../../../utilities/staticFunctions"
 import { connectToMongoDB, insertMEDDataObjectIfNotExists } from "../../mongoDB/mongoDBUtils"
 import { MEDDataObject } from "../../workspace/NewMedDataObject"
-import { getPathSeparator } from "../../../utilities/fileManagementUtils"
+import { getPathSeparator } from "../../../utilities/fileManagement/fileOps"
 
 /**
  * @class MEDcohortFigureClass
@@ -30,6 +30,7 @@ import { getPathSeparator } from "../../../utilities/fileManagementUtils"
  * @param {Object} props
  * @param {String} props.jsonID - Path to the MEDcohort json file.
  * @param {Object} props.jsonDataIsLoaded - If MEDcohort json data is loaded. Spinner is showed by the parent component.
+ * @param {Boolean} props.isRemote - Whether the workspace is remote (affects folder creation routing).
  */
 class MEDcohortFigureClass extends React.Component {
   /**
@@ -1068,9 +1069,9 @@ class MEDcohortFigureClass extends React.Component {
     if (timePointsFolder) {
       timePointsFolderId = timePointsFolder.id
     } else {
-      // Create the time points folder locally
+      // Create the time points folder (local or remote)
       folderPath = folderPath + getPathSeparator() + "timePoints" + getPathSeparator()
-      createFolderFromPath(folderPath)
+      await mkdirp(folderPath, { isRemote: this.props.isRemote })
 
       // Create timePoints folder MEDDataObject
       const timePointsFolderObject = new MEDDataObject({

@@ -33,6 +33,7 @@ class GoExecScriptDTale(GoExecutionScript):
         self.row_count = 45
         self.json_config = json_params
         self.is_calculating = True
+        self.start_error = None
         self.progress_thread = threading.Thread(
             target=self._update_progress_periodically, args=())
         self.progress_thread.daemon = True
@@ -50,6 +51,10 @@ class GoExecScriptDTale(GoExecutionScript):
         self.web_server_thread.start()
         self.progress_thread.join()
         self.web_server_thread.join()
+        if self.start_error:
+            raise RuntimeError(self.start_error)
+        if self._progress.get("error"):
+            raise RuntimeError(str(self._progress.get("error")))
         return {"results_html": "html"}
 
     def _update_progress_periodically(self):
@@ -58,6 +63,12 @@ class GoExecScriptDTale(GoExecutionScript):
         """
         while self.is_calculating:
             go_print(str(dtale.instances()))
+            if self.start_error:
+                self._progress["error"] = str(self.start_error)
+                self._progress["currentLabel"] = "D-Tale startup failed"
+                self.push_progress()
+                self.is_calculating = False
+                break
             if self.port is not None:
                 if is_port_in_use(self.port):
                     self._progress["web_server_url"] = f"http://localhost:{self.port}/"
@@ -76,17 +87,24 @@ class GoExecScriptDTale(GoExecutionScript):
         """
         This function is used to run the dashboard
         """
-        # MongoDB setup
-        mongo_client = pymongo.MongoClient("mongodb://localhost:54017/")
-        database = mongo_client["data"]
-        collection = database[self.json_config["dataset"]["id"]]
-        collection_data = collection.find({}, {'_id': False})
-        df = pd.DataFrame(list(collection_data))
+        try:
+            # MongoDB setup
+            mongo_client = pymongo.MongoClient("mongodb://localhost:54017/")
+            database = mongo_client["data"]
+            collection = database[self.json_config["dataset"]["id"]]
+            collection_data = collection.find({}, {'_id': False})
+            df = pd.DataFrame(list(collection_data))
 
-        # DTale
-        self.dataset = self.json_config['dataset']
-        d = dtale.show(df, subprocess=False, port=self.port, force=True)
-        self.is_calculating = False
+            # DTale
+            self.dataset = self.json_config['dataset']
+            dtale.show(df, subprocess=False, port=self.port, force=True)
+            self.is_calculating = False
+        except Exception as error:
+            self.start_error = str(error)
+            self._progress["error"] = str(error)
+            self._progress["currentLabel"] = "D-Tale startup failed"
+            self.push_progress()
+            self.is_calculating = False
 
 
 script = GoExecScriptDTale(json_params_dict, id_)

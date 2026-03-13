@@ -26,6 +26,7 @@ import { WorkspaceContext } from "../workspace/workspaceContext"
 import { requestBackend } from "../../utilities/requests"
 import { toast } from "react-toastify"
 import NotificationOverlay from "../generalPurpose/notificationOverlay"
+import SidebarLoadingOverlay from "./sidebarTools/SidebarLoadingOverlay"
 
 import os from "os"
 
@@ -146,6 +147,29 @@ const LayoutManager = (props) => {
 
   // Render content component based on activeNavItem state
   const renderContentComponent = () => {
+    const isRemoteWorkspace = !!workspace?.isRemote
+    const blockedInRemote = new Set([
+      'learning',
+      'extractionMEDimage',
+      'extractionText',
+      'extractionTS',
+      'extractionImage',
+      'results',
+      'evaluation',
+      'application'
+    ])
+
+    if (isRemoteWorkspace && blockedInRemote.has(activeSidebarItem)) {
+      return (
+        <div style={{ padding: 16, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', boxSizing: 'border-box' }}>
+          <h3 style={{ marginTop: 0 }}>Module unavailable</h3>
+          <div style={{ color: 'var(--warning)', fontSize: 14 }}>
+            Not yet implemented for online use, please switch to a local workspace.
+          </div>
+        </div>
+      )
+    }
+
     if (developerMode && workspaceIsSet) {
       return <MainContainer />
     } else {
@@ -286,8 +310,9 @@ const LayoutManager = (props) => {
         <div className="main-app-container">
           <PanelGroup autoSaveId="test" direction="horizontal">
             <Panel className={resizable.Panel} collapsible={true} minSize={20} maxSize={80} defaultSize={20} order={1} ref={sidebarRef}>
-              <div className={`${resizable.PanelContent} sidebar-content`} style={{ backgroundColor: "#353535" }}>
+              <div className={`${resizable.PanelContent} sidebar-content`} style={{ backgroundColor: "#353535", position: "relative" }}>
                 {renderSidebarComponent()}
+                <SidebarLoadingOverlay />
               </div>
             </Panel>
             <PanelResizeHandle className={resizable.ResizeHandleOuter}>

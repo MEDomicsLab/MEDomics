@@ -1,3 +1,9 @@
+// Force Electron headless mode if --no-gui is present
+if (process.argv.some(arg => arg.includes('--no-gui'))) {
+  process.env.ELECTRON_ENABLE_HEADLESS = '1'
+  // On some Linux systems, also clear DISPLAY
+  process.env.DISPLAY = ''
+}
 import { app, ipcMain, Menu, dialog, BrowserWindow, protocol, shell, nativeTheme } from "electron"
 import axios from "axios"
 import os from "os"
@@ -5,24 +11,143 @@ import serve from "electron-serve"
 import { createWindow, TerminalManager } from "./helpers"
 import { installExtension, REACT_DEVELOPER_TOOLS } from "electron-extension-installer"
 import MEDconfig from "../medomics.dev"
-import { runServer, findAvailablePort } from "./utils/server"
-import { setWorkingDirectory, getRecentWorkspacesOptions, loadWorkspaces, createMedomicsDirectory, updateWorkspace, createWorkingDirectory } from "./utils/workspace"
+const crypto = require("crypto")
+const decompress = require("decompress")
+const https = require("https")
+// Backend access is done over HTTP requests to the backend Express server.
+// This avoids importing backend modules into the Electron main process.
+// We expose small wrapper functions below that call the backend endpoints.
+// Helper to build backend URL (uses expressPort if available, otherwise falls back to serverPort)
+function backendUrl(path) {
+  const port = expressPort || serverPort || MEDconfig.defaultPort
+  return `http://localhost:${port}${path}`
+}
+
+async function httpGet(path, params = {}) {
+  try {
+    const res = await axios.get(backendUrl(path), { params })
+    return res.data
+  } catch (err) {
+    console.warn(`Backend GET ${path} failed:`, err && err.message)
+    return null
+  }
+}
+
+async function httpPost(path, body = {}) {
+  try {
+    const res = await axios.post(backendUrl(path), body)
+    return res.data
+  } catch (err) {
+    console.warn(`Backend POST ${path} failed:`, err && err.message)
+    return null
+  }
+}
+
+// Wrapper functions that replace previous direct imports
+async function runServerViaBackend() {
+  return await httpPost("/run-go-server", {})
+}
+
+// Find an available port locally (used for dev UI port selection). This is a small
+// local implementation so the main process doesn't import backend code for this.
+function findAvailablePort(startPort, endPort = 8000) {
+  const net = require("net")
+  return new Promise((resolve, reject) => {
+    let port = startPort
+    function tryPort() {
+      const server = net.createServer()
+      server.once("error", (err) => {
+        server.close()
+        if (err.code === "EADDRINUSE") {
+          port++
+          if (port > endPort) return reject(new Error("No available port"))
+          tryPort()
+        } else {
+          reject(err)
+        }
+      })
+      server.once("listening", () => {
+        server.close(() => resolve(port))
+      })
+      server.listen(port)
+    }
+    tryPort()
+  })
+}
+
+async function getBundledPythonEnvironment() {
+  const data = await httpGet("/get-bundled-python-environment")
+  return data && data.pythonEnv ? data.pythonEnv : null
+}
+
+async function getInstalledPythonPackages(pythonPath) {
+  const data = await httpGet("/get-installed-python-packages", { pythonPath })
+  return data && data.packages ? data.packages : null
+}
+
+async function startMongoDB(workspacePath) {
+  return await httpPost("/start-mongo", { workspacePath })
+}
+
+async function stopMongoDB() {
+  // Backend doesn't currently expose a stop-mongo endpoint; call a generic endpoint if available.
+  return await httpPost("/stop-mongo", {})
+}
+
+async function getMongoDBPath() {
+  const data = await httpGet("/get-mongo-path")
+  return data && data.path ? data.path : null
+}
+
+async function checkJupyterIsRunning() {
+  const data = await httpGet("/check-jupyter-status")
+  return data || { running: false, error: "no-response" }
+}
+
+async function startJupyterServer(workspacePath, port) {
+  return await httpPost("/start-jupyter-server", { workspacePath, port })
+}
+
+async function stopJupyterServer() {
+  return await httpPost("/stop-jupyter-server", {})
+}
+
+async function installMongoDB() {
+  return await httpPost("/install-mongo", {})
+}
+
+async function checkRequirements() {
+  const data = await httpGet("/check-requirements")
+  return data
+}
 import {
-  getBundledPythonEnvironment,
-  getInstalledPythonPackages,
-  installPythonPackage,
-  installBundledPythonExecutable,
-  checkPythonRequirements,
-  installRequiredPythonPackages
-} from "./utils/pythonEnv"
-import { installMongoDB, checkRequirements } from "./utils/installation"
+  setWorkingDirectory,
+  getRecentWorkspacesOptions,
+  loadWorkspaces,
+  createMedomicsDirectory,
+  createRemoteMedomicsDirectory,
+  updateWorkspace,
+  createWorkingDirectory,
+  createRemoteWorkingDirectory
+} from "./utils/workspace"
+// Backend python & installation utilities are accessed via HTTP wrappers defined above.
+import {
+  getTunnelState,
+  getActiveTunnel,
+  detectRemoteOS,
+  getRemoteWorkspacePath,
+  checkRemotePortOpen,
+  startExpressForward,
+  startPortTunnel
+} from './utils/remoteFunctions.js'
+// MongoDB and Jupyter functions are accessed via HTTP wrappers (startMongoDB, stopMongoDB, getMongoDBPath, startJupyterServer, stopJupyterServer, checkJupyterIsRunning)
+
 
 const fs = require("fs")
 const terminalManager = new TerminalManager()
 var path = require("path")
-let mongoProcess = null
 const dirTree = require("directory-tree")
-const { exec, spawn, execSync } = require("child_process")
+const { exec, spawn, execSync, fork } = require("child_process")
 let serverProcess = null
 const serverState = { serverIsRunning: false }
 var serverPort = MEDconfig.defaultPort
@@ -30,6 +155,8 @@ var hasBeenSet = false
 const isProd = process.env.NODE_ENV === "production"
 let splashScreen // The splash screen is the window that is displayed while the application is loading
 export var mainWindow // The main window is the window of the application
+// Robust headless mode detection
+const isHeadless = process.argv.some(arg => arg.includes('--no-gui'))
 
 //**** AUTO UPDATER ****//
 const { autoUpdater } = require("electron-updater")
@@ -77,6 +204,991 @@ console.log = function () {
     console.error(error)
   }
 }
+
+// **** BACKEND EXPRESS SERVER **** //
+let expressPort = null
+
+// ---- Local port blacklist to avoid accidental use in remote flows ----
+const portBlacklist = new Set()
+function blacklistPort(port) {
+  const p = Number(port)
+  if (Number.isFinite(p)) portBlacklist.add(p)
+}
+function isPortBlacklisted(port) {
+  const p = Number(port)
+  return Number.isFinite(p) && portBlacklist.has(p)
+}
+function setExpressPort(p) {
+  expressPort = p
+  blacklistPort(p)
+}
+
+// IPC helpers to query/manage blacklist from renderer if needed
+ipcMain.handle('getPortBlacklist', async () => Array.from(portBlacklist))
+ipcMain.handle('blacklistPort', async (_event, port) => {
+  blacklistPort(port)
+  return { success: true, port: Number(port) }
+})
+
+ipcMain.handle("get-express-port", async () => {
+  return expressPort
+})
+
+function getBackendServerExecutable() {
+  const platform = process.platform
+  // Prefer user-configured path (CLI) from settings if available and exists
+  try {
+    const userDataPath = app.getPath("userData")
+    const settingsFilePath = path.join(userDataPath, "settings.json")
+    if (fs.existsSync(settingsFilePath)) {
+      const settings = JSON.parse(fs.readFileSync(settingsFilePath, "utf8"))
+      if (settings && settings.localBackendPath && fs.existsSync(settings.localBackendPath)) {
+        return settings.localBackendPath // CLI executable path
+      }
+    }
+  } catch {}
+  if (app.isPackaged) {
+    // In packaged builds, fallback to a bundled CLI if present
+    const cliCandidates = [
+      path.join(process.resourcesPath, "backend", platform === "win32" ? "medomics-server.exe" : "medomics-server"),
+      path.join(process.resourcesPath, "backend", "bin", platform === "win32" ? "medomics-server.exe" : "medomics-server")
+    ]
+    for (const pth of cliCandidates) {
+      try { if (fs.existsSync(pth)) return pth } catch {}
+    }
+    // Legacy fallback: original server binaries (kept for backward compatibility)
+    if (platform === "win32") return path.join(process.resourcesPath, "backend", "server_win.exe")
+    if (platform === "darwin") return path.join(process.resourcesPath, "backend", "server_mac")
+    if (platform === "linux") return path.join(process.resourcesPath, "backend", "server_linux")
+  } else {
+    // In development, run the CLI via node
+    return ["node", path.join(__dirname, "../backend/cli/medomics-server.mjs")]
+  }
+}
+
+// ---- Helpers for backend installation ----
+function saveLocalBackendPath(exePath) {
+  return new Promise((resolve, reject) => {
+    try {
+      const userDataPath = app.getPath('userData')
+      const settingsFilePath = path.join(userDataPath, 'settings.json')
+      let settings = {}
+      if (fs.existsSync(settingsFilePath)) {
+        try { settings = JSON.parse(fs.readFileSync(settingsFilePath, 'utf8')) || {} } catch {}
+      }
+      settings.localBackendPath = exePath
+      fs.writeFileSync(settingsFilePath, JSON.stringify(settings, null, 2))
+      resolve(true)
+    } catch (e) { reject(e) }
+  })
+}
+
+function findInstalledExecutable(versionDir) {
+  try {
+    if (!fs.existsSync(versionDir)) return null
+    const binDir = path.join(versionDir, 'bin')
+    if (fs.existsSync(binDir)) {
+      const entries = fs.readdirSync(binDir)
+      const exeCandidates = entries.map(e => path.join(binDir, e)).filter(p => {
+        const lower = p.toLowerCase()
+        if (process.platform === 'win32') return lower.endsWith('.exe') && lower.includes('medomics')
+        return lower.includes('medomics') && fs.statSync(p).isFile()
+      })
+      return exeCandidates[0] || null
+    }
+    // Fallback scan entire versionDir
+    const walk = (dir) => {
+      const items = fs.readdirSync(dir)
+      for (const item of items) {
+        const full = path.join(dir, item)
+        try {
+          const st = fs.statSync(full)
+          if (st.isDirectory()) {
+            const found = walk(full)
+            if (found) return found
+          } else if (st.isFile()) {
+            const lower = full.toLowerCase()
+            if (process.platform === 'win32') {
+              if (lower.endsWith('.exe') && lower.includes('medomics')) return full
+            } else if (lower.includes('medomics')) {
+              return full
+            }
+          }
+        } catch {}
+      }
+      return null
+    }
+    return walk(versionDir)
+  } catch { return null }
+}
+
+function sha256File(filePath) {
+  return new Promise((resolve, reject) => {
+    try {
+      const hash = crypto.createHash('sha256')
+      const stream = fs.createReadStream(filePath)
+      stream.on('data', d => hash.update(d))
+      stream.on('end', () => resolve(hash.digest('hex')))
+      stream.on('error', reject)
+    } catch (e) { reject(e) }
+  })
+}
+
+function downloadWithProgress(url, destPath, onProgress) {
+  return new Promise(async (resolve, reject) => {
+    try {
+      const writer = fs.createWriteStream(destPath)
+      const response = await axios.get(url, { responseType: 'stream' })
+      const total = Number(response.headers['content-length']) || 0
+      let downloaded = 0
+      const start = Date.now()
+      response.data.on('data', chunk => {
+        downloaded += chunk.length
+        const percent = total ? (downloaded / total) * 100 : null
+        const elapsed = (Date.now() - start) / 1000
+        const speed = elapsed > 0 ? (downloaded / elapsed) : 0
+        onProgress && onProgress({ downloaded, total, percent, speed })
+      })
+      response.data.pipe(writer)
+      writer.on('finish', () => resolve(destPath))
+      writer.on('error', reject)
+    } catch (e) { reject(e) }
+  })
+}
+
+async function cleanupOldVersions(versionsDir, currentExePath, keep = 3) {
+  try {
+    if (!fs.existsSync(versionsDir)) return
+    const entries = fs.readdirSync(versionsDir).map(v => ({ name: v, path: path.join(versionsDir, v) }))
+    // Filter only directories
+    const dirs = entries.filter(e => { try { return fs.statSync(e.path).isDirectory() } catch { return false } })
+    // Sort by mtime descending (newest first)
+    dirs.sort((a,b) => {
+      const ma = fs.statSync(a.path).mtimeMs
+      const mb = fs.statSync(b.path).mtimeMs
+      return mb - ma
+    })
+    // Determine which to keep: newest keep entries + the one containing currentExePath
+    const keepSet = new Set()
+    for (let i=0; i<dirs.length && i<keep; i++) keepSet.add(dirs[i].name)
+    // Ensure current exe version directory kept
+    const currentVersionDir = dirs.find(d => currentExePath.startsWith(d.path))
+    if (currentVersionDir) keepSet.add(currentVersionDir.name)
+    const removeTargets = dirs.filter(d => !keepSet.has(d.name))
+    for (const rem of removeTargets) {
+      try {
+        fs.rmSync(rem.path, { recursive: true, force: true })
+      } catch {}
+    }
+  } catch (e) {
+    console.warn('cleanupOldVersions error:', e.message)
+  }
+}
+
+function startBackendServer() {
+  let child
+  const execPath = getBackendServerExecutable()
+  const isDev = Array.isArray(execPath)
+  let cmd, args
+
+  // Validate that the executable/script exists before attempting to spawn
+  try {
+    if (isDev) {
+      const scriptPath = execPath[1]
+      if (!scriptPath || !fs.existsSync(scriptPath)) {
+        console.warn('Backend dev script not found; skipping backend start:', scriptPath)
+        return null
+      }
+    } else {
+      if (!execPath || typeof execPath !== 'string' || !fs.existsSync(execPath)) {
+        console.warn('Backend executable not found; skipping backend start:', execPath)
+        return null
+      }
+    }
+  } catch (e) {
+    console.warn('Error while checking backend executable; skipping backend start:', e && e.message)
+    return null
+  }
+
+  // Prepare CLI state file under user home for consistent port discovery across Electron and CLI
+  const stateDir = path.join(require('os').homedir(), '.medomics', 'medomics-server')
+  try { if (!fs.existsSync(stateDir)) fs.mkdirSync(stateDir, { recursive: true }) } catch {}
+  const stateFilePath = path.join(stateDir, 'state.json')
+
+  if (isDev) {
+    // node backend/cli/medomics-server.mjs start --json
+    cmd = execPath[0]
+    args = [execPath[1], 'start', '--json', '--state-file', stateFilePath]
+  } else {
+    // <installed>/medomics-server start --json
+    cmd = execPath
+    args = ['start', '--json', '--state-file', stateFilePath]
+  }
+
+  try {
+    child = spawn(cmd, args, { stdio: ['ignore', 'pipe', 'pipe'] })
+  } catch (e) {
+    console.warn('Failed to spawn backend process:', e && e.message)
+    return null
+  }
+
+  child.on('error', (err) => {
+    try { console.warn('Backend process error:', err && err.message) } catch {}
+  })
+
+  // Parse JSON lines from stdout to capture expressPort
+  let buffer = ''
+  child.stdout.on('data', (chunk) => {
+    try {
+      buffer += chunk.toString()
+      let idx
+      while ((idx = buffer.indexOf('\n')) !== -1) {
+        const line = buffer.slice(0, idx).trim()
+        buffer = buffer.slice(idx + 1)
+        if (!line) continue
+        try {
+          const obj = JSON.parse(line)
+          if (obj && obj.success && (obj.state?.expressPort || obj.expressPort)) {
+            const port = obj.state?.expressPort || obj.expressPort
+            console.log(`Local Express server started on port: ${port}`)
+            setExpressPort(port)
+          }
+        } catch (_) {
+          // Non-JSON line; ignore
+        }
+      }
+    } catch (err) {
+      console.warn('Error parsing backend stdout:', err)
+    }
+  })
+
+  child.stderr.on('data', (chunk) => {
+    try { console.warn('[backend]', chunk.toString().trim()) } catch {}
+  })
+
+  // Keep legacy IPC handling in case CLI forwards messages in the future
+  if (child.on) {
+    child.on("message", (message) => {
+      try {
+        if (message && message.type === "EXPRESS_PORT") {
+          const port = message.expressPort || message.port
+          console.log(`Local Express server started on port: ${port}`)
+          setExpressPort(port)
+        }
+      } catch (err) {
+        console.warn('Error handling message from backend process:', err)
+      }
+    })
+  }
+
+  // Fallback: if we didn't get the port within timeout, probe known range
+  const fallbackTimeoutMs = 10000
+  setTimeout(async () => {
+    if (!expressPort) {
+      try {
+        const found = await findExpressPortByProbing(5000, 8000, 48, 250)
+        if (found) {
+          setExpressPort(found)
+          console.log(`Discovered Express port via probe: ${found}`)
+        } else {
+          console.warn('Failed to discover Express port via probe within timeout')
+        }
+      } catch (e) {
+        console.warn('Error probing for Express port:', e.message)
+      }
+    }
+  }, fallbackTimeoutMs)
+
+  child.unref()
+  return child
+}
+
+async function findExpressPortByProbing(start = 5000, end = 8000, batchSize = 40, timeoutMs = 300) {
+  const clamp = (n, min, max) => Math.max(min, Math.min(max, n))
+  let p = start
+  while (p <= end) {
+    const to = clamp(p + batchSize - 1, p, end)
+    const ports = []
+    for (let i = p; i <= to; i++) {
+      // Skip blacklisted ports (i.e., local server port) to avoid false positives
+      if (!portBlacklist.has(i)) ports.push(i)
+    }
+    const results = await Promise.allSettled(ports.map(port => axios.get(`http://127.0.0.1:${port}/status`, { timeout: timeoutMs })))
+    for (let i = 0; i < results.length; i++) {
+      const r = results[i]
+      if (r.status === 'fulfilled') {
+        const data = r.value && r.value.data ? r.value.data : r.value
+        if (data && (data.success || data.expressPort || data.go || data.mongo || data.jupyter)) {
+          return ports[i]
+        }
+      }
+    }
+    p = to + 1
+  }
+  return null
+}
+
+// ---- Unified status and ensure (local via CLI, remote via tunnel) ----
+function getCliCommandAndArgs(baseArgs = []) {
+  const execPath = getBackendServerExecutable()
+  const isDev = Array.isArray(execPath)
+  const stateDir = path.join(require('os').homedir(), '.medomics', 'medomics-server')
+  try { if (!fs.existsSync(stateDir)) fs.mkdirSync(stateDir, { recursive: true }) } catch {}
+  const stateFilePath = path.join(stateDir, 'state.json')
+  if (isDev) return { cmd: execPath[0], args: [execPath[1], ...baseArgs, '--state-file', stateFilePath] }
+  return { cmd: execPath, args: [...baseArgs, '--state-file', stateFilePath] }
+}
+
+function runCliCommand(baseArgs = [], timeoutMs = 15000) {
+  return new Promise((resolve) => {
+    try {
+      const { cmd, args } = getCliCommandAndArgs(baseArgs)
+
+      // Guard: ensure the CLI executable or dev script exists
+      try {
+        const isDevCmd = cmd === 'node' && Array.isArray(args) && args.length > 0
+        if (isDevCmd) {
+          const scriptPath = args[0]
+          if (!scriptPath || !fs.existsSync(scriptPath)) {
+            return resolve({ success: false, error: 'cli-not-found', details: { mode: 'dev', scriptPath } })
+          }
+        } else {
+          if (!cmd || typeof cmd !== 'string' || !fs.existsSync(cmd)) {
+            return resolve({ success: false, error: 'cli-not-found', details: { mode: 'prod', execPath: cmd } })
+          }
+        }
+      } catch (chkErr) {
+        return resolve({ success: false, error: 'cli-check-failed', details: chkErr && chkErr.message })
+      }
+
+      let buffer = ''
+      let settled = false
+      const safeResolve = (obj) => { if (!settled) { settled = true; resolve(obj) } }
+
+      let child
+      try {
+        child = spawn(cmd, args, { stdio: ['ignore', 'pipe', 'pipe'] })
+      } catch (spawnErr) {
+        return safeResolve({ success: false, error: 'spawn-failed', details: spawnErr && spawnErr.message })
+      }
+
+      let timer = setTimeout(() => {
+        try { child.kill() } catch {}
+        safeResolve({ success: false, error: 'cli-timeout' })
+      }, timeoutMs)
+
+      child.stdout.on('data', (chunk) => {
+        buffer += chunk.toString()
+      })
+      child.stderr.on('data', (chunk) => {
+        // keep for debugging; do not reject
+      })
+      child.on('error', (err) => {
+        clearTimeout(timer)
+        safeResolve({ success: false, error: 'cli-error', details: err && err.message })
+      })
+      child.on('close', () => {
+        clearTimeout(timer)
+        if (settled) return
+        // Try parse last JSON line
+        const lines = buffer.split(/\r?\n/).filter(Boolean)
+        for (let i = lines.length - 1; i >= 0; i--) {
+          try { return safeResolve(JSON.parse(lines[i])) } catch {}
+        }
+        safeResolve({ success: false, error: 'no-json-output' })
+      })
+    } catch (e) {
+      resolve({ success: false, error: e.message })
+    }
+  })
+}
+
+ipcMain.handle('backendStatus', async (_event, { target = 'local' } = {}) => {
+  try {
+    if (target === 'remote') {
+      const tunnel = getTunnelState()
+      const localExpressPort = tunnel && tunnel.localExpressPort
+      const conn = getActiveTunnel && getActiveTunnel()
+      if (!conn) return { success: false, error: 'no-active-ssh' }
+
+      const normalizeHost = (value) => String(value || '').trim().toLowerCase().replace(/\.+$/, '')
+      const shortHost = (value) => normalizeHost(value).split('.')[0]
+      const isValidStatusPayload = (payload) => {
+        return !!(payload && typeof payload === 'object' && payload.success === true)
+      }
+
+      const remoteOS = await detectRemoteOS()
+      const remoteHostName = await new Promise((resolve) => {
+        try {
+          const hostCmd = remoteOS === 'win32'
+            ? `powershell -NoProfile -Command "$env:COMPUTERNAME"`
+            : `bash -lc "hostname -f 2>/dev/null || hostname 2>/dev/null || uname -n"`
+          conn.exec(hostCmd, (err, stream) => {
+            if (err) return resolve(null)
+            let out = ''
+            stream.on('data', (d) => { out += d.toString() })
+            stream.stderr.on('data', () => {})
+            stream.on('close', () => resolve((out || '').trim() || null))
+          })
+        } catch {
+          resolve(null)
+        }
+      })
+
+      // First try: use existing local→remote forwarding to /status only when the express
+      // tunnel is already known to be active, and verify identity against remote host.
+      const tunnels = Array.isArray(tunnel?.tunnels) ? tunnel.tunnels : []
+      const expressForward = tunnels.find((t) => t?.name === 'express')
+      const hasActiveExpressForward = !!(
+        localExpressPort &&
+        expressForward &&
+        expressForward.status === 'forwarding' &&
+        Number(expressForward.localPort) === Number(localExpressPort)
+      )
+      if (hasActiveExpressForward) {
+        try {
+          const res = await axios.get(`http://127.0.0.1:${localExpressPort}/status`, { timeout: 3000 })
+          const data = res && res.data
+          const reportedHost = data && data.serverIdentity && data.serverIdentity.hostName
+          const matchesRemoteHost = remoteHostName && reportedHost && (
+            normalizeHost(remoteHostName) === normalizeHost(reportedHost) ||
+            shortHost(remoteHostName) === shortHost(reportedHost)
+          )
+          if (isValidStatusPayload(data) && matchesRemoteHost) return data
+        } catch {}
+      }
+
+      // Fallback: sweep remote ports 5000-8000 to discover an Express server
+
+      // Single-shot list of listening ports on remote for performance
+      const listCmd = remoteOS === 'win32'
+        ? `netstat -an | findstr LISTEN`
+        : `bash -c "command -v ss >/dev/null 2>&1 && ss -ltn || netstat -an | grep LISTEN"`
+
+      const listening = await new Promise((resolve) => {
+        try {
+          conn.exec(listCmd, (err, stream) => {
+            if (err) return resolve("")
+            let out = ""
+            stream.on('data', (d) => { out += d.toString() })
+            stream.stderr.on('data', () => {})
+            stream.on('close', () => resolve(out))
+          })
+        } catch { resolve("") }
+      })
+
+      const ports = []
+      const re = /:(\d{2,5})/g
+      let m
+      while ((m = re.exec(listening)) !== null) {
+        const p = Number(m[1])
+        if (p >= 5000 && p <= 8000 && !ports.includes(p)) ports.push(p)
+      }
+
+      // Sort ascending for determinism
+      ports.sort((a,b) => a - b)
+      if (!ports.length) return { success: false, error: 'no-open-ports-in-range', range: [5000, 8000] }
+
+      // Try probing candidates by creating a temporary local forward and requesting /status
+      const tryPortStatus = async (remotePort) => {
+        return new Promise((resolve) => {
+          try {
+            const net = require('net')
+            const server = net.createServer((socket) => {
+              conn.forwardOut(
+                socket.localAddress || '127.0.0.1',
+                socket.localPort || 0,
+                '127.0.0.1',
+                parseInt(remotePort, 10),
+                (err, stream) => {
+                  if (err) { socket.destroy(); return }
+                  socket.pipe(stream).pipe(socket)
+                }
+              )
+            })
+            // Let the OS assign an ephemeral local port
+            server.listen(0, '127.0.0.1')
+            server.on('error', () => { try { server.close() } catch {}; resolve(null) })
+            server.on('listening', () => {
+              const addr = server.address()
+              const localPort = (addr && typeof addr === 'object') ? addr.port : null
+              if (!localPort) { try { server.close() } catch {}; return resolve(null) }
+              // Small delay to allow listener to bind fully
+              setTimeout(async () => {
+                try {
+                  const resp = await axios.get(`http://127.0.0.1:${localPort}/status`, { timeout: 1500 })
+                  try { server.close() } catch {}
+                  resolve(resp && resp.data ? { data: resp.data, localEp: localPort } : null)
+                } catch {
+                  try { server.close() } catch {}
+                  resolve(null)
+                }
+              }, 250)
+            })
+          } catch { resolve(null) }
+        })
+      }
+
+      for (const rp of ports) {
+        const found = await tryPortStatus(rp)
+        if (found && isValidStatusPayload(found.data)) {
+          // Persistently start Express forward using discovered remote port
+          try {
+            await startExpressForward({ remoteExpressPort: rp })
+          } catch {}
+          // If GO service is reported running with a port, start GO forward too
+          try {
+            const goPort = Number(found.data?.go?.port)
+            if (found.data?.go?.running && goPort) {
+              const st = getTunnelState()
+              const lp = Number(st && st.localGoPort)
+              await startPortTunnel({ name: 'go', localPort: lp, remotePort: goPort, ensureRemoteOpen: true })
+            }
+          } catch {}
+          // Augment response with discovered ports for visibility
+          return { ...found.data, discoveredRemotePort: rp }
+        }
+      }
+
+      return { success: false, error: 'status-not-found', openPorts: ports }
+    }
+    // local
+    if (expressPort) {
+      const data = await httpGet('/status')
+      if (data) return data
+    }
+    // Fallback to CLI status
+    const out = await runCliCommand(['status'])
+    return out
+  } catch (e) {
+    return { success: false, error: e.message }
+  }
+})
+
+ipcMain.handle('backendEnsure', async (_event, { target = 'local', go = false, mongo = false, jupyter = false, workspace } = {}) => {
+  try {
+    if (target === 'remote') {
+      const tunnel = getTunnelState()
+      const remotePort = tunnel && tunnel.localExpressPort
+      if (!remotePort) return { success: false, error: 'no-remote-port' }
+      const ensured = {}
+      if (go) ensured.go = (await axios.post(`http://127.0.0.1:${remotePort}/ensure-go`, {}, { timeout: 10000 })).data
+      if (mongo) ensured.mongo = (await axios.post(`http://127.0.0.1:${remotePort}/ensure-mongo`, { workspacePath: workspace }, { timeout: 20000 })).data
+      if (jupyter) ensured.jupyter = (await axios.post(`http://127.0.0.1:${remotePort}/ensure-jupyter`, { workspacePath: workspace }, { timeout: 20000 })).data
+      return { success: true, ensured }
+    }
+    // local via CLI
+    const args = ['ensure']
+    if (go) args.push('--go')
+    if (mongo) args.push('--mongo')
+    if (jupyter) args.push('--jupyter')
+    if (workspace) args.push('--workspace', workspace)
+    const out = await runCliCommand(args)
+    return out
+  } catch (e) {
+    return { success: false, error: e.message }
+  }
+})
+
+// Check if a remote port is open (listening) on the SSH-connected host
+ipcMain.handle('remoteCheckPort', async (_event, { port }) => {
+  try {
+    console.log('[remoteCheckPort] request for port', port)
+    const tunnel = getTunnelState()
+    if (!tunnel || !tunnel.tunnelActive) return { success: false, error: 'no-tunnel' }
+    if (!port || isNaN(Number(port))) return { success: false, error: 'invalid-port' }
+    const conn = getActiveTunnel && getActiveTunnel()
+    if (!conn) return { success: false, error: 'no-active-ssh' }
+    const open = await checkRemotePortOpen(conn, Number(port))
+    console.log('[remoteCheckPort] result', { port: Number(port), open: !!open })
+    return { success: true, port: Number(port), open: !!open }
+  } catch (e) {
+    console.warn('[remoteCheckPort] error', e && e.message ? e.message : e)
+    return { success: false, error: e && e.message ? e.message : String(e) }
+  }
+})
+
+// Stop backend on app quit (best-effort)
+app.on('before-quit', async () => {
+  try { await runCliCommand(['stop'], 5000) } catch {}
+})
+
+// ---- Local backend presence/install stubs ----
+function checkLocalBackendPresence() {
+  // Development always considered present (runs node script)
+  if (!app.isPackaged) {
+    return { installed: true, source: 'dev-script', path: path.join(__dirname, "../backend/expressServer.mjs") }
+  }
+  // Check user settings override
+  try {
+    const userDataPath = app.getPath("userData")
+    const settingsFilePath = path.join(userDataPath, "settings.json")
+    if (fs.existsSync(settingsFilePath)) {
+      const settings = JSON.parse(fs.readFileSync(settingsFilePath, "utf8"))
+      if (settings && settings.localBackendPath && fs.existsSync(settings.localBackendPath)) {
+        return { installed: true, source: 'user', path: settings.localBackendPath }
+      }
+    }
+  } catch {}
+  // Check packaged locations
+  const candidates = [
+    path.join(process.resourcesPath, 'backend', process.platform === 'win32' ? 'server_win.exe' : (process.platform === 'darwin' ? 'server_mac' : 'server_linux'))
+  ]
+  const found = candidates.find(p => {
+    try { return fs.existsSync(p) } catch { return false }
+  })
+  if (found) return { installed: true, source: 'packaged', path: found }
+  return { installed: false, source: 'missing' }
+}
+
+ipcMain.handle('checkLocalBackend', async () => {
+  return checkLocalBackendPresence()
+})
+
+// Unified presence check (local or remote) for whether the backend is installed/available on disk.
+// - local: uses filesystem-based checkLocalBackendPresence()
+// - remote: uses the SSH tunnel's forwarded Express port to call a remote endpoint
+//   Preferred endpoint: /check-local-backend (should return { installed, path?, source? })
+//   Fallback: /status (if reachable, we infer installed=true because the server is running)
+ipcMain.handle('backendPresence', async (_event, { target = 'local' } = {}) => {
+  try {
+    if (target === 'remote') {
+      const tunnel = getTunnelState()
+      const remotePort = tunnel && tunnel.localExpressPort
+      if (!remotePort) {
+        return { success: false, target: 'remote', installed: false, error: 'no-remote-port' }
+      }
+      // Try explicit remote presence endpoint first
+      try {
+        const pres = await axios.get(`http://127.0.0.1:${remotePort}/check-local-backend`, { timeout: 5000 })
+        if (pres && pres.data) {
+          // Normalize shape
+          const d = pres.data
+          const installed = !!(d.installed || d.success)
+          return { success: true, target: 'remote', installed, details: d }
+        }
+      } catch {}
+      // Fallback: if /status works, the server is clearly installed and running
+      try {
+        const res = await axios.get(`http://127.0.0.1:${remotePort}/status`, { timeout: 5000 })
+        if (res && res.data) {
+          return { success: true, target: 'remote', installed: true, details: res.data }
+        }
+      } catch (e) {
+        return { success: false, target: 'remote', installed: false, error: e && e.message }
+      }
+      return { success: false, target: 'remote', installed: false, error: 'unknown' }
+    }
+    // local
+    const local = checkLocalBackendPresence()
+    return { success: true, target: 'local', installed: !!local.installed, details: local }
+  } catch (e) {
+    return { success: false, target, installed: false, error: e && e.message }
+  }
+})
+
+ipcMain.handle('setLocalBackendPath', async (_event, exePath) => {
+  try {
+    if (!exePath) return { success: false, error: 'no-path' }
+    if (!fs.existsSync(exePath)) return { success: false, error: 'not-found' }
+    const userDataPath = app.getPath('userData')
+    const settingsFilePath = path.join(userDataPath, 'settings.json')
+    let settings = {}
+    if (fs.existsSync(settingsFilePath)) {
+      try { settings = JSON.parse(fs.readFileSync(settingsFilePath, 'utf8')) || {} } catch {}
+    }
+    settings.localBackendPath = exePath
+    fs.writeFileSync(settingsFilePath, JSON.stringify(settings, null, 2))
+    return { success: true, path: exePath }
+  } catch (e) {
+    return { success: false, error: e.message }
+  }
+})
+
+// IPC: Get latest backend release info from GitHub
+// Enhancement: fetch all releases and return the latest "server-" tagged one.
+ipcMain.handle('getLatestBackendReleaseInfo', async (_event, payload) => {
+  const owner = (payload && payload.owner) || 'MEDomicsLab' // TO REPLACE WITH MEDOMICS BASE REPO
+  const repo = (payload && payload.repo) || 'MEDomics'
+  const serverOnly = payload && typeof payload.serverOnly === 'boolean' ? payload.serverOnly : true
+
+  // Helpers
+  const isServerTag = (s) => {
+    const tag = (s || '').toLowerCase()
+    // Prefer explicit server-vX pattern, but allow serverX as a fallback
+    return /^server[-_]?v\d+/i.test(tag) || tag.startsWith('server-') || tag.startsWith('server_')
+  }
+  const parseSemver = (s) => {
+    if (!s) return null
+    const m = (s.match(/v(\d+)(?:\.(\d+))?(?:\.(\d+))?/i))
+    if (!m) return null
+    return [parseInt(m[1]||'0',10), parseInt(m[2]||'0',10), parseInt(m[3]||'0',10)]
+  }
+  const cmpSemverDesc = (a,b) => {
+    for (let i=0;i<3;i++) { const d = (b[i]||0)-(a[i]||0); if (d!==0) return d }
+    return 0
+  }
+
+  const releasesUrl = `https://api.github.com/repos/${owner}/${repo}/releases?per_page=100`
+
+  const fetchJson = (url) => new Promise((resolve) => {
+    try {
+      const req = https.request(url, {
+        method: 'GET',
+        headers: {
+          'User-Agent': 'MEDomics-App',
+          'Accept': 'application/vnd.github+json'
+        }
+      }, (res) => {
+        let data = ''
+        res.on('data', (chunk) => { data += chunk })
+        res.on('end', () => {
+          try { resolve({ ok: true, json: JSON.parse(data) }) }
+          catch (e) { resolve({ ok: false, error: `Parse error: ${e && e.message ? e.message : String(e)}` }) }
+        })
+      })
+      req.on('error', (err) => resolve({ ok: false, error: err && err.message ? err.message : String(err) }))
+      req.end()
+    } catch (e) { resolve({ ok: false, error: e && e.message ? e.message : String(e) }) }
+  })
+
+  // Try full releases listing to pick the latest server-tagged release
+  const listRes = await fetchJson(releasesUrl)
+  if (listRes.ok && Array.isArray(listRes.json)) {
+    let rels = listRes.json
+    if (serverOnly) {
+      rels = rels.filter(r => isServerTag(r.tag_name || r.name))
+    }
+    if (rels.length > 0) {
+      // Prefer semver compare if parsable; else fall back to published_at
+      const withSem = rels.map(r => ({ r, v: parseSemver((r.tag_name || r.name) || '') }))
+      const semAvail = withSem.some(x => x.v)
+      let chosen
+      if (semAvail) {
+        const sortable = withSem.map(x => ({ ...x, v: x.v || [0,0,0] }))
+        sortable.sort((a,b) => cmpSemverDesc(a.v,b.v))
+        chosen = sortable[0].r
+      } else {
+        rels.sort((a,b) => new Date(b.published_at||b.created_at||0) - new Date(a.published_at||a.created_at||0))
+        chosen = rels[0]
+      }
+      return { success: true, tag: chosen.tag_name || chosen.name, raw: chosen }
+    }
+  }
+
+  // Fallback: GitHub latest (may be a client release)
+  const latestUrl = `https://api.github.com/repos/${owner}/${repo}/releases/latest`
+  const latestRes = await fetchJson(latestUrl)
+  if (latestRes.ok && latestRes.json) {
+    const json = latestRes.json
+    return { success: true, tag: json.tag_name || json.name, raw: json }
+  }
+  return { success: false, error: listRes.error || latestRes.error || 'Failed to fetch releases' }
+})
+
+ipcMain.handle('installLocalBackendFromURL', async (_event, { version, manifestUrl } = {}) => {
+  // Download and install the backend using either a manifest or latest GitHub release tagged for server.
+  // Manifest path (legacy): fetch manifest -> pick asset -> download -> verify sha256 -> extract -> set settings.localBackendPath -> cleanup.
+  // GitHub path (new): fetch releases -> pick latest with tag containing 'server' -> select OS/arch asset -> download -> extract -> save path -> cleanup.
+  const progress = (payload) => {
+    try { _event?.sender?.send('localBackendInstallProgress', payload) } catch {}
+  }
+  try {
+    const platform = process.platform // 'win32' | 'linux' | 'darwin'
+    const arch = process.arch // 'x64' | 'arm64' | ...
+
+    // Prepare directories
+    const userDataPath = app.getPath('userData')
+    const baseDir = path.join(userDataPath, 'medomics-server')
+    const versionsDir = path.join(baseDir, 'versions')
+    const downloadsDir = path.join(baseDir, 'downloads')
+    try { if (!fs.existsSync(baseDir)) fs.mkdirSync(baseDir, { recursive: true }) } catch {}
+    try { if (!fs.existsSync(versionsDir)) fs.mkdirSync(versionsDir, { recursive: true }) } catch {}
+    try { if (!fs.existsSync(downloadsDir)) fs.mkdirSync(downloadsDir, { recursive: true }) } catch {}
+
+    const selectOsArchAsset = (assets) => {
+      const nameHas = (s, keys) => keys.some(k => (s||'').toLowerCase().includes(k))
+      const osKeys = platform === 'win32' ? ['windows', 'win32', 'win'] : (platform === 'darwin' ? ['darwin', 'macos', 'mac'] : ['linux'])
+      const archKeys = arch === 'arm64' ? ['arm64', 'aarch64'] : ['x64', 'amd64']
+      const extKeys = ['.zip', '.tar.gz', '.tgz']
+      // First pass: by name
+      let candidate = assets.find(a => nameHas(a.name, osKeys) && nameHas(a.name, archKeys) && nameHas(a.name, extKeys))
+      if (!candidate) {
+        // Second pass: by browser_download_url
+        candidate = assets.find(a => nameHas(a.browser_download_url||'', osKeys) && nameHas(a.browser_download_url||'', archKeys))
+      }
+      // Prefer zip
+      const zips = assets.filter(a => (a.name||'').toLowerCase().endsWith('.zip') && nameHas(a.name, osKeys) && nameHas(a.name, archKeys))
+      if (zips.length) candidate = zips[0]
+      return candidate || null
+    }
+
+    if (manifestUrl) {
+      // Legacy manifest-based install
+      progress({ phase: 'fetch-manifest', manifestUrl })
+      const { data: manifest } = await axios.get(manifestUrl, { timeout: 20000 })
+      const manifestVersion = version || manifest?.version || 'unknown'
+      const osKeys = [platform, platform === 'win32' ? 'windows' : (platform === 'darwin' ? 'darwin' : 'linux')]
+      const candidates = (manifest?.assets || []).filter(a => {
+        const osMatch = osKeys.includes((a.os||'').toLowerCase())
+        if (!osMatch) return false
+        if (!a.arch) return true
+        return (a.arch||'').toLowerCase() === arch
+      })
+      if (!candidates.length) {
+        progress({ phase: 'error', error: 'no-asset-for-platform', details: { platform, arch } })
+        return { success: false, error: 'no-asset-for-platform', details: { platform, arch } }
+      }
+      const asset = candidates[0]
+      const url = asset.url
+      const expectedSha = (asset.sha256||'').trim().toLowerCase()
+      const format = (asset.format||'').toLowerCase() || (url.endsWith('.zip') ? 'zip' : (url.endsWith('.tar.gz') ? 'tar.gz' : ''))
+      if (!url) {
+        progress({ phase: 'error', error: 'asset-has-no-url' })
+        return { success: false, error: 'asset-has-no-url' }
+      }
+
+      const versionDir = path.join(versionsDir, manifestVersion)
+      const existingExe = findInstalledExecutable(versionDir)
+      if (existingExe) {
+        await saveLocalBackendPath(existingExe)
+        progress({ phase: 'already-installed', version: manifestVersion, path: existingExe })
+        return { success: true, version: manifestVersion, path: existingExe, reused: true }
+      }
+
+      const fileName = path.basename(url).split('?')[0]
+      const downloadPath = path.join(downloadsDir, fileName)
+      progress({ phase: 'download-start', url, downloadPath })
+      await downloadWithProgress(url, downloadPath, (d) => progress({ phase: 'download-progress', ...d }))
+      progress({ phase: 'download-complete', downloadPath })
+
+      if (expectedSha) {
+        progress({ phase: 'verify-start' })
+        const actualSha = await sha256File(downloadPath)
+        const ok = (actualSha||'').toLowerCase() === expectedSha
+        if (!ok) {
+          progress({ phase: 'error', error: 'checksum-mismatch', expectedSha, actualSha })
+          return { success: false, error: 'checksum-mismatch', expectedSha, actualSha }
+        }
+        progress({ phase: 'verify-ok', sha256: actualSha })
+      } else {
+        progress({ phase: 'verify-skip', reason: 'no-sha256-in-manifest' })
+      }
+
+      progress({ phase: 'extract-start', to: versionDir, format })
+      await decompress(downloadPath, versionDir)
+      progress({ phase: 'extract-complete', to: versionDir })
+
+      const exePath = findInstalledExecutable(versionDir)
+      if (!exePath) {
+        progress({ phase: 'error', error: 'executable-not-found-in-extracted', versionDir })
+        return { success: false, error: 'executable-not-found-in-extracted', versionDir }
+      }
+      try { if (process.platform !== 'win32') fs.chmodSync(exePath, 0o755) } catch {}
+
+      await saveLocalBackendPath(exePath)
+      try { await cleanupOldVersions(versionsDir, exePath, 3) } catch {}
+      progress({ phase: 'done', version: manifestVersion, path: exePath })
+      return { success: true, version: manifestVersion, path: exePath }
+    }
+
+    // New GitHub releases-based install
+    const defaultOwner = 'MEDomicsLab'
+    const defaultRepo = 'MEDomics'
+    progress({ phase: 'github-fetch-releases', owner: defaultOwner, repo: defaultRepo })
+    const { data: releases } = await axios.get(`https://api.github.com/repos/${defaultOwner}/${defaultRepo}/releases`, {
+      headers: { 'Accept': 'application/vnd.github+json', 'User-Agent': 'medomicslab-installer' },
+      timeout: 20000
+    })
+    if (!Array.isArray(releases) || releases.length === 0) {
+      progress({ phase: 'error', error: 'no-releases-found' })
+      return { success: false, error: 'no-releases-found' }
+    }
+
+    // Pick latest release with a tag indicating server (e.g., contains 'server')
+    const serverReleases = releases.filter(r => {
+      const tag = (r.tag_name||'').toLowerCase()
+      const name = (r.name||'').toLowerCase()
+      return tag.includes('server') || name.includes('server')
+    })
+    const sorted = (serverReleases.length ? serverReleases : releases).sort((a,b) => {
+      const pa = new Date(a.published_at||a.created_at||0).getTime()
+      const pb = new Date(b.published_at||b.created_at||0).getTime()
+      return pb - pa
+    })
+    const chosen = sorted[0]
+    if (!chosen) {
+      progress({ phase: 'error', error: 'no-suitable-release' })
+      return { success: false, error: 'no-suitable-release' }
+    }
+    progress({ phase: 'github-pick-release', tag: chosen.tag_name, name: chosen.name })
+
+    // Select asset for OS/arch
+    const asset = selectOsArchAsset(chosen.assets||[])
+    if (!asset) {
+      progress({ phase: 'error', error: 'no-asset-for-platform', details: { platform, arch } })
+      return { success: false, error: 'no-asset-for-platform', details: { platform, arch } }
+    }
+    const url = asset.browser_download_url
+    if (!url) {
+      progress({ phase: 'error', error: 'asset-missing-download-url' })
+      return { success: false, error: 'asset-missing-download-url' }
+    }
+    progress({ phase: 'github-select-asset', asset: asset.name, url })
+
+    const ver = chosen.tag_name || chosen.name || 'latest'
+    const versionDir = path.join(versionsDir, ver)
+    const existingExe = findInstalledExecutable(versionDir)
+    if (existingExe) {
+      await saveLocalBackendPath(existingExe)
+      progress({ phase: 'already-installed', version: ver, path: existingExe })
+      return { success: true, version: ver, path: existingExe, reused: true }
+    }
+
+    const fileName = path.basename(url).split('?')[0]
+    const downloadPath = path.join(downloadsDir, fileName)
+    progress({ phase: 'download-start', url, downloadPath })
+    await downloadWithProgress(url, downloadPath, (d) => progress({ phase: 'download-progress', ...d }))
+    progress({ phase: 'download-complete', downloadPath })
+
+    // Extract archive
+    const lower = fileName.toLowerCase()
+    const format = lower.endsWith('.zip') ? 'zip' : (lower.endsWith('.tar.gz') || lower.endsWith('.tgz') ? 'tar.gz' : 'unknown')
+    progress({ phase: 'extract-start', to: versionDir, format })
+    await decompress(downloadPath, versionDir)
+    progress({ phase: 'extract-complete', to: versionDir })
+
+    // Locate executable
+    const exePath = findInstalledExecutable(versionDir)
+    if (!exePath) {
+      progress({ phase: 'error', error: 'executable-not-found-in-extracted', versionDir })
+      return { success: false, error: 'executable-not-found-in-extracted', versionDir }
+    }
+    try { if (process.platform !== 'win32') fs.chmodSync(exePath, 0o755) } catch {}
+
+    await saveLocalBackendPath(exePath)
+    try { await cleanupOldVersions(versionsDir, exePath, 3) } catch {}
+    progress({ phase: 'done', version: ver, path: exePath })
+    return { success: true, version: ver, path: exePath }
+  } catch (e) {
+    const message = e?.message || String(e)
+    try { progress({ phase: 'error', error: message }) } catch {}
+    return { success: false, error: message }
+  }
+})
+
+ipcMain.handle('open-dialog-backend-exe', async () => {
+  const filters = process.platform === 'win32'
+    ? [{ name: 'Executable', extensions: ['exe'] }]
+    : [{ name: 'Executable', extensions: ['*'] }]
+  const { filePaths, canceled } = await dialog.showOpenDialog({
+    title: 'Select the server executable',
+    properties: ['openFile'],
+    filters
+  })
+  if (canceled || !filePaths || !filePaths[0]) return { success: false, error: 'canceled' }
+  return { success: true, path: filePaths[0] }
+})
 
 //**** AUTO-UPDATER ****//
 
@@ -179,7 +1291,9 @@ if (isProd) {
   app.setPath("userData", `${app.getPath("userData")} (development)`)
 }
 
-;(async () => {
+
+// Main async startup
+(async () => {
   await app.whenReady()
 
   protocol.registerFileProtocol("local", (request, callback) => {
@@ -196,34 +1310,43 @@ if (isProd) {
     event.reply("get-file-path-reply", path.resolve(configPath))
   })
 
-  splashScreen = new BrowserWindow({
-    icon: path.join(__dirname, "../resources/MEDomicsLabWithShadowNoText100.png"),
-    width: 700,
-    height: 700,
-    transparent: true,
-    frame: false,
-    alwaysOnTop: true,
-    center: true,
-    show: true
-  })
+  if (!isHeadless) {
+    splashScreen = new BrowserWindow({
+      icon: path.join(__dirname, "../resources/MEDomicsLabWithShadowNoText100.png"),
+      width: 700,
+      height: 700,
+      transparent: true,
+      frame: false,
+      alwaysOnTop: true,
+      center: true,
+      show: true
+    })
 
-  mainWindow = createWindow("main", {
-    width: 1500,
-    height: 1000,
-    show: false
-  })
+    mainWindow = createWindow("main", {
+      width: 1500,
+      height: 1000,
+      show: false
+    })
 
-  if (isProd) {
-    splashScreen.loadFile(path.join(__dirname, "splash.html"))
+    if (isProd) {
+      splashScreen.loadFile(path.join(__dirname, "splash.html"))
+    } else {
+      splashScreen.loadFile(path.join(__dirname, "../main/splash.html"))
+    }
+    splashScreen.once("ready-to-show", () => {
+      splashScreen.show()
+      splashScreen.focus()
+      splashScreen.setAlwaysOnTop(true)
+    })
   } else {
-    splashScreen.loadFile(path.join(__dirname, "../main/splash.html"))
+    // Headless/server-only mode
+    mainWindow = undefined
+    splashScreen = undefined
+    console.log("Running in headless/server-only mode: no GUI will be created.")
   }
-  splashScreen.once("ready-to-show", () => {
-    splashScreen.show()
-    splashScreen.focus()
-    splashScreen.setAlwaysOnTop(true)
-  })
-  const openRecentWorkspacesSubmenuOptions = getRecentWorkspacesOptions(null, mainWindow, hasBeenSet, serverPort)
+
+  // Use mainWindow only if not headless
+  const openRecentWorkspacesSubmenuOptions = getRecentWorkspacesOptions(null, !isHeadless ? mainWindow : null, hasBeenSet, serverPort)
   console.log("openRecentWorkspacesSubmenuOptions", JSON.stringify(openRecentWorkspacesSubmenuOptions, null, 2))
   const menuTemplate = [
     {
@@ -295,20 +1418,22 @@ if (isProd) {
     }
   ]
 
+  // Start backend server
+  startBackendServer()
   console.log("running mode:", isProd ? "production" : "development")
   console.log("process.resourcesPath: ", process.resourcesPath)
   console.log(MEDconfig.runServerAutomatically ? "Server will start automatically here (in background of the application)" : "Server must be started manually")
-  let bundledPythonPath = getBundledPythonEnvironment()
-  if (MEDconfig.runServerAutomatically) {
-    // Start the Go server – Python path is optional (passed if available)
-    runServer(isProd, serverPort, serverProcess, serverState, bundledPythonPath)
-      .then((process) => {
-        serverProcess = process
-        console.log("Server process started: ", serverProcess)
-      })
-      .catch((err) => {
-        console.error("Failed to start server: ", err)
-      })
+  let bundledPythonPath = await getBundledPythonEnvironment()
+  if (MEDconfig.runServerAutomatically && bundledPythonPath !== null) {
+    // Find the bundled python environment
+    if (bundledPythonPath !== null) {
+        // Request the backend to start its Go server (backend will spawn its own process)
+        runServerViaBackend()
+          .then((result) => {
+            console.log("Backend run-go-server result:", result)
+          })
+          .catch((err) => console.error("Failed to request backend run-go-server:", err))
+    }
   } else {
     //**** NO SERVER ****//
     findAvailablePort(MEDconfig.defaultPort)
@@ -339,14 +1464,20 @@ if (isProd) {
   })
 
   ipcMain.handle("setWorkingDirectory", async (event, data) => {
+    const result = await setWorkspaceDirectory(data)
+    console.log("setWorkingDirectory result: ", result)
+    return result
+  })
+
+  const setWorkspaceDirectory = async (data) => {
     app.setPath("sessionData", data)
+    console.log(`setWorkspaceDirectory : ${data}`)
     createWorkingDirectory() // Create DATA & EXPERIMENTS directories
-    console.log(`setWorkingDirectory : ${data}`)
     createMedomicsDirectory(data)
     hasBeenSet = true
     try {
       // Stop MongoDB if it's running
-      await stopMongoDB(mongoProcess)
+      await stopMongoDB()
       if (process.platform === "win32") {
         // Kill the process on the port
         // killProcessOnPort(serverPort)
@@ -364,7 +1495,7 @@ if (isProd) {
         }
       }
       // Start MongoDB with the new configuration
-      startMongoDB(data, mongoProcess)
+      startMongoDB(data)
       return {
         workingDirectory: dirTree(app.getPath("sessionData")),
         hasBeenSet: hasBeenSet,
@@ -373,7 +1504,8 @@ if (isProd) {
     } catch (error) {
       console.error("Failed to change workspace: ", error)
     }
-  })
+  }
+
 
   /**
    * @description Returns the path of the specified directory of the app
@@ -432,6 +1564,7 @@ if (isProd) {
    */
   ipcMain.handle("get-settings", async () => {
     const userDataPath = app.getPath("userData")
+    console.log("userDataPath: ", userDataPath)
     const settingsFilePath = path.join(userDataPath, "settings.json")
     if (fs.existsSync(settingsFilePath)) {
       const settings = JSON.parse(fs.readFileSync(settingsFilePath, "utf8"))
@@ -489,17 +1622,8 @@ if (isProd) {
     }
     console.log("Received Python path: ", pythonPath)
     if (MEDconfig.runServerAutomatically) {
-      runServer(isProd, serverPort, serverProcess, serverState, pythonPath)
-        .then((process) => {
-          serverProcess = process
-          console.log(`success: ${serverState.serverIsRunning}`)
-          return serverState.serverIsRunning
-        })
-        .catch((err) => {
-          console.error("Failed to start server: ", err)
-          serverState.serverIsRunning = false
-          return false
-        })
+      await runServerViaBackend()
+      return true
     }
     return serverState.serverIsRunning
   })
@@ -538,11 +1662,34 @@ if (isProd) {
       let recentWorkspaces = loadWorkspaces()
       event.reply("recentWorkspaces", recentWorkspaces)
     } else if (data === "updateWorkingDirectory") {
-      event.reply("updateDirectory", {
-        workingDirectory: dirTree(app.getPath("sessionData")),
-        hasBeenSet: hasBeenSet,
-        newPort: serverPort
-      }) // Sends the folder structure to Next.js
+      const activeTunnel = getActiveTunnel()
+      const tunnel = getTunnelState()
+      if (activeTunnel && tunnel) {
+        // If an SSH tunnel is active, we set the remote workspace path
+        const remoteWorkspacePath = getRemoteWorkspacePath()
+        axios.get(`http://localhost:${tunnel.localExpressPort}/get-working-dir-tree`, { params: { requestedPath: remoteWorkspacePath } })
+          .then((response) => {
+            if (response.data.success && response.data.workingDirectory) {
+              event.reply("updateDirectory", {
+                workingDirectory: response.data.workingDirectory,
+                hasBeenSet: true,
+                newPort: tunnel.localExpressPort,
+                isRemote: true
+              }) // Sends the folder structure to Next.js
+            } else {
+              console.error("Failed to get remote working directory tree: ", response.data.error)
+            }
+          })
+          .catch((error) => {
+            console.error("Error getting remote working directory tree: ", error)
+          })
+      } else {
+        event.reply("updateDirectory", {
+          workingDirectory: dirTree(app.getPath("sessionData")),
+          hasBeenSet: hasBeenSet,
+          newPort: serverPort
+        }) // Sends the folder structure to Next.js
+      }
     } else if (data === "getServerPort") {
       event.reply("getServerPort", {
         newPort: serverPort
@@ -557,17 +1704,18 @@ if (isProd) {
     mainWindow.webContents.send("toggleDarkMode")
   })
 
-  if (isProd) {
-    await mainWindow.loadURL("app://./index.html")
-  } else {
-    const port = process.argv[2]
-    await mainWindow.loadURL(`http://localhost:${port}/`)
-    mainWindow.webContents.openDevTools()
+  if (!isHeadless) {
+    if (isProd) {
+      await mainWindow.loadURL("app://./index.html")
+    } else {
+      const port = process.argv[2]
+      await mainWindow.loadURL(`http://localhost:${port}/`)
+      mainWindow.webContents.openDevTools()
+    }
+    splashScreen.destroy()
+    mainWindow.maximize()
+    mainWindow.show()
   }
-
-  splashScreen.destroy()
-  mainWindow.maximize()
-  mainWindow.show()
 })()
 
 ipcMain.handle("request", async (_, axios_request) => {
@@ -575,8 +1723,72 @@ ipcMain.handle("request", async (_, axios_request) => {
   return { data: result.data, status: result.status }
 })
 
+// General backend request handler used by the renderer via preload
+ipcMain.handle('express-request', async (_event, req) => {
+  if (!req || typeof req.path !== 'string' || !req.path.startsWith('/')) {
+    const err = new Error('express-request: invalid request shape')
+    err.code = 'BAD_REQUEST'
+    throw err
+  }
+
+  const host = '127.0.0.1'
+  const port = req.port || expressPort || serverPort || MEDconfig.defaultPort
+  const url = `http://${host}:${port}${req.path}`
+
+  try {
+    const axiosResp = await axios({
+      method: req.method || 'get',
+      url,
+      params: req.params || undefined,
+      data: req.body || undefined,
+      headers: req.headers || undefined,
+      timeout: req.timeout || 20000
+    })
+    return { status: axiosResp.status, data: axiosResp.data, headers: axiosResp.headers }
+  } catch (err) {
+    const status = err?.response?.status
+    const dataSnippet = (() => {
+      try {
+        const d = err?.response?.data
+        if (typeof d === 'string') return d.slice(0, 500)
+        return JSON.stringify(d).slice(0, 500)
+      } catch { return '' }
+    })()
+    const method = (req.method || 'GET').toUpperCase()
+    const msg = status
+      ? `express-request ${method} ${url} failed with status ${status}${dataSnippet ? `: ${dataSnippet}` : ''}`
+      : `express-request ${method} ${url} failed: ${err && err.message ? err.message : 'unknown error'}`
+    const e = new Error(msg)
+    e.code = 'BACKEND_ERROR'
+    e.status = status
+    throw e
+  }
+})
+
 // Python environment handling
 ipcMain.handle("getInstalledPythonPackages", async (event, pythonPath) => {
+  const activeTunnel = getActiveTunnel()
+  const tunnel = getTunnelState()
+  if (activeTunnel && tunnel) {
+    let pythonPackages = null
+    const forwardedPort = tunnel.localExpressPort || tunnel.remoteExpressPort
+    if (!forwardedPort) {
+      console.error("Remote Python packages request: no forwarded Express port available")
+      return null
+    }
+    await axios.get(`http://127.0.0.1:${forwardedPort}/get-installed-python-packages`, { params: { pythonPath: pythonPath } })
+          .then((response) => {
+            if (response.data.success && response.data.packages) {
+              pythonPackages = response.data.packages
+            } else {
+              console.error("Failed to get remote Python packages: ", response.data.error)
+            }
+          })
+          .catch((error) => {
+            console.error("Error getting remote Python packages: ", error)
+          })
+    return pythonPackages
+  }
   return getInstalledPythonPackages(pythonPath)
 })
 
@@ -592,38 +1804,80 @@ ipcMain.handle("installMongoDB", async (event) => {
 })
 
 ipcMain.handle("getBundledPythonEnvironment", async (event) => {
-  return getBundledPythonEnvironment()
+  const activeTunnel = getActiveTunnel()
+  const tunnel = getTunnelState()
+  if (activeTunnel && tunnel) {
+    let pythonEnv = null
+    const forwardedPort = tunnel.localExpressPort || tunnel.remoteExpressPort
+    if (!forwardedPort) {
+      console.error("Remote bundled Python environment request: no forwarded Express port available")
+      return null
+    }
+    await axios.get(`http://127.0.0.1:${forwardedPort}/get-bundled-python-environment`)
+          .then((response) => {
+            if (response.data.success && response.data.pythonEnv) {
+              pythonEnv = response.data.pythonEnv
+            } else {
+              console.error("Failed to get remote bundled Python environment: ", response.data.error)
+            }
+          })
+          .catch((error) => {
+            console.error("Error getting remote bundled Python environment: ", error)
+          })
+    return pythonEnv
+  } else {
+    return await getBundledPythonEnvironment()
+  }
 })
 
 ipcMain.handle("installBundledPythonExecutable", async (event) => {
+  // Notification callback for Electron
+  const notify = (payload) => {
+    if (mainWindow && mainWindow.webContents) {
+      mainWindow.webContents.send("notification", payload)
+    }
+  }
   // Check if Python is installed
-  let pythonInstalled = getBundledPythonEnvironment()
+  let pythonInstalled = await getBundledPythonEnvironment()
   if (pythonInstalled === null) {
-    // If Python is not installed, install it
-    return installBundledPythonExecutable(mainWindow)
+    // If Python is not installed, ask backend to install via its endpoint
+    return await httpPost("/install-bundled-python", { })
   } else {
-    // Check if the required packages are installed
-    let requirementsInstalled = checkPythonRequirements()
-    if (requirementsInstalled) {
+    // Check if required packages are installed via backend
+    const reqInstalled = await httpGet("/check-python-requirements", { pythonPath: pythonInstalled })
+    if (reqInstalled) {
       return true
     } else {
-      await installRequiredPythonPackages(mainWindow)
+      await httpPost("/install-required-python-packages", { pythonPath: pythonInstalled })
       return true
     }
   }
 })
 
 ipcMain.handle("checkRequirements", async (event) => {
-  return checkRequirements()
+  return await checkRequirements()
 })
 
 ipcMain.handle("checkPythonRequirements", async (event) => {
-  return checkPythonRequirements()
+  return await httpGet("/check-python-requirements")
 })
 
 ipcMain.handle("checkMongoDBisInstalled", async (event) => {
-  return getMongoDBPath()
+  return await getMongoDBPath()
 })
+
+ipcMain.handle("startJupyterServer", async (event, workspacePath, port) => {
+  return await startJupyterServer(workspacePath, port)
+})
+
+ipcMain.handle("stopJupyterServer", async () => {
+  return await stopJupyterServer()
+})
+
+ipcMain.handle("checkJupyterIsRunning", async () => {
+  return checkJupyterIsRunning()
+})
+
 
 ipcMain.on("restartApp", (event, data, args) => {
   app.relaunch()
@@ -631,17 +1885,22 @@ ipcMain.on("restartApp", (event, data, args) => {
 })
 
 ipcMain.handle("checkMongoIsRunning", async (event) => {
-  // Check if something is running on the port MEDconfig.mongoPort
-  let port = MEDconfig.mongoPort
+  const activeTunnel = getActiveTunnel()
+  const tunnel = getTunnelState()
   let isRunning = false
-  if (process.platform === "win32") {
-    isRunning = exec(`netstat -ano | findstr :${port}`).toString().trim() !== ""
-  } else if (process.platform === "darwin") {
-    isRunning = exec(`lsof -i :${port}`).toString().trim() !== ""
+  if (activeTunnel && tunnel) {
+    isRunning = await checkRemotePortOpen(activeTunnel, tunnel.remoteDBPort)
   } else {
-    isRunning = exec(`netstat -tuln | grep ${port}`).toString().trim() !== ""
+    // Check if something is running on the port MEDconfig.mongoPort
+    let port = MEDconfig.mongoPort
+    if (process.platform === "win32") {
+      isRunning = exec(`netstat -ano | findstr :${port}`).toString().trim() !== ""
+    } else if (process.platform === "darwin") {
+      isRunning = exec(`lsof -i :${port}`).toString().trim() !== ""
+    } else {
+      isRunning = exec(`netstat -tuln | grep ${port}`).toString().trim() !== ""
+    }  
   }
-
   return isRunning
 })
 
@@ -812,171 +2071,22 @@ ipcMain.handle("terminal-get-available-shells", async () => {
  * @returns {BrowserWindow} The new window
  */
 function openWindowFromURL(url) {
-  let window = new BrowserWindow({
-    icon: path.join(__dirname, "../resources/MEDomicsLabWithShadowNoText100.png"),
-    width: 700,
-    height: 700,
-    transparent: true,
-    center: true
-  })
-
-  window.loadURL(url)
-  window.once("ready-to-show", () => {
-    window.show()
-    window.focus()
-  })
-}
-
-// Function to start MongoDB
-function startMongoDB(workspacePath) {
-  const mongoConfigPath = path.join(workspacePath, ".medomics", "mongod.conf")
-  if (fs.existsSync(mongoConfigPath)) {
-    console.log("Starting MongoDB with config: " + mongoConfigPath)
-    let mongod = getMongoDBPath()
-    if (process.platform !== "darwin") {
-      mongoProcess = spawn(mongod, [
-      "--config",
-      mongoConfigPath,
-      "--port",
-      MEDconfig.mongoPort
-    ])
-
-    } else {
-      if (fs.existsSync(getMongoDBPath())) {
-        mongoProcess = spawn(getMongoDBPath(), ["--config", mongoConfigPath])
-      } else {
-        mongoProcess = spawn("/opt/homebrew/Cellar/mongodb-community/7.0.12/bin/mongod", ["--config", mongoConfigPath], { shell: true })
-      }
-    }
-    mongoProcess.stdout.on("data", (data) => {
-      console.log(`MongoDB stdout: ${data}`)
+  const isHeadless = process.argv.some(arg => arg.includes('--no-gui'))
+  if (!isHeadless) {
+    let window = new BrowserWindow({
+      icon: path.join(__dirname, "../resources/MEDomicsLabWithShadowNoText100.png"),
+      width: 700,
+      height: 700,
+      transparent: true,
+      center: true
     })
 
-    mongoProcess.stderr.on("data", (data) => {
-      console.error(`MongoDB stderr: ${data}`)
+    window.loadURL(url)
+    window.once("ready-to-show", () => {
+      window.show()
+      window.focus()
     })
-
-    mongoProcess.on("close", (code) => {
-      console.log(`MongoDB process exited with code ${code}`)
-    })
-
-    mongoProcess.on("error", (err) => {
-      console.error("Failed to start MongoDB: ", err)
-      // reject(err)
-    })
-  } else {
-    const errorMsg = `MongoDB config file does not exist: ${mongoConfigPath}`
-    console.error(errorMsg)
   }
 }
 
-// Function to stop MongoDB
-async function stopMongoDB(mongoProcess) {
-  return new Promise((resolve, reject) => {
-    if (mongoProcess) {
-      mongoProcess.on("exit", () => {
-        mongoProcess = null
-        resolve()
-      })
-      try {
-        mongoProcess.kill()
-        resolve()
-      } catch (error) {
-        console.log("Error while stopping MongoDB ", error)
-        // reject()
-      }
-    } else {
-      resolve()
-    }
-  })
-}
 
-export function getMongoDBPath() {
-  if (process.platform === "win32") {
-    // Check if mongod is in the process.env.PATH
-    const paths = process.env.PATH.split(path.delimiter)
-    for (let i = 0; i < paths.length; i++) {
-      const binPath = path.join(paths[i], "mongod.exe")
-      if (fs.existsSync(binPath)) {
-        console.log("mongod found in PATH")
-        return binPath
-      }
-    }
-    // Check if mongod is in the default installation path on Windows - C:\Program Files\MongoDB\Server\<version to establish>\bin\mongod.exe
-    const programFilesPath = process.env["ProgramFiles"]
-    if (programFilesPath) {
-      const mongoPath = path.join(programFilesPath, "MongoDB", "Server")
-      // Check if the MongoDB directory exists
-      if (!fs.existsSync(mongoPath)) {
-        console.error("MongoDB directory not found")
-        return null
-      }
-      const dirs = fs.readdirSync(mongoPath)
-      for (let i = 0; i < dirs.length; i++) {
-        const binPath = path.join(mongoPath, dirs[i], "bin", "mongod.exe")
-        if (fs.existsSync(binPath)) {
-          return binPath
-        }
-      }
-    }
-    console.error("mongod not found")
-    return null
-  } else if (process.platform === "darwin") {
-    // Check if it is installed in the .medomics directory
-    const binPath = path.join(process.env.HOME, ".medomics", "mongodb", "bin", "mongod")
-    if (fs.existsSync(binPath)) {
-      console.log("mongod found in .medomics directory")
-      return binPath
-    }
-    if (process.env.NODE_ENV !== "production") {
-      // Check if mongod is in the process.env.PATH
-      const paths = process.env.PATH.split(path.delimiter)
-      for (let i = 0; i < paths.length; i++) {
-        const binPath = path.join(paths[i], "mongod")
-        if (fs.existsSync(binPath)) {
-          console.log("mongod found in PATH")
-          return binPath
-        }
-      }
-      // Check if mongod is in the default installation path on macOS - /usr/local/bin/mongod
-      const binPath = "/usr/local/bin/mongod"
-      if (fs.existsSync(binPath)) {
-        return binPath
-      }
-    }
-    console.error("mongod not found")
-    return null
-  } else if (process.platform === "linux") {
-    // Check if mongod is in the process.env.PATH
-    const paths = process.env.PATH.split(path.delimiter)
-    for (let i = 0; i < paths.length; i++) {
-      console.log(`Checking for mongod in: index ${i}, path ${paths[i]}`)
-      const binPath = path.join(paths[i], "mongod")
-      console.log(`Checking if mongod exists at: ${binPath}`)
-      if (fs.existsSync(binPath)) {
-        return binPath
-      }
-    }
-    console.error("mongod not found in PATH" + paths)
-    // Check if mongod is in the default installation path on Linux - /usr/bin/mongod
-    if (fs.existsSync("/usr/bin/mongod")) {
-      return "/usr/bin/mongod"
-    }
-
-    // Check the tarball install location used by after-install.sh
-    if (fs.existsSync("/usr/local/bin/mongod")) {
-      return "/usr/local/bin/mongod"
-    }
-
-    if (fs.existsSync("/usr/local/lib/mongodb/bin/mongod")) {
-      return "/usr/local/lib/mongodb/bin/mongod"
-    }
-
-    if (fs.existsSync(process.env.HOME + "/.medomics/mongodb/bin/mongod")) {
-      return process.env.HOME + "/.medomics/mongodb/bin/mongod"
-    }
-    return null
-  } else {
-    return "mongod"
-  }
-}
