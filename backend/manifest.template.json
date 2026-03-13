@@ -2,7 +2,7 @@
   "name": "MEDomics Server",
   "version": "0.0.0-template",
   "releaseDate": "2025-11-06T00:00:00Z",
-  "minAppVersion": "1.5.0",
+  "minAppVersion": "1.9.0",
   "notes": "Template manifest – replace fields during release automation. Hosted via GitHub Releases: update URLs, version, sha256, and signatures during publish.",
   "assets": [
     {
