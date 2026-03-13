@@ -436,7 +436,7 @@ Flags:
   --timeout=MS          Startup timeout (default 15000)
   --json                Emit compact JSON outputs
   --production          Set NODE_ENV=production
-  --state-file=PATH     Path to state file (default ./medomics-server-state.json)
+  --state-file=PATH     Path to state file (default .medomics/medomics-server/state.json)
   --help                Display this help
 `)
     process.exit(0)
