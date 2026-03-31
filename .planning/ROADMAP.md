@@ -2,7 +2,7 @@
 
 ## Phase 1 - Text Model Onboarding Foundation
 
-Status: Planned
+Status: Complete (planning-only)
 
 ### Goals
 
@@ -29,6 +29,12 @@ Status: Planned
 - Approved implementation plan for text onboarding with no breaking changes required in renderer request contract.
 - Clear pass/fail gates for adding a new text model.
 
+### Completion Notes (2026-03-31)
+
+- Research/planner/checker flow completed with PASS verdict in one iteration.
+- Planning artifacts completed in `.planning/PHASE_1.md`.
+- Scope respected as planning-only; no code scaffold introduced.
+
 ## Phase 2 - Text Onboarding Implementation + Hardening
 
 Status: Planned
@@ -48,6 +54,14 @@ Status: Planned
 
 - Existing BioBERT + TransformerText flows pass regression suite.
 - At least one newly onboarded text model passes onboarding acceptance checklist.
+
+**Plans:** 3 plans
+
+Plans:
+
+- [ ] 02-01-PLAN.md — Create canonical text model registry and wire renderer/backend parity checks.
+- [ ] 02-02-PLAN.md — Implement registry-backed dispatch with fallback while preserving Go extraction routes.
+- [ ] 02-03-PLAN.md — Restore regression command assets and align BioBERT/TransformerText validation scripts.
 
 ## Phase 3 - Pattern Replication for Image and Time-Series
 
