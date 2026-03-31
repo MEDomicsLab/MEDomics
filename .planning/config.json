@@ -1,0 +1,34 @@
+{
+  "projectType": "brownfield",
+  "workflow": "gsd-new-project",
+  "mode": "auto",
+  "objective": "Enhance extraction module by expanding supported extraction models with text-first onboarding, preserving existing behavior and integration contracts.",
+  "selectedScopeOption": 2,
+  "selectedScopeLabel": "Text extraction first, then replicate pattern to image/time-series",
+  "priorities": ["Electron compatibility", "Go-Python contract stability", "Regression-safe rollout", "Existing test/script reuse"],
+  "validationAssets": {
+    "primary": [
+      "test/extractionTransformerText/test_transformer_text_extraction.py",
+      "test/extractionTransformerText/test_transformer_text_extraction_models.py",
+      "test/extractionTransformerText/create_small_subset.py"
+    ],
+    "secondary": ["pythonCode/tests/extraction_text/test_biobert_extraction.py", "pythonCode/submodules/MEDimage/tests/test_extraction.py"]
+  },
+  "phases": [
+    {
+      "id": 1,
+      "name": "Text onboarding foundation",
+      "status": "planned"
+    },
+    {
+      "id": 2,
+      "name": "Text onboarding implementation and hardening",
+      "status": "planned"
+    },
+    {
+      "id": 3,
+      "name": "Replication to image and time-series",
+      "status": "planned"
+    }
+  ]
+}
