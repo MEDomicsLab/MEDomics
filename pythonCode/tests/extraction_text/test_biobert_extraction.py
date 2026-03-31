@@ -11,13 +11,31 @@ Example:
 
 import argparse
 import datetime
-import numpy as np
 import os
-import pandas as pd
 import sys
-import torch
 from pathlib import Path
-from transformers import AutoTokenizer, AutoModel
+
+try:
+    import numpy as np
+except ModuleNotFoundError:
+    np = None
+
+try:
+    import pandas as pd
+except ModuleNotFoundError:
+    pd = None
+
+try:
+    import torch
+except ModuleNotFoundError:
+    torch = None
+
+try:
+    from transformers import AutoTokenizer, AutoModel
+except ModuleNotFoundError:
+    AutoTokenizer = None
+    AutoModel = None
+
 
 def split_note_document(tokenizer, text, min_length=15):
     """
@@ -44,13 +62,13 @@ def split_note_document(tokenizer, text, min_length=15):
     # Go through text and aggregate in groups up to 510 tokens (+ padding)
     tokens_list = tokenizer.tokenize(chunk)
     if len(tokens_list) >= 510:
-        temp = chunk.split('\n')
+        temp = chunk.split("\n")
         ind_start = 0
         len_sub = 0
         for i in range(len(temp)):
             temp_tk = tokenizer.tokenize(temp[i])
             if len_sub + len(temp_tk) > 510:
-                chunk_parse.append(' '.join(temp[ind_start:i]))
+                chunk_parse.append(" ".join(temp[ind_start:i]))
                 chunk_length.append(len_sub)
                 # reset for next chunk
                 ind_start = i
@@ -75,7 +93,9 @@ def get_biobert_embeddings(model, tokenizer, text):
     :return: embeddings: Final Biobert embeddings with vector dimensionality = (1,768).
              hidden_embeddings: Last hidden layer in Biobert model with vector dimensionality = (token_size,768).
     """
-    tokens_pt = tokenizer(text, return_tensors="pt", truncation=True, max_length=512, padding=True)
+    tokens_pt = tokenizer(
+        text, return_tensors="pt", truncation=True, max_length=512, padding=True
+    )
     outputs = model(**tokens_pt)
     last_hidden_state = outputs.last_hidden_state
     pooler_output = outputs.pooler_output
@@ -96,15 +116,17 @@ def get_biobert_embeddings_from_event_list(model, tokenizer, event_list):
     :return: aggregated_embeddings: BioBERT event features for all events.
     """
     full_embedding = None
-    
+
     for idx, event_string in enumerate(event_list):
         if pd.isna(event_string) or event_string == "":
             continue
-            
+
         string_list, lengths = split_note_document(tokenizer, str(event_string))
         for idx_sub, event_string_sub in enumerate(string_list):
             # Extract biobert embedding
-            embedding, hidden_embedding = get_biobert_embeddings(model, tokenizer, event_string_sub)
+            embedding, hidden_embedding = get_biobert_embeddings(
+                model, tokenizer, event_string_sub
+            )
             # Concatenate
             if full_embedding is None:
                 full_embedding = embedding
@@ -120,11 +142,15 @@ def get_biobert_embeddings_from_event_list(model, tokenizer, event_list):
     return aggregated_embedding
 
 
-def process_csv_with_biobert(biobert_path, input_csv_path, output_csv_path, 
-                              patient_id_col="subject_id", 
-                              notes_col="text",
-                              time_col="charttime",
-                              column_prefix="notes_attr"):
+def process_csv_with_biobert(
+    biobert_path,
+    input_csv_path,
+    output_csv_path,
+    patient_id_col="subject_id",
+    notes_col="text",
+    time_col="charttime",
+    column_prefix="notes_attr",
+):
     """
     Process a CSV file and generate BioBERT embeddings.
 
@@ -136,12 +162,17 @@ def process_csv_with_biobert(biobert_path, input_csv_path, output_csv_path,
     :param time_col: Column name for time (optional)
     :param column_prefix: Prefix for embedding columns
     """
+    if any(dep is None for dep in [np, pd, torch, AutoTokenizer, AutoModel]):
+        raise ModuleNotFoundError(
+            "numpy, pandas, torch, and transformers are required to run BioBERT extraction"
+        )
+
     print(f"Loading BioBERT model from: {biobert_path}")
-    
+
     # Check if path exists
     if not os.path.exists(biobert_path):
         raise FileNotFoundError(f"BioBERT model path does not exist: {biobert_path}")
-    
+
     # Check for required files
     required_files = ["config.json", "vocab.txt"]
     for file in required_files:
@@ -151,7 +182,7 @@ def process_csv_with_biobert(biobert_path, input_csv_path, output_csv_path,
             print(f"Contents of {biobert_path}:")
             if os.path.isdir(biobert_path):
                 print(f"  {os.listdir(biobert_path)}")
-    
+
     # Try to load the model
     try:
         print("Loading tokenizer...")
@@ -162,11 +193,17 @@ def process_csv_with_biobert(biobert_path, input_csv_path, output_csv_path,
     except Exception as e:
         print(f"Error loading model: {e}")
         print("\nTroubleshooting tips:")
-        print("1. Make sure the path points to the folder containing config.json, vocab.txt, and pytorch_model.bin")
-        print("2. For your case, the path should be: ./python/pretrained_bert_tf/biobert_pretrain_output_all_notes_150000")
-        print("3. If the model is in TensorFlow format, you may need to convert it to PyTorch format")
+        print(
+            "1. Make sure the path points to the folder containing config.json, vocab.txt, and pytorch_model.bin"
+        )
+        print(
+            "2. For your case, the path should be: ./python/pretrained_bert_tf/biobert_pretrain_output_all_notes_150000"
+        )
+        print(
+            "3. If the model is in TensorFlow format, you may need to convert it to PyTorch format"
+        )
         raise
-    
+
     print(f"\nLoading CSV from: {input_csv_path}")
     try:
         # Read CSV in chunks if it's very large
@@ -176,50 +213,64 @@ def process_csv_with_biobert(biobert_path, input_csv_path, output_csv_path,
     except Exception as e:
         print(f"Error loading CSV: {e}")
         raise
-    
+
     # Check required columns
     if patient_id_col not in df.columns:
-        raise ValueError(f"Column '{patient_id_col}' not found in CSV. Available columns: {df.columns.tolist()}")
+        raise ValueError(
+            f"Column '{patient_id_col}' not found in CSV. Available columns: {df.columns.tolist()}"
+        )
     if notes_col not in df.columns:
-        raise ValueError(f"Column '{notes_col}' not found in CSV. Available columns: {df.columns.tolist()}")
-    
+        raise ValueError(
+            f"Column '{notes_col}' not found in CSV. Available columns: {df.columns.tolist()}"
+        )
+
+    missing_notes_count = df[notes_col].isna().sum()
+    empty_notes_count = 0
+    for val in df[notes_col]:
+        if isinstance(val, str) and val.strip() == "":
+            empty_notes_count += 1
+
     # Process each row
     print("\nProcessing notes and generating embeddings...")
     results = []
-    
+
     for idx, row in df.iterrows():
         if (idx + 1) % 100 == 0:
             print(f"Processing row {idx + 1}/{len(df)}...")
-        
+
         patient_id = row[patient_id_col]
         notes_text = row[notes_col]
-        
+
         # Get embeddings
-        embeddings = get_biobert_embeddings_from_event_list(model, tokenizer, [notes_text])
-        
+        embeddings = get_biobert_embeddings_from_event_list(
+            model, tokenizer, [notes_text]
+        )
+
         # Create result row
-        result_row = {
-            patient_id_col: patient_id
-        }
-        
+        result_row = {patient_id_col: patient_id}
+
         # Add time column if available
         if time_col in df.columns:
             result_row[time_col] = row[time_col]
-        
+
         # Add embedding columns
         for i, emb_val in enumerate(embeddings):
             result_row[f"{column_prefix}_{i}"] = emb_val
-        
+
         results.append(result_row)
-    
+
     # Create output dataframe
     output_df = pd.DataFrame(results)
-    
+
     print(f"\nSaving results to: {output_csv_path}")
     output_df.to_csv(output_csv_path, index=False)
     print(f"Saved {len(output_df)} rows with {len(output_df.columns)} columns")
+    print(f"Column prefix: {column_prefix}")
     print(f"Embedding dimension: {len(embeddings)}")
-    
+    print(f"Processed row count: {len(output_df)}")
+    print(f"Missing note count: {missing_notes_count}")
+    print(f"Empty note count: {empty_notes_count}")
+
     return output_df
 
 
@@ -243,28 +294,46 @@ Examples:
     --patient-id-col subject_id \\
     --notes-col text \\
     --time-col charttime
-        """
+        """,
     )
-    
-    parser.add_argument("biobert_path", type=str, help="Path to BioBERT model directory")
+
+    parser.add_argument(
+        "biobert_path", type=str, help="Path to BioBERT model directory"
+    )
     parser.add_argument("input_csv", type=str, help="Path to input CSV file")
     parser.add_argument("output_csv", type=str, help="Path to output CSV file")
-    parser.add_argument("--patient-id-col", type=str, default="subject_id", 
-                       help="Column name for patient identifier (default: subject_id)")
-    parser.add_argument("--notes-col", type=str, default="text",
-                       help="Column name for text notes (default: text)")
-    parser.add_argument("--time-col", type=str, default="charttime",
-                       help="Column name for time column (default: charttime)")
-    parser.add_argument("--column-prefix", type=str, default="notes_attr",
-                       help="Prefix for embedding columns (default: notes_attr)")
-    
+    parser.add_argument(
+        "--patient-id-col",
+        type=str,
+        default="subject_id",
+        help="Column name for patient identifier (default: subject_id)",
+    )
+    parser.add_argument(
+        "--notes-col",
+        type=str,
+        default="text",
+        help="Column name for text notes (default: text)",
+    )
+    parser.add_argument(
+        "--time-col",
+        type=str,
+        default="charttime",
+        help="Column name for time column (default: charttime)",
+    )
+    parser.add_argument(
+        "--column-prefix",
+        type=str,
+        default="notes_attr",
+        help="Prefix for embedding columns (default: notes_attr)",
+    )
+
     args = parser.parse_args()
-    
+
     # Convert to absolute paths
     biobert_path = os.path.abspath(args.biobert_path)
     input_csv = os.path.abspath(args.input_csv)
     output_csv = os.path.abspath(args.output_csv)
-    
+
     print("=" * 60)
     print("BioBERT Extraction Test Script")
     print("=" * 60)
@@ -273,7 +342,7 @@ Examples:
     print(f"Output CSV: {output_csv}")
     print("=" * 60)
     print()
-    
+
     try:
         process_csv_with_biobert(
             biobert_path=biobert_path,
@@ -282,7 +351,7 @@ Examples:
             patient_id_col=args.patient_id_col,
             notes_col=args.notes_col,
             time_col=args.time_col,
-            column_prefix=args.column_prefix
+            column_prefix=args.column_prefix,
         )
         print("\n" + "=" * 60)
         print("SUCCESS: BioBERT extraction completed!")
@@ -292,6 +361,7 @@ Examples:
         print(f"ERROR: {type(e).__name__}: {e}")
         print("=" * 60)
         import traceback
+
         traceback.print_exc()
         sys.exit(1)
 
