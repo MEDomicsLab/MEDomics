@@ -32,6 +32,7 @@ const IconSidebar = ({ onSidebarItemSelect }) => {
   const [isDisabled, setIsDisabled] = useState(true) // disabled is the state of the page
   const [developerModeNav, setDeveloperModeNav] = useState(true)
   const [extractionBtnstate, setExtractionBtnstate] = useState(false)
+  const [evaluationBtnstate, setEvaluationBtnstate] = useState(false)
   const [buttonClass, setButtonClass] = useState("")
 
   const delayOptions = { showDelay: 750, hideDelay: 0 }
@@ -116,19 +117,23 @@ const IconSidebar = ({ onSidebarItemSelect }) => {
       <div className="icon-sidebar">
         {/* ------------------------------------------- Tooltips ----------------------------------------- */}
         <Tooltip target=".homeNavIcon" {...delayOptions} className="tooltip-icon-sidebar" />
+        <Tooltip target=".ext-eval-btn" {...delayOptions} className="tooltip-icon-sidebar" />
         <Tooltip target=".explorerNav" {...delayOptions} className="tooltip-icon-sidebar" />
         <Tooltip target=".inputNav" {...delayOptions} className="tooltip-icon-sidebar" />
         <Tooltip target=".extractionNav" {...delayOptions} className="tooltip-icon-sidebar" data-pr-disabled={extractionBtnstate} />
         <Tooltip target=".exploratoryNav" {...delayOptions} className="tooltip-icon-sidebar" />
         <Tooltip target=".learningNav" {...delayOptions} className="tooltip-icon-sidebar" />
         <Tooltip target=".resultsNav" {...delayOptions} className="tooltip-icon-sidebar" />
-        <Tooltip target=".evaluationNav" {...delayOptions} className="tooltip-icon-sidebar" />
+        <Tooltip target=".evaluationNav" {...delayOptions} className="tooltip-icon-sidebar" data-pr-disabled={evaluationBtnstate} />
         <Tooltip target=".applicationNav" {...delayOptions} className="tooltip-icon-sidebar" />
         <Tooltip target=".ext-text-btn" {...delayOptions} className="tooltip-icon-sidebar" />
+        <Tooltip target=".ext-MEDimg-btn" {...delayOptions} className="tooltip-icon-sidebar" />
+        <Tooltip target=".ext-MED3pa-btn" {...delayOptions} className="tooltip-icon-sidebar" />
         <Tooltip target=".ext-ts-btn" {...delayOptions} className="tooltip-icon-sidebar" />
         <Tooltip target=".ext-img-btn" {...delayOptions} className="tooltip-icon-sidebar" />
         <Tooltip target=".medflNav" {...delayOptions} className="tooltip-icon-sidebar" />
         <Tooltip target=".med3paNav" {...delayOptions} className="tooltip-icon-sidebar" />
+        <Tooltip target=".ext-eval-btn" {...delayOptions} className="tooltip-icon-sidebar" />
         {/* ------------------------------------------- END Tooltips ----------------------------------------- */}
 
         {/* ------------------------------------------- ICON NAVBAR ----------------------------------------- */}
@@ -325,41 +330,76 @@ const IconSidebar = ({ onSidebarItemSelect }) => {
               </Nav.Link>
 
               <Nav.Link
+                className="evaluationNav btnSidebar align-center"
+                data-pr-at="right center"
+                data-pr-my="left center"
+                data-pr-tooltip="Evaluation"
+                data-pr-disabled={evaluationBtnstate}
+                eventKey="evaluation"
+                data-tooltip-id="tooltip-evaluation"
+                onDoubleClick={(event) => handleClick(event, "evaluation")}
+                disabled={isDisabled}
+                onClick={() => {
+                  setEvaluationBtnstate(!evaluationBtnstate)
+                }}
+                onBlur={(event) => {
+                  let clickedTarget = event.relatedTarget
+                  let blurAccepeted = true
+                  if (clickedTarget) {
+                    blurAccepeted = !clickedTarget.getAttribute("data-is-ext-btn")
+                  } else {
+                    blurAccepeted = true
+                  }
+                  blurAccepeted && setEvaluationBtnstate(false)
+                }}
+              >
+                {evaluationBtnstate ? <VscChromeClose style={{ height: "1.7rem", width: "auto" }} /> : <PiFlaskFill style={{ height: "1.7rem", width: "auto" }} />}
+                <div className={`btn-group-ext ${evaluationBtnstate ? "clicked" : ""}`}>
+                  <Button
+                    className="ext-MED3pa-btn"
+                    icon="pi pi-image"
+                    data-pr-at="right center"
+                    data-pr-my="left center"
+                    data-pr-tooltip="MED3pa"
+                    data-is-ext-btn
+                    onDoubleClick={(event) => handleDoubleClickModule(event, "MED3pa")}
+                    onClick={(event) => {
+                      event.stopPropagation()
+                      event.preventDefault()
+                      handleClick(event, "MED3pa")
+                      setEvaluationBtnstate(!evaluationBtnstate)
+                    }}
+                  />
+                  <Button
+                    className="ext-eval-btn"
+                    icon="pi pi-search"
+                    data-pr-at="right center"
+                    data-pr-my="left center"
+                    data-pr-tooltip="Models Evaluation"
+                    data-is-ext-btn
+                    onClick={(event) => {
+                      console.log("clicked Evaluation", event)
+                      event.stopPropagation()
+                      event.preventDefault()
+                      setEvaluationBtnstate(!evaluationBtnstate)
+                      handleClick(event, "evaluation")
+                    }}
+                    onDoubleClick={(event) => handleClick(event, "evaluation")}
+                  />
+                </div>
+              </Nav.Link>
+
+              <Nav.Link
                 className="medflNav btnSidebar align-center"
                 data-pr-at="right center"
                 data-pr-my="left center"
-                data-pr-tooltip="MEDfl"
+                data-pr-tooltip="Federated Learning"
                 eventKey="MEDfl"
                 onDoubleClick={(event) => handleDoubleClickModule(event, "MEDfl")}
                 onClick={(event) => handleClick(event, "medfl")}
                 disabled={isDisabled}
               >
                 <PiGraphFill style={{ height: "2.2rem", width: "auto" }} />
-              </Nav.Link>
-
-              <Nav.Link
-                className="evaluationNav btnSidebar align-center"
-                data-pr-at="right center"
-                data-pr-my="left center"
-                data-pr-tooltip="Evaluation"
-                eventKey="Evaluation"
-                onClick={(event) => handleClick(event, "evaluation")}
-                disabled={isDisabled}
-              >
-                <PiFlaskFill style={{ height: "2.2rem", width: "auto" }} />
-              </Nav.Link>
-
-              <Nav.Link
-                className="med3paNav btnSidebar align-center"
-                data-pr-at="right center"
-                data-pr-my="left center"
-                data-pr-tooltip="MED3pa"
-                eventKey="MED3pa"
-                onDoubleClick={(event) => handleDoubleClickModule(event, "MED3pa")}
-                onClick={(event) => handleClick(event, "med3pa")}
-                disabled={isDisabled}
-              >
-                <MdOutlineGroups3 style={{ height: "2.2rem", width: "auto" }} />
               </Nav.Link>
             </div>
             <div className="medomics-layer-text">Development</div>

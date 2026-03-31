@@ -17,10 +17,15 @@ const path = require("path")
  */
 export async function recursivelyRecenseWorkspaceTree(children, parentID) {
   for (const child of children) {
-    const stats = fs.lstatSync(child.path)
+    let isDirect = false
+    // Check if the path exists
+    if (fs.existsSync(child.path)) {
+      const stats = fs.lstatSync(child.path)
+      isDirect = stats.isDirectory()
+    }
     let uuid = child.name == "DATA" || child.name == "EXPERIMENTS" ? child.name : randomUUID()
     let childType =
-      stats.isDirectory() &&
+      isDirect &&
       path.extname(child.path).slice(1) != "medml" &&
       path.extname(child.path).slice(1) != "medmlres" &&
       path.extname(child.path).slice(1) != "medeval" &&
@@ -39,7 +44,7 @@ export async function recursivelyRecenseWorkspaceTree(children, parentID) {
     })
     // Real ID in DataBase if object already exists
     const IDinDB = await insertMEDDataObjectIfNotExists(childObject, child.path)
-    if (childType == "directory" && child.name != ".medomics") {
+    if ((childType == "directory" || childType == "medmodel") && child.name != ".medomics") {
       await recursivelyRecenseWorkspaceTree(child.children, IDinDB)
     }
   }

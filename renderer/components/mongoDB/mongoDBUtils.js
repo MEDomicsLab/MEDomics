@@ -1,4 +1,4 @@
-/* eslint-disable no-unused-vars */
+/* eslint-disable no-unused-vars, no-case-declarations, camelcase */
 import { toast } from "react-toastify"
 
 const { MongoClient } = require("mongodb")
@@ -166,6 +166,20 @@ export async function insertMEDDataObjectIfNotExists(medData, path = null, jsonD
       case "jpg":
         await insertJPGIntoCollection(path, medData.id)
         break
+      case "json":
+        // Check if file exists
+        if (!fs.existsSync(path)) {
+          console.error(`File at path ${path} does not exist`)
+          break
+        }
+        const fileContent = fs.readFileSync(path, "utf8")
+        const jsonContent = JSON.parse(fileContent)
+        const dataCollection = db.collection(medData.id)
+        const result = await dataCollection.insertMany(Array.isArray(jsonContent) ? jsonContent : [jsonContent])
+        if (!result.insertedCount > 0) {
+          console.error(`No JSON data inserted for MEDDataObject with id ${medData.id}`)
+        }
+        break
       default:
         break
     }
@@ -200,8 +214,11 @@ async function insertPKLIntoCollection(filePath, collectionName) {
   const fileSize = fs.statSync(filePath).size
   const maxBSONSize = 16 * 1024 * 1024 // 16MB
   if (fileSize > maxBSONSize) {
-    console.error(`PKL file ${filePath} size exceeds the maximum BSON document size of 16MB and will not be inserted in the database`)
-    toast.error(`PKL file ${filePath} size exceeds the maximum BSON document size of 16MB and will not be inserted in the database`)
+    console.warn(`PKL file ${filePath} size exceeds the maximum BSON document size of 16MB and will not be inserted in the database`)
+    toast.warn(`PKL file ${filePath} size exceeds the maximum BSON document size of 16MB and only the path will be saved in the database.`)
+    const document = { model_path: filePath }
+    const result = await collection.insertOne(document)
+    console.log(`PKL file path inserted with _id: ${result.insertedId}`)
     return
   }
 
@@ -725,4 +742,63 @@ export async function getCollectionSize(collectionId) {
 export async function getAllCollections() {
   const db = await connectToMongoDB()
   return await db.listCollections().toArray()
+}
+
+/**
+ * @description Compute class imbalance statistics for a dataset
+ * @param {String} collectionId MongoDB collection id
+ * @param {String} target Target column name
+ * @returns {Object|null} classStats
+ */
+export async function getDatasetClassStats(collectionId, target) {
+  try {
+    const db = await connectToMongoDB()
+    const collection = db.collection(collectionId)
+
+    // Read only the target column to keep it lightweight
+    const cursor = collection.find({}, { projection: { _id: 0, [target]: 1 } })
+
+    const counts = new Map()
+
+    for await (const doc of cursor) {
+      const value = doc[target]
+      if (value === undefined || value === null) continue
+      counts.set(value, (counts.get(value) || 0) + 1)
+    }
+
+    // Only binary classification
+    if (counts.size !== 2) {
+      return null
+    }
+
+    // Minority class = positive class
+    let posLabel = null
+    let nPos = Infinity
+    let nNeg = 0
+
+    for (const [label, count] of counts.entries()) {
+      if (count < nPos) {
+        posLabel = label
+        nPos = count
+      }
+    }
+
+    for (const [label, count] of counts.entries()) {
+      if (label !== posLabel) {
+        nNeg = count
+      }
+    }
+
+    if (!nPos || nPos === 0) return null
+
+    return {
+      pos_label: String(posLabel),
+      n_pos: nPos,
+      n_neg: nNeg,
+      fraction_neg_pos: nNeg / nPos
+    }
+  } catch (error) {
+    console.error("Error computing dataset class stats:", error)
+    return null
+  }
 }

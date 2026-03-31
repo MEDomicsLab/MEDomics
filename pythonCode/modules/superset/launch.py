@@ -104,6 +104,10 @@ class GoExecScriptPredict(GoExecutionScript):
         if not superset_path or not superset_lib_path:
             return {"error": "Error while finding the Superset installation."}
 
+        self.set_progress(label="Checking Superset runtime dependencies...")
+        if not manager.ensure_pkg_resources():
+            return {"error": "Error while ensuring setuptools/pkg_resources in the Superset virtual environment."}
+
         # Generate a private key
         print("Generating a private key...")
         self.set_progress(label="Checking the private key...")

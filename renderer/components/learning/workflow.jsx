@@ -46,6 +46,7 @@ import { getCollectionData } from "../dbComponents/utils.js"
 import { MEDDataObject } from "../workspace/NewMedDataObject.js"
 import { Tooltip } from "primereact/tooltip"
 import { Tag } from "primereact/tag"
+import { isEqual } from "lodash"
 
 const staticNodesParams = nodesParams // represents static nodes parameters
 
@@ -451,11 +452,11 @@ const Workflow = forwardRef(({ setWorkflowType, workflowType, isExperiment }, re
       const splitNodeId = dataSplitCouples[datasetNodeId]
       const datasetNode = nodes.find((node) => node.id === datasetNodeId)
       const splitNode = nodes.find((node) => node.id === splitNodeId)
-      if (datasetNode.data.internal.settings.columns && splitNode.data.internal.settings.columns && datasetNode.data.internal.settings.columns === splitNode.data.internal.settings.columns) return
+      if (isEqual(datasetNode.data.internal.settings.columns, splitNode.data.internal.settings.columns)) return
       splitNode.data.internal.datasetId = datasetNodeId
-      if (datasetNode && splitNode && datasetNode.data.internal.settings.columns) {
+      if (datasetNode && splitNode && datasetNode.data.internal.settings.columns && !isEqual(datasetNode.data.internal.settings.files, splitNode.data.internal.settings?.files)) {
         splitNode.data.internal.settings.columns = datasetNode.data.internal.settings.columns
-        if (datasetNode.data.internal.settings.files) {
+        if (datasetNode.data.internal.settings.files && datasetNode.data.internal.settings.files != splitNode.data.internal.settings?.files) {
           splitNode.data.internal.settings.files = datasetNode.data.internal.settings.files
         }
         splitNode.data.internal.settings.useTags = splitNode.data.internal.settings.useTags || false
@@ -1330,10 +1331,11 @@ const Workflow = forwardRef(({ setWorkflowType, workflowType, isExperiment }, re
       // Check if all nodes are in place
       const misPlacedNode = nodes.find(node => node.data.className === "misplaced")
       if (misPlacedNode) {
+        const nameNode = misPlacedNode.data.internal.name === misPlacedNode.data.internal.nameID ? misPlacedNode.data.internal.name : misPlacedNode.data.internal.nameID
         if (misPlacedNode?.data?.setupParam?.section) {
-          toast.error(`Node "${misPlacedNode.data.internal.name}" is misplaced. Please place it inside the "${misPlacedNode.data.setupParam.section}" box.`)
+          toast.error(`Node "${nameNode}" is misplaced. Please place it inside the "${misPlacedNode.data.setupParam.section}" box.`)
         } else {
-          toast.error(`Node "${misPlacedNode.data.internal.name}" is misplaced. Please place them inside their designated boxes.`)
+          toast.error(`Node "${nameNode}" is misplaced. Please place them inside their designated boxes.`)
         }
         return
       }

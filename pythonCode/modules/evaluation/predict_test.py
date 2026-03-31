@@ -91,6 +91,12 @@ class GoExecScriptPredictTest(GoExecutionScript):
             print("Dataset has no ID and is not MEDomicsLab standard")
             raise ValueError("Dataset has no ID and is not MEDomicsLab standard")
 
+        # Remove target if exists in dataset
+        target = json_config['target']
+        if target in dataset.columns:
+            go_print(f"Removing target '{target}' from prediction dataset")
+            dataset = dataset.drop(columns=[target])
+
         # calculate the predictions
         self.set_progress(label="Setting up the experiment", now=30)
         if ml_type == 'regression':

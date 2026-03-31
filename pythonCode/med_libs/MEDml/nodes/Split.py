@@ -269,7 +269,7 @@ class Split(Node):
                 splitter = StratifiedKFold(n_splits=cv_folds, shuffle=True, random_state=random_state)
                 self.CodeHandler.add_line("code", f"splitter = StratifiedKFold(n_splits={cv_folds}, shuffle=True, random_state={random_state})")
                 fold_iter = splitter.split(np.zeros(n_samples), y)
-                self.CodeHandler.add_line("code", f"fold_iter = splitter.split(np.zeros({n_samples}), y)")
+                self.CodeHandler.add_line("code", f"fold_iter = splitter.split(np.zeros(len(dataset)), y)")
             else:
                 splitter = KFold(n_splits=cv_folds, shuffle=True, random_state=random_state)
                 self.CodeHandler.add_line("code", f"splitter = KFold(n_splits={cv_folds}, shuffle=True, random_state={random_state})")

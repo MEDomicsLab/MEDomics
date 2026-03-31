@@ -299,18 +299,16 @@ if (isProd) {
   console.log("process.resourcesPath: ", process.resourcesPath)
   console.log(MEDconfig.runServerAutomatically ? "Server will start automatically here (in background of the application)" : "Server must be started manually")
   let bundledPythonPath = getBundledPythonEnvironment()
-  if (MEDconfig.runServerAutomatically && bundledPythonPath !== null) {
-    // Find the bundled python environment
-    if (bundledPythonPath !== null) {
-      runServer(isProd, serverPort, serverProcess, serverState, bundledPythonPath)
-        .then((process) => {
-          serverProcess = process
-          console.log("Server process started: ", serverProcess)
-        })
-        .catch((err) => {
-          console.error("Failed to start server: ", err)
-        })
-    }
+  if (MEDconfig.runServerAutomatically) {
+    // Start the Go server – Python path is optional (passed if available)
+    runServer(isProd, serverPort, serverProcess, serverState, bundledPythonPath)
+      .then((process) => {
+        serverProcess = process
+        console.log("Server process started: ", serverProcess)
+      })
+      .catch((err) => {
+        console.error("Failed to start server: ", err)
+      })
   } else {
     //**** NO SERVER ****//
     findAvailablePort(MEDconfig.defaultPort)
@@ -647,21 +645,56 @@ ipcMain.handle("checkMongoIsRunning", async (event) => {
   return isRunning
 })
 
-app.on("window-all-closed", () => {
-  console.log("app quit")
-  // Clean up terminals
-  terminalManager.cleanup()
-  stopMongoDB(mongoProcess)
+let isQuitting = false
+
+app.on("before-quit", async (event) => {
+  if (isQuitting) return // Already handling quit
+  
+  event.preventDefault()
+  isQuitting = true
+  
+  console.log("App quitting — cleaning up terminals and services...")
+  
+  try {
+    // Wait for all PTY processes to exit gracefully (up to 3 seconds)
+    // This prevents the node-pty SIGABRT crash caused by thread::join()
+    // blocking during teardown when child processes haven't exited yet
+    await terminalManager.cleanupAsync(3000)
+  } catch (error) {
+    console.error("Error during terminal cleanup:", error)
+    // Fallback: force-kill synchronously
+    terminalManager.cleanup()
+  }
+  
+  // Stop MongoDB
+  try {
+    await stopMongoDB(mongoProcess)
+  } catch (error) {
+    console.warn("Error stopping MongoDB:", error)
+  }
+  
+  // Stop the server
   if (MEDconfig.runServerAutomatically) {
     try {
-      // Check if the serverProcess has the kill method
       serverProcess.kill()
       console.log("serverProcess killed")
     } catch (error) {
       console.log("serverProcess already killed")
     }
   }
+  
+  console.log("Cleanup complete, quitting app")
   app.quit()
+})
+
+app.on("window-all-closed", () => {
+  // On macOS, apps typically stay open until Cmd+Q.
+  // On other platforms, close all windows to quit.
+  if (process.platform !== "darwin") {
+    app.quit()
+  } else {
+    app.quit()
+  }
 })
 
 app.on("ready", async () => {
@@ -715,7 +748,8 @@ ipcMain.handle("terminal-create", async (event, options) => {
       cwd: cwd,
       cols: options.cols,
       rows: options.rows,
-      useIPython: options.useIPython || false
+      useIPython: options.useIPython || false,
+      shellPath: options.shellPath || null
     })
 
     // Set up event handlers for this terminal
@@ -765,6 +799,11 @@ ipcMain.handle("terminal-list", async () => {
 // Get current working directory of a terminal
 ipcMain.handle("terminal-get-cwd", async (event, terminalId) => {
   return terminalManager.getCurrentWorkingDirectory(terminalId)
+})
+
+// Get available shell executables on this system
+ipcMain.handle("terminal-get-available-shells", async () => {
+  return terminalManager.getAvailableShells()
 })
 
 /**
@@ -911,7 +950,9 @@ export function getMongoDBPath() {
     // Check if mongod is in the process.env.PATH
     const paths = process.env.PATH.split(path.delimiter)
     for (let i = 0; i < paths.length; i++) {
+      console.log(`Checking for mongod in: index ${i}, path ${paths[i]}`)
       const binPath = path.join(paths[i], "mongod")
+      console.log(`Checking if mongod exists at: ${binPath}`)
       if (fs.existsSync(binPath)) {
         return binPath
       }
@@ -921,10 +962,18 @@ export function getMongoDBPath() {
     if (fs.existsSync("/usr/bin/mongod")) {
       return "/usr/bin/mongod"
     }
-    console.error("mongod not found in /usr/bin/mongod")
 
-    if (fs.existsSync("/home/" + process.env.USER + "/.medomics/mongodb/bin/mongod")) {
-      return "/home/" + process.env.USER + "/.medomics/mongodb/bin/mongod"
+    // Check the tarball install location used by after-install.sh
+    if (fs.existsSync("/usr/local/bin/mongod")) {
+      return "/usr/local/bin/mongod"
+    }
+
+    if (fs.existsSync("/usr/local/lib/mongodb/bin/mongod")) {
+      return "/usr/local/lib/mongodb/bin/mongod"
+    }
+
+    if (fs.existsSync(process.env.HOME + "/.medomics/mongodb/bin/mongod")) {
+      return process.env.HOME + "/.medomics/mongodb/bin/mongod"
     }
     return null
   } else {

@@ -71,7 +71,9 @@ const Dashboard = ({ isUpdating, setIsUpdating, errorPrediction=null, error=null
       ) : (
       <>
         {url && !isUpdating ? (
-          <Iframe url={url} width="100%" height="100%" frameBorder="0" />
+          <div style={{ overflow: "auto", height: "700px" }}>
+            <Iframe url={url} width="100%" height="100%" frameBorder="0" />
+          </div>
         ) : (
           <ProgressBarRequests
             delayMS={1000}

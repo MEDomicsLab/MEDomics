@@ -121,7 +121,6 @@
 }
 
 .draggable-side-node.p-card {
-  background: #f3f3f3;
   color: #495057;
   box-shadow:
     2px 2px 3px -1px rgb(0 0 0 / 20%),
@@ -718,7 +717,7 @@ input.node-editableLabel {
 }
 
 .misplaced {
-  border: 0.15rem solid var(--misplaced-color);
+  border: 0.15rem solid var(--misplaced-color) !important;
 }
 
 .beenSelected {

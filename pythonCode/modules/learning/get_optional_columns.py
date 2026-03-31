@@ -54,13 +54,14 @@ class GoExecScriptPredict(GoExecutionScript):
 
         # Get imputated columns if any
         imputed_columns = []
-        for step in model.steps:
-            if "imputer" in step[0]:
-                if len(step[1].include) > 0:
-                    imputed_columns.extend(list(step[1].include))
-
+        if hasattr(model, 'steps'):
+            for step in model.steps:
+                if "imputer" in step[0]:
+                    if len(step[1].include) > 0:
+                        imputed_columns.extend(list(step[1].include))
+        imputed_columns = [col for col in imputed_columns if col in model.feature_names_in_]
         imputed_columns = list(set(imputed_columns))
-        results = {"imputed_columns": imputed_columns, "is_calibrated": False}
+        results = {"required_columns": model.feature_names_in_, "imputed_columns": imputed_columns, "is_calibrated": False}
 
         # Check if model is calibrated
         if isinstance(model, Pipeline) or isinstance(model, PycaretPipeline):

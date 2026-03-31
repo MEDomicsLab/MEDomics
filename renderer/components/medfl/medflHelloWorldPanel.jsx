@@ -60,6 +60,8 @@ const MEDflHelloWorldPanel = () => {
   return (
     <div>
       <h5>This is the MEDfl Hello World Panel</h5>
+      <h7>MEDfl an open-source Federated Learning (FL) framework designed for both simulation and real-world distributed trainingin the medical and healthcare domains.</h7>
+      <h7> Read more about MEDfl</h7><a style={{color: "rgb(0, 102, 255)"}} href="https://github.com/MEDomicsLab/MEDfl" target="_blank" rel="noopener noreferrer"> here</a>.
       <div className="p-inputgroup flex-1 w-100" style={{ display: "flex", justifyContent: "center", alignItems: "center", maxWidth: "500px", marginTop: "1.25rem" }}>
         <span className="p-float-label">
           <InputText id="MED3fl-input" value={stringToSend} onChange={(e) => setStringToSend(e.target.value)} />

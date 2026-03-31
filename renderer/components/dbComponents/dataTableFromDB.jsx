@@ -141,7 +141,6 @@ const DataTableFromDB = ({ data, tablePropsData, tablePropsColumn, isReadOnly })
       let hasEmptySpace = newColumns.filter((column) => column.field.includes(" "))
       hasEmptySpace = hasEmptySpace.map((column) => column.field)
       if (hasEmptySpace.length > 0) {
-        toast.warn("Warning: column names should not contain empty spaces. Check console for more details.")
         console.warn("The following column names contain empty spaces:", hasEmptySpace, " This will cause issues for machine learning modules.")
       }
       setColumns(newColumns)
@@ -264,9 +263,10 @@ const DataTableFromDB = ({ data, tablePropsData, tablePropsColumn, isReadOnly })
         field,
         newValue
       })
-      updateDatabaseData(data.path, data.id, rowData._id, field, newValue)
+      updateDatabaseData(data.id, rowData._id, field, newValue)
         .then(() => {
           console.log("Database updated successfully")
+          toast.success("Cell updated successfully.")
           setLastEdit(Date.now())
         })
         .catch((error) => {

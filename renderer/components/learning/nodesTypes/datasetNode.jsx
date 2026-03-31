@@ -1,15 +1,18 @@
 import { Button } from 'primereact/button'
-import React, { useContext, useEffect, useRef, useState } from "react"
+import React, { useContext, useEffect, useState } from "react"
 import { Stack } from "react-bootstrap"
 import Form from "react-bootstrap/Form"
 import { FlowFunctionsContext } from "../../flow/context/flowFunctionsContext"
 import Node from "../../flow/node"
 import { LoaderContext } from "../../generalPurpose/loaderContext"
 import { getCollectionColumns } from "../../mongoDB/mongoDBUtils"
+import { getDatasetClassStats } from "../../mongoDB/mongoDBUtils"
 import Input from "../input"
 import ModalSettingsChooser from "../modalSettingsChooser"
-import { OverlayPanel } from 'primereact/overlaypanel'
 import { toast } from 'react-toastify'
+import { Panel } from 'primereact/panel'
+import { Tag } from 'primereact/tag'
+import { Tooltip } from 'primereact/tooltip'
 
 /**
  *
@@ -29,6 +32,35 @@ const DatasetNode = ({ id, data }) => {
   const { setLoader } = useContext(LoaderContext)
   const [tagId, setTagId] = useState(localStorage.getItem("myUUID"))
 
+  const updateClassStats = (data) => {
+    const rawFiles = data.internal.settings.files
+    const target = data.internal.settings.target
+
+    const file = Array.isArray(rawFiles) ? rawFiles[0] : rawFiles
+    if (!file?.id || !target) return
+
+    const existing = data.internal.classStats
+    if (existing?.target === target) return
+
+    getDatasetClassStats(file.id, target).then((stats) => {
+      if (!stats) return
+
+      updateNode({
+        id,
+        updatedData: {
+          ...data.internal,
+          settings: {
+            ...data.internal.settings,
+          },
+          classStats: {
+            ...stats,
+            target
+          }
+        }
+      })
+    })
+  }
+
   useEffect(() => {
     if (!tagId) {
       let uuid = "column_tags"
@@ -45,6 +77,14 @@ const DatasetNode = ({ id, data }) => {
         }
       }
     })
+
+    // Class stats check
+    if (Object.hasOwn(data.internal.settings, 'classStats')) {
+      delete data.internal.settings.classStats
+    }
+    if (!Object.hasOwn(data.internal, 'classStats') || data.internal.classStats?.length === 0) {
+      updateClassStats(data)
+    }
   }, [data])
 
   // update the node internal data when the selection changes
@@ -72,13 +112,29 @@ const DatasetNode = ({ id, data }) => {
 
   // update the node when the selection changes
   const onSelectionChange = (e) => {
-    setSelection(e.target.value)
-    data.internal.settings = {}
-    data.internal.checkedOptions = []
-    data.internal.hasWarning = { state: true, tooltip: <p>Some default fields are missing</p> }
-    e.stopPropagation()
-    e.preventDefault()
+  setSelection(e.target.value)
+
+  data.internal.classStats = undefined
+  data.internal.settings = {
+    ...data.internal.settings,
+    files: undefined,
+    target: undefined,
   }
+  if (Object.hasOwn(data.internal.settings, 'classStats')) {
+    delete data.internal.settings.classStats
+  }
+  data.internal.checkedOptions = []
+  data.internal.hasWarning = {
+    state: true,
+    tooltip: <p>Some default fields are missing</p>
+  }
+
+  updateNode({ id, updatedData: data.internal })
+
+  e.stopPropagation()
+  e.preventDefault()
+}
+
 
   /**
    *
@@ -109,6 +165,13 @@ const DatasetNode = ({ id, data }) => {
       updatedData: data.internal
     })
   }
+
+  useEffect(() => {
+    updateClassStats(data)
+  }, [data.internal.settings.files, data.internal.settings.target])
+
+
+
 
   /**
    *
@@ -245,52 +308,76 @@ const DatasetNode = ({ id, data }) => {
     })
   }
 
-  /**
-   * 
-   * @description
-   * This function renders the files in the overlay panel
-   */
-  const renderSelectedFiles = () => {
-    if (selection === "medomics"){
-      if (data.internal.settings.files && data.internal.settings.files.length > 0) {
-        return (
-          <div style={{ display: 'flex', flexDirection: 'column' }}>
-            {data.internal.settings.files.map((file) => (
-              <Button key={file.name} raised text label={file.name} style={{width: '100%', height: '40px'}} severity='secondary' icon='pi pi-database' size='normal'/>
-            ))}
-          </div>
-        )} else {
-          return <h4>No file selected</h4>
-        }
-      } else if (selection === "custom"){
-        if (data.internal.settings.files && data.internal.settings.files.name != "") {
-          return (
-            <div style={{ display: 'flex', flexDirection: 'column' }}>
-              <Button raised text label={data.internal.settings.files.name} style={{width: '100%', height: '40px'}} severity='secondary' icon='pi pi-database' size='normal'/>
-            </div>
-          )
-        } else {
-          return <h4>No file selected</h4>
-        }
-    }
+  const renderDefaultInversePanel = () => {
+  const stats = data.internal.classStats
+  const target = data.internal.settings.target
+
+  if (!stats || !target) return null
+
+  const ratio = stats.fraction_neg_pos
+
+  let severity = "success"
+  let label = "Balanced"
+
+  if (ratio > 3 && ratio <= 6) {
+    severity = "warning"
+    label = "Imbalanced"
+  } else if (ratio > 6) {
+    severity = "danger"
+    label = "Highly imbalanced"
   }
 
-  const op = useRef(null)
+  return (
+    <Panel
+      header={
+        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+         <span
+          className="default-inverse-tooltip"
+          style={{ cursor: "help", fontWeight: 500 }}
+        >
+          Default Inverse
+        </span>
+          <Tag severity={severity} value={label} />
+        </div>
+      }
+      toggleable
+      style={{ marginTop: "8px" }}
+    >
+      <div><b>Target:</b> {target}</div>
+      <div>N(pos): {stats.n_pos}</div>
+      <div>N(neg): {stats.n_neg}</div>
+      <div>
+        Fraction (neg / pos): <b>{ratio.toFixed(2)}</b>
+      </div>
+    </Panel>
+  )
+}
+
 
   return (
     <>
-      {/* build on top of the Node component */}
-      <OverlayPanel ref={op} style={{width: "300px", transform: "translateY(-100%)", marginBlock: "-30px"}} appendTo={document.body}>
-        {renderSelectedFiles()}
-      </OverlayPanel>
-      <Button 
-        style={{width: '100%', height: '10px'}} 
-        label='View selected datasets' 
-        severity='secondary' 
-        icon='pi pi-angle-double-up' 
-        size='small' 
-        onClick={(e) => op.current.toggle(e)}
-      />
+    <Tooltip
+      target=".default-inverse-tooltip"
+      position="right"
+    >
+      <div style={{ maxWidth: "260px", lineHeight: "1.4" }}>
+        <b>Default inverse</b> = N(negative) / N(positive). We recommand recalibrating through hyperparameters if this fraction exceeds 3.
+        <br /><br />
+        <b>Used for:</b>
+        <ul style={{ paddingLeft: "18px", margin: "6px 0" }}>
+          <li>class_weight (Random Forest)</li>
+          <li>scale_pos_weight (XGBoost)</li>
+          <li>Calibration & metric selection</li>
+        </ul>
+          <b>Interpretation</b>
+    <ul style={{ paddingLeft: "18px", margin: "6px 0" }}>
+      <li><b>≤ 3</b> → Balanced</li>
+      <li><b>3 – 6</b> → Imbalanced</li>
+      <li><b>&gt; 6</b> → Highly imbalanced</li>
+    </ul>
+      </div>
+    </Tooltip>
+
       <Node
         key={id}
         id={id}
@@ -387,6 +474,7 @@ const DatasetNode = ({ id, data }) => {
                             filter: true
                           }}
                         />
+                        {renderDefaultInversePanel()}
                       </>
                     )
                   case "custom":
@@ -416,6 +504,7 @@ const DatasetNode = ({ id, data }) => {
                             filter: true
                           }}
                         />
+                        {renderDefaultInversePanel()}
                       </>
                     )
                   default:
@@ -447,7 +536,7 @@ const DatasetNode = ({ id, data }) => {
           </>
         }
         // Link to documentation
-        nodeLink={"https://medomics-udes.gitbook.io/medomicslab-docs/tutorials/development/learning-module#id-1.-available-nodes"}
+        nodeLink={"https://medomicslab.gitbook.io/medomics-docs/tutorials/development/learning-module#id-1.-available-nodes"}
       />
     </>
   )
