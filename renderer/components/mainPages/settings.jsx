@@ -92,7 +92,7 @@ const SettingsPage = ({pageId = "settings", checkJupyterIsRunning, startJupyterS
     checkMongoIsRunning()
     checkServer()
     getJupyterStatus()
-  }, [])
+  }, [pythonEmbedded])
 
   /**
    * Save the settings in the main process
