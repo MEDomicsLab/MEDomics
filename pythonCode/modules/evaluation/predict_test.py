@@ -108,6 +108,10 @@ class GoExecScriptPredictTest(GoExecutionScript):
             self.set_progress(label="Predicting...", now=50)
             pred_unseen = predict_model(model, data=dataset)
         self.set_progress(now=70)
+
+        # rename column "prediction_score" to "confidence_score" if it exists
+        if "prediction_score" in pred_unseen.columns:
+            pred_unseen = pred_unseen.rename(columns={"prediction_score": "confidence_score"})
         
         # Save predictions
         prediction_object = MEDDataObject(
