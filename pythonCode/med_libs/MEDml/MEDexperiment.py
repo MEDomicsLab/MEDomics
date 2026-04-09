@@ -199,7 +199,10 @@ class MEDexperiment(ABC):
             for current_node_id, next_nodes_id_json in self.pipelines_to_execute.items():
                 node_info = self.pipelines_objects[current_node_id]
                 node: Node = node_info['obj']
-                self._progress['currentLabel'] = node.username
+                if node.username.lower() == 'train model':
+                    self._progress['currentLabel'] = f"Training model (This process may take long)"
+                else:
+                    self._progress['currentLabel'] = node.username
                 has_been_run = node.has_run()
                 if not has_been_run or 'experiment' not in node_info:
                     node_info['results'] = {
@@ -283,7 +286,10 @@ class MEDexperiment(ABC):
                 node = node_info['obj']
                 experiment = self.copy_experiment(experiment)
                 exp_to_return = experiment
-                self._progress['currentLabel'] = node.username
+                if node.username.lower() == 'train model':
+                    self._progress['currentLabel'] = f"Training model (This process may take long)"
+                else:
+                    self._progress['currentLabel'] = node.username
                 if not node.has_run() or prev_node.has_changed():
                     if node.type == 'group_models':
                         print("group_models")
