@@ -68,30 +68,33 @@ const SettingsPage = ({pageId = "settings", checkJupyterIsRunning, startJupyterS
   }
 
   /**
-   * Get the settings from the main process
-   * if the conda path is defined in the settings, set it
-   * Check if the server is running and set the state
+   * Get the settings from the main process on mount
    */
   useEffect(() => {
+    checkServer()
+    checkMongoIsRunning()
+    getJupyterStatus()
     ipcRenderer.invoke("get-settings").then((receivedSettings) => {
       console.log("received settings", receivedSettings)
       setSettings(receivedSettings)
-      if (pythonEmbedded.pythonEmbedded) {
-        setCondaPath(pythonEmbedded.pythonEmbedded)
-      } else if (receivedSettings?.condaPath) {
+      if (receivedSettings?.condaPath) {
         setCondaPath(receivedSettings?.condaPath)
       }
       if (receivedSettings?.seed) {
         setSeed(receivedSettings?.seed)
       }
     })
-    // ipcRenderer.invoke("server-is-running").then((status) => {
-    //   setServerIsRunning(status)
-    //   console.log("server is running", status)
-    // })
-    checkMongoIsRunning()
-    checkServer()
-    getJupyterStatus()
+  }, [])
+
+  /**
+   * Get the settings from the main process
+   * if the conda path is defined in the settings, set it
+   * Check if the server is running and set the state
+   */
+  useEffect(() => {
+    if (pythonEmbedded.pythonEmbedded && !condaPath) {
+      setCondaPath(pythonEmbedded.pythonEmbedded)
+    }
   }, [pythonEmbedded])
 
   /**
