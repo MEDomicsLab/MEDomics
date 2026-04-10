@@ -201,6 +201,16 @@ class NodeCodeHandler:
         self.code = base_code
         self.imports = []
 
+    def __check_if_import_exists(self, import_name: str) -> bool:
+        """
+        Checks if an import already exists in the code
+        Args:
+            import_name: name of the import to check
+        Returns:
+            True if the import already exists, False otherwise
+        """
+        return import_name in [imp['content'] for imp in self.imports]
+
     def add_import(self, import_name: str):
         """
         Adds an import to the code
@@ -210,8 +220,9 @@ class NodeCodeHandler:
         Returns:
             None
         """
-        self.imports.append(
-            {"type": "code", "content": import_name, "indent": 0})
+        if not self.__check_if_import_exists(import_name):
+            self.imports.append(
+                {"type": "code", "content": import_name, "indent": 0})
 
     def add_line(self, line_type: str, line: str, indent: int = 0):
         """

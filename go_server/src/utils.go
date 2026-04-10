@@ -163,14 +163,6 @@ func StartPythonScripts(jsonParam string, filename string, id string) (string, e
 	}
 	log.Println("Conda env: " + condaEnv)
 
-	// UNCOMMENT TO WRITE JSON PARAM TO FILE FOR DEBUGGING
-	// jsonParamBytes := []byte(jsonParam)
-	// err = os.WriteFile("jsonParam.txt", jsonParamBytes, 0644)
-	// if err != nil {
-	// 	log.Println("Error writing jsonParam to file")
-	// 	return "", err
-	// }
-
 	Scripts[id] = ScriptInfo{
 		Cmd:      exec.Command(condaEnv, "-u", script, "--json-param", jsonParam, "--id", id),
 		Progress: "",
@@ -178,15 +170,13 @@ func StartPythonScripts(jsonParam string, filename string, id string) (string, e
 	stdout, err := Scripts[id].Cmd.StdoutPipe()
 	Mu.Unlock()
 	if err != nil {
-		log.Println("Error getting stdout pipe")
-		log.Println(err.Error())
+		log.Println("Error getting stdout pipe: " + err.Error())
 	}
 	Mu.Lock()
 	stderr, err := Scripts[id].Cmd.StderrPipe()
 	Mu.Unlock()
 	if err != nil {
-		log.Println("Error getting stderr pipe")
-		log.Println(err.Error())
+		log.Println("Error getting stderr pipe: " + err.Error())
 	}
 	Mu.Lock()
 	err = Scripts[id].Cmd.Start()
@@ -195,44 +185,130 @@ func StartPythonScripts(jsonParam string, filename string, id string) (string, e
 		log.Println("Error starting command " + Scripts[id].Cmd.String())
 		return "", err
 	}
+
 	response := ""
-	go copyOutput(stdout, &response)
-	go copyOutput(stderr, &response)
-	err = Scripts[id].Cmd.Wait()
-	if err != nil {
-		log.Println("Error waiting for command to finish")
-		return "", err
+	// stderrBuf collects every line from stderr so we can surface it on early
+	// crashes (e.g. ModuleNotFoundError) that never reach send_response().
+	var stderrBuf strings.Builder
+	var stderrMu sync.Mutex
+
+	var wg sync.WaitGroup
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		copyOutput(stdout, &response)
+	}()
+	go func() {
+		defer wg.Done()
+		copyOutputErr(stderr, &response, &stderrBuf, &stderrMu)
+	}()
+	wg.Wait()
+
+	waitErr := Scripts[id].Cmd.Wait()
+
+	// Happy path – the Python layer called send_response() successfully.
+	if response != "" {
+		log.Println("Finished running script: " + filename + " with id: " + id)
+		return response, nil
 	}
-	log.Println("Finished running script: " + filename + " with id: " + id)
-	return response, nil
+
+	// The script exited without ever emitting response-ready (early crash).
+	// Build a structured error JSON that matches get_response_from_error() so
+	// the frontend receives consistent error objects regardless of where in
+	// Python the failure happened.
+	stderrMu.Lock()
+	capturedStderr := stderrBuf.String()
+	stderrMu.Unlock()
+
+	exitMsg := "unknown error"
+	if waitErr != nil {
+		exitMsg = waitErr.Error()
+	}
+	if capturedStderr == "" {
+		capturedStderr = exitMsg
+	}
+
+	log.Println("Script crashed before send_response. stderr:\n" + capturedStderr)
+
+	errorPayload := map[string]interface{}{
+		"error": map[string]string{
+			"message":     exitMsg,
+			"stack_trace": capturedStderr,
+			"value":       capturedStderr,
+		},
+	}
+	jsonBytes, jsonErr := json.Marshal(errorPayload)
+	if jsonErr != nil {
+		// Last-resort fallback – should never happen.
+		return "", waitErr
+	}
+	return string(jsonBytes), nil
 }
 
-// It is used to transfer stdout and stderr to the terminal
+// copyOutput handles stdout: detects response-ready and progress signals.
 func copyOutput(r io.Reader, response *string) {
 	scanner := bufio.NewScanner(r)
-	lineText := ""
 	for scanner.Scan() {
-		lineText = scanner.Text()
+		lineText := scanner.Text()
 		if strings.Contains(lineText, "response-ready*_*") {
 			path := strings.Split(lineText, "*_*")[1]
 			path = path[:len(path)-1]
 			*response = ReadFile(path)
-			//	delete this file
-			err := os.Remove(path)
-			if err != nil {
+			if err := os.Remove(path); err != nil {
 				log.Println(err)
 			}
 		} else if strings.Contains(lineText, "progress*_*") {
-			id := strings.Split(lineText, "*_*")[1]
-			progress := strings.Split(lineText, "*_*")[2]
-			progress = progress[:len(progress)-1]
-			log.Println("Progress: " + progress)
-			Mu.Lock()
-			Scripts[id] = ScriptInfo{
-				Cmd:      Scripts[id].Cmd,
-				Progress: progress,
+			parts := strings.Split(lineText, "*_*")
+			if len(parts) >= 3 {
+				pid := parts[1]
+				progress := parts[2][:len(parts[2])-1]
+				log.Println("Progress: " + progress)
+				Mu.Lock()
+				Scripts[pid] = ScriptInfo{
+					Cmd:      Scripts[pid].Cmd,
+					Progress: progress,
+				}
+				Mu.Unlock()
 			}
-			Mu.Unlock()
+		}
+	}
+}
+
+// copyOutputErr mirrors copyOutput for stderr.
+// It still watches for response-ready/progress (some Python loggers write to
+// stderr) and additionally accumulates every line into stderrBuf so early
+// crashes (ImportError, SyntaxError, …) are never silently dropped.
+func copyOutputErr(r io.Reader, response *string, stderrBuf *strings.Builder, mu *sync.Mutex) {
+	scanner := bufio.NewScanner(r)
+	for scanner.Scan() {
+		lineText := scanner.Text()
+		log.Println("[stderr] " + lineText)
+
+		// Accumulate for crash reporting.
+		mu.Lock()
+		stderrBuf.WriteString(lineText + "\n")
+		mu.Unlock()
+
+		// Handle structured signals even if they arrive on stderr.
+		if strings.Contains(lineText, "response-ready*_*") {
+			path := strings.Split(lineText, "*_*")[1]
+			path = path[:len(path)-1]
+			*response = ReadFile(path)
+			if err := os.Remove(path); err != nil {
+				log.Println(err)
+			}
+		} else if strings.Contains(lineText, "progress*_*") {
+			parts := strings.Split(lineText, "*_*")
+			if len(parts) >= 3 {
+				pid := parts[1]
+				progress := parts[2][:len(parts[2])-1]
+				Mu.Lock()
+				Scripts[pid] = ScriptInfo{
+					Cmd:      Scripts[pid].Cmd,
+					Progress: progress,
+				}
+				Mu.Unlock()
+			}
 		}
 	}
 }
@@ -296,8 +372,8 @@ func KillScript(id string) bool {
 			}
 		}()
 		if script.Cmd != nil { // Check if script.Cmd is not nil
-			if script.Cmd.ProcessState != nil && script.Cmd.ProcessState.Exited() {
-				log.Println("Script can be killed")
+			if script.Cmd.Process != nil && (script.Cmd.ProcessState == nil || !script.Cmd.ProcessState.Exited()) {
+				log.Println("Script is running, killing it now...")
 				err := script.Cmd.Process.Kill()
 				if err != nil {
 					log.Print("Error killing process: ", err.Error())
