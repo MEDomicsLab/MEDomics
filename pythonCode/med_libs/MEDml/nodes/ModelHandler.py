@@ -830,26 +830,3 @@ class ModelHandler(Node):
                 if isinstance(value, np.ndarray):
                     trained_models_json[model_copy.__class__.__name__][key] = value.tolist()
         return trained_models_json
-
-    def set_model(self, model_id: str) -> None:
-        try:
-            model_obj = self.global_config_json['nodes'][model_id]
-            self.config_json['data']['estimator'] = {
-                "type": model_obj['data']['selection'],
-                "settings": model_obj['data']['settings']
-            }
-            if self.isTuningEnabled:
-                self.config_json['data']['internal']['settingsTuning'] = model_obj['data']['internal'].get('settingsTuning', {})
-        except KeyError as e:
-            print(f"ERROR: Failed to set model {model_id}. Missing key: {e}")
-            raise ValueError(f"Model configuration for {model_id} not found in the global config.")
-        except Exception as e:
-            print(f"ERROR: An error occurred while setting the model: {e}")
-            raise ValueError(f"An error occurred while setting model {model_id}.")
-
-    def set_model(self, model_id: str) -> None:
-        model_obj = self.global_config_json['nodes'][model_id]
-        self.config_json['data']['estimator'] = {
-            "type": model_obj['data']['selection'],
-            "settings": model_obj['data']['settings']
-        }
