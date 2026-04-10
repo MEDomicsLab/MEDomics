@@ -85,7 +85,7 @@ class ModelHandler(Node):
             self.optimize_threshold = self.config_json['data']['internal'].get('optimizeThreshold', False)
             if self.optimize_threshold:
                 self.threshold_optimization_metric = self.config_json['data']['internal'].get('threshOptimizationMetric', 'Accuracy')
-                            # Normalisation du nom de métrique pour PyCaret
+                # Normalizing metric names for Pycaret
                 METRIC_NAME_MAP = {
                     'Youden': 'Youden Index',
                     'BAC': 'Balanced Accuracy',
