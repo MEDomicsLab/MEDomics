@@ -68,11 +68,14 @@ class ModelIO(Node):
 
                 model_features = list(model_features)
 
+                # Model's algorithm
+                model_algorithm = fitted_model.__class__.__name__
+
                 # Model's name
                 if 'model_name' in settings.keys() and settings['model_name']:
                     model_name = settings['model_name']
                 else:
-                    model_name = fitted_model.__class__.__name__
+                    model_name = model_algorithm
 
                 # Path save model (if too big for MongoDB)
                 if 'pathSave' in settings.keys() and settings['pathSave']:
@@ -157,7 +160,8 @@ class ModelIO(Node):
                     "columns": model_features,
                     "target": self.global_config_json["target_column"],
                     "steps": self.global_config_json["steps"],
-                    "ml_type": self.global_config_json["MLType"]
+                    "ml_type": self.global_config_json["MLType"],
+                    "algorithm": model_algorithm
                 }
                 if 'selectedTags' in self.global_config_json:
                     to_write['selectedTags'] = self.global_config_json['selectedTags']
