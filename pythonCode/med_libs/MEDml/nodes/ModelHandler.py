@@ -72,6 +72,13 @@ class ModelHandler(Node):
         super().__init__(id_, global_config_json)
         self.model_name_id = None
         if self.type == 'train_model':
+            self.model_id = self.config_json['associated_id']
+            model_obj = self.global_config_json['nodes'][self.model_id]
+            self.model_name_id = model_obj['data']['internal'].get('nameID', None)
+            self.config_json['data']['estimator'] = {
+                "type": model_obj['data']['internal']['selection'],
+                "settings": model_obj['data']['internal']['settings']
+            }
             self.isTuningEnabled = self.config_json['data']['internal'].get('isTuningEnabled', False)
             if self.isTuningEnabled:
                 self.settingsTuning = self.config_json['data']['internal'].get('settingsTuning', {})
@@ -96,13 +103,6 @@ class ModelHandler(Node):
                     self.threshold_optimization_metric, 
                     self.threshold_optimization_metric
                 )
-            self.model_id = self.config_json['associated_id']
-            model_obj = self.global_config_json['nodes'][self.model_id]
-            self.model_name_id = model_obj['data']['internal'].get('nameID', None)
-            self.config_json['data']['estimator'] = {
-                "type": model_obj['data']['internal']['selection'],
-                "settings": model_obj['data']['internal']['settings']
-            }
 
     def __calculate_all_metrics(self, y_true, y_pred, y_pred_proba=None):
         metrics = {}
