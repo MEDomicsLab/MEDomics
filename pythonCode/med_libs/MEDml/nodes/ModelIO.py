@@ -58,20 +58,24 @@ class ModelIO(Node):
                 if dir(fitted_model).__contains__('feature_names_in_'):
                     model_features = fitted_model.__getattribute__('feature_names_in_')
                 elif dir(fitted_model).__contains__('feature_name_') and model_features is None:
-                    model_features = fitted_model.__getattribute__('feature_name_')
+                    model_features = fitted_model.__getattribute__('feature_names_in_')
+                elif dir(fitted_model).__contains__('classifier_') and dir(fitted_model.classifier_).__contains__('feature_names_in_'):
+                    model_features = fitted_model.classifier_.feature_names_in_
                 else:
-                    model_features=  fitted_model.__getattr__('feature_names_in_')
-
+                    raise ValueError(f"Could not find model features. Model attributes : {dir(fitted_model)}, model type: {type(fitted_model)}")
                 if model_features is None:
-                    raise ValueError(f"Could not find model features. Model attributes : {dir(fitted_model)}, model type: {type(fitted_model)}, model features: {model_features}")
-                
+                    raise ValueError(f"Could not find model features. Model attributes : {dir(fitted_model)}, model type: {type(fitted_model)}")
+
                 model_features = list(model_features)
+
+                # Model's algorithm
+                model_algorithm = fitted_model.__class__.__name__
 
                 # Model's name
                 if 'model_name' in settings.keys() and settings['model_name']:
                     model_name = settings['model_name']
                 else:
-                    model_name = fitted_model.__class__.__name__
+                    model_name = model_algorithm
 
                 # Path save model (if too big for MongoDB)
                 if 'pathSave' in settings.keys() and settings['pathSave']:
@@ -156,7 +160,8 @@ class ModelIO(Node):
                     "columns": model_features,
                     "target": self.global_config_json["target_column"],
                     "steps": self.global_config_json["steps"],
-                    "ml_type": self.global_config_json["MLType"]
+                    "ml_type": self.global_config_json["MLType"],
+                    "algorithm": model_algorithm
                 }
                 if 'selectedTags' in self.global_config_json:
                     to_write['selectedTags'] = self.global_config_json['selectedTags']

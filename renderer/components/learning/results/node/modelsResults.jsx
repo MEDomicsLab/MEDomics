@@ -47,14 +47,23 @@ const ModelsResults = ({ selectedResults }) => {
   useEffect(() => {
     let allModelsData = []
     if (models.length > 0) {
-      models.forEach((model) => {
-        if (!model.metrics) return
-        let modifiedRow = { ...model.metrics }
-        modifiedRow["Parameters"] = model.params
-        modifiedRow["OverallMetrics"] = selectedResults?.data?.overall_metrics
-        modifiedRow = Object.assign({ Name: model.name }, modifiedRow)
-        allModelsData.push(modifiedRow)
-      })
+     models.forEach((model) => {
+      if (!model.metrics) return
+      let modifiedRow = { ...model.metrics }
+      
+      // FIX: if overall_metrics exists, use these new metrics (optimal threshold)
+      const overallMetrics = selectedResults?.data?.overall_metrics
+      if (overallMetrics) {
+        Object.keys(overallMetrics).forEach((key) => {
+          modifiedRow[key] = overallMetrics[key].mean
+        })
+      }
+      
+      modifiedRow["Parameters"] = model.params
+      modifiedRow["OverallMetrics"] = overallMetrics
+      modifiedRow = Object.assign({ Name: model.name }, modifiedRow)
+      allModelsData.push(modifiedRow)
+    })
     }
     allModelsData.length > 0 && setAllModelsData(allModelsData)
   }, [models])

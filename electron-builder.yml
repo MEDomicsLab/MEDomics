@@ -37,6 +37,10 @@ extraResources: # Add this section if it doesn't exist, or add the line to it
       - "**/*"
       - "!**/.git"
       - "!**/.git/**"
+  - from: ./baseFiles # Source directory
+    to: baseFiles # Destination directory inside Contents/Resources
+    filter:
+      - emptyNotebook.ipynb
 
 extends: null # Added from package.json
 mac: # Added from package.json

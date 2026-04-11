@@ -30,11 +30,11 @@ const TrainModelNode = ({ id, data }) => {
   const [modalShowTuning, setModalShowTuning] = useState(false)
   const { updateNode } = useContext(FlowFunctionsContext)
   const [IntegrateTuning, setIntegrateTuning] = useState(data.internal.isTuningEnabled ?? false)
-  const [optimizeThresh, setOptimizeThresh] = useState(data.internal.isOptimizeThreshold ?? false)
-  const [ensembleEnabled, setEnsembleEnabled] = useState(data.internal.settings.isEnsembleEnabled ?? false)
-  const [calibrateEnabled, setCalibrateEnabled] = useState(data.internal.settings.isCalibrateEnabled ?? false)
+  const [optimizeThresh, setOptimizeThresh] = useState(data.internal.optimizeThreshold ?? false)
+  const [ensembleEnabled, setEnsembleEnabled] = useState(data.internal.ensembleEnabled ?? false)
+  const [calibrateEnabled, setCalibrateEnabled] = useState(data.internal.calibrateEnabled ?? false)
 
-  // Check if isTuningEnabled exists in data.internal, if not initialize it
+  // Check if default settings exists in data.internal, if not initialize it
   useEffect(() => {
     let hasUpdates = false
 
@@ -58,8 +58,9 @@ const TrainModelNode = ({ id, data }) => {
     const defaults = {
       isTuningEnabled: false,
       useTuningGrid: false,
-      isEnsembleEnabled: false,
-      isCalibrateEnabled: false,
+      ensembleEnabled: false,
+      calibrateEnabled: false,
+      optimizeThreshold: false,
       settingsEnsembling: {},
       settingsCalibration: {}
     }
@@ -179,21 +180,6 @@ const TrainModelNode = ({ id, data }) => {
    */
   const handleWarning = (hasWarning) => {
     data.internal.hasWarning = hasWarning
-    updateNode({
-      id: id,
-      updatedData: data.internal
-    })
-  }
-
-  /**
-   *
-   * @param {Object} e the event of the checkbox
-   * @description
-   * This function is used to handle the checkbox for enabling the tuning
-   */
-  const handleIntegration = (e) => {
-    setIntegrateTuning(e.value)
-    data.internal.isTuningEnabled = e.value
     updateNode({
       id: id,
       updatedData: data.internal
