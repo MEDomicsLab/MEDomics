@@ -5,7 +5,7 @@ import { Button, Card, Stack } from "react-bootstrap"
 import { FaAlignJustify, FaChartLine } from "react-icons/fa"
 import { FaImage } from "react-icons/fa6"
 import { LuBrain } from "react-icons/lu"
-import medimageLogo from "../../../resources/MEDimageLogo.png"
+import medimlLogo from "../../../resources/MEDimlLogo.png"
 import myimage from "../../../resources/medomics_transparent_bg.png"
 import { LayoutModelContext } from "../layout/layoutContext"
 
@@ -21,17 +21,23 @@ export default function ExtractionLandingPage() {
 
   return (
     <div className="h-100 w-100">
-      <h1 className="text-center  fw-bold text-secondary my-5" style={{ fontSize: "3rem", letterSpacing: "1px" }}>
-        Extraction Module
+      <h1 className="text-center  fw-bold text-secondary mt-5" style={{ fontSize: "3rem", letterSpacing: "1px" }}>
+        Extraction Module 
       </h1>
+      <div className="mx-auto text-center my-4" >
+        <Image className="text-center" src={myimage} alt="" style={{ height: "30px", width: "30px" }} />
+      </div>
+
+      {/* Description of the Extraction Module */}
+      <div className="mx-auto text-center" style={{ maxWidth: "860px", marginBottom: "40px" }}>
+        <h5 className="lh-lg" style={{ fontSize: "1.1rem" }}>
+          This input module offers ready-made tools to pull insights from images, notes, and health tracking data, 
+          while relying on the specialized MEDiml tool to extract deeper features from medical scans.
+        </h5>
+      </div>
+
       <div style={{ display: "flex", flexDirection: "vertical", flexGrow: "10", width: "100%", margin: "auto" }}>
         <Stack direction="vertical" gap={3} >
-          {/* Extraction Module heading */}
-
-          {/* Welcome Line */}
-          <h4 className="px-3 text-center">
-            Welcome to the Extraction Module <Image src={myimage} alt="" style={{ height: "25px", width: "25px" }} />
-          </h4>
 
           {/* Disabled warning message */}
           <Message 
@@ -43,14 +49,14 @@ export default function ExtractionLandingPage() {
           {/* Main Title and Subtitle */}
           <div className="h-100 w-100 d-flex justify-content-center align-items-center">
             <Stack direction="horizontal" gap={4} className="w-100">
-              {/* MEDimage Card */}
+              {/* MEDiml Card */}
               <Card className="flex-fill shadow-sm border-primary h-100 w-50 hover-border-success" style={{ cursor: "pointer" }}>
                 <Card.Header className="bg-primary text-white d-flex align-items-center">
                   <LuBrain className="me-2" />
-                  <h5 className="mb-0">MEDimage</h5>
+                  <h5 className="mb-0">MEDiml</h5>
                 </Card.Header>
                 <Card.Body className="d-flex flex-column justify-content-center align-items-center p-4">
-                  <Image src={medimageLogo} alt="MEDimage" width={120} height={120} />
+                  <Image src={medimlLogo} alt="MEDiml" width={120} height={120} />
                   <Card.Text className="mt-3 text-center">
                     Extract radiomic features from medical images and analyze your radiomics data using machine learning models.
                   </Card.Text>

@@ -188,11 +188,11 @@ const IconSidebar = ({ onSidebarItemSelect }) => {
                 className="extractionNav btnSidebar align-center"
                 data-pr-at="right center"
                 data-pr-my="left center"
-                data-pr-tooltip="extraction"
+                data-pr-tooltip="Extraction"
                 data-pr-disabled={extractionBtnstate}
-                eventKey="extraction"
+                eventKey="Extraction"
                 data-tooltip-id="tooltip-extraction"
-                onDoubleClick={(event) => handleDoubleClickLanding(event, "extraction")}
+                onDoubleClick={(event) => handleDoubleClickLanding(event, "Extraction")}
                 onClick={() => {
                   //setExtractionBtnstate(!extractionBtnstate)
                 }}
@@ -319,12 +319,12 @@ const IconSidebar = ({ onSidebarItemSelect }) => {
                 data-pr-my="left center"
                 data-pr-tooltip="Evaluation"
                 data-pr-disabled={evaluationBtnstate}
-                eventKey="evaluation"
+                eventKey="Evaluation"
                 data-tooltip-id="tooltip-evaluation"
-                onDoubleClick={(event) => handleClick(event, "evaluation")}
+                onDoubleClick={(event) => handleDoubleClickLanding(event, "Evaluation")}
                 disabled={isDisabled}
                 onClick={() => {
-                  setEvaluationBtnstate(!evaluationBtnstate)
+                  // setEvaluationBtnstate(!evaluationBtnstate)
                 }}
                 onBlur={(event) => {
                   let clickedTarget = event.relatedTarget
