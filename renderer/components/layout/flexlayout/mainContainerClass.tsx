@@ -40,6 +40,7 @@ import ExtractionImagePage from "../../mainPages/extractionImage"
 import ExtractionMEDimagePage from "../../mainPages/extractionMEDimage"
 import ExtractionTextPage from "../../mainPages/extractionText"
 import ExtractionLandingPage from "../../mainPages/extractionLandingPage"
+import EvaluationLandingPage from "../../mainPages/evaluationLandingPage"
 import ExtractionTSPage from "../../mainPages/extractionTS"
 import HomePage from "../../mainPages/home"
 import HtmlViewer from "../../mainPages/htmlViewer"
@@ -1119,6 +1120,8 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
       }
     } else if (component === "extractionLandingPage") {
       return <ExtractionLandingPage/>
+    }  else if (component === "evaluationLandingPage") {
+      return <EvaluationLandingPage/>
     } else if (component === "extractionMEDimagePage") {
       if (node.getExtraData().data == null) {
         const config = node.getConfig()
@@ -1327,6 +1330,9 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
       if (component === "extractionLandingPage") {
         return <span style={{ marginRight: 3 }}>❯❯❯❯</span>
       }
+      if (component === "evaluationLandingPage") {
+        return <span style={{ marginRight: 3 }}>🧪</span>
+      }
       if (component === "extractionTextPage") {
         return <span style={{ marginRight: 3 }}>📄</span>
       }
@@ -1505,6 +1511,11 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
         break
       case "DELETE_DATA_OBJECT":
         this.deleteDataObject(action.payload)
+        break
+      case "DELETE_TAB":
+        if (action.payload?.id && this.state.model?.getNodeById(action.payload.id)) {
+          this.state.model.doAction(Actions.deleteTab(action.payload.id))
+        }
         break
       default:
         break

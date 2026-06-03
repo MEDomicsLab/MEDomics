@@ -1,11 +1,14 @@
-import React, { useContext } from "react"
-import ModulePage from "./moduleBasics/modulePage"
-import { WorkspaceContext } from "../workspace/workspaceContext"
-import { ErrorRequestContext } from "../generalPurpose/errorRequestContext"
+import { shell } from 'electron'
+import Image from "next/image"
+import { useContext } from "react"
+import myimage from "../../../resources/medomics_transparent_bg.png"
 import DTale from "../exploratory/dtale"
 import SweetViz from "../exploratory/sweetViz"
 import YDataProfiling from "../exploratory/yDataProfiling"
-import { shell } from 'electron'
+import { ErrorRequestContext } from "../generalPurpose/errorRequestContext"
+import { WorkspaceContext } from "../workspace/workspaceContext"
+import ModulePage from "./moduleBasics/modulePage"
+
 
 /**
  *
@@ -18,7 +21,13 @@ const ExploratoryPage = () => {
   return (
     <>
       <div className="exploratory">
-      <h2>🔍 Exploratory Data Analysis (EDA)</h2>
+        <h1 className="text-center fw-bold text-secondary mt-2" style={{ fontSize: "3rem", letterSpacing: "1px" }}>
+          Exploratory Module
+        </h1>
+        <div className="mx-auto text-center" >
+          <Image className="text-center" src={myimage} alt="" style={{ height: "30px", width: "30px" }} />
+        </div>
+        <h2>🔍 Exploratory Data Analysis (EDA)</h2>
         <p>
           Before training a machine learning model, it is essential to explore and understand the dataset. 
           This page provides three powerful tools, each with a unique role in data exploration:

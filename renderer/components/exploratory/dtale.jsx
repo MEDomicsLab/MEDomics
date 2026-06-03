@@ -21,7 +21,7 @@ import Input from "../learning/input"
  *
  * @returns A card with the D-Tale module
  */
-const DTaleProcess = ({ uniqueId, pageId, port, setError, onDelete }) => {
+const DTaleProcess = ({ processes, uniqueId, pageId, port, setError, onDelete }) => {
   const [mainDataset, setMainDataset] = useState()
   const [mainDatasetHasWarning, setMainDatasetHasWarning] = useState({ state: false, tooltip: "" })
   const [isCalculating, setIsCalculating] = useState(false)
@@ -125,13 +125,15 @@ const DTaleProcess = ({ uniqueId, pageId, port, setError, onDelete }) => {
           />
           <Button onClick={generateReport} className="btn btn-primary" label="Generate report" icon="pi pi-chart-bar" iconPos="right" disabled={!mainDataset || mainDatasetHasWarning.state} />
           {serverPath && <Button onClick={() => handleOpenWebServer(serverPath, uniqueId)} className="btn btn-primary" label="Open D-Tale" icon="pi pi-table" iconPos="right" severity="success" />}
-          <IoClose
-            className="btn-close-output-card"
-            onClick={() => {
-              onDelete(uniqueId)
-              shutdownDTale(serverPath)
-            }}
-          />
+          {processes.length > 1 && (
+            <IoClose
+              className="btn-close-output-card"
+              onClick={() => {
+                onDelete(uniqueId)
+                shutdownDTale(serverPath)
+              }}
+            />
+          )}
         </div>
       </div>
       {isCalculating && (
@@ -216,7 +218,7 @@ const DTale = ({ pageId, port, setError }) => {
     >
       <Stack gap={2}>
         {processes.map((id) => (
-          <DTaleProcess onDelete={onDelete} uniqueId={id} key={id} port={port} pageId={pageId} setError={setError} />
+          <DTaleProcess processes={processes} onDelete={onDelete} uniqueId={id} key={id} port={port} pageId={pageId} setError={setError} />
         ))}
         <Button className="add-compare" label="Add new D-Tale analysis" onClick={handleAddDTaleComp} />
       </Stack>
