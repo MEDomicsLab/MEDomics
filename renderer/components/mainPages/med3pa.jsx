@@ -7,8 +7,8 @@ const MED3paPage = ({ pageId }) => {
     <>
       <ModulePage pageId={pageId} shadow={true}>
         <h1 className="center">MED3pa Module</h1>
-        <MED3paHelloWorldPanel />
-        {/* <Med3paConfigForm /> */}
+        {/* <MED3paHelloWorldPanel /> */}
+        <Med3paConfigForm />
       </ModulePage>
     </>
   )
