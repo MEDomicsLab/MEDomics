@@ -55,8 +55,8 @@ export default function Med3paConfigForm() {
     mpc_strategy: null,
   });
 
-  const [ipcCustomExpr, setIpcCustomExpr] = useState("");
-  const [mpcCustomExpr, setMpcCustomExpr] = useState("");
+  const [ipcCustomExpr, setIpcCustomExpr] = useState(false);
+  const [mpcCustomExpr, setMpcCustomExpr] = useState(false);
 
   const setTop = (key, val) =>
     setMed3paParams((p) => ({ ...p, [key]: val }));
@@ -67,12 +67,10 @@ export default function Med3paConfigForm() {
   const setApc = (key, val) =>
     setMed3paParams((p) => ({ ...p, apc: { ...p.apc, [key]: val } }));
 
-  const steps = [
-    { n: "1", name: "Upload data",     active: true  },
-    { n: "2", name: "Configure model", active: false },
-    { n: "3", name: "Review results",  active: false },
-    { n: "4", name: "Set threshold",   active: false },
-    { n: "5", name: "Deploy",          active: false },
+  const STEPS_CURRENT = [
+    { n: "1", name: "Configure model", active: true },
+    { n: "2", name: "Set threshold",   active: false },
+    { n: "3", name: "Deploy",          active: false },
   ];
 
   return (
@@ -91,7 +89,7 @@ export default function Med3paConfigForm() {
 
       {/* Step bar */}
       <div style={{ display: "flex", alignItems: "center", gap: 4, marginBottom: 20, flexWrap: "wrap" }}>
-        {steps.map((step, i) => (
+        {STEPS_CURRENT.map((step, i) => (
           <span key={step.n} style={{ display: "flex", alignItems: "center", gap: 6 }}>
             <span style={{
               width: 24, height: 24, borderRadius: "50%",
@@ -105,7 +103,7 @@ export default function Med3paConfigForm() {
             <span style={{ fontSize: 12, fontWeight: step.active ? 500 : 400, color: step.active ? "#212529" : "#6C757D" }}>
               {step.name}
             </span>
-            {i < steps.length - 1 && (
+            {i < STEPS_CURRENT.length - 1 && (
               <span style={{ display: "inline-block", width: 32, height: 1, background: "#E9ECEF", marginLeft: 4 }} />
             )}
           </span>
@@ -210,7 +208,9 @@ export default function Med3paConfigForm() {
                   name="ipc_metric"
                   value="continuous"
                   checked={med3pa_params.ipc.confidence_metric === "continuous"}
-                  onChange={() => setIpc("confidence_metric", "continuous")}
+                  onChange={() => {setIpc("confidence_metric", "continuous")
+                    setIpcCustomExpr(false)
+                  }}
                 />
                 (1 − |ŷᵢ − yᵢ|)
               </label>
@@ -219,20 +219,22 @@ export default function Med3paConfigForm() {
                   type="radio"
                   name="ipc_metric"
                   value="custom"
-                  checked={med3pa_params.ipc.confidence_metric === "custom"}
-                  onChange={() => setIpc("confidence_metric", "custom")}
+                  checked={ipcCustomExpr}
+                  onChange={() => {setIpcCustomExpr(true)
+                    setIpc("confidence_metric", null)
+                  }}
                 />
                 Custom function
               </label>
             </div>
-            {med3pa_params.ipc.confidence_metric === "custom" && (
+            {ipcCustomExpr && (
               <div style={{ background: "#F8F9FA", border: "1px solid #E9ECEF", borderRadius: 6, padding: "8px 10px" }}>
                 <label style={{ fontSize: 11, color: "#6C757D", display: "block", marginBottom: 4 }}>f(p, y) =</label>
                 <input
                   style={{ width: "100%", boxSizing: "border-box", height: 30 }}
                   placeholder="e.g. (1 − |p − y|)"
-                  value={ipcCustomExpr}
-                  onChange={(e) => setIpcCustomExpr(e.target.value)}
+                  value={med3pa_params.ipc.confidence_metric??""}
+                  onChange={(e) => setIpc("confidence_metric", e.target.value)}
                 />
               </div>
             )}
@@ -300,21 +302,23 @@ export default function Med3paConfigForm() {
                     type="radio"
                     name="mpc_strategy"
                     value={opt.value}
-                    checked={med3pa_params.mpc_strategy === opt.value}
-                    onChange={() => setTop("mpc_strategy", opt.value)}
+                    checked={mpcCustomExpr === opt.value}
+                    onChange={() => {setMpcCustomExpr(opt.value)
+                        setTop("mpc_strategy", opt.value === "custom" ? null : opt.value)
+                    }}
                   />
                   {opt.label}
                 </label>
               ))}
             </div>
-            {med3pa_params.mpc_strategy === "custom" && (
+            {mpcCustomExpr === "custom" && (
               <div style={{ background: "#F8F9FA", border: "1px solid #E9ECEF", borderRadius: 6, padding: "8px 10px" }}>
                 <label style={{ fontSize: 11, color: "#6C757D", display: "block", marginBottom: 4 }}>f(IPC, APC) =</label>
                 <input
                   style={{ width: "100%", boxSizing: "border-box", height: 30 }}
                   placeholder="e.g. 0.6 * IPC + 0.4 * APC"
-                  value={mpcCustomExpr}
-                  onChange={(e) => setMpcCustomExpr(e.target.value)}
+                  value={med3pa_params.mpc_strategy??""}
+                  onChange={(e) => setTop("mpc_strategy", e.target.value)}
                 />
               </div>
             )}

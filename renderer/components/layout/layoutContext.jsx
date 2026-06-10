@@ -135,6 +135,8 @@ function LayoutModelProvider({ children, layoutModel, setLayoutModel }) {
           return openMEDfl(action)
         case "openMED3paModule":
           return openMED3pa(action)
+        case "openUploadDataMed3paModule":
+          return openUploadDataMed3pa(action)
         case "openSupersetModule":
           return openSuperset(action)
         case "openSupersetFrameModule":
@@ -580,7 +582,9 @@ function LayoutModelProvider({ children, layoutModel, setLayoutModel }) {
   const openInExtractionMEDimage = (action) => {
     openInDotDotDot(action, "extractionMEDimagePage", globalData)
   }
-
+  const openUploadDataMed3pa = (action) => {
+    openGeneric(action, "Upload Data for MED3pa", "uploadDataMed3pa")
+  }
   /**
    * @summary Function that adds a new child to the layout model
    * @params {Object} action - The action passed on by the dispatchLayout function, it uses the payload in the action as a JSON object to add a new child to the layout model

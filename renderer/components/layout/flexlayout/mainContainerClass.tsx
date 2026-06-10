@@ -75,6 +75,7 @@ const exec = util.promisify(require("child_process").exec)
 const { spawn } = require('child_process')
 import { SiApachesuperset  } from "react-icons/si"
 import { PiGraph } from "react-icons/pi"
+import Med3paConfigForm from "../../med3pa/upload_data_page"
 
 var fields = ["Name", "Field1", "Field2", "Field3", "Field4", "Field5"]
 
@@ -949,7 +950,9 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
       }
     } else if (component === "tabstorage") {
       return <TabStorage tab={node} layout={this.layoutRef!.current!} />
-    } else if (component === "jsonViewer") {
+      
+    } else if (component ==="uploadDataMed3pa") {return <Med3paConfigForm/>}
+    else if (component === "jsonViewer") {
       const config = node.getConfig()
       if (node.getExtraData().data == null) {
         node.getExtraData().data = loadJsonPath(config.path)

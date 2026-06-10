@@ -203,7 +203,7 @@ export default function EvaluationLandingPage() {
                   <Card.Text className="mt-3 text-center">
                     Evaluate models stability and performance and flag unreliable predictions to ensure no patient group is left behind.
                   </Card.Text>
-                  <Button variant="success" onClick={(e) => choosePage(e, "MED3pa")}>
+                  <Button variant="success" onClick={(e) => choosePage(e, "UploadDataMed3pa")} style={{ marginTop: "20px" }}>
                     Start Analysis
                   </Button>
                 </Card.Body>
