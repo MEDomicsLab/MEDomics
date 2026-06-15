@@ -21,15 +21,15 @@ export default function ExtractionLandingPage() {
 
   return (
     <div className="h-100 w-100">
-      <h1 className="text-center  fw-bold text-secondary mt-5" style={{ fontSize: "3rem", letterSpacing: "1px" }}>
+      <h1 className="text-center  fw-bold text-secondary mt-3" style={{ fontSize: "3rem", letterSpacing: "1px" }}>
         Extraction Module 
       </h1>
-      <div className="mx-auto text-center my-4" >
+      <div className="mx-auto text-center my-3" >
         <Image className="text-center" src={myimage} alt="" style={{ height: "30px", width: "30px" }} />
       </div>
 
       {/* Description of the Extraction Module */}
-      <div className="mx-auto text-center" style={{ maxWidth: "860px", marginBottom: "40px" }}>
+      <div className="mx-auto text-center" style={{ maxWidth: "860px", marginBottom: "20px" }}>
         <h5 className="lh-lg" style={{ fontSize: "1.1rem" }}>
           This input module offers ready-made tools to pull insights from images, notes, and health tracking data, 
           while relying on the specialized MEDiml tool to extract deeper features from medical scans.
@@ -48,12 +48,15 @@ export default function ExtractionLandingPage() {
 
           {/* Main Title and Subtitle */}
           <div className="h-100 w-100 d-flex justify-content-center align-items-center">
-            <Stack direction="horizontal" gap={4} className="w-100">
+            <Stack direction="horizontal" gap={4} className="w-75">
               {/* MEDiml Card */}
-              <Card className="flex-fill shadow-sm border-primary h-100 w-50 hover-border-success" style={{ cursor: "pointer" }}>
+              <Card
+                className="shadow-sm border-primary h-100 hover-border-success"
+                style={{ cursor: "pointer", flex: "1 1 320px", minWidth: "280px" }}
+              >
                 <Card.Header className="bg-primary text-white d-flex align-items-center">
-                  <LuBrain className="me-2" />
-                  <h5 className="mb-0">MEDiml</h5>
+                  <LuBrain className="me-2" color="white" />
+                  <h5 className="text-white mb-0">MEDiml</h5>
                 </Card.Header>
                 <Card.Body className="d-flex flex-column justify-content-center align-items-center p-4">
                   <Image src={medimlLogo} alt="MEDiml" width={120} height={120} />
@@ -67,10 +70,13 @@ export default function ExtractionLandingPage() {
               </Card>
 
               {/* Text Card */}
-              <Card className="flex-fill shadow-sm border-success h-100 w-50" style={{ cursor: "pointer" }}>
+              <Card
+                className="shadow-sm border-success h-100 w-50"
+                style={{ cursor: "pointer", flex: "1 1 320px", minWidth: "280px" }}
+              >
                 <Card.Header className="bg-success text-white d-flex align-items-center">
-                  <FaAlignJustify className="me-2" />
-                  <h5 className="mb-0">Text</h5>
+                  <FaAlignJustify className="me-2" color="white" />
+                  <h5 className="text-white mb-0">Text</h5>
                 </Card.Header>
                 <Card.Body className="d-flex flex-column justify-content-center align-items-center p-4">
                   <FaAlignJustify className="me-6" size={100} color="green"/>
@@ -90,12 +96,15 @@ export default function ExtractionLandingPage() {
       <div style={{ paddingTop: "1rem", display: "flex", flexDirection: "vertical", flexGrow: "10", width: "100%", margin: "auto" }}>
         <Stack direction="vertical" gap={3} style={{ padding: "20px 0 0 0" }}>
           <div className="h-100 w-100 d-flex justify-content-center align-items-center">
-            <Stack direction="horizontal" gap={4} className="w-100">
+            <Stack direction="horizontal" gap={4} className="w-75">
               {/* Time Series Card */}
-              <Card className="flex-fill shadow-sm border-secondary h-100 w-50 hover-border-success" style={{ cursor: "pointer" }}>
+              <Card
+                className="shadow-sm border-secondary h-100 w-50 hover-border-success"
+                style={{ cursor: "pointer", flex: "1 1 320px", minWidth: "280px" }}
+              >
                 <Card.Header className="bg-secondary text-white d-flex align-items-center">
-                  <FaChartLine className="me-2" />
-                  <h5 className="mb-0">Time Series</h5>
+                  <FaChartLine className="me-2" color="white" />
+                  <h5 className="text-white mb-0">Time Series</h5>
                 </Card.Header>
                 <Card.Body className="d-flex flex-column justify-content-center align-items-center p-4">
                   <FaChartLine className="me-6" size={100} color="gray" />
@@ -109,10 +118,13 @@ export default function ExtractionLandingPage() {
               </Card>
 
               {/* Image Card */}
-              <Card className="flex-fill shadow-sm border-warning h-100 w-50" style={{ cursor: "pointer" }}>
+              <Card
+                className="shadow-sm border-warning h-100 w-50"
+                style={{ cursor: "pointer", flex: "1 1 320px", minWidth: "280px" }}
+              >
                 <Card.Header className="bg-warning text-white d-flex align-items-center">
-                  <FaImage className="me-2" />
-                  <h5 className="mb-0">Image</h5>
+                  <FaImage className="me-2" color="white" />
+                  <h5 className="text-white mb-0">Image</h5>
                 </Card.Header>
                 <Card.Body className="d-flex flex-column justify-content-center align-items-center p-4">
                   <FaImage className="me-6" size={100} color="orange" />

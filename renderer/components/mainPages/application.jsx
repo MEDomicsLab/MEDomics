@@ -1,5 +1,6 @@
 import { randomUUID } from "crypto"
 import { shell } from "electron"
+import Image from "next/image"
 import { Badge } from "primereact/badge"
 import { Button } from "primereact/button"
 import { Card } from "primereact/card"
@@ -11,6 +12,7 @@ import { Tooltip } from "primereact/tooltip"
 import React, { useContext, useEffect, useState } from "react"
 import { Col, Row, Stack } from "react-bootstrap"
 import { toast } from "react-toastify"
+import myimage from "../../../resources/medomics_transparent_bg.png"
 import { requestBackend } from "../../utilities/requests"
 import DataTableFromDB from "../dbComponents/dataTableFromDB"
 import { getCollectionData } from "../dbComponents/utils"
@@ -519,7 +521,12 @@ const ApplicationPageWithModulePage = ({ pageId = "application-456" }) => {
 
           <div className="application-introduction">
 
-            <h2>🚀 Model Deployment</h2>
+            <h1 className="text-center fw-bold text-secondary mt-2" style={{ fontSize: "3rem", letterSpacing: "1px" }}>
+              Application Module
+            </h1>
+            <div className="mx-auto text-center mb-4" >
+              <Image className="text-center" src={myimage} alt="" style={{ height: "30px", width: "30px" }} />
+            </div>
 
             <p>
               This module allows users to deploy a machine learning model for inference.

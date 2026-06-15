@@ -1,25 +1,25 @@
-import { useContext, useEffect, useState } from "react"
+import Image from "next/image"
+import { Button } from "primereact/button"
 import { Card } from "primereact/card"
 import { Dropdown } from "primereact/dropdown"
-import { Button } from "primereact/button"
+import { useContext, useEffect, useState } from "react"
 import { Stack } from "react-bootstrap"
+import myimage from "../../../resources/medomics_transparent_bg.png"
+import MEDprofilesPrepareData from "../input/MEDprofiles/MEDprofilesPrepareData"
+import { getCollectionSize } from "../mongoDB/mongoDBUtils"
 import { DataContext } from "../workspace/dataContext"
-
-// import tools
 import BasicToolsDB from "./inputToolsDB/basicToolsDB"
+import ConvertCategoricalColumnIntoNumericDB from "./inputToolsDB/convertCategoricalColumnIntoNumericDB"
+import DropColumnsAndTagsToolsDB from "./inputToolsDB/dropColumnsToolsDB"
 import DropDuplicatesToolsDB from "./inputToolsDB/dropDuplicatesToolsDB"
 import FeatureReductionToolsDB from "./inputToolsDB/featureReductionToolsDB/featureReductionToolsDB"
-import ConvertCategoricalColumnIntoNumericDB from "./inputToolsDB/convertCategoricalColumnIntoNumericDB"
 import GroupingTaggingToolsDB from "./inputToolsDB/groupingTaggingToolsDB"
 import HoldoutSetCreationToolsDB from "./inputToolsDB/holdoutSetCreationToolsDB"
 import MergeToolsDB from "./inputToolsDB/mergeToolsDB"
-import DropColumnsAndTagsToolsDB from "./inputToolsDB/dropColumnsToolsDB"
 import NormalizationToolsDB from "./inputToolsDB/normalizationToolsDB"
 import SimpleCleaningToolsDB from "./inputToolsDB/simpleCleaningToolsDB"
 import SubsetCreationToolsDB from "./inputToolsDB/subsetCreationToolsDB"
 import TransformColumnToolsDB from "./inputToolsDB/transformColumnToolsDB"
-import MEDprofilesPrepareData from "../input/MEDprofiles/MEDprofilesPrepareData"
-import { getCollectionSize } from "../mongoDB/mongoDBUtils"
 
 const SectionContainer = ({ title, children }) => (
   <div className="mb-3">
@@ -147,7 +147,14 @@ const InputToolsComponent = ({ exportOptions }) => {
     <div style={{ display: "flex", height: "100%", overflow: "hidden" }}>
       {/* Sidebar */}
       <aside style={{ width: "280px", borderRight: "1px solid #ddd", padding: "1rem", overflowY: "auto" }}>
-        <h3 style={{ textAlign: "center", marginBottom: "1rem" }}>Input Sections</h3>
+        <h5 style={{ 
+          textAlign: "center", 
+          marginBottom: "1rem",
+          padding: "0.6rem 0.8rem",
+          borderBottom: "1px solid #ddd",
+          fontWeight: 600,
+          borderRadius: "6px 6px 0 0",
+        }} >Input Sections</h5>
 
         {Object.entries(SECTIONS).map(([key, section]) => (
           <SectionContainer key={key} title={section.label}>
@@ -182,7 +189,12 @@ const InputToolsComponent = ({ exportOptions }) => {
       {/* Main Content */}
       <main style={{ flex: 1, padding: "1.5rem", overflowY: "auto" }}>
   <div style={{ textAlign: "center", marginBottom: "20px" }}>
-    <h2>Database Input Module</h2>
+    <h1 className="text-center fw-bold text-secondary mt-2" style={{ fontSize: "3rem", letterSpacing: "1px" }}>
+      Input Module
+    </h1>
+    <div className="mx-auto text-center mb-4" >
+      <Image className="text-center" src={myimage} alt="" style={{ height: "30px", width: "30px" }} />
+    </div>
     <Card title="Select CSV File" style={{ marginBottom: "20px" }}>
       <Dropdown
         filter

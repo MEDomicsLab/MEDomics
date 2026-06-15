@@ -1,13 +1,11 @@
-import React from "react"
+import MedflowWelcomePage from "./medflWelcomePage"
 import ModulePage from "./moduleBasics/modulePage"
-import MEDflHelloWorldPanel from "../medfl/medflHelloWorldPanel"
 
 const MEDflPage = ({ pageId }) => {
   return (
     <>
       <ModulePage pageId={pageId} shadow={true}>
-        <h1 className="center">MEDfl Module</h1>
-        <MEDflHelloWorldPanel />
+        <MedflowWelcomePage />
       </ModulePage>
     </>
   )

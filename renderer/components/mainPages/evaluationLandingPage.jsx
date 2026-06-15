@@ -1,6 +1,7 @@
 import { randomUUID } from "crypto"
 import Image from "next/image"
 import { InputText } from "primereact/inputtext"
+import { Message } from "primereact/message"
 import { useContext, useEffect, useState } from "react"
 import { Button, Card, Stack } from "react-bootstrap"
 import { FaAlignJustify } from "react-icons/fa"
@@ -160,12 +161,20 @@ export default function EvaluationLandingPage() {
         </h5>
       </div>
 
-      <div style={{ display: "flex", flexDirection: "vertical", flexGrow: "10", width: "100%", margin: "auto" }}>
+      <div style={{ paddingTop: "1rem", display: "flex", flexDirection: "vertical", flexGrow: "10", width: "100%", margin: "auto" }}>
           {/* Main Title and Subtitle */}
           <div className="h-100 w-100 d-flex justify-content-center align-items-center">
-            <Stack direction="horizontal" gap={4} className="w-100">
+            <Stack
+              direction="horizontal"
+              gap={4}
+              className="w-75 flex-wrap align-items-stretch"
+              style={{ justifyContent: "center" }}
+            >
               {/* Explainer Dashboard Card */}
-              <Card className="flex-fill shadow-sm border-primary h-100 w-50 hover-border-success" style={{ cursor: "pointer" }}>
+              <Card
+                className="shadow-sm border-primary h-100 hover-border-success"
+                style={{ cursor: "pointer", flex: "1 1 320px", minWidth: "280px" }}
+              >
                 <Card.Header className="bg-danger text-white d-flex align-items-center">
                   <TbZoom className="me-2" color="white"/>
                   <h5 className="text-white mb-0">Explainer Dashboard</h5>
@@ -193,7 +202,10 @@ export default function EvaluationLandingPage() {
               </Card>
 
               {/* MED3pa Card */}
-              <Card className="flex-fill shadow-sm border-success h-100 w-50" style={{ cursor: "pointer" }}>
+              <Card
+                className="shadow-sm border-success h-100"
+                style={{ cursor: "pointer", flex: "1 1 320px", minWidth: "280px" }}
+              >
                 <Card.Header className="bg-success text-white d-flex align-items-center">
                   <FaAlignJustify className="me-2" color="white"/>
                   <h5 className="text-white mb-0">MED3pa</h5>
@@ -201,9 +213,12 @@ export default function EvaluationLandingPage() {
                 <Card.Body className="d-flex flex-column justify-content-center align-items-center p-4">
                   <Image src={med3paLogo} alt="MED3pa" width={120} height={120} />
                   <Card.Text className="mt-3 text-center">
-                    Evaluate models stability and performance and flag unreliable predictions to ensure no patient group is left behind.
+                    <div className="text-center mb-3" style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
+                      <Message severity="success" text="This package will be available soon!" className="mb-3" />
+                      Evaluate models stability and performance and flag unreliable predictions to ensure no patient group is left behind.
+                    </div>
                   </Card.Text>
-                  <Button variant="success" onClick={(e) => choosePage(e, "MED3pa")}>
+                  <Button disabled variant="success" onClick={(e) => choosePage(e, "MED3pa")}>
                     Start Analysis
                   </Button>
                 </Card.Body>
