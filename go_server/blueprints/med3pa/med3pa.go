@@ -10,6 +10,7 @@ var prePath = "med3pa"
 // AddHandleFunc adds the specific module handle function to the server
 func AddHandleFunc() {
 	Utils.CreateHandleFunc(prePath+"/hello_world/", handleHelloWorld)
+	Utils.CreateHandleFunc(prePath+"/run_analysis/", handleRunAnalysis)
 	Utils.CreateHandleFunc(prePath+"/progress/", handleProgress)
 }
 
@@ -18,6 +19,15 @@ func AddHandleFunc() {
 func handleHelloWorld(jsonConfig string, id string) (string, error) {
 	log.Println("Hello World MED3pa...", id)
 	response, err := Utils.StartPythonScripts(jsonConfig, "../pythonCode/modules/med3pa/hello_world_med3pa.py", id)
+	Utils.RemoveIdFromScripts(id)
+	if err != nil {
+		return "", err
+	}
+	return response, nil
+}
+func handleRunAnalysis(jsonConfig string, id string) (string, error) {
+	log.Println("Running MED3pa analysis...", id)
+	response, err := Utils.StartPythonScripts(jsonConfig, "../pythonCode/modules/med3pa/run_med3pa_analysis.py", id)
 	Utils.RemoveIdFromScripts(id)
 	if err != nil {
 		return "", err

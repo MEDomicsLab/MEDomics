@@ -951,7 +951,14 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
     } else if (component === "tabstorage") {
       return <TabStorage tab={node} layout={this.layoutRef!.current!} />
       
-    } else if (component ==="uploadDataMed3pa") {return <Med3paConfigForm/>}
+    } else if (component ==="uploadDataMed3pa") {
+      const config = node.getConfig()
+      return (
+        <ModulePage pageId={config?.uuid || "uploadDataMed3pa"} shadow>
+          <Med3paConfigForm/>
+        </ModulePage>
+      )
+    }
     else if (component === "jsonViewer") {
       const config = node.getConfig()
       if (node.getExtraData().data == null) {

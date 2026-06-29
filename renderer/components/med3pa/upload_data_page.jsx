@@ -1,5 +1,14 @@
-import { useState } from "react";
+
 import Input from "../learning/input";
+import { json } from "d3";
+import { useContext, useState } from "react";
+import { requestBackend } from "../../utilities/requests";
+import { PageInfosContext } from "../mainPages/moduleBasics/pageInfosContext";
+import { WorkspaceContext } from "../workspace/workspaceContext";
+import { ErrorRequestContext } from "../generalPurpose/errorRequestContext";
+import ProgressBarRequests from "../generalPurpose/progressBarRequests";
+import { toast } from "react-toastify";
+
 const BASE_MODELS = [
   "MIMIC-IV Base Logistics Ensemble",
   "Hippo-EHR Transformers v4",
@@ -74,7 +83,35 @@ export default function Med3paConfigForm() {
     { n: "2", name: "Analysis", active: false },
     { n: "3", name: "Deploy", active: false },
   ];
+  const { pageId } = useContext(PageInfosContext);
+  const { port } = useContext(WorkspaceContext);
+  const { setError } = useContext(ErrorRequestContext);
+  const [isUpdating, setIsUpdating] = useState(false);
+  const [progressValue, setProgressValue] = useState({ now: 0, currentLabel: "" });
 
+  const runAnalysis = () => {
+    setIsUpdating(true);
+    requestBackend(
+      port,
+      "med3pa/run_analysis/" + pageId,           
+      { pageId: pageId, med3pa_params: med3pa_params },
+      (jsonResponse) => {
+        if (jsonResponse.error) {
+          if (typeof jsonResponse.error == "string") jsonResponse.error = JSON.parse(jsonResponse.error);
+          setError(jsonResponse.error);
+          setIsUpdating(false);
+        } else {
+          setIsUpdating(false);
+          console.log("med3pa result:", jsonResponse);
+          toast.success("MED3pa analysis complete");
+        }
+      },
+      (error) => {
+        setIsUpdating(false);
+        toast.error("Analysis failed", error);
+      }
+    );
+  };
   return (
     <div style={{ fontFamily: "sans-serif", padding: "1rem" }}>
 
@@ -136,7 +173,7 @@ export default function Med3paConfigForm() {
           <Input
                 name="Choose dataset"
                 settingInfos={{ type: "data-input", tooltip: "" }}
-                currentValue={med3pa_params.chosen_dataset.id}
+                currentValue={med3pa_params.chosen_dataset?.id}
                 onInputChange={(data) => setTop("chosen_dataset",data.value)}
                 setHasWarning={setDatasetHasWarning}
               />
@@ -144,7 +181,7 @@ export default function Med3paConfigForm() {
           Session Name
         </label>
         <input type="text" placeholder="" style={{ width: "100%", boxSizing: "border-box", height: 28 }} value={med3pa_params.session_name ?? ""} onChange={(e) => setTop("session_name", e.target.value || null)} />
-          
+        <p>{JSON.stringify(med3pa_params)}</p>
         </div>
 
 
@@ -329,10 +366,18 @@ export default function Med3paConfigForm() {
 
           <button
             style={{ width: "100%", padding: 10, marginTop: 8, background: "#0F6E56", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", fontSize: 14, fontWeight: 500 }}
-            onClick={() => console.log(med3pa_params)}
+            onClick={runAnalysis}
           >
             ⚡ Run Analysis
           </button>
+          {isUpdating && (
+  <ProgressBarRequests
+    isUpdating={isUpdating}
+    setIsUpdating={setIsUpdating}
+    progress={progressValue}
+    setProgress={setProgressValue}
+    requestTopic={"med3pa/progress/" + pageId}
+  />)}
         </div>
       </div>
     </div>
