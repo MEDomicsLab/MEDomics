@@ -168,3 +168,6 @@ package-lock.json
 pythonCode/local_dir/*
 
 !*.gitkeep
+
+# MacOS files
+.DS_Store

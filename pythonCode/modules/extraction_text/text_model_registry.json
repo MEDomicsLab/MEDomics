@@ -1,0 +1,105 @@
+{
+  "version": "1.0.0",
+  "models": [
+    {
+      "model_id": "biobert_v1_1",
+      "label": "BioBERT v1.1",
+      "hf_model_name_or_path": "dmis-lab/biobert-v1.1",
+      "source_type": "predefined",
+      "hidden_size": 768,
+      "enabled": true,
+      "default_for_transformer_text": true,
+      "validation_status": "legacy-verified"
+    },
+    {
+      "model_id": "biomedbert_pubmed",
+      "label": "BiomedNLP-BiomedBERT",
+      "hf_model_name_or_path": "microsoft/BiomedNLP-BiomedBERT-base-uncased-abstract-fulltext",
+      "source_type": "predefined",
+      "hidden_size": 768,
+      "enabled": true,
+      "default_for_transformer_text": false,
+      "validation_status": "legacy-verified"
+    },
+    {
+      "model_id": "sapbert_pubmed",
+      "label": "SapBERT PubMed",
+      "hf_model_name_or_path": "cambridgeltl/SapBERT-from-PubMedBERT-fulltext",
+      "source_type": "predefined",
+      "hidden_size": 768,
+      "enabled": true,
+      "default_for_transformer_text": false,
+      "validation_status": "legacy-verified"
+    },
+    {
+      "model_id": "modern_pubmedbert",
+      "label": "ModernPubMedBERT",
+      "hf_model_name_or_path": "lokeshch19/ModernPubMedBERT",
+      "source_type": "predefined",
+      "hidden_size": 768,
+      "enabled": true,
+      "default_for_transformer_text": false,
+      "validation_status": "legacy-verified"
+    },
+    {
+      "model_id": "bioclinical_modernbert",
+      "label": "BioClinical-ModernBERT",
+      "hf_model_name_or_path": "thomas-sounack/BioClinical-ModernBERT-base",
+      "source_type": "predefined",
+      "hidden_size": 768,
+      "enabled": true,
+      "default_for_transformer_text": false,
+      "validation_status": "legacy-verified"
+    },
+    {
+      "model_id": "bio_clinical_bert",
+      "label": "Bio_ClinicalBERT",
+      "hf_model_name_or_path": "emilyalsentzer/Bio_ClinicalBERT",
+      "source_type": "predefined",
+      "hidden_size": 768,
+      "enabled": true,
+      "default_for_transformer_text": false,
+      "validation_status": "legacy-verified"
+    },
+    {
+      "model_id": "clinicalbert",
+      "label": "ClinicalBERT",
+      "hf_model_name_or_path": "medicalai/ClinicalBERT",
+      "source_type": "predefined",
+      "hidden_size": 768,
+      "enabled": true,
+      "default_for_transformer_text": false,
+      "validation_status": "legacy-verified"
+    },
+    {
+      "model_id": "bluebert_pubmed_mimic",
+      "label": "BlueBERT PubMed MIMIC",
+      "hf_model_name_or_path": "bionlp/bluebert_pubmed_mimic_uncased_L-12_H-768_A-12",
+      "source_type": "predefined",
+      "hidden_size": 768,
+      "enabled": true,
+      "default_for_transformer_text": false,
+      "validation_status": "legacy-verified"
+    },
+    {
+      "model_id": "clinical_modernbert",
+      "label": "Clinical_ModernBERT",
+      "hf_model_name_or_path": "Simonlee711/Clinical_ModernBERT",
+      "source_type": "predefined",
+      "hidden_size": 768,
+      "enabled": true,
+      "default_for_transformer_text": false,
+      "validation_status": "legacy-verified"
+    },
+    {
+      "model_id": "scibert_scivocab_uncased",
+      "label": "SciBERT SciVocab Uncased",
+      "hf_model_name_or_path": "allenai/scibert_scivocab_uncased",
+      "source_type": "predefined",
+      "hidden_size": 768,
+      "enabled": true,
+      "default_for_transformer_text": false,
+      "validation_status": "candidate"
+    }
+  ]
+}

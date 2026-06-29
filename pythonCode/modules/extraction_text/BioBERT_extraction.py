@@ -114,21 +114,25 @@ class GoExecScriptBioBERTExtraction(GoExecutionScript):
         :return: aggregated_embeddings: BioBERT event features for all events.
 
         """
+        full_embedding = None
         for idx, event_string in enumerate(event_list):
-            string_list, lengths = self.split_note_document(event_string)
+            # Skip empty or NaN strings
+            if pd.isna(event_string) or (isinstance(event_string, str) and event_string.strip() == ""):
+                continue
+            string_list, lengths = self.split_note_document(str(event_string))
             for idx_sub, event_string_sub in enumerate(string_list):
                 # Extract biobert embedding
                 embedding, hidden_embedding = self.get_biobert_embeddings(event_string_sub)
                 # Concatenate
-                if (idx == 0) & (idx_sub == 0):
+                if full_embedding is None:
                     full_embedding = embedding
                 else:
                     full_embedding = np.concatenate((full_embedding, embedding), axis=0)
 
         # Return the weighted average of embedding vector across temporal dimension
-        try:
+        if full_embedding is not None and len(full_embedding) > 0:
             aggregated_embedding = np.average(full_embedding, axis=0)
-        except:
+        else:
             aggregated_embedding = np.zeros(768)
 
         return aggregated_embedding
@@ -287,8 +291,17 @@ class GoExecScriptBioBERTExtraction(GoExecutionScript):
 
         # Set biobert parameters
         self.BIOBERT_PATH =  biobert_path
-        self.BIOBERT_TOKENIZER = AutoTokenizer.from_pretrained(self.BIOBERT_PATH)
-        self.BIOBERT_MODEL = AutoModel.from_pretrained(self.BIOBERT_PATH)
+        # Validate path exists
+        if not os.path.exists(self.BIOBERT_PATH):
+            raise FileNotFoundError(f"BioBERT model path does not exist: {self.BIOBERT_PATH}")
+        
+        try:
+            self.BIOBERT_TOKENIZER = AutoTokenizer.from_pretrained(self.BIOBERT_PATH)
+            self.BIOBERT_MODEL = AutoModel.from_pretrained(self.BIOBERT_PATH)
+        except Exception as e:
+            raise RuntimeError(f"Failed to load BioBERT model from {self.BIOBERT_PATH}. "
+                              f"Make sure the path points to a folder containing config.json, vocab.txt, and pytorch_model.bin. "
+                              f"Original error: {e}")
 
         # MongoDB setup
         mongo_client = pymongo.MongoClient("mongodb://localhost:54017/")

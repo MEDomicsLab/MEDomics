@@ -3,6 +3,7 @@ import { Dropdown } from "primereact/dropdown"
 import { ErrorRequestContext } from "../generalPurpose/errorRequestContext"
 import ExtractionBioBERT from "./extractionTypes/extractionBioBERT"
 import ExtractionTSfresh from "./extractionTypes/extractionTSfresh"
+import ExtractionTransformerText from "./extractionTypes/extractionTransformerText"
 import { InputSwitch } from "primereact/inputswitch"
 import { InputText } from "primereact/inputtext"
 import { Message } from "primereact/message"
@@ -66,7 +67,6 @@ const ExtractionTabularData = ({ extractionTypeList, serverUrl, defaultFilename 
     try {
       setResultDataset(null)
       const columnsData = await getCollectionColumnTypes(dataset.id)
-      console.log("HERE", columnsData)
       setColumnsTypes(columnsData)
       setSelectedDataset(dataset)
       const data = await getCollectionData(dataset.id)
@@ -240,6 +240,7 @@ const ExtractionTabularData = ({ extractionTypeList, serverUrl, defaultFilename 
           </div>
           <div className="margin-top-15">
             {extractionType == "BioBERT" && <ExtractionBioBERT columnsTypes={columnsTypes} setExtractionJsonData={setExtractionJsonData} setMayProceed={setMayProceed} />}
+            {extractionType == "TransformerText" && <ExtractionTransformerText columnsTypes={columnsTypes} setExtractionJsonData={setExtractionJsonData} setMayProceed={setMayProceed} />}
             {extractionType == "TSfresh" && <ExtractionTSfresh columnsTypes={columnsTypes} setExtractionJsonData={setExtractionJsonData} setMayProceed={setMayProceed} />}
           </div>
         </div>
