@@ -1,0 +1,26 @@
+Transformer Text Extraction Model Comparison
+============================================
+
+Number of samples evaluated: 20
+Models evaluated: biobert_v1_1, biomedbert_pubmed, sapbert_pubmed, modern_pubmedbert, bioclinical_modernbert, bio_clinical_bert, clinicalbert, bluebert_pubmed_mimic, clinical_modernbert, scibert_scivocab_uncased
+
+1. Average Pairwise Cosine Similarity
+-------------------------------------
+Shows how closely two models align their representation of the exact same input texts.
+
+Cosine similarity matrix saved to heatmap_cosine_sim.png
+
+2. Neighborhood Preservation (Nearest Neighbors)
+------------------------------------------------
+Spearman rank correlation of the pairwise distances between all samples.
+High correlation means two models cluster samples similarly.
+
+Rank correlation matrix saved to heatmap_rank_corr.png
+
+3. 2D PCA Visualization
+-----------------------
+Projecting embeddings from all models down to 2D.
+Each point represents a text sample from a specific model.
+PCA projection saved to pca_projection.png
+
+Done evaluating models.
