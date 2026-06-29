@@ -21,6 +21,7 @@ import FlowSceneSidebar from "./sidebarTools/pageSidebar/flowSceneSidebar"
 import EvaluationSidebar from "./sidebarTools/pageSidebar/evaluationSidebar"
 import { MainContainer } from "./flexlayout/mainContainerClass"
 import EvaluationPage from "../mainPages/evaluation"
+import Med3paConfigForm from "../med3pa/upload_data_page"
 import { LayoutModelContext } from "./layoutContext"
 import { WorkspaceContext } from "../workspace/workspaceContext"
 import { requestBackend } from "../../utilities/requests"
@@ -170,6 +171,8 @@ const LayoutManager = (props) => {
           return <ResultsPage />
         case "evaluation":
           return <EvaluationPage />
+        case "med3pa":
+          return <Med3paConfigForm/>
         case "application":
           return <ApplicationPage />
         default:

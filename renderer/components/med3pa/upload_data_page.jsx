@@ -1,5 +1,5 @@
 import { useState } from "react";
-
+import Input from "../learning/input";
 const BASE_MODELS = [
   "MIMIC-IV Base Logistics Ensemble",
   "Hippo-EHR Transformers v4",
@@ -40,7 +40,8 @@ function Collapsible({ title, subtitle, accentColor, children }) {
 export default function Med3paConfigForm() {
   const [med3pa_params, setMed3paParams] = useState({
     base_model: null,
-    target_classification_label: null,
+    chosen_dataset: null,
+    session_name:null,
     ipc: {
       n_estimators: 0,
       max_depth: 0,
@@ -57,7 +58,8 @@ export default function Med3paConfigForm() {
 
   const [ipcCustomExpr, setIpcCustomExpr] = useState(false);
   const [mpcCustomExpr, setMpcCustomExpr] = useState(false);
-
+  const [modelHasWarning, setModelHasWarning] = useState({ state: false, tooltip: "" })
+  const [datasetHasWarning, setDatasetHasWarning] = useState({ state: false, tooltip: "" })
   const setTop = (key, val) =>
     setMed3paParams((p) => ({ ...p, [key]: val }));
 
@@ -69,8 +71,8 @@ export default function Med3paConfigForm() {
 
   const STEPS_CURRENT = [
     { n: "1", name: "Configure model", active: true },
-    { n: "2", name: "Set threshold",   active: false },
-    { n: "3", name: "Deploy",          active: false },
+    { n: "2", name: "Analysis", active: false },
+    { n: "3", name: "Deploy", active: false },
   ];
 
   return (
@@ -119,31 +121,32 @@ export default function Med3paConfigForm() {
             Select baseline prediction model
           </div>
 
-          <label style={{ fontSize: 12, color: "#6C757D", display: "block", marginBottom: 4 }}>
-            Base model source architecture
-          </label>
-          <select
-            style={{ width: "100%", marginBottom: 12, height: 32 }}
-            value={med3pa_params.base_model ?? ""}
-            onChange={(e) => setTop("base_model", e.target.value || null)}
-          >
-            <option value="">— select —</option>
-            {BASE_MODELS.map((v) => <option key={v} value={v}>{v}</option>)}
-          </select>
 
+          <Input
+              name="Base Model Source Architecture"
+              settingInfos={{ type: "models-input", tooltip: "" }}
+              currentValue={med3pa_params.base_model?.id}
+              onInputChange={(data) => setTop("base_model",data.value)}
+              setHasWarning={setModelHasWarning}
+            />
+          
           <label style={{ fontSize: 12, color: "#6C757D", display: "block", marginBottom: 4 }}>
-            Target classification label
+            Training Data (.csv)
           </label>
-          <input type="text" placeholder="e.g One Year Mortality" style={{ width: "100%", boxSizing: "border-box", height: 28 }} value={med3pa_params.target_classification_label ?? ""} onChange={(e) => setTop("target_classification_label", e.target.value || null)} />
-          {/* <select
-            style={{ width: "100%", marginBottom: 12, height: 32 }}
-            value={med3pa_params.target_classification_label ?? ""}
-            onChange={(e) => setTop("target_classification_label", e.target.value || null)}
-          >
-            <option value="">— select —</option>
-            {TARGET_LABELS.map((v) => <option key={v} value={v}>{v}</option>)}
-          </select> */}
+          <Input
+                name="Choose dataset"
+                settingInfos={{ type: "data-input", tooltip: "" }}
+                currentValue={med3pa_params.chosen_dataset.id}
+                onInputChange={(data) => setTop("chosen_dataset",data.value)}
+                setHasWarning={setDatasetHasWarning}
+              />
+          <label style={{ fontSize: 12, color: "#6C757D", display: "block", marginBottom: 4 }}>
+          Session Name
+        </label>
+        <input type="text" placeholder="" style={{ width: "100%", boxSizing: "border-box", height: 28 }} value={med3pa_params.session_name ?? ""} onChange={(e) => setTop("session_name", e.target.value || null)} />
+          
         </div>
+
 
         {/* RIGHT — Confidence method configuration */}
         <div style={{ border: "1px solid #E9ECEF", borderRadius: 8, padding: "12px 16px", background: "#fff" }}>
@@ -328,7 +331,7 @@ export default function Med3paConfigForm() {
             style={{ width: "100%", padding: 10, marginTop: 8, background: "#0F6E56", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", fontSize: 14, fontWeight: 500 }}
             onClick={() => console.log(med3pa_params)}
           >
-            ⚡ Run pipeline execution
+            ⚡ Run Analysis
           </button>
         </div>
       </div>
