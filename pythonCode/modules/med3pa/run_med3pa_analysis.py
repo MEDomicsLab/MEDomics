@@ -10,6 +10,9 @@ import pandas as pd
 sys.path.append(str(Path(os.path.dirname(os.path.abspath(__file__))).parent.parent))
 from med_libs.server_utils import go_print
 from med_libs.GoExecutionScript import GoExecutionScript, parse_arguments
+from med_libs.mongodb_utils import (get_child_id_by_name,
+                                    get_dataset_as_pd_df,
+                                    get_pickled_model_from_collection)
 
 from MED3pa.datasets import DatasetsManager
 from MED3pa.models import BaseModelManager
@@ -38,11 +41,19 @@ class GoExecScriptRunMed3paAnalysis(GoExecutionScript):
         self.set_progress(label="Loading dataset", now=10)
 
         # The frontend sends a workspace UUID (dataset["id"]), not a file path.
-        # Resolving that UUID to an actual CSV path is not wired yet, so hardcode.
-        dataset_path = "datasets/in_hospital_mortality/mimic_filtered_data.csv"  # add input from frontend
+        # MEDomicsLab stores the dataset content in a MongoDB collection whose
+        # name IS that UUID, so we read it straight back into a DataFrame.
+        if not dataset or "id" not in dataset:
+            raise ValueError("No dataset was selected in the frontend.")
+
         target_column = "deceased"  # add input from frontend
 
-        df = pd.read_csv(dataset_path)
+        df = get_dataset_as_pd_df(dataset["id"])
+        if target_column not in df.columns:
+            raise ValueError(
+                f"Target column '{target_column}' not found in dataset "
+                f"'{dataset.get('name')}'. Available columns: {list(df.columns)}"
+            )
         y = np.array(df.pop(target_column))
         x = df
 
@@ -72,10 +83,19 @@ class GoExecScriptRunMed3paAnalysis(GoExecutionScript):
 
         self.set_progress(label="Loading base model", now=30)
 
+        # A "model" MEDDataObject is a directory; the pickled estimator lives in
+        # its "model.pkl" child. Resolve that child id, then unpickle it from Mongo.
+        if not base_model or "id" not in base_model:
+            raise ValueError("No base model was selected in the frontend.")
 
-        base_model_path = "datasets/in_hospital_mortality/clf.pkl"  # add input from frontend
-        with open(base_model_path, "rb") as f:
-            base_mdl = pickle.load(f)
+        pickle_object_id = get_child_id_by_name(base_model["id"], "model.pkl")
+        if pickle_object_id is None:
+            raise ValueError(
+                f"Could not find 'model.pkl' inside model '{base_model.get('name')}'."
+            )
+        base_mdl = get_pickled_model_from_collection(pickle_object_id)
+        if base_mdl is None:
+            raise ValueError("The base model could not be loaded from the database.")
         base_model_manager = BaseModelManager(model=base_mdl)
 
 
