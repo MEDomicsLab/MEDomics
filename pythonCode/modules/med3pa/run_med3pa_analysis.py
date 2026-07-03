@@ -22,6 +22,19 @@ json_params_dict, id_ = parse_arguments()
 go_print("running run_med3pa_analysis.py:" + id_)
 
 
+def parse_int_list(value, default):
+    """Turn a frontend value into a list of ints.
+
+    The grid-search fields arrive as comma-separated strings (e.g. "50, 100, 200").
+    Accepts an already-parsed list too, and falls back to `default` when empty.
+    """
+    if value is None or value == "":
+        return default
+    if isinstance(value, list):
+        return [int(v) for v in value]
+    return [int(v.strip()) for v in str(value).split(",") if v.strip() != ""]
+
+
 class GoExecScriptRunMed3paAnalysis(GoExecutionScript):
     def __init__(self, json_params: dict, _id: str = None):
         super().__init__(json_params, _id)
@@ -46,7 +59,9 @@ class GoExecScriptRunMed3paAnalysis(GoExecutionScript):
         if not dataset or "id" not in dataset:
             raise ValueError("No dataset was selected in the frontend.")
 
-        target_column = "deceased"  # add input from frontend
+        target_column = params.get("target_column")
+        if not target_column:
+            raise ValueError("No target column was specified in the frontend.")
 
         df = get_dataset_as_pd_df(dataset["id"])
         if target_column not in df.columns:
@@ -62,21 +77,22 @@ class GoExecScriptRunMed3paAnalysis(GoExecutionScript):
             "max_depth": ipc.get("max_depth") or None,
             "min_samples_split": ipc.get("min_samples_split") or 2,
         }
-        # Grid-search ranges are not exposed in the UI yet.
-        ipc_grid = {  # add input from frontend
-            "n_estimators": [50, 100, 200],
-            "max_depth": [2, 3, 4, 5],
-            "min_samples_leaf": [1, 2, 4],
+        ipc_grid_cfg = ipc.get("grid", {})
+        ipc_grid = {
+            "n_estimators": parse_int_list(ipc_grid_cfg.get("n_estimators"), [50, 100, 200]),
+            "max_depth": parse_int_list(ipc_grid_cfg.get("max_depth"), [2, 3, 4, 5]),
+            "min_samples_leaf": parse_int_list(ipc_grid_cfg.get("min_samples_leaf"), [1, 2, 4]),
         }
 
         apc_params = {
             "max_depth": apc.get("tree_max_depth") or 3,
             "min_samples_leaf": apc.get("min_leading_samples") or 1,
-            "ccp_alpha": apc.get("ccp_alpha") or 0.0,
+            "ccp_alpha": apc.get("ccp_alpha") or 0.1,
         }
-        apc_grid = {  # add input from frontend
-            "max_depth": [2, 3, 4, 5],
-            "min_samples_leaf": [1, 2, 4],
+        apc_grid_cfg = apc.get("grid", {})
+        apc_grid = {
+            "max_depth": parse_int_list(apc_grid_cfg.get("max_depth"), [2, 3, 4, 5]),
+            "min_samples_leaf": parse_int_list(apc_grid_cfg.get("min_samples_leaf"), [1, 2, 4]),
         }
 
         _ = mpc_strategy  # add when package updates
@@ -88,7 +104,7 @@ class GoExecScriptRunMed3paAnalysis(GoExecutionScript):
         if not base_model or "id" not in base_model:
             raise ValueError("No base model was selected in the frontend.")
 
-        pickle_object_id = get_child_id_by_name(base_model["id"], "model.pkl")
+        pickle_object_id = get_child_id_by_name(base_model["id"], "model.pkl") #generalize for all .pkl but also all .medmodel
         if pickle_object_id is None:
             raise ValueError(
                 f"Could not find 'model.pkl' inside model '{base_model.get('name')}'."
@@ -109,24 +125,25 @@ class GoExecScriptRunMed3paAnalysis(GoExecutionScript):
 
         self.set_progress(label="Running MED3pa experiment", now=50)
 
+        samples_ratio = params.get("samples_ratio") or {}
         results = Med3paExperiment.run(
             datasets_manager=datasets,
             base_model_manager=base_model_manager,
-            uncertainty_metric="sigmoidal_error",          # add input from frontend (maps to ipc.confidence_metric)
-            ipc_type="EnsembleRandomForestRegressor",      # add input from frontend
+            uncertainty_metric=ipc.get("confidence_metric") or "sigmoidal_error",
+            ipc_type=ipc.get("ipc_type") or "EnsembleRandomForestRegressor",
             ipc_params=ipc_params,
             apc_params=apc_params,
             ipc_grid_params=ipc_grid,
             apc_grid_params=apc_grid,
-            samples_ratio_min=0,                           # add input from frontend
-            samples_ratio_max=10,                          # add input from frontend
-            samples_ratio_step=5,                          # add input from frontend
-            evaluate_models=True,                          # add input from frontend
+            samples_ratio_min=samples_ratio.get("min", 0),
+            samples_ratio_max=samples_ratio.get("max", 10),
+            samples_ratio_step=samples_ratio.get("step", 5),
+            evaluate_models=params.get("evaluate_models", True),
         )
 
         self.set_progress(label="Saving results", now=90)
 
-        output_dir = os.path.join("experiments", "results", "med3pa", session_name)  # add input from frontend
+        output_dir = os.path.join("experiments", "results", "med3pa", session_name)
         os.makedirs(output_dir, exist_ok=True)
         results.save(file_path=output_dir)
 

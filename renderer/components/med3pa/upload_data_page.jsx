@@ -50,19 +50,33 @@ export default function Med3paConfigForm() {
   const [med3pa_params, setMed3paParams] = useState({
     base_model: null,
     chosen_dataset: null,
-    session_name:null,
+    session_name: null,
+    target_column: null,
     ipc: {
       n_estimators: 0,
       max_depth: 0,
       min_samples_split: 0,
       confidence_metric: null,
+      ipc_type: "EnsembleRandomForestRegressor",
+      // uncertainty_metric: "sigmoidal_error",
+      grid: {
+        n_estimators: null,
+        max_depth: null,
+        min_samples_leaf: null,
+      },
     },
     apc: {
       tree_max_depth: 3,
       min_leading_samples: 0,
       ccp_alpha: 0,
+      grid: {
+        max_depth: null,
+        min_samples_leaf: null,
+      },
     },
     mpc_strategy: null,
+    samples_ratio: { min: 0, max: 10, step: 5 },
+    evaluate_models: true,
   });
 
   const [ipcCustomExpr, setIpcCustomExpr] = useState(false);
@@ -77,6 +91,15 @@ export default function Med3paConfigForm() {
 
   const setApc = (key, val) =>
     setMed3paParams((p) => ({ ...p, apc: { ...p.apc, [key]: val } }));
+
+  const setIpcGrid = (key, val) =>
+    setMed3paParams((p) => ({ ...p, ipc: { ...p.ipc, grid: { ...p.ipc.grid, [key]: val } } }));
+
+  const setApcGrid = (key, val) =>
+    setMed3paParams((p) => ({ ...p, apc: { ...p.apc, grid: { ...p.apc.grid, [key]: val } } }));
+
+  const setSamplesRatio = (key, val) =>
+    setMed3paParams((p) => ({ ...p, samples_ratio: { ...p.samples_ratio, [key]: val } }));
 
   const STEPS_CURRENT = [
     { n: "1", name: "Configure model", active: true },
@@ -178,10 +201,20 @@ export default function Med3paConfigForm() {
                 setHasWarning={setDatasetHasWarning}
               />
           <label style={{ fontSize: 12, color: "#6C757D", display: "block", marginBottom: 4 }}>
+            Target column
+          </label>
+          <input
+            type="text"
+            placeholder="e.g. deceased"
+            style={{ width: "100%", boxSizing: "border-box", height: 28, marginBottom: 8 }}
+            value={med3pa_params.target_column ?? ""}
+            onChange={(e) => setTop("target_column", e.target.value || null)}
+          />
+          <label style={{ fontSize: 12, color: "#6C757D", display: "block", marginBottom: 4 }}>
           Session Name
         </label>
         <input type="text" placeholder="" style={{ width: "100%", boxSizing: "border-box", height: 28 }} value={med3pa_params.session_name ?? ""} onChange={(e) => setTop("session_name", e.target.value || null)} />
-        <p>{JSON.stringify(med3pa_params)}</p>
+       
         </div>
 
 
@@ -278,6 +311,68 @@ export default function Med3paConfigForm() {
                 />
               </div>
             )}
+
+            <hr style={{ border: "none", borderTop: "1px solid #E9ECEF", margin: "10px 0" }} />
+
+            <p style={{ fontSize: 12, fontWeight: 500, color: "#495057", margin: "6px 0 4px" }}>
+              IPC regressor
+            </p>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 8 }}>
+              <div>
+                <label style={{ fontSize: 11, color: "#6C757D", display: "block", marginBottom: 2 }}>ipc_type</label>
+                <input
+                  type="text"
+                  style={{ width: "100%", boxSizing: "border-box", height: 28 }}
+                  value={med3pa_params.ipc.ipc_type ?? ""}
+                  onChange={(e) => setIpc("ipc_type", e.target.value || null)}
+                />
+              </div>
+              {/* <div>
+                <label style={{ fontSize: 11, color: "#6C757D", display: "block", marginBottom: 2 }}>uncertainty_metric</label>
+                <input
+                  type="text"
+                  style={{ width: "100%", boxSizing: "border-box", height: 28 }}
+                  value={med3pa_params.ipc.uncertainty_metric ?? ""}
+                  onChange={(e) => setIpc("uncertainty_metric", e.target.value || null)}
+                />
+              </div> */}
+            </div>
+
+            <p style={{ fontSize: 12, fontWeight: 500, color: "#495057", margin: "6px 0 4px" }}>
+              Grid-search ranges (comma-separated)
+            </p>
+            <div style={{ marginBottom: 6 }}>
+              <label style={{ fontSize: 11, color: "#6C757D", display: "block", marginBottom: 2 }}>n_estimators</label>
+              <input
+                type="text"
+                placeholder="e.g. 50, 100, 200"
+                style={{ width: "100%", boxSizing: "border-box", height: 28 }}
+                value={med3pa_params.ipc.grid.n_estimators ?? ""}
+                onChange={(e) => setIpcGrid("n_estimators", e.target.value || null)}
+              />
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+              <div>
+                <label style={{ fontSize: 11, color: "#6C757D", display: "block", marginBottom: 2 }}>max_depth</label>
+                <input
+                  type="text"
+                  placeholder="e.g. 2, 3, 4, 5"
+                  style={{ width: "100%", boxSizing: "border-box", height: 28 }}
+                  value={med3pa_params.ipc.grid.max_depth ?? ""}
+                  onChange={(e) => setIpcGrid("max_depth", e.target.value || null)}
+                />
+              </div>
+              <div>
+                <label style={{ fontSize: 11, color: "#6C757D", display: "block", marginBottom: 2 }}>min_samples_leaf</label>
+                <input
+                  type="text"
+                  placeholder="e.g. 1, 2, 4"
+                  style={{ width: "100%", boxSizing: "border-box", height: 28 }}
+                  value={med3pa_params.ipc.grid.min_samples_leaf ?? ""}
+                  onChange={(e) => setIpcGrid("min_samples_leaf", e.target.value || null)}
+                />
+              </div>
+            </div>
           </Collapsible>
 
           {/* APC */}
@@ -326,6 +421,34 @@ export default function Med3paConfigForm() {
                 />
               </div>
             </div>
+
+            <hr style={{ border: "none", borderTop: "1px solid #E9ECEF", margin: "10px 0" }} />
+
+            <p style={{ fontSize: 12, fontWeight: 500, color: "#495057", margin: "6px 0 4px" }}>
+              Grid-search ranges (comma-separated)
+            </p>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+              <div>
+                <label style={{ fontSize: 11, color: "#6C757D", display: "block", marginBottom: 2 }}>max_depth</label>
+                <input
+                  type="text"
+                  placeholder="e.g. 2, 3, 4, 5"
+                  style={{ width: "100%", boxSizing: "border-box", height: 28 }}
+                  value={med3pa_params.apc.grid.max_depth ?? ""}
+                  onChange={(e) => setApcGrid("max_depth", e.target.value || null)}
+                />
+              </div>
+              <div>
+                <label style={{ fontSize: 11, color: "#6C757D", display: "block", marginBottom: 2 }}>min_samples_leaf</label>
+                <input
+                  type="text"
+                  placeholder="e.g. 1, 2, 4"
+                  style={{ width: "100%", boxSizing: "border-box", height: 28 }}
+                  value={med3pa_params.apc.grid.min_samples_leaf ?? ""}
+                  onChange={(e) => setApcGrid("min_samples_leaf", e.target.value || null)}
+                />
+              </div>
+            </div>
           </Collapsible>
 
           {/* MPC */}
@@ -362,6 +485,55 @@ export default function Med3paConfigForm() {
                 />
               </div>
             )}
+          </Collapsible>
+
+          {/* Experiment settings */}
+          <Collapsible
+            title="Experiment settings"
+            subtitle="Declaration-rate sweep and model evaluation"
+            accentColor="#B5651D"
+          >
+            <p style={{ fontSize: 12, fontWeight: 500, color: "#495057", margin: "4px 0 6px" }}>
+              Samples ratio sweep
+            </p>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 8 }}>
+              <div>
+                <label style={{ fontSize: 11, color: "#6C757D", display: "block", marginBottom: 2 }}>min</label>
+                <input
+                  type="number"
+                  style={{ width: "100%", boxSizing: "border-box", height: 28 }}
+                  value={med3pa_params.samples_ratio.min}
+                  onChange={(e) => setSamplesRatio("min", parseInt(e.target.value) || 0)}
+                />
+              </div>
+              <div>
+                <label style={{ fontSize: 11, color: "#6C757D", display: "block", marginBottom: 2 }}>max</label>
+                <input
+                  type="number"
+                  style={{ width: "100%", boxSizing: "border-box", height: 28 }}
+                  value={med3pa_params.samples_ratio.max}
+                  onChange={(e) => setSamplesRatio("max", parseInt(e.target.value) || 0)}
+                />
+              </div>
+              <div>
+                <label style={{ fontSize: 11, color: "#6C757D", display: "block", marginBottom: 2 }}>step</label>
+                <input
+                  type="number"
+                  style={{ width: "100%", boxSizing: "border-box", height: 28 }}
+                  value={med3pa_params.samples_ratio.step}
+                  onChange={(e) => setSamplesRatio("step", parseInt(e.target.value) || 0)}
+                />
+              </div>
+            </div>
+
+            <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, cursor: "pointer", marginTop: 4 }}>
+              <input
+                type="checkbox"
+                checked={med3pa_params.evaluate_models}
+                onChange={(e) => setTop("evaluate_models", e.target.checked)}
+              />
+              Evaluate models
+            </label>
           </Collapsible>
 
           <button

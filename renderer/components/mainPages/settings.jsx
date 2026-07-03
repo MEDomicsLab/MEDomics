@@ -126,7 +126,7 @@ const SettingsPage = ({pageId = "settings", checkJupyterIsRunning, startJupyterS
       ipcRenderer.invoke("getBundledPythonEnvironment").then((res) => {
         console.log("Python embedded: ", res)
 
-        if (res !== null) {
+      if (res !== null && res !== pythonEmbedded) {
           ipcRenderer.invoke("getInstalledPythonPackages", res).then((pythonPackages) => {
             console.log("Installed Python Packages: ", pythonPackages)
             setPythonEmbedded({ pythonEmbedded: res, pythonPackages: pythonPackages })
@@ -324,6 +324,7 @@ const SettingsPage = ({pageId = "settings", checkJupyterIsRunning, startJupyterS
                         ipcRenderer.invoke("open-dialog-exe").then((path) => {
                           console.log("path", path)
                           setCondaPath(path)
+                          setPythonEmbedded({...pythonEmbedded, pythonEmbedded:path} )
                           saveSettings({ ...settings, condaPath: path })
                         })
                       }}
