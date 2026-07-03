@@ -220,7 +220,7 @@ export default function Med3paConfigForm({ onAnalysisComplete = null, onNextStep
           Session Name
         </label>
         <input type="text" placeholder="" style={{ width: "100%", boxSizing: "border-box", height: 28 }} value={med3pa_params.session_name ?? ""} onChange={(e) => setTop("session_name", e.target.value || null)} />
-       
+        <p>{JSON.stringify(med3pa_params)}</p>
         </div>
 
 

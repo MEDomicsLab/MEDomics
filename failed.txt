@@ -1,0 +1,10 @@
+FAILED: evidently==0.2.6
+FAILED: grpcio==1.51.1
+FAILED: lightgbm==3.3.4
+FAILED: numpy==1.22.4
+FAILED: pandas==1.4.4
+FAILED: pandas-profiling==3.6.6
+FAILED: pycaret==3.1.0
+FAILED: PyYAML==5.4.1
+FAILED: ray==2.1.0
+FAILED: SimpleITK==2.2.0
