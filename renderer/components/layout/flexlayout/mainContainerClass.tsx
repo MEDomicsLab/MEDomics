@@ -41,6 +41,7 @@ import ExtractionMEDimagePage from "../../mainPages/extractionMEDimage"
 import ExtractionTextPage from "../../mainPages/extractionText"
 import ExtractionLandingPage from "../../mainPages/extractionLandingPage"
 import EvaluationLandingPage from "../../mainPages/evaluationLandingPage"
+import LearningLandingPage from "../../mainPages/learningLandingPage"
 import ExtractionTSPage from "../../mainPages/extractionTS"
 import HomePage from "../../mainPages/home"
 import HtmlViewer from "../../mainPages/htmlViewer"
@@ -1122,6 +1123,8 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
       return <ExtractionLandingPage/>
     }  else if (component === "evaluationLandingPage") {
       return <EvaluationLandingPage/>
+    } else if (component === "learningLandingPage") {
+      return <LearningLandingPage/>
     } else if (component === "extractionMEDimagePage") {
       if (node.getExtraData().data == null) {
         const config = node.getConfig()
@@ -1324,7 +1327,7 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
       if (component === "resultsPage") {
         return <span style={{ marginRight: 3 }}>📊</span>
       }
-      if (component === "learningPage") {
+      if (component === "learningPage" || component === "learningLandingPage") {
         return <span style={{ marginRight: 3 }}>📖</span>
       }
       if (component === "extractionLandingPage") {

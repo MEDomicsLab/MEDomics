@@ -107,9 +107,11 @@ function LayoutModelProvider({ children, layoutModel, setLayoutModel }) {
         case "openPandasProfiling":
           return openInPandasProfiling(action)
         case "openExtractionLandingPage":
-          return openGeneric(action, "Extraction Module", "extractionLandingPage")
+          return openGeneric(action, "Extraction", "extractionLandingPage")
         case "openEvaluationLandingPage":
-          return openGeneric(action, "Evaluation Module", "evaluationLandingPage")
+          return openGeneric(action, "Evaluation", "evaluationLandingPage")
+        case "openLearningLandingPage":
+          return openGeneric(action, "Machine Learning", "learningLandingPage")
         /*********** OPEN *****************/
         case "openResultsModule":
           return openResults(action)
@@ -341,7 +343,7 @@ function LayoutModelProvider({ children, layoutModel, setLayoutModel }) {
    * @params {Object} action - The action passed on by the dispatchLayout function
    */
   const openInput = (action) => {
-    openGeneric(action, "Input Module", "inputPage")
+    openGeneric(action, "Input", "inputPage")
   }
 
   /**
@@ -389,7 +391,7 @@ function LayoutModelProvider({ children, layoutModel, setLayoutModel }) {
    * @params {Object} action - The action passed on by the dispatchLayout function
    */
   const openMEDfl = (action) => {
-    openGeneric(action, "MEDfl", "medflPage")
+    openGeneric(action, "Federated Learning", "medflPage")
   }
 
   /**
