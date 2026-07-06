@@ -46,7 +46,7 @@ function Collapsible({ title, subtitle, accentColor, children }) {
   );
 }
 
-export default function Med3paConfigForm() {
+export default function Med3paConfigForm({ onAnalysisComplete = null, onNextStep = null }) {
   const [med3pa_params, setMed3paParams] = useState({
     base_model: null,
     chosen_dataset: null,
@@ -127,6 +127,7 @@ export default function Med3paConfigForm() {
           setIsUpdating(false);
           console.log("med3pa result:", jsonResponse);
           toast.success("MED3pa analysis complete");
+          if (onAnalysisComplete) onAnalysisComplete(med3pa_params.session_name || "med3pa_session");
         }
       },
       (error) => {
@@ -141,12 +142,17 @@ export default function Med3paConfigForm() {
       {/* Top bar */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 }}>
         <div>
-          <div style={{ fontSize: 18, fontWeight: 500, marginBottom: 2 }}>Analysis workspace</div>
+          <div style={{ fontSize: 18, fontWeight: 500, marginBottom: 2 }}>Configuration Page</div>
           <div style={{ fontSize: 12, color: "#6C757D" }}>ICU in-hospital mortality · Configure inputs</div>
         </div>
-        <button style={{ padding: "8px 18px", background: "#185FA5", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", fontSize: 13, fontWeight: 500 }}>
-          Next step →
-        </button>
+        {onNextStep && (
+          <button
+            style={{ padding: "8px 18px", background: "#185FA5", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", fontSize: 13, fontWeight: 500 }}
+            onClick={onNextStep}
+          >
+            Next step →
+          </button>
+        )}
       </div>
 
       {/* Step bar */}

@@ -11,6 +11,7 @@ var prePath = "med3pa"
 func AddHandleFunc() {
 	Utils.CreateHandleFunc(prePath+"/hello_world/", handleHelloWorld)
 	Utils.CreateHandleFunc(prePath+"/run_analysis/", handleRunAnalysis)
+	Utils.CreateHandleFunc(prePath+"/apply_model/", handleApplyModel)
 	Utils.CreateHandleFunc(prePath+"/progress/", handleProgress)
 }
 
@@ -28,6 +29,18 @@ func handleHelloWorld(jsonConfig string, id string) (string, error) {
 func handleRunAnalysis(jsonConfig string, id string) (string, error) {
 	log.Println("Running MED3pa analysis...", id)
 	response, err := Utils.StartPythonScripts(jsonConfig, "../pythonCode/modules/med3pa/run_med3pa_analysis.py", id)
+	Utils.RemoveIdFromScripts(id)
+	if err != nil {
+		return "", err
+	}
+	return response, nil
+}
+
+// handleApplyModel handles the request to apply a deployed MED3pa model to new data
+// It returns the predictions with confidence scores and routing status
+func handleApplyModel(jsonConfig string, id string) (string, error) {
+	log.Println("Applying MED3pa model...", id)
+	response, err := Utils.StartPythonScripts(jsonConfig, "../pythonCode/modules/med3pa/apply_med3pa_model.py", id)
 	Utils.RemoveIdFromScripts(id)
 	if err != nil {
 		return "", err

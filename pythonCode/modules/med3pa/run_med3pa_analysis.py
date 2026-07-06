@@ -2,21 +2,25 @@ import os
 import sys
 import json
 import pickle
+import datetime
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
+from bson.binary import Binary
 
 sys.path.append(str(Path(os.path.dirname(os.path.abspath(__file__))).parent.parent))
 from med_libs.server_utils import go_print
 from med_libs.GoExecutionScript import GoExecutionScript, parse_arguments
-from med_libs.mongodb_utils import (get_child_id_by_name,
+from med_libs.mongodb_utils import (connect_to_mongo,
+                                    get_child_id_by_name,
                                     get_dataset_as_pd_df,
                                     get_pickled_model_from_collection)
 
 from MED3pa.datasets import DatasetsManager
 from MED3pa.models import BaseModelManager
 from MED3pa.med3pa import Med3paExperiment
+from MED3pa.med3pa.results import to_serializable
 
 json_params_dict, id_ = parse_arguments()
 go_print("running run_med3pa_analysis.py:" + id_)
@@ -143,11 +147,54 @@ class GoExecScriptRunMed3paAnalysis(GoExecutionScript):
 
         self.set_progress(label="Saving results", now=90)
 
-        output_dir = os.path.join("experiments", "results", "med3pa", session_name)
-        os.makedirs(output_dir, exist_ok=True)
-        results.save(file_path=output_dir)
+        test_record = results.test_record
 
-        self.results = {"status": "completed", "output_dir": output_dir}
+        def serialize(obj, save_all=True):
+            """Round-trip through JSON so numpy types / Profile objects become
+            plain dicts and int keys become strings (BSON requires string keys)."""
+            if obj is None:
+                return None
+            if save_all:
+                return json.loads(json.dumps(obj, default=to_serializable))
+            return json.loads(json.dumps(obj, default=lambda o: to_serializable(o, additional_arg=False)))
+
+        session_doc = {
+            "name": session_name,
+            "created_at": datetime.datetime.now().isoformat(),
+            "status": "completed",
+            "config": serialize(params),
+            "base_model": base_model,
+            "dataset": dataset,
+            "target_column": target_column,
+            "dataset_size": int(len(y)),
+            "columns": list(x.columns),
+            "metrics_by_dr": serialize(test_record.metrics_by_dr),
+            "profiles": serialize(test_record.profiles_manager.get_profiles()) if test_record.profiles_manager else None,
+            "lost_profiles": serialize(test_record.profiles_manager.get_lost_profiles(), save_all=False) if test_record.profiles_manager else None,
+            "tree": serialize(test_record.tree.to_dict()) if test_record.tree else None,
+            "models_evaluation": serialize(test_record.models_evaluation),
+            "experiment_config": serialize(results.experiment_config),
+        }
+
+        db = connect_to_mongo()
+        # One doc per session name: re-running a session overwrites it
+        db["med3pa_sessions"].replace_one({"name": session_name}, session_doc, upsert=True)
+
+        # Pickle the trained IPC/APC models so a deployment can reuse them later
+        try:
+            models_doc = {
+                "session_name": session_name,
+                "created_at": session_doc["created_at"],
+                "ipc_model": Binary(pickle.dumps(results.ipc_model)) if results.ipc_model else None,
+                "apc_model": Binary(pickle.dumps(results.apc_model)) if results.apc_model else None,
+            }
+            db["med3pa_models"].replace_one({"session_name": session_name}, models_doc, upsert=True)
+        except Exception as e:
+            # A model bigger than the 16MB BSON cap must not lose the analysis results;
+            # deployment for this session will just be unavailable.
+            go_print(f"WARNING: could not store IPC/APC models for session '{session_name}': {e}")
+
+        self.results = {"status": "completed", "session_name": session_name}
         self.set_progress(label="Done", now=100)
         return self.results
 

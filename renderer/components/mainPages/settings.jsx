@@ -126,7 +126,7 @@ const SettingsPage = ({pageId = "settings", checkJupyterIsRunning, startJupyterS
       ipcRenderer.invoke("getBundledPythonEnvironment").then((res) => {
         console.log("Python embedded: ", res)
 
-      if (res !== null && res !== pythonEmbedded) {
+      if (res !== null && res !== pythonEmbedded && !condaPath) {
           ipcRenderer.invoke("getInstalledPythonPackages", res).then((pythonPackages) => {
             console.log("Installed Python Packages: ", pythonPackages)
             setPythonEmbedded({ pythonEmbedded: res, pythonPackages: pythonPackages })

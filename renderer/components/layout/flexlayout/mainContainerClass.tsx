@@ -75,7 +75,6 @@ const exec = util.promisify(require("child_process").exec)
 const { spawn } = require('child_process')
 import { SiApachesuperset  } from "react-icons/si"
 import { PiGraph } from "react-icons/pi"
-import Med3paConfigForm from "../../med3pa/upload_data_page"
 
 var fields = ["Name", "Field1", "Field2", "Field3", "Field4", "Field5"]
 
@@ -953,11 +952,7 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
       
     } else if (component ==="uploadDataMed3pa") {
       const config = node.getConfig()
-      return (
-        <ModulePage pageId={config?.uuid || "uploadDataMed3pa"} shadow>
-          <Med3paConfigForm/>
-        </ModulePage>
-      )
+      return <MED3paPage pageId={config?.uuid || "uploadDataMed3pa"} initialPage="configuration" />
     }
     else if (component === "jsonViewer") {
       const config = node.getConfig()
