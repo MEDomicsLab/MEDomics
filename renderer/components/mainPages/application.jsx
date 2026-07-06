@@ -1,6 +1,4 @@
 import { randomUUID } from "crypto"
-import { shell } from "electron"
-import Image from "next/image"
 import { Badge } from "primereact/badge"
 import { Button } from "primereact/button"
 import { Card } from "primereact/card"
@@ -12,7 +10,6 @@ import { Tooltip } from "primereact/tooltip"
 import React, { useContext, useEffect, useState } from "react"
 import { Col, Row, Stack } from "react-bootstrap"
 import { toast } from "react-toastify"
-import myimage from "../../../resources/medomics_transparent_bg.png"
 import { requestBackend } from "../../utilities/requests"
 import DataTableFromDB from "../dbComponents/dataTableFromDB"
 import { getCollectionData } from "../dbComponents/utils"
@@ -24,6 +21,7 @@ import { DataContext } from "../workspace/dataContext"
 import { MEDDataObject } from "../workspace/NewMedDataObject"
 import { WorkspaceContext } from "../workspace/workspaceContext"
 import ModulePage from "./moduleBasics/modulePage"
+import ModuleLandingShell, { ModuleGuideText } from "./moduleBasics/ModuleLandingShell"
 
 /**
  *
@@ -517,54 +515,31 @@ const ApplicationPageWithModulePage = ({ pageId = "application-456" }) => {
   return (
     <>
       <ModulePage pageId={pageId} shadow>
-        <div style={{ padding: "0.5rem" }}>
-
-          <div className="application-introduction">
-
-            <h1 className="text-center fw-bold text-secondary mt-2" style={{ fontSize: "3rem", letterSpacing: "1px" }}>
-              Application Module
-            </h1>
-            <div className="mx-auto text-center mb-4" >
-              <Image className="text-center" src={myimage} alt="" style={{ height: "30px", width: "30px" }} />
-            </div>
-
-            {/* Description of the Application Module */}
-            <div className="mx-auto text-center" style={{ maxWidth: "860px", marginBottom: "40px" }}>
-              <h5 className="lh-lg" style={{ fontSize: "1.1rem" }}>
-                  The Application Module allows you to deploy a machine learning model for inference, by simply 
-                  selecting a model and providing input data.
-              </h5>
-            </div>
-
-            <p>
-              To use the Application Module, start by selecting a model and providing input data. You can either:
-            </p>
-
-            <p>
-              <span className="app-tool-name">→ Enter a single sample:</span> Fill in the required feature values manually to test a single sample.
-            </p>
-
-            <p>
-              <span className="app-tool-name">→ Enter a dataset file:</span> Upload a dataset file (CSV format) to run batch predictions on multiple samples.
-            </p>
-
-            <div>
+        <ModuleLandingShell
+          title="Application Module"
+          description="Deploy a machine learning model for single-sample or batch inference."
+          documentation={{
+            url: "https://medomicslab.gitbook.io/medomics-docs/tutorials/deployment/application-module",
+            label: "Application Module documentation",
+          }}
+          infoContent={
+            <ModuleGuideText>
               <p>
-                📖 Learn more about this tool in our{' '}
-                <u
-                  onClick={() => shell.openExternal("https://medomicslab.gitbook.io/medomics-docs/tutorials/deployment/application-module")}
-                  style={{ color: "#4991dfff", textDecoration: "none", cursor: "pointer" }}
-                >
-                  documentation. 🔗
-                </u>
+                Select a model and provide input data. You can either enter a single sample manually
+                or upload a CSV dataset for batch predictions.
               </p>
-            </div>
-
+              <p className="mb-0">
+                <strong>Single sample:</strong> Fill in required feature values to test one prediction.
+                <br />
+                <strong>Dataset file:</strong> Upload a CSV to run batch predictions on multiple samples.
+              </p>
+            </ModuleGuideText>
+          }
+        >
+          <div className="module-landing-application-panel">
+            <ApplicationPage pageId={pageId} />
           </div>
-
-          <ApplicationPage pageId={pageId} />
-
-        </div>
+        </ModuleLandingShell>
       </ModulePage>
     </>
   )

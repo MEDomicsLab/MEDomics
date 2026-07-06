@@ -8,11 +8,11 @@ import { FaAlignJustify } from "react-icons/fa"
 import { MdDashboard } from "react-icons/md"
 import { TbZoom } from "react-icons/tb"
 import med3paLogo from "../../../resources/MED3paLogo.png"
-import myimage from "../../../resources/medomics_transparent_bg.png"
 import { LayoutModelContext } from "../layout/layoutContext"
 import { insertMEDDataObjectIfNotExists } from "../mongoDB/mongoDBUtils"
 import { DataContext } from "../workspace/dataContext"
 import { MEDDataObject } from "../workspace/NewMedDataObject"
+import ModuleLandingShell, { ModuleGuideText } from "./moduleBasics/ModuleLandingShell"
 
 
 // Variable used to store some modularity information about the module
@@ -143,36 +143,31 @@ export default function EvaluationLandingPage() {
   const isStartDisabled = loading || trimmedName === "" || !isValidName || hasConflict
 
   return (
-    <div className="h-100 w-100">
-      <h1 className="text-center fw-bold text-secondary mt-5" style={{ fontSize: "3rem", letterSpacing: "1px" }}>
-        Evaluation Module
-      </h1>
-
-      <div className="mx-auto text-center my-4" >
-        <Image className="text-center" src={myimage} alt="" style={{ height: "30px", width: "30px" }} />
-      </div>
-
-      {/* Description of the Evaluation Module */}
-      <div className="mx-auto text-center" style={{ maxWidth: "860px", marginBottom: "40px" }}>
-        <h5 className="lh-lg" style={{ fontSize: "1.1rem" }}>
-          The Evaluation Module is as a quality-check workspace that tests completed AI models on fresh data, 
-          uses interactive dashboards to explain how they make decisions, and flags unreliable predictions to 
-          ensure no patient group is left behind.
-        </h5>
-      </div>
-
-      <div style={{ paddingTop: "1rem", display: "flex", flexDirection: "vertical", flexGrow: "10", width: "100%", margin: "auto" }}>
-          {/* Main Title and Subtitle */}
-          <div className="h-100 w-100 d-flex justify-content-center align-items-center">
-            <Stack
-              direction="horizontal"
-              gap={4}
-              className="w-75 flex-wrap align-items-stretch"
-              style={{ justifyContent: "center" }}
-            >
+    <ModuleLandingShell
+      title="Evaluation Module"
+      description="Test models on fresh data, explain predictions, and flag unreliable results."
+      infoContent={
+        <ModuleGuideText>
+          <p className="mb-0">
+            The Evaluation Module is a quality-check workspace that tests completed AI models on fresh data,
+            uses interactive dashboards to explain how they make decisions, and flags unreliable predictions to
+            ensure no patient group is left behind.
+          </p>
+        </ModuleGuideText>
+      }
+      documentation={{
+        url: "https://medomicslab.gitbook.io/medomics-docs/tutorials/development/evaluation-module",
+        label: "Evaluation Module documentation",
+      }}
+    >
+      <Stack
+        direction="horizontal"
+        gap={4}
+        className="flex-wrap align-items-stretch justify-content-center module-landing-tool-grid"
+      >
               {/* Explainer Dashboard Card */}
               <Card
-                className="shadow-sm border-primary hover-border-success"
+                className="shadow-sm border-primary hover-border-success module-landing-tool-card"
                 style={{ cursor: "pointer", flex: "1 1 320px", minWidth: "280px" }}
               >
                 <Card.Header className="bg-danger text-white d-flex align-items-center">
@@ -203,7 +198,7 @@ export default function EvaluationLandingPage() {
 
               {/* MED3pa Card */}
               <Card
-                className="shadow-sm border-success"
+                className="shadow-sm border-success module-landing-tool-card"
                 style={{ cursor: "pointer", flex: "1 1 320px", minWidth: "280px" }}
               >
                 <Card.Header className="bg-success text-white d-flex align-items-center">
@@ -224,8 +219,6 @@ export default function EvaluationLandingPage() {
                 </Card.Body>
               </Card>
             </Stack>
-          </div>
-      </div>
-    </div>
+    </ModuleLandingShell>
   )
 }

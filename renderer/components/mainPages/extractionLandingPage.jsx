@@ -6,8 +6,8 @@ import { FaAlignJustify, FaChartLine } from "react-icons/fa"
 import { FaImage } from "react-icons/fa6"
 import { LuBrain } from "react-icons/lu"
 import medimlLogo from "../../../resources/MEDimlLogo.png"
-import myimage from "../../../resources/medomics_transparent_bg.png"
 import { LayoutModelContext } from "../layout/layoutContext"
+import ModuleLandingShell, { ModuleGuideText } from "./moduleBasics/ModuleLandingShell"
 
 
 export default function ExtractionLandingPage() {
@@ -20,126 +20,108 @@ export default function ExtractionLandingPage() {
   }
 
   return (
-    <div className="h-100 w-100">
-      <h1 className="text-center  fw-bold text-secondary mt-3" style={{ fontSize: "3rem", letterSpacing: "1px" }}>
-        Extraction Module 
-      </h1>
-      <div className="mx-auto text-center my-3" >
-        <Image className="text-center" src={myimage} alt="" style={{ height: "30px", width: "30px" }} />
-      </div>
+    <ModuleLandingShell
+      title="Extraction Module"
+      description="Pull insights from images, notes, and health tracking data."
+      infoContent={
+        <ModuleGuideText>
+          <p className="mb-0">
+            This module offers ready-made tools to pull insights from images, notes, and health tracking data,
+            while relying on the specialized MEDiml tool to extract deeper features from medical scans.
+          </p>
+        </ModuleGuideText>
+      }
+      documentation={{
+        url: "https://medomicslab.gitbook.io/medomics-docs/tutorials/design/extraction-modules",
+        label: "Extraction Module documentation",
+      }}
+    >
+      <Stack direction="vertical" gap={3} className="module-landing-stack-center w-100">
+        <Message
+          severity="warn"
+          text="Our extraction modules didn't fully pass all stability checks and are currently disabled. They will be enabled in future releases."
+        />
 
-      {/* Description of the Extraction Module */}
-      <div className="mx-auto text-center" style={{ maxWidth: "860px", marginBottom: "20px" }}>
-        <h5 className="lh-lg" style={{ fontSize: "1.1rem" }}>
-          This module offers ready-made tools to pull insights from images, notes, and health tracking data, 
-          while relying on the specialized MEDiml tool to extract deeper features from medical scans.
-        </h5>
-      </div>
+        <Stack direction="horizontal" gap={4} className="flex-wrap align-items-stretch justify-content-center module-landing-tool-grid w-100">
+          <Card
+            className="shadow-sm border-primary h-100 hover-border-success module-landing-tool-card"
+            style={{ cursor: "pointer", flex: "1 1 320px", minWidth: "280px" }}
+          >
+            <Card.Header className="bg-primary text-white d-flex align-items-center">
+              <LuBrain className="me-2" color="white" />
+              <h5 className="text-white mb-0">MEDiml</h5>
+            </Card.Header>
+            <Card.Body className="d-flex flex-column justify-content-center align-items-center p-4">
+              <Image src={medimlLogo} alt="MEDiml" width={120} height={120} />
+              <Card.Text className="mt-3 text-center">
+                Extract radiomic features from medical images and analyze your radiomics data using machine learning models.
+              </Card.Text>
+              <Button disabled variant="primary" onClick={(e) => choosePage(e, "ExtractionMEDimage")}>
+                Start Extraction
+              </Button>
+            </Card.Body>
+          </Card>
 
-      <div style={{ display: "flex", flexDirection: "vertical", flexGrow: "10", width: "100%", margin: "auto" }}>
-        <Stack direction="vertical" gap={3} >
-
-          {/* Disabled warning message */}
-          <Message 
-            severity="warn" 
-            text="Our extraction modules didn't fully pass all stability checks and are currently disabled. They will be enabled in future releases."
-            className="mx-3"
-          />
-
-          {/* Main Title and Subtitle */}
-          <div className="h-100 w-100 d-flex justify-content-center align-items-center">
-            <Stack className="w-75 flex-wrap align-items-stretch" direction="horizontal" gap={4}>
-              {/* MEDiml Card */}
-              <Card
-                className="shadow-sm border-primary hover-border-success"
-                style={{ cursor: "pointer", flex: "1 1 320px", minWidth: "280px" }}
-              >
-                <Card.Header className="bg-primary text-white d-flex align-items-center">
-                  <LuBrain className="me-2" color="white" />
-                  <h5 className="text-white mb-0">MEDiml</h5>
-                </Card.Header>
-                <Card.Body className="d-flex flex-column justify-content-center align-items-center p-4">
-                  <Image src={medimlLogo} alt="MEDiml" width={120} height={120} />
-                  <Card.Text className="mt-3 text-center">
-                    Extract radiomic features from medical images and analyze your radiomics data using machine learning models.
-                  </Card.Text>
-                  <Button disabled variant="primary" onClick={(e) => choosePage(e, "ExtractionMEDimage")}>
-                    Start Extraction
-                  </Button>
-                </Card.Body>
-              </Card>
-
-              {/* Text Card */}
-              <Card
-                className="shadow-sm border-success w-50"
-                style={{ cursor: "pointer", flex: "1 1 320px", minWidth: "280px" }}
-              >
-                <Card.Header className="bg-success text-white d-flex align-items-center">
-                  <FaAlignJustify className="me-2" color="white" />
-                  <h5 className="text-white mb-0">Text</h5>
-                </Card.Header>
-                <Card.Body className="d-flex flex-column justify-content-center align-items-center p-4">
-                  <FaAlignJustify className="me-6" size={100} color="green"/>
-                  <Card.Text className="mt-3 text-center">
-                    Extract Embeddings from Text Notes using a variety of models.
-                  </Card.Text>
-                  <Button disabled variant="success" onClick={(e) => choosePage(e, "ExtractionText")}>
-                    Start Extraction
-                  </Button>
-                </Card.Body>
-              </Card>
-            </Stack>
-          </div>
+          <Card
+            className="shadow-sm border-success h-100 module-landing-tool-card"
+            style={{ cursor: "pointer", flex: "1 1 320px", minWidth: "280px" }}
+          >
+            <Card.Header className="bg-success text-white d-flex align-items-center">
+              <FaAlignJustify className="me-2" color="white" />
+              <h5 className="text-white mb-0">Text</h5>
+            </Card.Header>
+            <Card.Body className="d-flex flex-column justify-content-center align-items-center p-4">
+              <FaAlignJustify className="me-6" size={100} color="green" />
+              <Card.Text className="mt-3 text-center">
+                Extract Embeddings from Text Notes using a variety of models.
+              </Card.Text>
+              <Button disabled variant="success" onClick={(e) => choosePage(e, "ExtractionText")}>
+                Start Extraction
+              </Button>
+            </Card.Body>
+          </Card>
         </Stack>
-      </div>
 
-      <div style={{ paddingTop: "1rem", display: "flex", flexDirection: "vertical", flexGrow: "10", width: "100%", margin: "auto" }}>
-        <Stack direction="vertical" gap={3} style={{ padding: "20px 0 0 0" }}>
-          <div className="w-100 d-flex justify-content-center align-items-center">
-            <Stack className="w-75 flex-wrap align-items-stretch" direction="horizontal" gap={4}>
-              {/* Time Series Card */}
-              <Card
-                className="shadow-sm border-secondary w-50 hover-border-success"
-                style={{ cursor: "pointer", flex: "1 1 320px", minWidth: "280px" }}
-              >
-                <Card.Header className="bg-secondary text-white d-flex align-items-center">
-                  <FaChartLine className="me-2" color="white" />
-                  <h5 className="text-white mb-0">Time Series</h5>
-                </Card.Header>
-                <Card.Body className="d-flex flex-column justify-content-center align-items-center p-4">
-                  <FaChartLine className="me-6" size={100} color="gray" />
-                  <Card.Text className="mt-3 text-center">
-                    Extract time series characteristics from physiological signals using TSFRESH and other models.
-                  </Card.Text>
-                  <Button disabled variant="secondary" onClick={(e) => choosePage(e, "ExtractionTS")}>
-                    Start Extraction
-                  </Button>
-                </Card.Body>
-              </Card>
+        <Stack direction="horizontal" gap={4} className="flex-wrap align-items-stretch justify-content-center module-landing-tool-grid w-100">
+          <Card
+            className="shadow-sm border-secondary h-100 module-landing-tool-card"
+            style={{ cursor: "pointer", flex: "1 1 320px", minWidth: "280px" }}
+          >
+            <Card.Header className="bg-secondary text-white d-flex align-items-center">
+              <FaChartLine className="me-2" color="white" />
+              <h5 className="text-white mb-0">Time Series</h5>
+            </Card.Header>
+            <Card.Body className="d-flex flex-column justify-content-center align-items-center p-4">
+              <FaChartLine className="me-6" size={100} color="gray" />
+              <Card.Text className="mt-3 text-center">
+                Extract time series characteristics from physiological signals using TSFRESH and other models.
+              </Card.Text>
+              <Button disabled variant="secondary" onClick={(e) => choosePage(e, "ExtractionTS")}>
+                Start Extraction
+              </Button>
+            </Card.Body>
+          </Card>
 
-              {/* Image Card */}
-              <Card
-                className="shadow-sm border-warning w-50"
-                style={{ cursor: "pointer", flex: "1 1 320px", minWidth: "280px" }}
-              >
-                <Card.Header className="bg-warning text-white d-flex align-items-center">
-                  <FaImage className="me-2" color="white" />
-                  <h5 className="text-white mb-0">Image</h5>
-                </Card.Header>
-                <Card.Body className="d-flex flex-column justify-content-center align-items-center p-4">
-                  <FaImage className="me-6" size={100} color="orange" />
-                  <Card.Text className="mt-3 text-center">
-                    Extract Embeddings from JPG images using a variety of models from TorchXRayVision python library.
-                  </Card.Text>
-                  <Button disabled variant="warning" onClick={(e) => choosePage(e, "ExtractionImage")}>
-                    Start Extraction
-                  </Button>
-                </Card.Body>
-              </Card>
-            </Stack>
-          </div>
+          <Card
+            className="shadow-sm border-warning h-100 module-landing-tool-card"
+            style={{ cursor: "pointer", flex: "1 1 320px", minWidth: "280px" }}
+          >
+            <Card.Header className="bg-warning text-white d-flex align-items-center">
+              <FaImage className="me-2" color="white" />
+              <h5 className="text-white mb-0">Image</h5>
+            </Card.Header>
+            <Card.Body className="d-flex flex-column justify-content-center align-items-center p-4">
+              <FaImage className="me-6" size={100} color="orange" />
+              <Card.Text className="mt-3 text-center">
+                Extract Embeddings from JPG images using a variety of models from TorchXRayVision python library.
+              </Card.Text>
+              <Button disabled variant="warning" onClick={(e) => choosePage(e, "ExtractionImage")}>
+                Start Extraction
+              </Button>
+            </Card.Body>
+          </Card>
         </Stack>
-      </div>
-    </div>
+      </Stack>
+    </ModuleLandingShell>
   )
 }

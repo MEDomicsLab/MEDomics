@@ -1,5 +1,4 @@
 import { randomUUID } from "crypto";
-import Image from "next/image";
 import { Button } from "primereact/button";
 import { InputText } from "primereact/inputtext";
 import { useContext, useEffect, useState } from "react";
@@ -7,7 +6,6 @@ import { Card, Stack } from "react-bootstrap";
 import { AiOutlineExperiment } from "react-icons/ai";
 import { LuBrainCircuit } from "react-icons/lu";
 import { toast } from "react-toastify";
-import myimage from "../../../resources/medomics_transparent_bg.png";
 import { sceneDescription as learningSceneDescription } from "../../public/setupVariables/learningNodesParams";
 import { LayoutModelContext } from "../layout/layoutContext";
 import { getCollectionData } from "../dbComponents/utils";
@@ -15,7 +13,7 @@ import { insertMEDDataObjectIfNotExists } from "../mongoDB/mongoDBUtils";
 import { DataContext } from "../workspace/dataContext";
 import { MEDDataObject } from "../workspace/NewMedDataObject";
 import { FaPlay } from "react-icons/fa";
-import { useTheme } from "../../components/theme/themeContext";
+import ModuleLandingShell, { ModuleGuideSteps, ModuleGuideText } from "./moduleBasics/ModuleLandingShell";
 
 
 const buildOpenItem = (id, medObject) => ({
@@ -42,7 +40,6 @@ const JOURNEY_STEPS = [
 ];
 
 export default function LearningLandingPage() {
-  const { isDarkMode } = useTheme()
   const [nameExt, setNameExp] = useState("");
   const [nameML, setNameML] = useState("");
   const [nameExpError, setNameExpError] = useState("");
@@ -261,110 +258,95 @@ export default function LearningLandingPage() {
   const totalExperiments =  experimentList.length;
   const isCreating = loadingExt || loadingML;
 
-  return (
-    <div className="h-100 w-100 overflow-auto">
-      {/* Hero */}
-      <header className="text-center pt-4 pb-2 px-3">
-        <Image src={myimage} alt="MEDomicsLab logo" width={36} height={36} />
-        <h1
-          className="fw-bold text-secondary mb-2"
-          style={{ fontSize: "clamp(1.75rem, 4vw, 2.5rem)", letterSpacing: "0.5px" }}
-        >
-          The Learning Module
-        </h1>
-        <p className="mx-auto mb-0" style={{ maxWidth: "640px", fontSize: "1.05rem", lineHeight: 1.6 }}>
-          Design, train, and compare clinical machine learning models by connecting visual nodes, powered by PyCaret, to automate
-          machine learning workflows.
-        </p>
-      </header>
+  const workspaceFooter = totalExperiments === 0 ? (
+    <div className="module-landing-empty-state">
+      <p className="mb-1 fw-semibold">No experiments yet</p>
+      <p className="mb-0">
+        Name your first scene above and click <strong>Create & open</strong> to launch the visual builder.
+      </p>
+    </div>
+  ) : (
+    <section aria-label="Workspace ML scenes">
+      <button
+        type="button"
+        className="module-landing-scenes-toggle"
+        onClick={() => setScenesExpanded((prev) => !prev)}
+        aria-expanded={scenesExpanded}
+        aria-controls="workspace-scenes-grid"
+      >
+        <span>
+          {totalExperiments} scene{totalExperiments !== 1 ? "s" : ""} in workspace
+        </span>
+        <i className={`pi ${scenesExpanded ? "pi-chevron-up" : "pi-chevron-down"}`} aria-hidden="true" />
+      </button>
 
-      {/* Journey steps */}
-      <nav aria-label="Getting started steps" className="mx-auto my-4 px-3" style={{ maxWidth: "900px" }}>
-        <ol className="list-unstyled d-flex flex-wrap justify-content-center gap-3 mb-0">
-          {JOURNEY_STEPS.map((step, index) => (
-            <li
-              key={step.id}
-              className="d-flex align-items-start gap-2 px-3 py-2 rounded-3"
-              style={{
-                border: "1px solid #e2e8f0",
-                flex: "1 1 220px",
-                maxWidth: "280px",
-                boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
-              }}
-            >
-              <span
-                className="d-flex align-items-center justify-content-center rounded-circle flex-shrink-0 fw-semibold text-white"
-                style={{ width: 28, height: 28, fontSize: "0.85rem", background: BRAND_BLUE }}
-                aria-hidden="true"
-              >
-                {step.id}
-              </span>
-              <div>
-                <div className="fw-semibold" style={{ fontSize: "0.9rem" }}>
-                  {step.label}
-                </div>
-                <div style={{ fontSize: "0.8rem", color: "#aab3c0" }}>
-                  {step.detail}
-                </div>
-              </div>
-              {index < JOURNEY_STEPS.length - 1 && (
-                <span className="d-none d-xl-inline ms-auto align-self-center" aria-hidden="true">
-                  →
-                </span>
-              )}
-            </li>
-          ))}
-        </ol>
-      </nav>
+      {scenesExpanded && (
+        <div id="workspace-scenes-grid" className="module-landing-scenes-grid">
+          {experimentList.map((scene) => {
+            const accentColor = scene.isExperiment ? "#8db8ec" : "#54ebeb";
 
-      {/* Guidance banner */}
-      <div className="mx-auto px-3 mb-3" style={{ maxWidth: "900px" }}>
-        <div
-          className="d-flex align-items-center gap-3 px-3 py-2 rounded-3"
-          style={{
-            border: "1px solid #e2e8f0",
-            boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
-          }}
-        >
-          <FaPlay
-            className="flex-shrink-0"
-            size={30}
-            color={BRAND_BLUE}
-            aria-hidden="true"
-            style={{ alignSelf: "center" }}
-          />
-          <div>
-            <div className="fw-semibold" style={{ fontSize: "0.9rem" }}>
-              New here?
-            </div>
-            <div style={{ fontSize: "0.8rem", color: "#aab3c0" }}>
-              Start with an <strong>Experimental Scene</strong> to compare models quickly.
-              When you&apos;re ready, open a <strong>Main Scene</strong> for your full training pipeline. For more details,
-              checkout our <a
-                onClick={() => require("electron").shell.openExternal("https://medomicslab.gitbook.io/medomics-docs/tutorials/development/learning-module")}
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{ fontWeight: "bold", textDecoration: "underline" }}
+            return (
+              <button
+                key={scene.id}
+                type="button"
+                className="module-landing-scene-card"
+                onClick={() => handleOpenScene(scene.openItem)}
+                title={`${scene.name} (${scene.isExperiment ? "Experimental" : "Main"})`}
+                aria-label={`Open ${scene.name} ${scene.isExperiment ? "experimental" : "main"} scene`}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.borderColor = accentColor;
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.borderColor = "";
+                }}
               >
-                Learning Module documentation
-              </a>.
-            </div>
-          </div>
+                {scene.isExperiment ? (
+                  <LuBrainCircuit size={25} color="#0D6EFD" aria-hidden="true" />
+                ) : (
+                  <AiOutlineExperiment size={25} color={BRAND_NAVY} aria-hidden="true" />
+                )}
+                <span className="module-landing-scene-name">{scene.name}</span>
+              </button>
+            );
+          })}
         </div>
-      </div>
+      )}
+    </section>
+  );
 
-      {/* Workspace cards */}
-      <div className="px-3 pb-4">
-        <div className="d-flex justify-content-center align-items-stretch">
+  return (
+    <ModuleLandingShell
+      title="Learning Module"
+      description="Design, train, and compare clinical ML models with visual PyCaret-powered workflows."
+      contentMaxWidth="960px"
+      documentation={{
+        url: "https://medomicslab.gitbook.io/medomics-docs/tutorials/development/learning-module",
+        label: "Learning Module documentation",
+      }}
+      infoContent={
+        <>
+          <ModuleGuideSteps steps={JOURNEY_STEPS} />
+          <ModuleGuideText>
+            <p className="mt-3 mb-0 d-flex align-items-start justify-content-center gap-2 text-start">
+              <FaPlay className="flex-shrink-0 mt-1" size={14} color={BRAND_BLUE} aria-hidden="true" />
+              <span>
+                Start with an <strong>Experimental Scene</strong> to compare models quickly. When you&apos;re ready,
+                open a <strong>Main Scene</strong> for your full training pipeline.
+              </span>
+            </p>
+          </ModuleGuideText>
+        </>
+      }
+      footer={workspaceFooter}
+    >
           <Stack
             direction="horizontal"
             gap={4}
-            className="flex-wrap align-items-stretch justify-content-center"
-            style={{ maxWidth: "920px", width: "100%" }}
+            className="flex-wrap align-items-stretch justify-content-center module-landing-tool-grid w-100"
           >
             {/* Experimental Scene */}
             <Card
-              className="shadow-sm flex-fill"
+              className="shadow-sm flex-fill module-landing-tool-card"
               style={{
                 flex: "1 1 340px",
                 minWidth: "300px",
@@ -440,7 +422,7 @@ export default function LearningLandingPage() {
 
             {/* Main Scene */}
             <Card
-              className="shadow-sm flex-fill"
+              className="shadow-sm flex-fill module-landing-tool-card"
               style={{
                 flex: "1 1 340px",
                 minWidth: "300px",
@@ -512,102 +494,6 @@ export default function LearningLandingPage() {
               </Card.Body>
             </Card>
           </Stack>
-        </div>
-      </div>
-
-      {/* Empty / existing workspace footer */}
-      {totalExperiments === 0 ? (
-        <footer className="text-center pb-5 px-3">
-          <div
-            className="mx-auto py-4 px-4 rounded-3"
-            style={{ maxWidth: "520px" }}
-          >
-            <p className="mb-1 fw-semibold text-secondary">No experiments yet</p>
-            <p className="text-muted mb-0" style={{ fontSize: "0.9rem" }}>
-              Name your first scene above and click <strong>Create & open</strong> to launch the visual builder.
-            </p>
-          </div>
-        </footer>
-      ) : (
-        <section className="mx-auto px-3 pb-4" style={{ maxWidth: "920px" }} aria-label="Workspace ML scenes">
-          <button
-            type="button"
-            className="d-flex align-items-center justify-content-center gap-2 mx-auto border-0 rounded-pill px-3 py-1"
-            onClick={() => setScenesExpanded((prev) => !prev)}
-            aria-expanded={scenesExpanded}
-            aria-controls="workspace-scenes-grid"
-            style={{
-              fontSize: "0.8rem",
-              cursor: "pointer",
-              transition: "background 0.15s ease, border-color 0.15s ease",
-            }}
-          >
-            <span>
-              {totalExperiments} scene{totalExperiments !== 1 ? "s" : ""} in workspace
-            </span>
-            <i
-              className={`pi ${scenesExpanded ? "pi-chevron-up" : "pi-chevron-down"}`}
-              style={{ fontSize: "0.65rem" }}
-              aria-hidden="true"
-            />
-          </button>
-
-          {scenesExpanded && (
-            <div
-              id="workspace-scenes-grid"
-              className="mt-2"
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fill, minmax(118px, 1fr))",
-                gap: "8px",
-              }}
-            >
-            {experimentList.map((scene) => {
-              const accentColor = scene.isExperiment ? "#8db8ec" : "#54ebeb";
-
-              return (
-                <button
-                  key={scene.id}
-                  type="button"
-                  className="d-flex flex-column align-items-center text-center border-1 rounded-2 px-2 py-2"
-                  onClick={() => handleOpenScene(scene.openItem)}
-                  title={`${scene.name} (${scene.isExperiment ? "Experimental" : "Main"})`}
-                  aria-label={`Open ${scene.name} ${scene.isExperiment ? "experimental" : "main"} scene`}
-                  style={{
-                    background: isDarkMode ? "#2d2d2d" : "rgba(205, 227, 255, 0.2)",
-                    border: `1px solid #e2e8f0"`,
-                    borderColor: "#e2e8f0",
-                    boxShadow: "0 1px 2px rgba(0,0,0,0.04)",
-                    transition: "border-color 0.15s ease, box-shadow 0.15s ease",
-                    cursor: "pointer",
-                    minHeight: "72px",
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.boxShadow = "0 2px 8px rgba(0,0,0,0.08)";
-                    e.currentTarget.style.borderColor = accentColor;
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.boxShadow = "0 1px 2px rgba(0,0,0,0.04)";
-                    e.currentTarget.style.borderColor = "#e2e8f0";
-                  }}
-                >
-                  {scene.isExperiment ? 
-                    (<LuBrainCircuit size={25} color="#0D6EFD" aria-hidden="true" />) : 
-                    (<AiOutlineExperiment size={25} color={BRAND_NAVY} aria-hidden="true" />)
-                  }
-                  <span
-                    className="fw-semibold text-truncate w-100 mt-1"
-                    style={{ fontSize: "0.72rem", lineHeight: 1.2 }}
-                  >
-                    {scene.name}
-                  </span>
-                </button>
-              );
-            })}
-            </div>
-          )}
-        </section>
-      )}
-    </div>
+    </ModuleLandingShell>
   );
 }
