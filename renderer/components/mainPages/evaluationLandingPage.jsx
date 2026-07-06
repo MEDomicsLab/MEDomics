@@ -144,7 +144,7 @@ export default function EvaluationLandingPage() {
 
   return (
     <div className="h-100 w-100">
-      <h1 className="text-center  fw-bold text-secondary mt-5" style={{ fontSize: "3rem", letterSpacing: "1px" }}>
+      <h1 className="text-center fw-bold text-secondary mt-5" style={{ fontSize: "3rem", letterSpacing: "1px" }}>
         Evaluation Module
       </h1>
 
@@ -172,7 +172,7 @@ export default function EvaluationLandingPage() {
             >
               {/* Explainer Dashboard Card */}
               <Card
-                className="shadow-sm border-primary h-100 hover-border-success"
+                className="shadow-sm border-primary hover-border-success"
                 style={{ cursor: "pointer", flex: "1 1 320px", minWidth: "280px" }}
               >
                 <Card.Header className="bg-danger text-white d-flex align-items-center">
@@ -203,7 +203,7 @@ export default function EvaluationLandingPage() {
 
               {/* MED3pa Card */}
               <Card
-                className="shadow-sm border-success h-100"
+                className="shadow-sm border-success"
                 style={{ cursor: "pointer", flex: "1 1 320px", minWidth: "280px" }}
               >
                 <Card.Header className="bg-success text-white d-flex align-items-center">

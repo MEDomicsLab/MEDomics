@@ -528,17 +528,24 @@ const ApplicationPageWithModulePage = ({ pageId = "application-456" }) => {
               <Image className="text-center" src={myimage} alt="" style={{ height: "30px", width: "30px" }} />
             </div>
 
+            {/* Description of the Application Module */}
+            <div className="mx-auto text-center" style={{ maxWidth: "860px", marginBottom: "40px" }}>
+              <h5 className="lh-lg" style={{ fontSize: "1.1rem" }}>
+                  The Application Module allows you to deploy a machine learning model for inference, by simply 
+                  selecting a model and providing input data.
+              </h5>
+            </div>
+
             <p>
-              This module allows users to deploy a machine learning model for inference.
-              First, you'll have to choose a model. Then, you can select between two input methods:
+              To use the Application Module, start by selecting a model and providing input data. You can either:
             </p>
 
             <p>
-              <span className="app-tool-name">→ Manual Sample Entry:</span> Fill in the required feature values manually to test a single sample.
+              <span className="app-tool-name">→ Enter a single sample:</span> Fill in the required feature values manually to test a single sample.
             </p>
 
             <p>
-              <span className="app-tool-name">→ Test File Input:</span> Upload a dataset file (CSV format) to run batch predictions on multiple samples.
+              <span className="app-tool-name">→ Enter a dataset file:</span> Upload a dataset file (CSV format) to run batch predictions on multiple samples.
             </p>
 
             <div>

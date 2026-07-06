@@ -34,7 +34,7 @@ export default function MedflWelcomePage() {
                 <span style={{ fontWeight: "800" }} className="text-primary">
                   MEDfl
                 </span>{" "}
-                A Friendly Federated Learning Framework for Medicine
+                A Collaborative Framework for Federated Learning in Medicine
               </h3>
               <Message severity="success" text="This package will be available soon!"/>
             </div>

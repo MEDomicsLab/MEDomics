@@ -27,9 +27,17 @@ const ExploratoryPage = () => {
         <div className="mx-auto text-center" >
           <Image className="text-center" src={myimage} alt="" style={{ height: "30px", width: "30px" }} />
         </div>
-        <h2>🔍 Exploratory Data Analysis (EDA)</h2>
+
+        {/* Description of the Exploratory Module */}
+        <div className="mx-auto text-center" style={{ maxWidth: "860px", marginBottom: "40px" }}>
+          <h5 className="lh-lg" style={{ fontSize: "1.1rem" }}>
+              The Exploratory Module allows you to explore and understand your dataset before training a machine learning model.
+              This is essential to understand the characteristics of your data, detect potential issues, and make informed decisions for preprocessing and model selection.
+          </h5>
+        </div>
+
+        <h5 className="mt-4">🔍 Exploratory Data Analysis (EDA)</h5>
         <p>
-          Before training a machine learning model, it is essential to explore and understand the dataset. 
           This page provides three powerful tools, each with a unique role in data exploration:
         </p>
 

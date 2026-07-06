@@ -31,7 +31,7 @@ export default function ExtractionLandingPage() {
       {/* Description of the Extraction Module */}
       <div className="mx-auto text-center" style={{ maxWidth: "860px", marginBottom: "20px" }}>
         <h5 className="lh-lg" style={{ fontSize: "1.1rem" }}>
-          This input module offers ready-made tools to pull insights from images, notes, and health tracking data, 
+          This module offers ready-made tools to pull insights from images, notes, and health tracking data, 
           while relying on the specialized MEDiml tool to extract deeper features from medical scans.
         </h5>
       </div>
@@ -48,10 +48,10 @@ export default function ExtractionLandingPage() {
 
           {/* Main Title and Subtitle */}
           <div className="h-100 w-100 d-flex justify-content-center align-items-center">
-            <Stack direction="horizontal" gap={4} className="w-75">
+            <Stack className="w-75 flex-wrap align-items-stretch" direction="horizontal" gap={4}>
               {/* MEDiml Card */}
               <Card
-                className="shadow-sm border-primary h-100 hover-border-success"
+                className="shadow-sm border-primary hover-border-success"
                 style={{ cursor: "pointer", flex: "1 1 320px", minWidth: "280px" }}
               >
                 <Card.Header className="bg-primary text-white d-flex align-items-center">
@@ -71,7 +71,7 @@ export default function ExtractionLandingPage() {
 
               {/* Text Card */}
               <Card
-                className="shadow-sm border-success h-100 w-50"
+                className="shadow-sm border-success w-50"
                 style={{ cursor: "pointer", flex: "1 1 320px", minWidth: "280px" }}
               >
                 <Card.Header className="bg-success text-white d-flex align-items-center">
@@ -95,11 +95,11 @@ export default function ExtractionLandingPage() {
 
       <div style={{ paddingTop: "1rem", display: "flex", flexDirection: "vertical", flexGrow: "10", width: "100%", margin: "auto" }}>
         <Stack direction="vertical" gap={3} style={{ padding: "20px 0 0 0" }}>
-          <div className="h-100 w-100 d-flex justify-content-center align-items-center">
-            <Stack direction="horizontal" gap={4} className="w-75">
+          <div className="w-100 d-flex justify-content-center align-items-center">
+            <Stack className="w-75 flex-wrap align-items-stretch" direction="horizontal" gap={4}>
               {/* Time Series Card */}
               <Card
-                className="shadow-sm border-secondary h-100 w-50 hover-border-success"
+                className="shadow-sm border-secondary w-50 hover-border-success"
                 style={{ cursor: "pointer", flex: "1 1 320px", minWidth: "280px" }}
               >
                 <Card.Header className="bg-secondary text-white d-flex align-items-center">
@@ -119,7 +119,7 @@ export default function ExtractionLandingPage() {
 
               {/* Image Card */}
               <Card
-                className="shadow-sm border-warning h-100 w-50"
+                className="shadow-sm border-warning w-50"
                 style={{ cursor: "pointer", flex: "1 1 320px", minWidth: "280px" }}
               >
                 <Card.Header className="bg-warning text-white d-flex align-items-center">

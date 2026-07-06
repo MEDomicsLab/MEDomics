@@ -133,6 +133,8 @@ const IconSidebar = ({ onSidebarItemSelect }) => {
         <Tooltip target=".ext-img-btn" {...delayOptions} className="tooltip-icon-sidebar" />
         <Tooltip target=".medflNav" {...delayOptions} className="tooltip-icon-sidebar" />
         <Tooltip target=".med3paNav" {...delayOptions} className="tooltip-icon-sidebar" />
+        <Tooltip target=".settingsNav" {...delayOptions} className="tooltip-icon-sidebar" />
+        <Tooltip target=".darkModeNav" {...delayOptions} className="tooltip-icon-sidebar" />
         <Tooltip target=".ext-eval-btn" {...delayOptions} className="tooltip-icon-sidebar" />
         {/* ------------------------------------------- END Tooltips ----------------------------------------- */}
 
@@ -173,7 +175,7 @@ const IconSidebar = ({ onSidebarItemSelect }) => {
                 className="inputNav btnSidebar align-center"
                 data-pr-at="right center"
                 data-pr-my="left center"
-                data-pr-tooltip="Input"
+                data-pr-tooltip="Input Module"
                 eventKey="input"
                 data-tooltip-id="tooltip-input"
                 onDoubleClick={(event) => handleDoubleClickModule(event, "Input")}
@@ -188,7 +190,7 @@ const IconSidebar = ({ onSidebarItemSelect }) => {
                 className="extractionNav btnSidebar align-center"
                 data-pr-at="right center"
                 data-pr-my="left center"
-                data-pr-tooltip="Extraction"
+                data-pr-tooltip="Extraction Module"
                 data-pr-disabled={extractionBtnstate}
                 eventKey="Extraction"
                 data-tooltip-id="tooltip-extraction"
@@ -282,7 +284,7 @@ const IconSidebar = ({ onSidebarItemSelect }) => {
                 className="exploratoryNav btnSidebar align-center"
                 data-pr-at="right center"
                 data-pr-my="left center"
-                data-pr-tooltip="Exploratory"
+                data-pr-tooltip="Exploratory Module"
                 eventKey="exploratory"
                 data-tooltip-id="tooltip-exploratory"
                 onDoubleClick={(event) => handleDoubleClickModule(event, "Exploratory")}
@@ -304,10 +306,10 @@ const IconSidebar = ({ onSidebarItemSelect }) => {
                 className="learningNav btnSidebar align-center"
                 data-pr-at="right center"
                 data-pr-my="left center"
-                data-pr-tooltip="Learning"
+                data-pr-tooltip="Machine Learning Module"
                 eventKey="Learning"
                 data-tooltip-id="tooltip-learning"
-                onClick={(event) => handleClick(event, "learning")}
+                onClick={(event) => handleDoubleClickLanding(event, "Learning")}
                 disabled={isDisabled}
               >
                 <LuNetwork style={{ height: "1.7rem", width: "auto", rotate: "-90deg" }} />
@@ -359,7 +361,7 @@ const IconSidebar = ({ onSidebarItemSelect }) => {
                     icon="pi pi-search"
                     data-pr-at="right center"
                     data-pr-my="left center"
-                    data-pr-tooltip="Models Evaluation"
+                    data-pr-tooltip="Evaluation Module"
                     data-is-ext-btn
                     onClick={(event) => {
                       console.log("clicked Evaluation", event)
@@ -377,7 +379,7 @@ const IconSidebar = ({ onSidebarItemSelect }) => {
                 className="medflNav btnSidebar align-center"
                 data-pr-at="right center"
                 data-pr-my="left center"
-                data-pr-tooltip="Federated Learning"
+                data-pr-tooltip="Federated Learning Module"
                 eventKey="MEDfl"
                 onDoubleClick={(event) => handleDoubleClickModule(event, "MEDfl")}
                 onClick={(event) => handleClick(event, "medfl")}
@@ -396,7 +398,7 @@ const IconSidebar = ({ onSidebarItemSelect }) => {
                 className="applicationNav btnSidebar"
                 data-pr-at="right center"
                 data-pr-my="left center"
-                data-pr-tooltip="Application"
+                data-pr-tooltip="Application Module"
                 eventKey="Application"
                 data-tooltip-id="tooltip-application"
                 onClick={(event) => handleClick(event, "application")}
@@ -418,7 +420,7 @@ const IconSidebar = ({ onSidebarItemSelect }) => {
                 className="darkModeNav btnSidebar align-center"
                 data-pr-at="right center"
                 data-pr-my="left center"
-                data-pr-tooltip="Dark/Light Mode"
+                data-pr-tooltip="Switch to Dark or Light Mode"
                 eventKey="darkMode"
                 data-tooltip-id="tooltip-darkMode"
                 onClick={() => {
@@ -439,7 +441,7 @@ const IconSidebar = ({ onSidebarItemSelect }) => {
                 className="settingsNav btnSidebar"
                 data-pr-at="right center"
                 data-pr-my="left center"
-                data-pr-tooltip="Settings"
+                data-pr-tooltip="Application Settings"
                 eventKey="settings"
                 data-tooltip-id="tooltip-settings"
                 onClick={() => dispatchLayout({ type: `openSettings`, payload: { pageId: "Settings" } })}

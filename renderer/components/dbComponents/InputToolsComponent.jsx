@@ -195,6 +195,12 @@ const InputToolsComponent = ({ exportOptions }) => {
     <div className="mx-auto text-center mb-4" >
       <Image className="text-center" src={myimage} alt="" style={{ height: "30px", width: "30px" }} />
     </div>
+    {/* Description of the Evaluation Module */}
+      <div className="mx-auto text-center" style={{ maxWidth: "860px", marginBottom: "40px" }}>
+        <h5 className="lh-lg" style={{ fontSize: "1.1rem" }}>
+      This module consolidates all the tools necessary for preprocessing tabular data.
+      </h5>
+      </div>
     <Card title="Select CSV File" style={{ marginBottom: "20px" }}>
       <Dropdown
         filter
