@@ -35,6 +35,8 @@ const SettingsPage = ({pageId = "settings", checkJupyterIsRunning, startJupyterS
   const [seed, setSeed] = useState(54288) // Seed for random number generation
   const [pythonEmbedded, setPythonEmbedded] = useState({}) // Boolean to know if python is embedded
   const [showPythonPackages, setShowPythonPackages] = useState(false) // Boolean to know if python packages are shown
+  const [missingPythonPackages, setMissingPythonPackages] = useState([]) // Missing packages
+  const [isUpdatingPythonPackages, setIsUpdatingPythonPackages] = useState(false) // Boolean if updating
 
   /**
    * Check if the mongo server is running and set the state
@@ -131,6 +133,9 @@ const SettingsPage = ({pageId = "settings", checkJupyterIsRunning, startJupyterS
             console.log("Installed Python Packages: ", pythonPackages)
             setPythonEmbedded({ pythonEmbedded: res, pythonPackages: pythonPackages })
           })
+          ipcRenderer.invoke("getMissingPythonPackages").then((missing) => {
+            setMissingPythonPackages(missing)
+          })
         }
       })
     }, 5000)
@@ -144,6 +149,9 @@ const SettingsPage = ({pageId = "settings", checkJupyterIsRunning, startJupyterS
         ipcRenderer.invoke("getInstalledPythonPackages", res).then((pythonPackages) => {
           console.log("Installed Python Packages: ", pythonPackages)
           setPythonEmbedded({ pythonEmbedded: res, pythonPackages: pythonPackages })
+        })
+        ipcRenderer.invoke("getMissingPythonPackages").then((missing) => {
+          setMissingPythonPackages(missing)
         })
       }
     })
@@ -405,6 +413,39 @@ const SettingsPage = ({pageId = "settings", checkJupyterIsRunning, startJupyterS
                   </Col>
                   {/* If pythonEmbedded.pythonEmbedded is defined and a string, show it in a label just under this way: "at ${pythonEmbedded.pythonEmbedded}"*/}
                 </Col>
+                {missingPythonPackages.length > 0 && (
+                  <Col xs={12} md={12} style={{ display: "flex", flexDirection: "column", marginTop: ".75rem" }}>
+                    <div style={{ display: "flex", alignItems: "center", marginBottom: "0.5rem" }}>
+                      <XCircleFill size="25" style={{ color: "#d55757", marginRight: "1rem" }} />
+                      <h5 style={{ color: "#d55757", margin: 0 }}>Missing or Outdated Python Packages ({missingPythonPackages.length})</h5>
+                      <Button 
+                        label={isUpdatingPythonPackages ? "Updating..." : "Update Python Libraries"}
+                        severity="warning"
+                        disabled={isUpdatingPythonPackages}
+                        style={{ marginLeft: "1rem" }}
+                        onClick={() => {
+                          setIsUpdatingPythonPackages(true)
+                          ipcRenderer.invoke("updateMissingPythonPackages").then(() => {
+                             setIsUpdatingPythonPackages(false)
+                             ipcRenderer.invoke("getMissingPythonPackages").then((missing) => setMissingPythonPackages(missing))
+                             ipcRenderer.invoke("getBundledPythonEnvironment").then((res) => {
+                               if (res !== null) {
+                                 ipcRenderer.invoke("getInstalledPythonPackages", res).then((pythonPackages) => {
+                                   setPythonEmbedded({ pythonEmbedded: res, pythonPackages: pythonPackages })
+                                 })
+                               }
+                             })
+                          })
+                        }}
+                      />
+                    </div>
+                    <DataTable value={missingPythonPackages} size="small" scrollable scrollHeight="15rem" style={{ marginTop: "0.5rem" }}>
+                      <Column field="name" header="Name" />
+                      <Column field="installedVersion" header="Installed Version" />
+                      <Column field="requiredVersion" header="Required Version" />
+                    </DataTable>
+                  </Col>
+                )}
                 {showPythonPackages && (
                   <DataTable value={pythonEmbedded.pythonPackages} size="small" scrollable scrollHeight="25rem" style={{ marginTop: "1rem" }}>
                     <Column field="name" header="Name" />

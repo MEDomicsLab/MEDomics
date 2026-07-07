@@ -235,10 +235,11 @@ export function getBundledPythonEnvironment() {
 
 export async function installRequiredPythonPackages(mainWindow) {
   let requirementsFileName = "merged_requirements.txt"
+  let pythonPath = getBundledPythonEnvironment()
   if (process.env.NODE_ENV === "production") {
-    installPythonPackage(mainWindow, pythonExecutablePath, null, path.join(process.cwd(), "resources", "pythonEnv", requirementsFileName))
+    await installPythonPackage(mainWindow, pythonPath, null, path.join(process.resourcesPath, "pythonEnv", requirementsFileName))
   } else {
-    installPythonPackage(mainWindow, pythonExecutablePath, null, path.join(process.cwd(), "pythonEnv", requirementsFileName))
+    await installPythonPackage(mainWindow, pythonPath, null, path.join(process.cwd(), "pythonEnv", requirementsFileName))
   }
 }
 
@@ -250,28 +251,46 @@ function comparePythonInstalledPackages(pythonPackages, requirements) {
     let requirementName = requirementParts[0]
     let requirementVersion = requirementParts[1]
     let found = false
+    let installedVersion = null
     for (let j = 0; j < pythonPackages.length; j++) {
       let pythonPackage = pythonPackages[j]
-      if (pythonPackage.name === requirementName && pythonPackage.version === requirementVersion) {
-        found = true
-        break
-      } else if (pythonPackage.name.replace('-', '_') === requirementName && pythonPackage.version === requirementVersion) {
-        found = true
-        break
-      } else if (pythonPackage.name.replace('_', '-') === requirementName && pythonPackage.version === requirementVersion) {
-        found = true
-        break
+      let pyName = pythonPackage.name
+      if (pyName === requirementName || pyName.replace('-', '_') === requirementName || pyName.replace('_', '-') === requirementName) {
+        installedVersion = pythonPackage.version
+        if (pythonPackage.version === requirementVersion) {
+          found = true
+          break
+        }
       }
     }
     if (!found) {
-      missingPackages.push({ name: requirementName, version: requirementVersion })
+      missingPackages.push({ name: requirementName, requiredVersion: requirementVersion, installedVersion: installedVersion || "Missing" })
     }
   }
   console.log("Missing packages: " + JSON.stringify(missingPackages))
   return missingPackages
 }
 
-export function checkPythonRequirements(pythonPath = null, requirementsFilePath = null) {
+export async function getMissingPythonPackages(pythonPath = null, requirementsFilePath = null) {
+  if (pythonPath === null) {
+    pythonPath = getBundledPythonEnvironment()
+  }
+  if (requirementsFilePath === null) {
+    if (process.env.NODE_ENV === "production") {
+      requirementsFilePath = path.join(process.resourcesPath, "pythonEnv", "merged_requirements.txt")
+    } else {
+      requirementsFilePath = path.join(process.cwd(), "pythonEnv", "merged_requirements.txt")
+    }
+  }
+  let pythonPackages = getInstalledPythonPackages(pythonPath)
+  let requirements = fs.readFileSync(requirementsFilePath, "utf8").split("\n")
+  requirements = requirements.filter((line) => line.trim() !== "")
+  requirements = requirements.map((line) => line.replace("\r", ""))
+
+  return comparePythonInstalledPackages(pythonPackages, requirements)
+}
+
+export async function checkPythonRequirements(pythonPath = null, requirementsFilePath = null, promptUser = false, mainWindow = null) {
   let pythonRequirementsMet = false
   if (pythonPath === null) {
     // pythonPath = getPythonEnvironment()
@@ -293,6 +312,27 @@ export function checkPythonRequirements(pythonPath = null, requirementsFilePath 
   let missingPackages = comparePythonInstalledPackages(pythonPackages, requirements)
   if (missingPackages.length === 0) {
     pythonRequirementsMet = true
+  } else if (promptUser && mainWindow) {
+    let missingPackagesNames = missingPackages.map((pkg) => pkg.name).join(", ")
+    let message = `The following Python packages are missing or need updating:\n${missingPackagesNames}\n\nWould you like to install them now?`
+    if (missingPackages.length > 5) {
+      message = `There are ${missingPackages.length} Python packages missing or needing updates. Would you like to install them now?`
+    }
+    const { response } = await dialog.showMessageBox(mainWindow, {
+      type: "question",
+      buttons: ["Yes", "No"],
+      title: "Missing Python Packages",
+      message: message
+    })
+    
+    if (response === 0) {
+      await installRequiredPythonPackages(mainWindow)
+      let newPythonPackages = getInstalledPythonPackages(pythonPath)
+      let newMissingPackages = comparePythonInstalledPackages(newPythonPackages, requirements)
+      if (newMissingPackages.length === 0) {
+        pythonRequirementsMet = true
+      }
+    }
   }
   return pythonRequirementsMet
 }

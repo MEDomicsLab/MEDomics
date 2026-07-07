@@ -13,7 +13,8 @@ import {
   installPythonPackage,
   installBundledPythonExecutable,
   checkPythonRequirements,
-  installRequiredPythonPackages
+  installRequiredPythonPackages,
+  getMissingPythonPackages
 } from "./utils/pythonEnv"
 import { installMongoDB, checkRequirements } from "./utils/installation"
 
@@ -280,6 +281,13 @@ if (isProd) {
           label: "Documentation",
           click() {
             openWindowFromURL("https://medomics-udes.gitbook.io/medomics-docs")
+          }
+        },
+        { type: "separator" },
+        {
+          label: "Check Python Environment",
+          click() {
+            checkPythonRequirements(null, null, true, mainWindow)
           }
         },
         { type: "separator" },
@@ -603,7 +611,7 @@ ipcMain.handle("installBundledPythonExecutable", async (event) => {
     return installBundledPythonExecutable(mainWindow)
   } else {
     // Check if the required packages are installed
-    let requirementsInstalled = checkPythonRequirements()
+    let requirementsInstalled = await checkPythonRequirements()
     if (requirementsInstalled) {
       return true
     } else {
@@ -617,8 +625,17 @@ ipcMain.handle("checkRequirements", async (event) => {
   return checkRequirements()
 })
 
-ipcMain.handle("checkPythonRequirements", async (event) => {
-  return checkPythonRequirements()
+ipcMain.handle("checkPythonRequirements", async (event, promptUser = false) => {
+  return await checkPythonRequirements(null, null, promptUser, mainWindow)
+})
+
+ipcMain.handle("getMissingPythonPackages", async (event) => {
+  return await getMissingPythonPackages()
+})
+
+ipcMain.handle("updateMissingPythonPackages", async (event) => {
+  await installRequiredPythonPackages(mainWindow)
+  return true
 })
 
 ipcMain.handle("checkMongoDBisInstalled", async (event) => {
