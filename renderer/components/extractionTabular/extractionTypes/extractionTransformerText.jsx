@@ -105,7 +105,7 @@ const ExtractionTransformerText = ({ columnsTypes, setExtractionJsonData, setMay
     const isDownloaded = modelDownloadStatus[option.value]
     return (
       <div className="flex align-items-center justify-content-between w-full">
-        <span>{option.label}</span>
+        <span>{option.label} &nbsp;</span>
         {!modelStatusLoading && isDownloaded !== undefined && (
           <i
             className={isDownloaded ? "pi pi-check-circle text-green-500 ml-2" : "pi pi-cloud-download text-500 ml-2"}
@@ -206,12 +206,13 @@ const ExtractionTransformerText = ({ columnsTypes, setExtractionJsonData, setMay
                 className="p-0"
               />
               <span className="text-500 text-xs">
+                &nbsp;
                 <i className={`pi ${modelDownloadStatus[selectedModel] === true ? "pi-check-circle" : "pi-cloud-download"} mr-1`}></i>
                 {modelDownloadStatus[selectedModel] === true
-                  ? "Already downloaded"
+                  ? " Already downloaded"
                   : modelDownloadStatus[selectedModel] === false
-                    ? "Not downloaded — will fetch on first run"
-                    : "Auto-downloaded if missing"}
+                    ? " Not downloaded — will fetch on first run"
+                    : " Auto-downloaded if missing"}
               </span>
             </div>
           </div>

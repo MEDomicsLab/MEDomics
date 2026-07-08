@@ -240,7 +240,11 @@ body {
 }
 
 .flexlayout__tab {
-  overflow: hidden;
+  /* !important needed: loadFlexLayoutTheme() (themeUtils.js) reloads flexlayout-react's
+     own stylesheet from a CDN at runtime and appends it after this one, which
+     redeclares overflow: auto on this selector and would otherwise win the cascade,
+     causing a second (FlexLayout) scrollbar alongside .module-page-subdiv's. */
+  overflow: hidden !important;
 }
 
 .module-page {
