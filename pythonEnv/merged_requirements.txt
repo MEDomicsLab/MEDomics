@@ -6,6 +6,7 @@ dask==2023.9.3
 docutils==0.18.1
 dtale==3.7.0
 explainerdashboard==0.4.2.2
+huggingface-hub==0.18.0
 isort==5.10.1
 joblib==1.2.0
 jupyter==1.0.0
