@@ -1,7 +1,7 @@
 Transformer Text Extraction Model Comparison
 ============================================
 
-Number of samples evaluated: 20
+Number of samples evaluated: 653
 Models evaluated: biobert_v1_1, biomedbert_pubmed, sapbert_pubmed, modern_pubmedbert, bioclinical_modernbert, bio_clinical_bert, clinicalbert, bluebert_pubmed_mimic, clinical_modernbert, scibert_scivocab_uncased
 
 1. Average Pairwise Cosine Similarity
