@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react"
+import React, { useState, useEffect, useContext } from "react"
 import { Dropdown } from "primereact/dropdown"
 import { RadioButton } from "primereact/radiobutton"
 import { InputText } from "primereact/inputtext"
@@ -6,6 +6,9 @@ import { Card } from "primereact/card"
 import { Button } from "primereact/button"
 import { shell } from "electron"
 import { TEXT_MODEL_REGISTRY, TEXT_MODEL_DETAILS } from "./textModelRegistry"
+import { requestBackend } from "../../../utilities/requests"
+import { ServerConnectionContext } from "../../serverConnection/connectionContext"
+import { PageInfosContext } from "../../mainPages/moduleBasics/pageInfosContext"
 
 const AGGREGATION_MODES = [
   { label: "Per Note (One row per note)", value: "note" },
@@ -19,6 +22,15 @@ const ExtractionTransformerText = ({ columnsTypes, setExtractionJsonData, setMay
   const [localModelPath, setLocalModelPath] = useState("")
   const [columnPrefix, setColumnPrefix] = useState("text_embed")
   const [aggregationMode, setAggregationMode] = useState("note")
+
+  // Model download status: { [model_id]: boolean }. Empty/missing entries
+  // mean "unknown" (still loading, or the check failed) - always falls back
+  // to the static "Auto-downloaded if missing" label in that case.
+  const [modelDownloadStatus, setModelDownloadStatus] = useState({})
+  const [modelStatusLoading, setModelStatusLoading] = useState(true)
+
+  const { port } = useContext(ServerConnectionContext)
+  const { pageId } = useContext(PageInfosContext)
 
   // Column Mappings (similar to BioBERT)
   const [selectedColumns, setSelectedColumns] = useState({
@@ -36,6 +48,28 @@ const ExtractionTransformerText = ({ columnsTypes, setExtractionJsonData, setMay
     const val = event.value
     setSelectedColumns((prev) => ({ ...prev, [key]: val }))
   }
+
+  /**
+   * On mount, check which predefined models are already downloaded locally.
+   * Never blocks the UI: any failure just leaves modelDownloadStatus empty,
+   * so the static "Auto-downloaded if missing" label is shown instead.
+   */
+  useEffect(() => {
+    requestBackend(
+      port,
+      "/extraction_text/check_models_downloaded/" + pageId,
+      {},
+      (response) => {
+        setModelStatusLoading(false)
+        if (response && !response.error) {
+          setModelDownloadStatus(response)
+        }
+      },
+      () => {
+        setModelStatusLoading(false)
+      }
+    )
+  }, [])
 
   /**
    * Update parent state when configuration changes
@@ -61,6 +95,26 @@ const ExtractionTransformerText = ({ columnsTypes, setExtractionJsonData, setMay
   }, [selectedColumns, columnPrefix, modelSourceType, selectedModel, localModelPath, aggregationMode])
 
   const selectedInfo = modelSourceType === "predefined" ? TEXT_MODEL_DETAILS[selectedModel] : null
+
+  /**
+   * Renders a downloaded/not-downloaded icon next to each model option.
+   * Shows no icon while the check is loading or for models whose status
+   * is unknown (check failed).
+   */
+  const modelItemTemplate = (option) => {
+    const isDownloaded = modelDownloadStatus[option.value]
+    return (
+      <div className="flex align-items-center justify-content-between w-full">
+        <span>{option.label}</span>
+        {!modelStatusLoading && isDownloaded !== undefined && (
+          <i
+            className={isDownloaded ? "pi pi-check-circle text-green-500 ml-2" : "pi pi-cloud-download text-500 ml-2"}
+            title={isDownloaded ? "Already downloaded" : "Not downloaded yet"}
+          ></i>
+        )}
+      </div>
+    )
+  }
 
   // Card 1: Column Selection
   const columnSelectionContent = (
@@ -108,7 +162,14 @@ const ExtractionTransformerText = ({ columnsTypes, setExtractionJsonData, setMay
         </div>
 
         {modelSourceType === "predefined" ? (
-          <Dropdown value={selectedModel} options={TEXT_MODEL_REGISTRY} onChange={(e) => setSelectedModel(e.value)} className="w-full mt-1" placeholder="Select a model" />
+          <Dropdown
+            value={selectedModel}
+            options={TEXT_MODEL_REGISTRY}
+            onChange={(e) => setSelectedModel(e.value)}
+            className="w-full mt-1"
+            placeholder="Select a model"
+            itemTemplate={modelItemTemplate}
+          />
         ) : (
           <div className="flex flex-column">
             <InputText value={localModelPath} onChange={(e) => setLocalModelPath(e.target.value)} placeholder="e.g. bert-base-uncased OR /path/to/model" className="w-full mt-1" />
@@ -145,8 +206,12 @@ const ExtractionTransformerText = ({ columnsTypes, setExtractionJsonData, setMay
                 className="p-0"
               />
               <span className="text-500 text-xs">
-                <i className="pi pi-cloud-download mr-1"></i>
-                Auto-downloaded if missing
+                <i className={`pi ${modelDownloadStatus[selectedModel] === true ? "pi-check-circle" : "pi-cloud-download"} mr-1`}></i>
+                {modelDownloadStatus[selectedModel] === true
+                  ? "Already downloaded"
+                  : modelDownloadStatus[selectedModel] === false
+                    ? "Not downloaded — will fetch on first run"
+                    : "Auto-downloaded if missing"}
               </span>
             </div>
           </div>
