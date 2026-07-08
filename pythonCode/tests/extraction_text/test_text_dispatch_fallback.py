@@ -97,3 +97,4 @@ def test_go_routes_remain_stable():
     assert "/BioBERT_extraction/" in contents
     assert "/TransformerText_extraction/" in contents
     assert "/progress/" in contents
+    assert "/check_models_downloaded/" in contents

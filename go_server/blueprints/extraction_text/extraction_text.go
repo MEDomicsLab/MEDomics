@@ -12,6 +12,7 @@ func AddHandleFunc() {
 	Utils.CreateHandleFunc(prePath+"/BioBERT_extraction/", handleBioBERTExtraction)
 	Utils.CreateHandleFunc(prePath+"/TransformerText_extraction/", handleTransformerExtraction)
 	Utils.CreateHandleFunc(prePath+"/progress/", handleProgress)
+	Utils.CreateHandleFunc(prePath+"/check_models_downloaded/", handleCheckModelsDownloaded)
 }
 
 // handleBioBERTExtraction handles the request to run a BioBERT extraction
@@ -31,6 +32,19 @@ func handleBioBERTExtraction(jsonConfig string, id string) (string, error) {
 func handleTransformerExtraction(jsonConfig string, id string) (string, error) {
 	log.Println("Running Transformer text extraction", id)
 	response, err := Utils.StartPythonScripts(jsonConfig, "../pythonCode/modules/extraction_text/text_feature_extraction.py", id)
+	Utils.RemoveIdFromScripts(id)
+	if err != nil {
+		return "", err
+	}
+	return response, nil
+}
+
+// handleCheckModelsDownloaded handles the request to check which predefined text
+// models are already present in the local HuggingFace cache.
+// It returns the response from the python script
+func handleCheckModelsDownloaded(jsonConfig string, id string) (string, error) {
+	log.Println("Checking downloaded text models", id)
+	response, err := Utils.StartPythonScripts(jsonConfig, "../pythonCode/modules/extraction_text/check_models_downloaded.py", id)
 	Utils.RemoveIdFromScripts(id)
 	if err != nil {
 		return "", err
