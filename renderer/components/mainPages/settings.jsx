@@ -75,14 +75,25 @@ const SettingsPage = ({pageId = "settings", checkJupyterIsRunning, startJupyterS
     checkServer()
     checkMongoIsRunning()
     getJupyterStatus()
+    let condaCustomPath = null
     ipcRenderer.invoke("get-settings").then((receivedSettings) => {
       console.log("received settings", receivedSettings)
       setSettings(receivedSettings)
-      if (receivedSettings?.condaPath) {
+      if (receivedSettings?.condaPath && receivedSettings?.condaPath !== condaPath) {
+        condaCustomPath = receivedSettings?.condaPath
         setCondaPath(receivedSettings?.condaPath)
       }
       if (receivedSettings?.seed) {
         setSeed(receivedSettings?.seed)
+      }
+    })
+    ipcRenderer.invoke("getBundledPythonEnvironment").then((res) => {
+      console.log("Python embedded: ", res)
+      if (res !== null && !condaCustomPath) {
+        ipcRenderer.invoke("getInstalledPythonPackages", res).then((pythonPackages) => {
+          console.log("Installed Python Packages: ", pythonPackages)
+          setPythonEmbedded({ pythonEmbedded: res, pythonPackages: pythonPackages })
+        })
       }
     })
   }, [])
@@ -130,12 +141,10 @@ const SettingsPage = ({pageId = "settings", checkJupyterIsRunning, startJupyterS
       if (res !== null && res !== pythonEmbedded && !condaPath) {
           ipcRenderer.invoke("getInstalledPythonPackages", res).then((pythonPackages) => {
             console.log("Installed Python Packages: ", pythonPackages)
-            console.log("debug 1", condaPath, res, pythonEmbedded)
             setPythonEmbedded({ pythonEmbedded: res, pythonPackages: pythonPackages })
           })
         } 
-      else if (condaPath) {
-        console.log("debug 2", condaPath)
+      else if (condaPath && condaPath !== pythonEmbedded?.pythonEmbedded) {
         setPythonEmbedded({...pythonEmbedded, pythonEmbedded:condaPath} )
       }
       })
@@ -144,16 +153,7 @@ const SettingsPage = ({pageId = "settings", checkJupyterIsRunning, startJupyterS
   })
 
   useEffect(() => {
-    ipcRenderer.invoke("getBundledPythonEnvironment").then((res) => {
-      console.log("Python embedded: ", res)
-      if (res !== null && !condaPath) {
-        ipcRenderer.invoke("getInstalledPythonPackages", res).then((pythonPackages) => {
-          console.log("Installed Python Packages: ", pythonPackages)
-          console.log("debug 3")
-          setPythonEmbedded({ pythonEmbedded: res, pythonPackages: pythonPackages })
-        })
-      }
-    })
+    
   }, [])
 
   const getJupyterStatus = async () => {
@@ -331,7 +331,6 @@ const SettingsPage = ({pageId = "settings", checkJupyterIsRunning, startJupyterS
                         ipcRenderer.invoke("open-dialog-exe").then((path) => {
                           console.log("path", path)
                           setCondaPath(path)
-                          console.log("debug 4")
                           setPythonEmbedded({...pythonEmbedded, pythonEmbedded:path} )
                           saveSettings({ ...settings, condaPath: path })
                         })
