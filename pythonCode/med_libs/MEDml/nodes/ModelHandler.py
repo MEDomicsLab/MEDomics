@@ -55,7 +55,6 @@ def sanitize_custom_grid(custom_grid: dict) -> dict:
             if sv is not None:
                 sanitized_values.append(sv)
 
-        # IMPORTANT : on ne garde le paramètre que s'il reste des valeurs
         if sanitized_values:
             clean_grid[param] = sanitized_values
 
@@ -85,7 +84,7 @@ class ModelHandler(Node):
             self.optimize_threshold = self.config_json['data']['internal'].get('optimizeThreshold', False)
             if self.optimize_threshold:
                 self.threshold_optimization_metric = self.config_json['data']['internal'].get('threshOptimizationMetric', 'Accuracy')
-                            # Normalisation du nom de métrique pour PyCaret
+                # FIX: normalize metric name to match PyCaret's add_metric name=
                 METRIC_NAME_MAP = {
                     'Youden': 'Youden Index',
                     'BAC': 'Balanced Accuracy',
@@ -93,7 +92,7 @@ class ModelHandler(Node):
                     'NPV': 'NPV',
                 }
                 self.threshold_optimization_metric = METRIC_NAME_MAP.get(
-                    self.threshold_optimization_metric, 
+                    self.threshold_optimization_metric,
                     self.threshold_optimization_metric
                 )
             self.model_id = self.config_json['associated_id']
@@ -160,12 +159,12 @@ class ModelHandler(Node):
         
         return overall_metrics, log_metrics
 
-    def __recalculate_metrics_with_threshold(self, model, X_test, y_test):
+    def __recalculate_metrics_with_threshold(self, model, X_test, y_test, pycaret_exp=None):
         """
         Recalculate all metrics using the model's optimized threshold.
-        Reads 'probability_threshold' (PyCaret 3.x CustomProbabilityThresholdClassifier)
-        with fallback to 'threshold' for compatibility with other versions.
-        Used after optimize_threshold to ensure reported metrics reflect the actual threshold.
+        - Reads 'probability_threshold' (PyCaret 3.x) with fallback to 'threshold'.
+        - If pycaret_exp is provided, preserves std/min/max from CV folds (pycaret_exp.pull())
+          so that std is not always 0. Only the mean is replaced by the value at the optimized threshold.
         """
         # FIX 1: read probability_threshold (PyCaret 3.x) with fallback to threshold
         threshold = getattr(model, 'probability_threshold', getattr(model, 'threshold', 0.5))
@@ -178,15 +177,60 @@ class ModelHandler(Node):
             y_proba = None
 
         metrics = self.__calculate_all_metrics(y_test, y_pred, y_proba)
-        
-        # Wrap in mean/std format to match overall_metrics structure
+
+        # FIX 6: if pycaret_exp provided, preserve std/min/max from CV folds
+        # Only mean is replaced by the value at the optimized threshold
+        if pycaret_exp is not None:
+            try:
+                pull_df = pycaret_exp.pull()
+                fold_rows = pull_df.iloc[:-2]  # exclude Mean and Std rows
+
+                # Mapping from our metric names to PyCaret pull() column names
+                col_map = {
+                    'Sensitivity': 'Recall',
+                    'PPV': 'Prec.',
+                    'Accuracy': 'Accuracy',
+                    'F1': 'F1',
+                    'AUC': 'AUC',
+                    'MCC': 'MCC',
+                    'Specificity': 'Specificity',
+                    'NPV': 'NPV',
+                }
+
+                result = {}
+                for k, v in metrics.items():
+                    if v == "N/A":
+                        continue
+                    col = col_map.get(k, k)
+                    if col in fold_rows.columns:
+                        vals = fold_rows[col].dropna().values
+                        result[k] = {
+                            'mean'  : round(float(v), 3),                   # value at optimized threshold
+                            'median': round(float(np.median(vals)), 3),     # from CV folds
+                            'std'   : round(float(np.std(vals)), 3),        # from CV folds
+                            'min'   : round(float(np.min(vals)), 3),        # from CV folds
+                            'max'   : round(float(np.max(vals)), 3),        # from CV folds
+                        }
+                    else:
+                        result[k] = {
+                            'mean': round(float(v), 3),
+                            'median': round(float(v), 3),
+                            'std': 0.0,
+                            'min': round(float(v), 3),
+                            'max': round(float(v), 3),
+                        }
+                return result
+            except Exception as e:
+                print(f"Warning: Could not retrieve CV fold metrics from pull(). Error: {e}")
+
+        # Fallback: no CV info available
         return {
             k: {
-                'mean': v,
-                'median': v,
+                'mean': round(float(v), 3),
+                'median': round(float(v), 3),
                 'std': 0.0,
-                'min': v,
-                'max': v,
+                'min': round(float(v), 3),
+                'max': round(float(v), 3),
             } for k, v in metrics.items() if v != "N/A"
         }
 
@@ -360,10 +404,12 @@ class ModelHandler(Node):
                             "md",
                             f"Optimized threshold: {getattr(best_model, 'probability_threshold', getattr(best_model, 'threshold', 'not found'))}"
                         )
-                        # recalculate metrics using the optimized threshold
                         X_test_final = best_exp.get_config('X_test_transformed')
                         y_test_final = best_exp.get_config('y_test_transformed')
-                        overall_metrics = self.__recalculate_metrics_with_threshold(best_model, X_test_final, y_test_final)
+                        # FIX 6: pass pycaret_exp to preserve std from CV folds
+                        overall_metrics = self.__recalculate_metrics_with_threshold(
+                            best_model, X_test_final, y_test_final, pycaret_exp=pycaret_exp
+                        )
                         log_metrics = {k: v['mean'] for k, v in overall_metrics.items()}
                         custom_logger.log_metrics(log_metrics)
 
@@ -527,11 +573,13 @@ class ModelHandler(Node):
                 }
 
             # FIX: if threshold was optimized, recalculate metrics using the optimized threshold
-            # __recalculate_metrics_with_threshold now reads probability_threshold correctly (FIX 1)
+            # FIX 6: pass pycaret_exp to preserve std/min/max from CV folds
             if self.optimize_threshold and len(pycaret_exp.get_config('y').unique()) == 2 and not self.ensembleEnabled:
                 X_test_final = pycaret_exp.get_config('X_test_transformed')
                 y_test_final = pycaret_exp.get_config('y_test_transformed')
-                overall_metrics = self.__recalculate_metrics_with_threshold(trained_model, X_test_final, y_test_final)
+                overall_metrics = self.__recalculate_metrics_with_threshold(
+                    trained_model, X_test_final, y_test_final, pycaret_exp=pycaret_exp
+                )
 
             return {'model': trained_model, 'overall_metrics': overall_metrics}
         else:
@@ -703,11 +751,12 @@ class ModelHandler(Node):
                         "md",
                         f"Optimized threshold: {getattr(trained_models[0], 'probability_threshold', getattr(trained_models[0], 'threshold', 'not found'))}"
                     )
-                    # recalculate metrics using the optimized threshold
                     X_test_final = experiment['pycaret_exp'].get_config('X_test_transformed')
                     y_test_final = experiment['pycaret_exp'].get_config('y_test_transformed')
+                    # FIX 6: pass pycaret_exp to preserve std/min/max from CV folds
                     trained_models_json['overall_metrics'] = self.__recalculate_metrics_with_threshold(
-                        trained_models[0], X_test_final, y_test_final
+                        trained_models[0], X_test_final, y_test_final,
+                        pycaret_exp=experiment['pycaret_exp']
                     )
 
             if finalize:

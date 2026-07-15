@@ -10,7 +10,9 @@ import numpy as np
 import pandas as pd
 from explainerdashboard import ClassifierExplainer, ExplainerDashboard, RegressionExplainer
 from explainerdashboard.explainer_methods import guess_shap
+from explainerdashboard.custom import Metric
 from pycaret.internal.pipeline import Pipeline
+from sklearn.metrics import confusion_matrix
 
 sys.path.append(str(Path(os.path.dirname(os.path.abspath(__file__))).parent.parent))
 from med_libs.GoExecutionScript import GoExecutionScript, parse_arguments
@@ -89,12 +91,21 @@ class GoExecScriptOpenDashboard(GoExecutionScript):
         self.progress_thread.start()
         self.dashboard_thread = threading.Thread(target=self._server_dashboard, args=())
         self.dashboard_thread.daemon = True
+        
 
     def _custom_process(self, json_config: dict) -> dict:
         """
         Main script opening the dashboard.
         """
         go_print(json.dumps(json_config, indent=4))
+        
+        def specificity(y_true, y_pred):
+            tn, fp, fn, tp = confusion_matrix(y_true, y_pred).ravel()
+            return tn / (tn + fp) if (tn + fp) != 0 else 0
+
+        def npv(y_true, y_pred):
+            tn, fp, fn, tp = confusion_matrix(y_true, y_pred).ravel()
+            return tn / (tn + fn) if (tn + fn) != 0 else 0
 
         # Initialize data and load model
         db = connect_to_mongo()
@@ -250,7 +261,16 @@ class GoExecScriptOpenDashboard(GoExecutionScript):
         self.row_count = len(y_test)
         self._progress["duration"] = "{:.2f}".format(self.row_count / self.speed / 60.0)
         self.now = 0
-        self.ed = ExplainerDashboard(explainer, title=dashboard_name, mode="dash")
+        custom_metrics = [
+            Metric("Specificity", specificity),
+            Metric("NPV", npv)
+            ]
+        self.ed = ExplainerDashboard(
+                explainer,
+                title=dashboard_name,
+                metrics=custom_metrics,
+                mode="dash"
+            )
         self.now = 100
         go_print("dashboard created")
         self.port = find_next_available_port()
