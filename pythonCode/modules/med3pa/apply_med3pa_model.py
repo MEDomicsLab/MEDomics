@@ -61,7 +61,7 @@ class GoExecScriptApplyMed3paModel(GoExecutionScript):
             raise ValueError(f"Session '{deployment['session_name']}' behind this deployment no longer exists.")
 
         columns = session["columns"]
-        threshold = float(deployment.get("min_confidence_level") or 0.5)
+        threshold = float(deployment.get("min_confidence_level"))
         mpc_strategy = deployment.get("mpc_strategy") or "minimum"
 
         self.set_progress(label="Loading input data", now=15)
@@ -70,9 +70,9 @@ class GoExecScriptApplyMed3paModel(GoExecutionScript):
             if not dataset or "id" not in dataset:
                 raise ValueError("No dataset was selected.")
             df = get_dataset_as_pd_df(dataset["id"])
-            # Drop the training target column if it is present in the new data
+            # Drop the training target column if it is present in the new data --> flag an error instead?
             target_column = session.get("target_column")
-            if target_column and target_column in df.columns:
+            if target_column and (target_column in df.columns):
                 df = df.drop(columns=[target_column])
         else:
             patient = params.get("patient") or {}
@@ -107,7 +107,7 @@ class GoExecScriptApplyMed3paModel(GoExecutionScript):
         models_doc = db["med3pa_models"].find_one({"session_name": deployment["session_name"]})
         if models_doc is None or models_doc.get("ipc_model") is None:
             raise ValueError("The trained IPC/APC models for this session were not found. Re-run the analysis.")
-        ipc_model = pickle.loads(models_doc["ipc_model"])
+        ipc_model = pickle.loads(models_doc["ipc_model"]) #might need to import the sklearn or med3pa packages for this to work
         apc_model = pickle.loads(models_doc["apc_model"]) if models_doc.get("apc_model") else None
 
         self.set_progress(label="Running base model", now=45)
@@ -116,7 +116,7 @@ class GoExecScriptApplyMed3paModel(GoExecutionScript):
             base_prob = base_mdl.predict_proba(x_np)[:, 1]
         else:
             base_prob = np.asarray(base_mdl.predict(x_np), dtype=float)
-        base_pred = (base_prob >= 0.5).astype(int)
+        base_pred = (base_prob >= 0.5).astype(int) #yes or no
 
         self.set_progress(label="Computing confidence scores", now=60)
         ipc_values = np.asarray(ipc_model.predict(x_np), dtype=float)

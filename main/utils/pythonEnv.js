@@ -404,7 +404,7 @@ export async function installBundledPythonExecutable(mainWindow) {
     // If the python executable is not installed, download the python executable
     if (process.platform == "win32") {
       // Download the python executable
-      let url = "https://github.com/indygreg/python-build-standalone/releases/download/20240224/cpython-3.9.18+20240224-x86_64-pc-windows-msvc-shared-install_only.tar.gz"
+      let url = "https://github.com/astral-sh/python-build-standalone/releases/download/20260623/cpython-3.12.13+20260623-x86_64-pc-windows-msvc-install_only.tar.gz"
       let outputFileName = "cpython-3.9.18+20240224-x86_64-pc-windows-msvc-shared-install_only.tar.gz"
 
       let downloadPromise = exec(`wget ${url} -O ${outputFileName}`, { shell: "powershell.exe" })

@@ -25,7 +25,6 @@ from MED3pa.med3pa.results import to_serializable
 json_params_dict, id_ = parse_arguments()
 go_print("running run_med3pa_analysis.py:" + id_)
 
-
 def parse_int_list(value, default):
     """Turn a frontend value into a list of ints.
 

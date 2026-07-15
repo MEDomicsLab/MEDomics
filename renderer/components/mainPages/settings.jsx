@@ -17,6 +17,7 @@ import { Column } from "primereact/column"
 import { WorkspaceContext } from "../workspace/workspaceContext"
 import FirstSetupModal from "../generalPurpose/installation/firstSetupModal"
 import { requestBackend } from "../../utilities/requests"
+import { cond } from "lodash"
 const util = require("util")
 const exec = util.promisify(require("child_process").exec)
 
@@ -129,9 +130,14 @@ const SettingsPage = ({pageId = "settings", checkJupyterIsRunning, startJupyterS
       if (res !== null && res !== pythonEmbedded && !condaPath) {
           ipcRenderer.invoke("getInstalledPythonPackages", res).then((pythonPackages) => {
             console.log("Installed Python Packages: ", pythonPackages)
+            console.log("debug 1", condaPath, res, pythonEmbedded)
             setPythonEmbedded({ pythonEmbedded: res, pythonPackages: pythonPackages })
           })
-        }
+        } 
+      else if (condaPath) {
+        console.log("debug 2", condaPath)
+        setPythonEmbedded({...pythonEmbedded, pythonEmbedded:condaPath} )
+      }
       })
     }, 5000)
     return () => clearInterval(interval)
@@ -140,9 +146,10 @@ const SettingsPage = ({pageId = "settings", checkJupyterIsRunning, startJupyterS
   useEffect(() => {
     ipcRenderer.invoke("getBundledPythonEnvironment").then((res) => {
       console.log("Python embedded: ", res)
-      if (res !== null) {
+      if (res !== null && !condaPath) {
         ipcRenderer.invoke("getInstalledPythonPackages", res).then((pythonPackages) => {
           console.log("Installed Python Packages: ", pythonPackages)
+          console.log("debug 3")
           setPythonEmbedded({ pythonEmbedded: res, pythonPackages: pythonPackages })
         })
       }
@@ -324,6 +331,7 @@ const SettingsPage = ({pageId = "settings", checkJupyterIsRunning, startJupyterS
                         ipcRenderer.invoke("open-dialog-exe").then((path) => {
                           console.log("path", path)
                           setCondaPath(path)
+                          console.log("debug 4")
                           setPythonEmbedded({...pythonEmbedded, pythonEmbedded:path} )
                           saveSettings({ ...settings, condaPath: path })
                         })

@@ -7,7 +7,6 @@ from json import dumps
 import pandas as pd
 import sklearn
 from flask import jsonify
-from pycaret.internal.pipeline import Pipeline
 
 
 def get_json_from_request(request):
@@ -92,9 +91,10 @@ def get_model_from_path(path: str) -> sklearn.base.BaseEstimator:
         This function is used to get the model from a medmodel
     """
     import joblib
+
     with open(path, "rb") as f:
         model = joblib.load(f)
-    if isinstance(model, Pipeline):
+    if hasattr(model, "steps"):
         model = model.steps[-1][1]
     return model
 
