@@ -74,10 +74,17 @@ const ModelViewer = ({ id }) => {
           )}
 
           {/* Machine Learning Type Section */}
-          {renderCardSection(
+          {data.ml_type && renderCardSection(
             "Machine Learning Type",
             <p>{data.ml_type}</p>,
             "pi pi-circle"
+          )}
+
+          {/* Machine Learning Algorithm Section */}
+          {data.algorithm &&renderCardSection(
+            "Machine Learning Algorithm",
+            <p>{data.algorithm}</p>,
+            "pi pi-cogs"
           )}
 
           {/* Model Threshold Section */}

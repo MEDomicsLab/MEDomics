@@ -62,6 +62,7 @@ class MEDexperiment(ABC):
         self.finalize_node = global_json_config.get('modelToFinalize', None)
         self.finalize_is_combine = self.__get_node_type(self.finalize_node) == 'combine_models' if self.finalize_node is not None else False
         self.pipelines = self.__init_pipelines(global_json_config['pipelines'])
+        self.pipelines = self.split_pipelines(self.pipelines)
         self.pipelines_to_execute = self.pipelines
         self._results_pipeline = {}
         self._progress = {'currentLabel': '', 'now': 0.0}
@@ -106,6 +107,30 @@ class MEDexperiment(ABC):
         else:
             raise ValueError(f"Node {node_id} not found in global json config.")
         
+    def split_pipelines(self, data):
+        if not isinstance(data, dict):
+            return data
+
+        new_dict = {}
+        for key, value in data.items():
+            if "." in key:
+                # Split the key into the part before and after the dot
+                first_part, second_part = key.split(".", 1)
+                
+                # Extract the prefix before the '*' to reconstruct the second key
+                prefix = first_part.split("*")[0] + "*"
+                reconstructed_second_key = prefix + second_part
+                
+                # Recursively process the children for both new keys
+                processed_value = self.split_pipelines(value)
+                new_dict[first_part] = processed_value
+                new_dict[reconstructed_second_key] = processed_value
+            else:
+                # Recurse deeper into the dictionary
+                new_dict[key] = self.split_pipelines(value)
+                
+        return new_dict
+
     def update(self, global_json_config: json = None):
         """Updates the experiment with the pipelines and the global configuration.
 
@@ -199,7 +224,10 @@ class MEDexperiment(ABC):
             for current_node_id, next_nodes_id_json in self.pipelines_to_execute.items():
                 node_info = self.pipelines_objects[current_node_id]
                 node: Node = node_info['obj']
-                self._progress['currentLabel'] = node.username
+                if node.username.lower() == 'train model':
+                    self._progress['currentLabel'] = f"Training model (This process may take long)"
+                else:
+                    self._progress['currentLabel'] = node.username
                 has_been_run = node.has_run()
                 if not has_been_run or 'experiment' not in node_info:
                     node_info['results'] = {
@@ -283,7 +311,10 @@ class MEDexperiment(ABC):
                 node = node_info['obj']
                 experiment = self.copy_experiment(experiment)
                 exp_to_return = experiment
-                self._progress['currentLabel'] = node.username
+                if node.username.lower() == 'train model':
+                    self._progress['currentLabel'] = f"Training model (This process may take long)"
+                else:
+                    self._progress['currentLabel'] = node.username
                 if not node.has_run() or prev_node.has_changed():
                     if node.type == 'group_models':
                         print("group_models")

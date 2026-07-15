@@ -10,7 +10,7 @@ from pycaret.classification import *
 from pycaret.utils.generic import check_metric
 from sklearn.metrics import (accuracy_score, confusion_matrix, f1_score,
                              matthews_corrcoef, precision_score, recall_score,
-                             roc_auc_score, roc_curve)
+                             roc_auc_score)
 
 from .NodeObj import Node
 
@@ -71,6 +71,13 @@ class ModelHandler(Node):
         super().__init__(id_, global_config_json)
         self.model_name_id = None
         if self.type == 'train_model':
+            self.model_id = self.config_json['associated_id']
+            model_obj = self.global_config_json['nodes'][self.model_id]
+            self.model_name_id = model_obj['data']['internal'].get('nameID', None)
+            self.config_json['data']['estimator'] = {
+                "type": model_obj['data']['internal']['selection'],
+                "settings": model_obj['data']['internal']['settings']
+            }
             self.isTuningEnabled = self.config_json['data']['internal'].get('isTuningEnabled', False)
             if self.isTuningEnabled:
                 self.settingsTuning = self.config_json['data']['internal'].get('settingsTuning', {})
@@ -95,13 +102,6 @@ class ModelHandler(Node):
                     self.threshold_optimization_metric,
                     self.threshold_optimization_metric
                 )
-            self.model_id = self.config_json['associated_id']
-            model_obj = self.global_config_json['nodes'][self.model_id]
-            self.model_name_id = model_obj['data']['internal'].get('nameID', None)
-            self.config_json['data']['estimator'] = {
-                "type": model_obj['data']['internal']['selection'],
-                "settings": model_obj['data']['internal']['settings']
-            }
 
     def __calculate_all_metrics(self, y_true, y_pred, y_pred_proba=None):
         metrics = {}
@@ -131,6 +131,30 @@ class ModelHandler(Node):
             raise ValueError(f"Error calculating metrics: {e}")
         
         return metrics
+    
+    def __calculate_all_metrics_to_notebook(self):
+        self.CodeHandler.add_line("code", "def calculate_all_metrics(y_true, y_pred, y_pred_proba=None):", indent=0)
+        self.CodeHandler.add_line("code", "metrics = {}", indent=1)
+        self.CodeHandler.add_line("code", "try:", indent=1)
+        self.CodeHandler.add_line("code", "if y_pred_proba is not None:", indent=2)
+        self.CodeHandler.add_line("code", "try:", indent=3)
+        self.CodeHandler.add_line("code", "if len(np.unique(y_true)) == 2:", indent=4)
+        self.CodeHandler.add_line("code", "metrics['AUC'] = round(roc_auc_score(y_true, y_pred_proba), 3)", indent=5)
+        self.CodeHandler.add_line("code", "else:", indent=4)
+        self.CodeHandler.add_line("code", "metrics['AUC'] = round(roc_auc_score(y_true, y_pred_proba, multi_class='ovr', average='weighted'), 3)", indent=5)
+        self.CodeHandler.add_line("code", "except Exception as e:", indent=3)
+        self.CodeHandler.add_line("code", "print(f\"Warning: Could not calculate probability metrics: {e}\")", indent=4)
+        self.CodeHandler.add_line("code", "metrics['AUC'] = \"N/A\"", indent=4)
+        self.CodeHandler.add_line("code", "metrics['Sensitivity'] = round(recall_score(y_true, y_pred, zero_division=0), 3)", indent=2)
+        self.CodeHandler.add_line("code", "metrics['Specificity'] = round(specificity(y_true, y_pred), 3)", indent=2)
+        self.CodeHandler.add_line("code", "metrics['PPV'] = round(precision_score(y_true, y_pred, zero_division=0), 3)", indent=2)
+        self.CodeHandler.add_line("code", "metrics['NPV'] = round(npv(y_true, y_pred), 3)", indent=2)
+        self.CodeHandler.add_line("code", "metrics['Accuracy'] = round(accuracy_score(y_true, y_pred), 3)", indent=2)
+        self.CodeHandler.add_line("code", "metrics['F1'] = round(f1_score(y_true, y_pred, zero_division=0), 3)", indent=2)
+        self.CodeHandler.add_line("code", "metrics['MCC'] = round(matthews_corrcoef(y_true, y_pred), 3)", indent=2)
+        self.CodeHandler.add_line("code", "except Exception as e:", indent=1)
+        self.CodeHandler.add_line("code", "raise ValueError(f\"Error calculating metrics: {e}\")", indent=2)
+        self.CodeHandler.add_line("code", "return metrics", indent=1)
 
     def __calculate_overall_metrics(self, fold_metrics):
         overall_metrics = {}
@@ -234,13 +258,24 @@ class ModelHandler(Node):
             } for k, v in metrics.items() if v != "N/A"
         }
 
+    def __recalculate_metrics_with_threshold_to_notebook(self):
+        self.CodeHandler.add_line("code", "def recalculate_metrics_with_threshold(model, X_test, y_test):", indent=0)
+        self.CodeHandler.add_line("code", "threshold = getattr(model, 'probability_threshold', getattr(model, 'threshold', 0.5))", indent=1)
+        self.CodeHandler.add_line("code", "y_proba = model.predict_proba(X_test)[:, 1] if hasattr(model, 'predict_proba') else None", indent=1)
+        self.CodeHandler.add_line("code", "if y_proba is not None:", indent=1)
+        self.CodeHandler.add_line("code", "y_pred = (y_proba >= threshold).astype(int)", indent=2)
+        self.CodeHandler.add_line("code", "else:", indent=1)
+        self.CodeHandler.add_line("code", "y_pred = model.predict(X_test)", indent=2)
+        self.CodeHandler.add_line("code", "y_proba = None if y_proba is None else y_proba", indent=2)
+        self.CodeHandler.add_line("code", "metrics = calculate_all_metrics(y_test, y_pred, y_proba)", indent=1)
+        self.CodeHandler.add_line("code", "return {k: {'mean': v, 'median': v, 'std': 0.0, 'min': v, 'max': v} for k, v in metrics.items() if v != \"N/A\"}", indent=1)
+
     def __custom_train_and_evaluate(
             self, 
             pycaret_exp, 
             folds: list,
             X_processed: pd.DataFrame, 
             y_processed: pd.Series, 
-            random_state=42, 
             finalize=False,
             final_setup_kwargs: dict = {},
             **ml_settings
@@ -249,15 +284,29 @@ class ModelHandler(Node):
         if folds is None:
             raise ValueError("Folds should not be None. Check the iteration data.")
 
+        # Functions required for code generation
+        self.CodeHandler.add_import("import copy")
+        self.CodeHandler.add_import("from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, roc_auc_score, confusion_matrix, matthews_corrcoef")
+        self.CodeHandler.add_line("md", "Utility functions for metric calculations")
+        self.specificity_to_notebook()
+        self.npv_to_notebook()
+        self.__calculate_all_metrics_to_notebook()
+        self.__calculate_overall_metrics_to_notebook()
+        if self.optimize_threshold:
+            self.__recalculate_metrics_with_threshold_to_notebook()
+
+        # Initialization
         trained_models = []
         fold_performances = []
         optimization_metric = 'Accuracy'
         all_fold_metrics = {}
 
+        self.CodeHandler.add_line("md", "Training and evaluating models for each fold")
         self.CodeHandler.add_line("code", "\n# Initializing model training and evaluation")
         self.CodeHandler.add_line("code", "trained_models = []")
         self.CodeHandler.add_line("code", "fold_performances = []")
         self.CodeHandler.add_line("code", f"optimization_metric = '{optimization_metric}'")
+        self.CodeHandler.add_line("code", "all_fold_metrics = {}")
         
         for fold_data in folds:
             fold_num = fold_data['fold']
@@ -272,6 +321,7 @@ class ModelHandler(Node):
             except IndexError as e:
                 raise ValueError(f"Index error during fold data extraction on fold {fold_num}: {e}")
 
+            # setup a unique experiment for each fold
             if 'log_experiment' in list(final_setup_kwargs.keys()):
                 del final_setup_kwargs['log_experiment']
             fold_exp = copy.deepcopy(pycaret_exp)
@@ -283,6 +333,8 @@ class ModelHandler(Node):
                 **final_setup_kwargs
             )
             model = fold_exp.create_model(verbose=False, **ml_settings)
+
+            # This is only for logging purposes
             _ = pycaret_exp.create_model(verbose=False, **ml_settings)
 
             if self.isTuningEnabled:
@@ -327,7 +379,6 @@ class ModelHandler(Node):
             y_proba = model.predict_proba(X_test_fold)[:, 1] if hasattr(model, 'predict_proba') else None
 
             if y_proba is not None:
-                # FIX 2: read probability_threshold with fallback to threshold
                 threshold = getattr(model, 'probability_threshold', getattr(model, 'threshold', 0.5))
                 y_pred = (y_proba >= threshold).astype(int)
             else:
@@ -349,6 +400,11 @@ class ModelHandler(Node):
             })
             trained_models.append(model)
 
+        overall_metrics, log_metrics = self.__calculate_overall_metrics(all_fold_metrics)
+        custom_logger = pycaret_exp.get_config('logging_param').loggers[0]
+        custom_logger.log_metrics(log_metrics)
+
+        # Code generation
         self.CodeHandler.add_line("code", f"\n# Training and evaluating models for {len(folds)} folds")
         self.CodeHandler.add_line("code", f"for fold_data in folds:")
         self.CodeHandler.add_line("code", f"fold_num = fold_data['fold']", indent=1)
@@ -358,39 +414,55 @@ class ModelHandler(Node):
         self.CodeHandler.add_line("code", f"y_train_fold = y_processed.iloc[train_indices]", indent=1)
         self.CodeHandler.add_line("code", f"X_test_fold = X_processed.iloc[test_indices]", indent=1)
         self.CodeHandler.add_line("code", f"y_test_fold = y_processed.iloc[test_indices]", indent=1)
+        self.CodeHandler.add_line("code", f"# Setup PyCaret experiment for the fold", indent=1)
+        self.CodeHandler.add_line("code", f"fold_exp = copy.deepcopy(pycaret_exp)", indent=1)
+        self.CodeHandler.add_line("code", f"fold_exp.setup(data=pd.concat([X_train_fold, y_train_fold], axis=1), test_data=pd.concat([X_test_fold, y_test_fold]," \
+            f" axis=1), log_experiment=False, index=False, **{final_setup_kwargs})", indent=1)
         self.CodeHandler.add_line("code", f"# Create and fit model", indent=1)
-        self.CodeHandler.add_line("code", f"model = pycaret_exp.create_model(verbose=False, {self.CodeHandler.convert_dict_to_params(ml_settings)})", indent=1)
-        self.CodeHandler.add_line("code", f"if hasattr(model, 'random_state'):", indent=1)
-        self.CodeHandler.add_line("code", f"setattr(model, 'random_state', {random_state})", indent=2)
-        self.CodeHandler.add_line("code", f"model.fit(X_train_fold, y_train_fold)", indent=1)
+        self.CodeHandler.add_line("code", f"model = fold_exp.create_model(verbose=False, {self.CodeHandler.convert_dict_to_params(ml_settings)})", indent=1)
+        self.CodeHandler.add_line("code", f"# This is only for logging purposes", indent=1)
+        self.CodeHandler.add_line("code", f"_ = pycaret_exp.create_model(verbose=False, {self.CodeHandler.convert_dict_to_params(ml_settings)})", indent=1)
+        if self.isTuningEnabled:
+            self.CodeHandler.add_line("code", f"model = fold_exp.tune_model(model, {self.CodeHandler.convert_dict_to_params(self.settingsTuning)})", indent=1)
+        if self.ensembleEnabled:
+            self.CodeHandler.add_line("code", f"model = fold_exp.ensemble_model(model, {self.CodeHandler.convert_dict_to_params(self.settingsEnsemble)})", indent=1)
+        if self.calibrateEnabled:
+            self.CodeHandler.add_line("code", f"model = fold_exp.calibrate_model(model, {self.CodeHandler.convert_dict_to_params(self.settingsCalibrate)})", indent=1)
         self.CodeHandler.add_line("code", f"# Making predictions on the test set", indent=1)
         self.CodeHandler.add_line("code", f"y_pred = model.predict(X_test_fold)", indent=1)
-        self.CodeHandler.add_line("code", f"# Assess performance", indent=1)
-        self.CodeHandler.add_line("code", f"if optimization_metric.lower() == 'auc' and hasattr(model, 'predict_proba'):", indent=1)
-        self.CodeHandler.add_line("code", f"y_pred = model.predict_proba(X_test_fold)[:, 1]", indent=2)
-        self.CodeHandler.add_import("from pycaret.utils.generic import check_metric")
-        self.CodeHandler.add_line("code", f"fold_score = check_metric(y_test_fold, pd.Series(y_pred), metric=optimization_metric)", indent=1)
-        self.CodeHandler.add_line("code", f"fold_performances.append({{'fold': fold_num, 'model': model, 'score': fold_score, 'test_indices': test_indices}})", indent=1)
+        self.CodeHandler.add_line("code", f"# Calculate fold metrics", indent=1)
+        self.CodeHandler.add_line("code", f"y_proba = model.predict_proba(X_test_fold)[:, 1] if hasattr(model, 'predict_proba') else None", indent=1)
+        self.CodeHandler.add_line("code", f"fold_metric_results = calculate_all_metrics(y_test_fold, y_pred, y_proba)", indent=1)
+        self.CodeHandler.add_line("code", f"all_fold_metrics[fold_num] = fold_metric_results", indent=1)
         self.CodeHandler.add_line("code", f"trained_models.append(model)", indent=1)
-
-        overall_metrics, log_metrics = self.__calculate_overall_metrics(all_fold_metrics)
-
-        custom_logger = pycaret_exp.get_config('logging_param').loggers[0]
-        custom_logger.log_metrics(log_metrics)
+        self.CodeHandler.add_line("md", "Final Model Training and Overall Metrics Calculation")
+        self.CodeHandler.add_line("code", f"\n# Calculating overall metrics across folds")
+        self.CodeHandler.add_line("code", f"overall_metrics, log_metrics = calculate_overall_metrics(all_fold_metrics)", indent=0)
+        self.CodeHandler.add_line("code", f"print(f\"Overall Metrics: \", overall_metrics)", indent=0)
 
         if fold_performances:
-            best_model = sorted(fold_performances, key=lambda x: x['score'], reverse=True)[0]['model']
-            best_exp = sorted(fold_performances, key=lambda x: x['score'], reverse=True)[0]['experiment']
-
-            self.CodeHandler.add_line("code", "\n# Selecting the best model based on performance")
-            self.CodeHandler.add_line("code", f"best_model = sorted(fold_performances, key=lambda x: x['score'], reverse=True)[0]['model']")
-            
             try:
-                if hasattr(best_model, 'random_state'):
-                    setattr(best_model, 'random_state', random_state)
-                    self.CodeHandler.add_line("code", f"setattr(best_model, 'random_state', {random_state})")
-                
-                best_model.fit(X_processed, y_processed)
+                # Final model: rebuild from the best config:
+                best_model = pycaret_exp.create_model(**ml_settings)
+                self.CodeHandler.add_line("code", f"best_model = pycaret_exp.create_model({self.CodeHandler.convert_dict_to_params(ml_settings)})", indent=0)
+
+                # Tuning
+                if self.isTuningEnabled:
+                    best_model = pycaret_exp.tune_model(best_model, **self.settingsTuning)
+                    self.CodeHandler.add_line("code", f"# Tuning model", indent=0)
+                    self.CodeHandler.add_line("code", f"best_model = pycaret_exp.tune_model(best_model, {self.CodeHandler.convert_dict_to_params(self.settingsTuning)})", indent=0)
+
+                # Ensembling
+                if self.ensembleEnabled:
+                    best_model = pycaret_exp.ensemble_model(best_model, **self.settingsEnsemble)
+                    self.CodeHandler.add_line("code", f"# Ensembling model", indent=0)
+                    self.CodeHandler.add_line("code", f"best_model = pycaret_exp.ensemble_model(best_model, {self.CodeHandler.convert_dict_to_params(self.settingsEnsemble)})", indent=0)
+
+                # Calibration
+                if self.calibrateEnabled:
+                    best_model = pycaret_exp.calibrate_model(best_model, **self.settingsCalibrate)
+                    self.CodeHandler.add_line("code", f"# Calibrating model", indent=0)
+                    self.CodeHandler.add_line("code", f"best_model = pycaret_exp.calibrate_model(best_model, {self.CodeHandler.convert_dict_to_params(self.settingsCalibrate)})", indent=0)
 
                 if self.optimize_threshold:
                     if len(pycaret_exp.get_config('y').unique()) != 2:
@@ -398,8 +470,7 @@ class ModelHandler(Node):
                     elif self.ensembleEnabled:
                         print("Skipping threshold optimization (ensemble not supported).")
                     else:
-                        best_model = best_exp.optimize_threshold(best_model, optimize=self.threshold_optimization_metric)
-                        # FIX 3: read probability_threshold with fallback to threshold
+                        best_model = pycaret_exp.optimize_threshold(best_model, optimize=self.threshold_optimization_metric)
                         self.CodeHandler.add_line(
                             "md",
                             f"Optimized threshold: {getattr(best_model, 'probability_threshold', getattr(best_model, 'threshold', 'not found'))}"
@@ -413,23 +484,22 @@ class ModelHandler(Node):
                         log_metrics = {k: v['mean'] for k, v in overall_metrics.items()}
                         custom_logger.log_metrics(log_metrics)
 
-                self.CodeHandler.add_line("code", f"best_model.fit(X_processed, y_processed)")
-                if self.isTuningEnabled:
-                    self.CodeHandler.add_line("code", f"# Tuning model", indent=0)
-                    self.CodeHandler.add_line("code", f"best_model = pycaret_exp.tune_model(best_model, {self.CodeHandler.convert_dict_to_params(self.settingsTuning)})", indent=0)
-                if self.ensembleEnabled:
-                    self.CodeHandler.add_line("code", f"# Ensembling model", indent=0)
-                    self.CodeHandler.add_line("code", f"best_model = pycaret_exp.ensemble_model(best_model, {self.CodeHandler.convert_dict_to_params(self.settingsEnsemble)})", indent=0)
-                if self.calibrateEnabled:
-                    self.CodeHandler.add_line("code", f"# Calibrating model", indent=0)
-                    self.CodeHandler.add_line("code", f"best_model = pycaret_exp.calibrate_model(best_model, {self.CodeHandler.convert_dict_to_params(self.settingsCalibrate)})", indent=0)
-                if self.optimize_threshold:
-                    if len(pycaret_exp.get_config('y').unique()) == 2 and not self.ensembleEnabled:
+                        # Code generation
                         self.CodeHandler.add_line("code", f"# Optimizing model threshold based on {self.threshold_optimization_metric}", indent=0)
-                        self.CodeHandler.add_line("code", f"best_model = pycaret_exp.optimize_threshold(best_model, optimize='{self.threshold_optimization_metric}')", indent=0)
+                        self.CodeHandler.add_line(
+                            "code", 
+                            f"best_model = pycaret_exp.optimize_threshold(best_model, optimize='{self.threshold_optimization_metric}')", 
+                            indent=0
+                        )
+                        self.CodeHandler.add_line("code", f"# Recalculating metrics with optimized threshold", indent=0)
+                        self.CodeHandler.add_line("code", f"X_test_final = pycaret_exp.get_config('X_test_transformed')", indent=0)
+                        self.CodeHandler.add_line("code", f"y_test_final = pycaret_exp.get_config('y_test_transformed')", indent=0)
+                        self.CodeHandler.add_line("code", f"overall_metrics = recalculate_metrics_with_threshold(best_model, X_test_final, y_test_final)", indent=0)
+                        self.CodeHandler.add_line("code", "print(\"Overall Metrics with optimized threshold: \", overall_metrics)", indent=0)
 
                 if finalize:
-                    best_model = best_exp.finalize_model(best_model)
+                    best_model = pycaret_exp.finalize_model(best_model)
+                    self.CodeHandler.add_line("code", f"best_model = pycaret_exp.finalize_model(best_model)", indent=0)
 
                 self.CodeHandler.add_line("code", f"trained_models = [best_model]")
                 return {'model': best_model, 'overall_metrics': overall_metrics}
@@ -443,7 +513,6 @@ class ModelHandler(Node):
         final_setup_kwargs = kwargs.get("final_setup_kwargs", {})
         iteration_data = kwargs["split_indices"]
         pycaret_exp = experiment['pycaret_exp']
-        random_state = kwargs.get("random_state", 42)
         finalize = kwargs.get("finalize", False)
         overall_metrics = {}
 
@@ -457,7 +526,6 @@ class ModelHandler(Node):
             if "hidden_layer_sizes" in settings:
                 val = settings["hidden_layer_sizes"]
                 if isinstance(val, str) and val.startswith("(") and val.endswith(")"):
-                    print("Converting hidden_layer_sizes:", val)
                     try:
                         settings["hidden_layer_sizes"] = ast.literal_eval(val)
                     except Exception as e:
@@ -546,7 +614,6 @@ class ModelHandler(Node):
                         "code",
                         f"trained_models = [pycaret_exp.optimize_threshold(trained_models[0], optimize='{self.threshold_optimization_metric}')]"
                     )
-                    # FIX 4a: read probability_threshold with fallback to threshold
                     self.CodeHandler.add_line(
                         "md",
                         f"Optimized threshold: {getattr(trained_model, 'probability_threshold', getattr(trained_model, 'threshold', 'not found'))}"
@@ -554,6 +621,7 @@ class ModelHandler(Node):
 
             if finalize:
                 trained_model = pycaret_exp.finalize_model(trained_model)
+                self.CodeHandler.add_line("code", f"trained_models = [pycaret_exp.finalize_model(trained_models[0])]")
             
             # Get final metrics from pycaret_exp.pull() (pre-threshold metrics)
             final_metrics = pycaret_exp.pull().to_dict(orient='records')
@@ -581,6 +649,12 @@ class ModelHandler(Node):
                     trained_model, X_test_final, y_test_final, pycaret_exp=pycaret_exp
                 )
 
+                # Code generation
+                self.CodeHandler.add_line("code", f"# Recalculating overall metrics with optimized threshold", indent=0)
+                self.CodeHandler.add_line("code", f"X_test_final = pycaret_exp.get_config('X_test_transformed')", indent=0)
+                self.CodeHandler.add_line("code", f"y_test_final = pycaret_exp.get_config('y_test_transformed')", indent=0)
+                self.CodeHandler.add_line("code", f"overall_metrics = recalculate_metrics_with_threshold(trained_models[0], X_test_final, y_test_final)", indent=0)
+
             return {'model': trained_model, 'overall_metrics': overall_metrics}
         else:
             X_processed = pycaret_exp.get_config('X_transformed')
@@ -595,7 +669,6 @@ class ModelHandler(Node):
                 folds, 
                 X_processed, 
                 y_processed, 
-                random_state, 
                 finalize,
                 final_setup_kwargs,
                 **settings
@@ -611,6 +684,14 @@ class ModelHandler(Node):
             return tn / (tn + fp) if (tn + fp) > 0 else 0
         return 0
 
+    def specificity_to_notebook(self):
+        self.CodeHandler.add_line("code", "def specificity(y_true, y_pred):", indent=0)
+        self.CodeHandler.add_line("code", "cm = confusion_matrix(y_true, y_pred)", indent=1)
+        self.CodeHandler.add_line("code", "if cm.shape == (2, 2):", indent=1)
+        self.CodeHandler.add_line("code", "tn, fp, fn, tp = cm.ravel()", indent=2)
+        self.CodeHandler.add_line("code", "return tn / (tn + fp) if (tn + fp) > 0 else 0", indent=2)
+        self.CodeHandler.add_line("code", "return 0", indent=1)
+
     def balanced_accuracy(self, y_true, y_pred):
         """Balanced Accuracy"""
         sensitivity = recall_score(y_true, y_pred, zero_division=0)
@@ -625,10 +706,17 @@ class ModelHandler(Node):
             return tn / (tn + fn) if (tn + fn) > 0 else 0
         return 0
 
+    def npv_to_notebook(self):
+        self.CodeHandler.add_line("code", "def npv(y_true, y_pred):", indent=0)
+        self.CodeHandler.add_line("code", "cm = confusion_matrix(y_true, y_pred)", indent=1)
+        self.CodeHandler.add_line("code", "if cm.shape == (2, 2):", indent=1)
+        self.CodeHandler.add_line("code", "tn, fp, fn, tp = cm.ravel()", indent=2)
+        self.CodeHandler.add_line("code", "return tn / (tn + fn) if (tn + fn) > 0 else 0", indent=2)
+        self.CodeHandler.add_line("code", "return 0", indent=1)
+
     def youden_index(self, y_true, y_pred):
         """
         Youden's J statistic.
-        FIX 5: correct signature — receives binary y_pred, not probabilities.
         PyCaret calls score_func(y_true, y_pred_binary) at each threshold step
         during optimize_threshold. Using roc_curve here was incorrect.
         """
@@ -746,7 +834,6 @@ class ModelHandler(Node):
                 else:
                     trained_models = [experiment['pycaret_exp'].optimize_threshold(trained_models[0], optimize=self.threshold_optimization_metric)]
                     self.CodeHandler.add_line("code", f"trained_models = [pycaret_exp.optimize_threshold(trained_models[0], optimize='{self.threshold_optimization_metric}')]")
-                    # FIX 4b: read probability_threshold with fallback to threshold
                     self.CodeHandler.add_line(
                         "md",
                         f"Optimized threshold: {getattr(trained_models[0], 'probability_threshold', getattr(trained_models[0], 'threshold', 'not found'))}"
@@ -776,26 +863,3 @@ class ModelHandler(Node):
                 if isinstance(value, np.ndarray):
                     trained_models_json[model_copy.__class__.__name__][key] = value.tolist()
         return trained_models_json
-
-    def set_model(self, model_id: str) -> None:
-        try:
-            model_obj = self.global_config_json['nodes'][model_id]
-            self.config_json['data']['estimator'] = {
-                "type": model_obj['data']['selection'],
-                "settings": model_obj['data']['settings']
-            }
-            if self.isTuningEnabled:
-                self.config_json['data']['internal']['settingsTuning'] = model_obj['data']['internal'].get('settingsTuning', {})
-        except KeyError as e:
-            print(f"ERROR: Failed to set model {model_id}. Missing key: {e}")
-            raise ValueError(f"Model configuration for {model_id} not found in the global config.")
-        except Exception as e:
-            print(f"ERROR: An error occurred while setting the model: {e}")
-            raise ValueError(f"An error occurred while setting model {model_id}.")
-
-    def set_model(self, model_id: str) -> None:
-        model_obj = self.global_config_json['nodes'][model_id]
-        self.config_json['data']['estimator'] = {
-            "type": model_obj['data']['selection'],
-            "settings": model_obj['data']['settings']
-        }

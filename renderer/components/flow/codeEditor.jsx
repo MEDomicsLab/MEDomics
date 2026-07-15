@@ -120,6 +120,7 @@ const CodeEditor = ({id, path, updateSavedCode}) => {
   const [content, setContent] = useState("Loading...")
   const [mode, setMode] = useState("text")
   const [error, setError] = useState("")
+  const [stackTrace, setStackTrace] = useState("")
   const [loading, setLoading] = useState(true)
   const [loadingSave, setLoadingSave] = useState(false)
   const { globalData } = useContext(DataContext)
@@ -207,9 +208,17 @@ const CodeEditor = ({id, path, updateSavedCode}) => {
       (response) => {
         setLoading(false)
         console.log("Response from backend:", response)
-        if (response.error){
-          setError(response.error)
-          toast.error("Error opening file: " + response.error)
+        if (response.error) {
+          if (typeof response.error === "object") {
+            setError(response.error.message || "An error occurred while loading the file.")
+            toast.error("Error loading file: " + (response.error.message || "Unknown error"))
+            if (response.error.stack_trace) {
+              setStackTrace(response.error.stack_trace)
+            }
+          } else if (typeof response.error === "string") {
+            setError(response.error)
+            toast.error("Error opening file: " + response.error)
+          }
         }
         else {
           setContent(response.content)
@@ -253,6 +262,11 @@ const CodeEditor = ({id, path, updateSavedCode}) => {
       <Row className="error-dialog-header">
         <Col md="auto">
           <h5>{error}</h5>
+          {stackTrace && (
+            <pre>
+              {stackTrace}
+            </pre>
+          )}
         </Col>
       </Row>
     ) : (
