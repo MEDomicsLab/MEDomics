@@ -299,9 +299,23 @@ if (isProd) {
   console.log("process.resourcesPath: ", process.resourcesPath)
   console.log(MEDconfig.runServerAutomatically ? "Server will start automatically here (in background of the application)" : "Server must be started manually")
   let bundledPythonPath = getBundledPythonEnvironment()
+  // The user-defined python path (condaPath in settings.json) takes precedence over the bundled python
+  let resolvedPythonPath = bundledPythonPath
+  try {
+    const settingsFilePath = path.join(app.getPath("userData"), "settings.json")
+    if (fs.existsSync(settingsFilePath)) {
+      const savedSettings = JSON.parse(fs.readFileSync(settingsFilePath, "utf8"))
+      if (savedSettings.condaPath) {
+        resolvedPythonPath = savedSettings.condaPath
+      }
+    }
+  } catch (error) {
+    console.warn("Could not read settings.json to resolve the python path: ", error)
+  }
+  console.log("Python path passed to the server: ", resolvedPythonPath)
   if (MEDconfig.runServerAutomatically) {
     // Start the Go server – Python path is optional (passed if available)
-    runServer(isProd, serverPort, serverProcess, serverState, bundledPythonPath)
+    runServer(isProd, serverPort, serverProcess, serverState, resolvedPythonPath)
       .then((process) => {
         serverProcess = process
         console.log("Server process started: ", serverProcess)

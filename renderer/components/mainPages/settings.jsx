@@ -124,6 +124,31 @@ const SettingsPage = ({pageId = "settings", checkJupyterIsRunning, startJupyterS
   }
 
   /**
+   * Notify the running Go server that the python environment changed (updates its MED_ENV),
+   * so that python scripts launched after this call use the new interpreter
+   * @param {String} newPath - Path to the python executable
+   * @returns {void}
+   */
+  const updatePythonEnvOnServer = (newPath) => {
+    if (!newPath) return
+    requestBackend(
+      port,
+      "update_python_env",
+      { pythonPath: newPath, pageId: pageId },
+      (data) => {
+        if (data?.error) {
+          console.warn("Python environment update rejected by the server: ", data.error)
+        } else {
+          console.log("Python environment update response: ", data)
+        }
+      },
+      (error) => {
+        console.error("Failed to update the python environment on the server: ", error)
+      }
+    )
+  }
+
+  /**
    * Check if the server is running every 5 seconds
    */
   useEffect(() => {
@@ -324,6 +349,10 @@ const SettingsPage = ({pageId = "settings", checkJupyterIsRunning, startJupyterS
                       onChange={(e) => {
                         setCondaPath(e.target.value)
                         saveSettings({ ...settings, condaPath: e.target.value })
+                        clearTimeout(window.updatePythonEnvTimeout)
+                        window.updatePythonEnvTimeout = setTimeout(() => {
+                          updatePythonEnvOnServer(e.target.value)
+                        }, 1000)
                       }}
                     />
                     <a
@@ -333,6 +362,7 @@ const SettingsPage = ({pageId = "settings", checkJupyterIsRunning, startJupyterS
                           setCondaPath(path)
                           setPythonEmbedded({...pythonEmbedded, pythonEmbedded:path} )
                           saveSettings({ ...settings, condaPath: path })
+                          updatePythonEnvOnServer(path)
                         })
                       }}
                     >

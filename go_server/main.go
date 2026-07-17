@@ -41,6 +41,7 @@ func main() {
 	Utils.CreateHandleFunc("get_server_health", handleGetServerHealth)
 	Utils.CreateHandleFunc("removeId/", handleRemoveId)
 	Utils.CreateHandleFunc("clearAll", handleClearAll)
+	Utils.CreateHandleFunc("update_python_env", handleUpdatePythonEnv)
 
 	// We check if the conda environment was passed as an argument
 	condaEnv := os.Getenv("MED_ENV")
@@ -95,6 +96,24 @@ func convScript2JsonStr(script Utils.ScriptInfo) (string, error) {
 	data["progress"] = script.Progress
 	jsonData, _ := Utils.Map2jsonStr(data)
 	return jsonData, nil
+}
+
+// handleUpdatePythonEnv updates the python environment (MED_ENV) used by StartPythonScripts.
+func handleUpdatePythonEnv(jsonConfig string, id string) (string, error) {
+	config, err := Utils.JsonStr2map(jsonConfig)
+	if err != nil {
+		return "", err
+	}
+	pythonPath, ok := config["pythonPath"].(string)
+	if !ok || pythonPath == "" {
+		return "", fmt.Errorf("no pythonPath provided")
+	}
+	if _, err := os.Stat(pythonPath); err != nil {
+		return "", fmt.Errorf("python executable not found at: %s", pythonPath)
+	}
+	os.Setenv("MED_ENV", pythonPath)
+	log.Println("Python environment updated to: " + pythonPath)
+	return "Python environment set to " + pythonPath, nil
 }
 
 // handleRemoveId handles the request to remove the id from the scripts
