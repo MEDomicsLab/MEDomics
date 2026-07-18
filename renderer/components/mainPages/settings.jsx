@@ -17,6 +17,7 @@ import { Column } from "primereact/column"
 import { WorkspaceContext } from "../workspace/workspaceContext"
 import FirstSetupModal from "../generalPurpose/installation/firstSetupModal"
 import { requestBackend } from "../../utilities/requests"
+import { cond } from "lodash"
 const util = require("util")
 const exec = util.promisify(require("child_process").exec)
 
@@ -74,14 +75,25 @@ const SettingsPage = ({pageId = "settings", checkJupyterIsRunning, startJupyterS
     checkServer()
     checkMongoIsRunning()
     getJupyterStatus()
+    let condaCustomPath = null
     ipcRenderer.invoke("get-settings").then((receivedSettings) => {
       console.log("received settings", receivedSettings)
       setSettings(receivedSettings)
-      if (receivedSettings?.condaPath) {
+      if (receivedSettings?.condaPath && receivedSettings?.condaPath !== condaPath) {
+        condaCustomPath = receivedSettings?.condaPath
         setCondaPath(receivedSettings?.condaPath)
       }
       if (receivedSettings?.seed) {
         setSeed(receivedSettings?.seed)
+      }
+    })
+    ipcRenderer.invoke("getBundledPythonEnvironment").then((res) => {
+      console.log("Python embedded: ", res)
+      if (res !== null && !condaCustomPath) {
+        ipcRenderer.invoke("getInstalledPythonPackages", res).then((pythonPackages) => {
+          console.log("Installed Python Packages: ", pythonPackages)
+          setPythonEmbedded({ pythonEmbedded: res, pythonPackages: pythonPackages })
+        })
       }
     })
   }, [])
@@ -112,6 +124,31 @@ const SettingsPage = ({pageId = "settings", checkJupyterIsRunning, startJupyterS
   }
 
   /**
+   * Notify the running Go server that the python environment changed (updates its MED_ENV),
+   * so that python scripts launched after this call use the new interpreter
+   * @param {String} newPath - Path to the python executable
+   * @returns {void}
+   */
+  const updatePythonEnvOnServer = (newPath) => {
+    if (!newPath) return
+    requestBackend(
+      port,
+      "update_python_env",
+      { pythonPath: newPath, pageId: pageId },
+      (data) => {
+        if (data?.error) {
+          console.warn("Python environment update rejected by the server: ", data.error)
+        } else {
+          console.log("Python environment update response: ", data)
+        }
+      },
+      (error) => {
+        console.error("Failed to update the python environment on the server: ", error)
+      }
+    )
+  }
+
+  /**
    * Check if the server is running every 5 seconds
    */
   useEffect(() => {
@@ -126,27 +163,22 @@ const SettingsPage = ({pageId = "settings", checkJupyterIsRunning, startJupyterS
       ipcRenderer.invoke("getBundledPythonEnvironment").then((res) => {
         console.log("Python embedded: ", res)
 
-        if (res !== null) {
+      if (res !== null && res !== pythonEmbedded && !condaPath) {
           ipcRenderer.invoke("getInstalledPythonPackages", res).then((pythonPackages) => {
             console.log("Installed Python Packages: ", pythonPackages)
             setPythonEmbedded({ pythonEmbedded: res, pythonPackages: pythonPackages })
           })
-        }
+        } 
+      else if (condaPath && condaPath !== pythonEmbedded?.pythonEmbedded) {
+        setPythonEmbedded({...pythonEmbedded, pythonEmbedded:condaPath} )
+      }
       })
     }, 5000)
     return () => clearInterval(interval)
   })
 
   useEffect(() => {
-    ipcRenderer.invoke("getBundledPythonEnvironment").then((res) => {
-      console.log("Python embedded: ", res)
-      if (res !== null) {
-        ipcRenderer.invoke("getInstalledPythonPackages", res).then((pythonPackages) => {
-          console.log("Installed Python Packages: ", pythonPackages)
-          setPythonEmbedded({ pythonEmbedded: res, pythonPackages: pythonPackages })
-        })
-      }
-    })
+    
   }, [])
 
   const getJupyterStatus = async () => {
@@ -317,6 +349,10 @@ const SettingsPage = ({pageId = "settings", checkJupyterIsRunning, startJupyterS
                       onChange={(e) => {
                         setCondaPath(e.target.value)
                         saveSettings({ ...settings, condaPath: e.target.value })
+                        clearTimeout(window.updatePythonEnvTimeout)
+                        window.updatePythonEnvTimeout = setTimeout(() => {
+                          updatePythonEnvOnServer(e.target.value)
+                        }, 1000)
                       }}
                     />
                     <a
@@ -324,7 +360,9 @@ const SettingsPage = ({pageId = "settings", checkJupyterIsRunning, startJupyterS
                         ipcRenderer.invoke("open-dialog-exe").then((path) => {
                           console.log("path", path)
                           setCondaPath(path)
+                          setPythonEmbedded({...pythonEmbedded, pythonEmbedded:path} )
                           saveSettings({ ...settings, condaPath: path })
+                          updatePythonEnvOnServer(path)
                         })
                       }}
                     >
