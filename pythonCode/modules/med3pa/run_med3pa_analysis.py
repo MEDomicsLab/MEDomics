@@ -103,14 +103,18 @@ class GoExecScriptRunMed3paAnalysis(GoExecutionScript):
         self.set_progress(label="Loading base model", now=30)
 
         # A "model" MEDDataObject is a directory; the pickled estimator lives in
-        # its "model.pkl" child. Resolve that child id, then unpickle it from Mongo.
+        # its "model_sklearn.pkl" child (pure sklearn, no pycaret dependency).
+        # Fall back to the full-pipeline "model.pkl" for models saved before the
+        # pycaret-free estimator export existed.
         if not base_model or "id" not in base_model:
             raise ValueError("No base model was selected in the frontend.")
 
-        pickle_object_id = get_child_id_by_name(base_model["id"], "model.pkl") #generalize for all .pkl but also all .medmodel
+        pickle_object_id = get_child_id_by_name(base_model["id"], "model_sklearn.pkl")
+        if pickle_object_id is None:
+            pickle_object_id = get_child_id_by_name(base_model["id"], "model.pkl")
         if pickle_object_id is None:
             raise ValueError(
-                f"Could not find 'model.pkl' inside model '{base_model.get('name')}'."
+                f"Could not find 'model_sklearn.pkl' or 'model.pkl' inside model '{base_model.get('name')}'."
             )
         base_mdl = get_pickled_model_from_collection(pickle_object_id)
         if base_mdl is None:

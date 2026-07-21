@@ -92,6 +92,19 @@ class ModelIO(Node):
                     if hasattr(classifier, 'probability_threshold'):
                         model_threshold = classifier.probability_threshold
 
+                # Pure-sklearn estimator (pycaret-free) for downstream tools like MED3pa.
+                # format_model already returns the final pipeline step. If threshold
+                # optimization was used, that step is pycaret's
+                # CustomProbabilityThresholdClassifier, so unwrap to its fitted sklearn
+                # estimator (.classifier_) and rely on model_threshold stored in metadata.
+                # NOTE: this estimator expects the *transformed* feature space, so it is
+                # only a drop-in for models with little/no preprocessing.
+                sklearn_estimator = fitted_model
+                if type(sklearn_estimator).__module__.startswith("pycaret") and hasattr(sklearn_estimator, "classifier_"):
+                    sklearn_estimator = sklearn_estimator.classifier_
+                serialized_sklearn_model = pickle.dumps(sklearn_estimator)
+                transformed_columns = list(getattr(sklearn_estimator, "feature_names_in_", model_features))
+
                 # .medmodel object
                 model_med_object = MEDDataObject(
                     id = str(uuid.uuid4()),
@@ -147,6 +160,36 @@ class ModelIO(Node):
                         success_pkl = overwrite_med_data_object_content(serialized_model_id, [{'model_path': str(path_save)}])
                         print("pickle overwrite succeed : ", success_pkl)
 
+                # .medmodel pure-sklearn model (loadable without pycaret, e.g. for MED3pa)
+                sklearn_model_med_object = MEDDataObject(
+                    id=str(uuid.uuid4()),
+                    name="model_sklearn.pkl",
+                    type="pkl",
+                    parentID=model_med_object_id,
+                    childrenIDs=[],
+                    inWorkspace=False
+                )
+                sklearn_fits_mongo = len(serialized_sklearn_model) <= (MONGO_BSON_MAX - MONGO_SAFETY_MARGIN)
+                if sklearn_fits_mongo:
+                    sklearn_model_id = insert_med_data_object_if_not_exists(sklearn_model_med_object, [{'model': serialized_sklearn_model}])
+                    if sklearn_model_id != sklearn_model_med_object.id:
+                        success_sklearn = overwrite_med_data_object_content(sklearn_model_id, [{'model': serialized_sklearn_model}])
+                        print("sklearn pickle overwrite succeed : ", success_sklearn)
+                elif 'pathSave' in settings.keys() and settings['pathSave']:
+                    # Too large for MongoDB: save alongside the full model on disk
+                    os.makedirs(settings['pathSave'], exist_ok=True)
+                    sklearn_path_save = Path(settings['pathSave']) / f"{model_name}_model_sklearn.pkl"
+                    with open(sklearn_path_save, "wb") as f:
+                        f.write(serialized_sklearn_model)
+                    sklearn_model_med_object.inWorkspace = True
+                    sklearn_model_med_object.path = str(sklearn_path_save)
+                    sklearn_model_id = insert_med_data_object_if_not_exists(sklearn_model_med_object, [{'model_path': str(sklearn_path_save)}])
+                    if sklearn_model_id != sklearn_model_med_object.id:
+                        success_sklearn = overwrite_med_data_object_content(sklearn_model_id, [{'model_path': str(sklearn_path_save)}])
+                        print("sklearn pickle overwrite succeed : ", success_sklearn)
+                else:
+                    print("Warning: pure-sklearn estimator too large for MongoDB and no 'pathSave' provided; skipping model_sklearn.pkl")
+
                 # .medmodel metadata
                 metadata_med_object = MEDDataObject(
                     id=str(uuid.uuid4()),
@@ -158,6 +201,7 @@ class ModelIO(Node):
                 )
                 to_write = {
                     "columns": model_features,
+                    "sklearn_columns": transformed_columns,
                     "target": self.global_config_json["target_column"],
                     "steps": self.global_config_json["steps"],
                     "ml_type": self.global_config_json["MLType"],

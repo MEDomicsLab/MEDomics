@@ -814,7 +814,7 @@ class ModelHandler(Node):
                     )
 
             if finalize:
-                trained_models = [experiment['pycaret_exp'].finalize_model(model) for model in trained_models]
+                trained_models = [experiment['pycaret_exp'].finalize_model(model).get_sklearn_pipeline() for model in trained_models]
         else:
             raise ValueError(f"Unsupported type: {self.type}. Expected 'compare_models' or 'train_model'.")
 

@@ -286,8 +286,8 @@ export default function Med3paConfigForm({ onAnalysisComplete = null, onNextStep
                   type="radio"
                   name="ipc_metric"
                   value="continuous"
-                  checked={med3pa_params.ipc.confidence_metric === "continuous"}
-                  onChange={() => {setIpc("confidence_metric", "continuous")
+                  checked={med3pa_params.ipc.confidence_metric === "absolute_error"}
+                  onChange={() => {setIpc("confidence_metric", "absolute_error")
                     setIpcCustomExpr(false)
                   }}
                 />

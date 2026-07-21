@@ -97,9 +97,13 @@ class GoExecScriptApplyMed3paModel(GoExecutionScript):
 
         self.set_progress(label="Loading models", now=30)
         base_model_id = deployment.get("base_model_id") or (session.get("base_model") or {}).get("id")
-        pickle_object_id = get_child_id_by_name(base_model_id, "model.pkl")
+        pickle_object_id = get_child_id_by_name(base_model_id, "model_sklearn.pkl")
         if pickle_object_id is None:
-            raise ValueError("Could not find 'model.pkl' inside the deployment's base model.")
+            # Fall back to the full pipeline pickle for models saved before the
+            # pycaret-free estimator export existed.
+            pickle_object_id = get_child_id_by_name(base_model_id, "model.pkl")
+        if pickle_object_id is None:
+            raise ValueError("Could not find 'model_sklearn.pkl' or 'model.pkl' inside the deployment's base model.")
         base_mdl = get_pickled_model_from_collection(pickle_object_id)
         if base_mdl is None:
             raise ValueError("The base model could not be loaded from the database.")
