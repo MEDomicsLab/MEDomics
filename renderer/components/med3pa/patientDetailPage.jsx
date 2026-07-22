@@ -117,7 +117,7 @@ export default function PatientDetailPage({ patient, goBack }) {
         <Card title="🩺 Base model output" subtitle="Predicted probability for the positive class">
           <div style={{ fontSize: 40, fontWeight: 700, color: patient.prediction === 1 ? "#993C1D" : "#3B6D11" }}>{(patient.base_prob * 100).toFixed(0)}%</div>
           <div style={{ fontSize: 13, fontWeight: 600, color: patient.prediction === 1 ? "#993C1D" : "#3B6D11", marginBottom: 8 }}>
-            {patient.prediction === 1 ? "Positive" : "Negative"} — predicted outcome
+            predicted outcome
           </div>
           <div style={{ background: "#E9ECEF", borderRadius: 6, height: 12 }}>
             <div style={{ background: patient.prediction === 1 ? "#993C1D" : "#3B6D11", borderRadius: 6, height: 12, width: `${patient.base_prob * 100}%` }} />

@@ -113,9 +113,9 @@ export default function ApcTreeChart({
                 strokeWidth={onPath ? 3.5 : 1.2}
               />
               <text x={sx(node.x)} y={y + 16} textAnchor="middle" fontSize={12} fontWeight="bold" fill={txtColor}>
-                {node.id === 1 || node.rule === "All population" ? "All population" : `Node ${node.id}`}
+                {node.id === 1 || node.rule === "All population" ? "All population" : `Node ${[node.rule]}`}
               </text>
-              {lines.map((line, li) => (
+              {lines.slice(1).map((line, li) => (
                 <text key={li} x={sx(node.x)} y={y + 31 + li * 15} textAnchor="middle" fontSize={10.5} fill={txtColor}>
                   {line.length > 30 ? line.slice(0, 29) + "…" : line}
                 </text>
