@@ -50,8 +50,8 @@ export default function PatientDetailPage({ patient, goBack }) {
     return getLostProfileIds(session.lost_profiles, ratios[0], drThreshold)
   }, [session, drThreshold])
 
-  // DR position of the patient: highest declaration rate at which this patient's
-  // confidence would still be declared (min_confidence_level <= mpc)
+  // DR position of the patient: the LOWEST declaration rate at which this patient is
+  // still declared (patient.mpc >= min_confidence_level).
   const patientDr = useMemo(() => {
     if (!session || !patient) return null
     let best = null
@@ -59,7 +59,7 @@ export default function PatientDetailPage({ patient, goBack }) {
       const min = entry?.min_confidence_level
       if (min !== null && min !== undefined && patient.mpc >= min) {
         const d = parseInt(dr)
-        if (best === null || d > best) best = d
+        if (best === null || d < best) best = d
       }
     })
     return best
@@ -101,7 +101,7 @@ export default function PatientDetailPage({ patient, goBack }) {
           sub={`${patient.mpc >= patient.threshold ? "Above" : "Below"} DR threshold (${patient.threshold?.toFixed(2)})`}
           subColor={patient.mpc >= patient.threshold ? "#0F6E56" : "#993C1D"}
         />
-        <Kpi title="APC profile membership" value={profileLabel} sub={patientDr !== null ? `Declared up to DR ≈ ${patientDr}%` : ""} />
+        <Kpi title="APC profile membership" value={profileLabel} sub={patientDr !== null ? `Declared down to DR ≈ ${patientDr}%` : ""} />
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 16 }}>
