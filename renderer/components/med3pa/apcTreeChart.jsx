@@ -38,7 +38,7 @@ export default function ApcTreeChart({
   tree,
   profilesMap = {},
   lostIds = new Set(),
-  colorMetric = "mean_confidence_level",
+  colorMetric = "Mean confidence level",
   colorScheme = "confidence",
   displayMetrics = [],
   highlightIds = null,
@@ -172,8 +172,9 @@ export default function ApcTreeChart({
           const profile = profilesMap[node.id]
           const lost = lostIds.has(node.id)
           const value = profileValue(profile, colorMetric)
-          const fill = lost ? "#F2F4F4" : value !== null ? metricColor(value, colorScheme) : "#F8F9FA"
-          const txtColor = lost ? "#ADB5BD" : value !== null ? textColorOn(fill) : "#212529"
+          const colorValue = value === null ? null : colorScheme === "confidence" ? value / 100 : value
+          const fill = lost ? "#F2F4F4" : colorValue !== null ? metricColor(colorValue, colorScheme) : "#F8F9FA"
+          const txtColor = lost ? "#ADB5BD" : colorValue !== null ? textColorOn(fill) : "#212529"
           const onPath = highlightIds && highlightIds.has(node.id)
 
           const lines = [node.rule]
@@ -232,7 +233,7 @@ export default function ApcTreeChart({
           0
         </text>
         <text x={VIEW_W - 60} y={VIEW_H - 2} textAnchor="end" fontSize={9} fill="#6C757D">
-          1
+          {colorScheme === "confidence" ? 100 : 1}
         </text>
       </svg>
     </div>

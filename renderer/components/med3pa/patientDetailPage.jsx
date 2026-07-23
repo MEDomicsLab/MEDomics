@@ -149,7 +149,7 @@ export default function PatientDetailPage({ patient, goBack }) {
               tree={session.tree}
               profilesMap={profilesMap}
               lostIds={lostIds}
-              colorMetric="mean_confidence_level"
+              colorMetric="Mean confidence level"
               colorScheme="confidence"
               displayMetrics={[]}
               highlightIds={highlightIds}

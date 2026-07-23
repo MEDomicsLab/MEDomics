@@ -16,7 +16,7 @@ import MdrCurvesChart from "./mdrCurvesChart"
 import ApcTreeChart, { profileValue } from "./apcTreeChart"
 import { PageHeader, StepBar, Card, Kpi, Collapsible, MetricBar, PRIMARY_BTN, SUCCESS_BTN } from "./med3paUI"
 
-const CONFIDENCE_COLOR_METRICS = ["mean_confidence_level"]
+const CONFIDENCE_COLOR_METRICS = ["Mean confidence level"]
 
 /**
  * @description Analysis Workspace page: load a saved session and explore the MED3pa
@@ -37,7 +37,7 @@ export default function AnalysisPage({ goToPage, initialSessionName = null, refr
   const [kpiMetric, setKpiMetric] = useState(null)
   const [visibleMetrics, setVisibleMetrics] = useState([])
   const [samplesRatio, setSamplesRatio] = useState(null)
-  const [colorMetric, setColorMetric] = useState("mean_confidence_level")
+  const [colorMetric, setColorMetric] = useState("Mean confidence level")
   const [displayMetrics, setDisplayMetrics] = useState([])
   const [nodeDialog, setNodeDialog] = useState(null) // {node, profile}
   const [treeFullscreen, setTreeFullscreen] = useState(false)
@@ -71,7 +71,7 @@ export default function AnalysisPage({ goToPage, initialSessionName = null, refr
           setVisibleMetrics(metrics.slice(0, 4))
           const ratios = getSamplesRatios(doc.profiles)
           setSamplesRatio(ratios.length > 0 ? ratios[0] : null)
-          setColorMetric("mean_confidence_level")
+          setColorMetric("Mean confidence level")
           setDisplayMetrics([])
           const best = bestDrForMetric(doc.metrics_by_dr, defaultMetric)
           if (best) setCurrentDr(best.dr)
@@ -101,7 +101,7 @@ export default function AnalysisPage({ goToPage, initialSessionName = null, refr
   const treeColorOptions = useMemo(() => {
     const profileMetricNames = new Set()
     profilesList.forEach((p) => Object.keys(p.metrics || {}).forEach((m) => profileMetricNames.add(m)))
-    return ["mean_confidence_level", ...Array.from(profileMetricNames)]
+    return ["Mean confidence level", ...Array.from(profileMetricNames)]
   }, [profilesList])
 
   const onKpiMetricChange = (metric) => {
