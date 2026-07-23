@@ -1,4 +1,4 @@
-import React, { useMemo } from "react"
+import React, { useMemo, useRef, useState } from "react"
 import { layoutTree, metricColor, textColorOn } from "./med3paResultsUtils"
 
 const VIEW_W = 1000
@@ -32,6 +32,7 @@ export function profileValue(profile, metric) {
  * @param {Set|null} highlightIds node ids on a highlighted path (patient profile)
  * @param {Function} onNodeClick callback(nodeLayout, profile)
  * @param {Number} height rendered height in px
+ * @param {Boolean} pannable enable drag-to-pan and (ctrl/⌘ + wheel) zoom
  */
 export default function ApcTreeChart({
   tree,
@@ -42,9 +43,63 @@ export default function ApcTreeChart({
   displayMetrics = [],
   highlightIds = null,
   onNodeClick = null,
-  height = 340
+  height = 340,
+  pannable = true
 }) {
   const { nodes, edges } = useMemo(() => layoutTree(tree), [tree])
+
+  // Pan / zoom state applied as a transform on the content group.
+  const svgRef = useRef(null)
+  const [view, setView] = useState({ x: 0, y: 0, k: 1 })
+  const dragRef = useRef(null) // { startX, startY, origX, origY, moved }
+
+  // Convert a client-space point to viewBox coordinates.
+  const toView = (clientX, clientY) => {
+    const rect = svgRef.current.getBoundingClientRect()
+    return {
+      x: ((clientX - rect.left) / rect.width) * VIEW_W,
+      y: ((clientY - rect.top) / rect.height) * VIEW_H
+    }
+  }
+
+  const onMouseDown = (e) => {
+    if (!pannable || e.button !== 0) return
+    dragRef.current = { startX: e.clientX, startY: e.clientY, origX: view.x, origY: view.y, moved: false }
+  }
+
+  const onMouseMove = (e) => {
+    const d = dragRef.current
+    if (!d) return
+    const rect = svgRef.current.getBoundingClientRect()
+    const dx = ((e.clientX - d.startX) / rect.width) * VIEW_W
+    const dy = ((e.clientY - d.startY) / rect.height) * VIEW_H
+    if (Math.abs(e.clientX - d.startX) > 3 || Math.abs(e.clientY - d.startY) > 3) d.moved = true
+    setView((v) => ({ ...v, x: d.origX + dx, y: d.origY + dy }))
+  }
+
+  const endDrag = () => {
+    dragRef.current = null
+  }
+
+  // Zoom around the cursor with ctrl/⌘ + wheel (plain wheel keeps page scroll).
+  const onWheel = (e) => {
+    if (!pannable || !(e.ctrlKey || e.metaKey)) return
+    e.preventDefault()
+    const p = toView(e.clientX, e.clientY)
+    setView((v) => {
+      const k = Math.min(6, Math.max(0.3, v.k * (e.deltaY < 0 ? 1.1 : 1 / 1.1)))
+      const ratio = k / v.k
+      return { k, x: p.x - (p.x - v.x) * ratio, y: p.y - (p.y - v.y) * ratio }
+    })
+  }
+
+  // Node clicks are suppressed if the pointer was dragged (pan gesture).
+  const handleNodeClick = (node, profile) => {
+    if (dragRef.current?.moved) return
+    onNodeClick && onNodeClick(node, profile)
+  }
+
+  const resetView = () => setView({ x: 0, y: 0, k: 1 })
 
   if (!tree) {
     return (
@@ -59,8 +114,45 @@ export default function ApcTreeChart({
   const sy = (y) => (y / 100) * VIEW_H
 
   return (
-    <div style={{ width: "100%", overflow: "auto" }}>
-      <svg viewBox={`0 0 ${VIEW_W} ${VIEW_H}`} style={{ width: "100%", height: height, minWidth: 500 }}>
+    <div style={{ width: "100%", overflow: "hidden", position: "relative" }}>
+      {pannable && (view.k !== 1 || view.x !== 0 || view.y !== 0) && (
+        <button
+          onClick={resetView}
+          title="Reset view"
+          style={{
+            position: "absolute",
+            top: 8,
+            right: 8,
+            zIndex: 2,
+            padding: "2px 8px",
+            fontSize: 11,
+            borderRadius: 4,
+            border: "1px solid #CED4DA",
+            background: "#FFFFFF",
+            color: "#495057",
+            cursor: "pointer"
+          }}
+        >
+          Reset view
+        </button>
+      )}
+      <svg
+        ref={svgRef}
+        viewBox={`0 0 ${VIEW_W} ${VIEW_H}`}
+        style={{
+          width: "100%",
+          height: height,
+          minWidth: 500,
+          cursor: pannable ? (dragRef.current ? "grabbing" : "grab") : "default",
+          touchAction: "none"
+        }}
+        onMouseDown={onMouseDown}
+        onMouseMove={onMouseMove}
+        onMouseUp={endDrag}
+        onMouseLeave={endDrag}
+        onWheel={onWheel}
+      >
+        <g transform={`translate(${view.x} ${view.y}) scale(${view.k})`}>
         {edges.map((e, i) => {
           const highlighted = highlightIds && highlightIds.has(e.childId)
           return (
@@ -100,7 +192,7 @@ export default function ApcTreeChart({
               key={node.id}
               opacity={lost ? 0.45 : 1}
               style={{ cursor: onNodeClick ? "pointer" : "default" }}
-              onClick={() => onNodeClick && onNodeClick(node, profile)}
+              onClick={() => handleNodeClick(node, profile)}
             >
               <rect
                 x={x}
@@ -123,6 +215,7 @@ export default function ApcTreeChart({
             </g>
           )
         })}
+        </g>
         {/* color legend */}
         <defs>
           <linearGradient id="med3pa-tree-legend" x1="0" x2="1" y1="0" y2="0">
