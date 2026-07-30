@@ -57,7 +57,7 @@ export default function Med3paConfigForm({ onAnalysisComplete = null, onNextStep
       max_depth: 0,
       min_samples_split: 0,
       confidence_metric: null,
-      ipc_type: "EnsembleRandomForestRegressor",
+      ipc_type: "RandomForestRegressor",
       // uncertainty_metric: "sigmoidal_error",
       grid: {
         n_estimators: null,
@@ -428,11 +428,14 @@ export default function Med3paConfigForm({ onAnalysisComplete = null, onNextStep
                 <label style={{ fontSize: 11, color: "#6C757D", display: "block", marginBottom: 2 }}>ccp_alpha</label>
                 <input
                   type="number"
-                  step={0.001}
-                  placeholder="e.g. 0.01"
+                  placeholder="e.g. 0.001"
                   style={{ width: "100%", boxSizing: "border-box", height: 28 }}
-                  value={med3pa_params.apc.ccp_alpha || ""}
-                  onChange={(e) => setApc("ccp_alpha", parseFloat(e.target.value) || 0)}
+                  value={med3pa_params.apc.ccp_alpha ?? ""}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    // Keep empty string if cleared, otherwise store the raw input string or parsed number safely
+                    setApc("ccp_alpha", val === "" ? "" : parseFloat(val));
+                  }}
                 />
               </div>
             </div>

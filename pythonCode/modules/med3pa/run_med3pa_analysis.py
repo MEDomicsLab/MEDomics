@@ -113,7 +113,7 @@ class GoExecScriptRunMed3paAnalysis(GoExecutionScript):
             "max_depth": ipc.get("max_depth") or None,
             "min_samples_split": ipc.get("min_samples_split") or 2,
         }
-        ipc_type = ipc.get("ipc_type") or "EnsembleRandomForestRegressor"
+        ipc_type = ipc.get("ipc_type") or "RandomForestRegressor"
         ipc_grid = build_grid(ipc.get("grid") or {},
                               ("n_estimators", "max_depth", "min_samples_leaf"))
 
