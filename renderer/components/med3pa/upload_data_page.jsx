@@ -501,6 +501,16 @@ export default function Med3paConfigForm({ onAnalysisComplete = null, onNextStep
                   value={med3pa_params.mpc_strategy??""}
                   onChange={(e) => setTop("mpc_strategy", e.target.value)}
                 />
+                <p style={{ fontSize: 10, color: "#6C757D", margin: "6px 0 0", lineHeight: 1.5 }}>
+                  Variables: <code>IPC</code> and <code>APC</code> — the per-patient confidences
+                  from each model.
+                  <br />
+                  Functions: <code>minimum</code>, <code>maximum</code>, <code>abs</code>,{" "}
+                  <code>exp</code>, <code>log</code>, <code>sqrt</code>, <code>clip</code>,{" "}
+                  <code>where</code>, …
+                  <br />
+                  Return a <strong>confidence</strong> in [0, 1] — 1 means the prediction is trustworthy.
+                </p>
               </div>
             )}
           </Collapsible>

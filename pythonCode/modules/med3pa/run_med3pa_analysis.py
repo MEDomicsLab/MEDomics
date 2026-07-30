@@ -20,12 +20,21 @@ from med_libs.mongodb_utils import (connect_to_mongo,
 from MED3pa.datasets import DatasetsManager
 from MED3pa.models import BaseModelManager
 from MED3pa.med3pa import Med3paExperiment
+from MED3pa.med3pa.models import APCModel, IPCModel, MPCModel
 from MED3pa.med3pa.profiles import Profile
 from MED3pa.med3pa.results import to_serializable
 from MED3pa.med3pa.uncertainty import UncertaintyMetric
 
 from modules.med3pa.confidence_metrics import (describe_confidence_metric,
                                                resolve_confidence_metric)
+from modules.med3pa import mpc_strategies
+from modules.med3pa.mpc_strategies import (MpcStrategy, describe_mpc_strategy,
+                                           resolve_mpc_strategy)
+
+# MPCModel hard-codes its only supported strategy in both __init__ and predict,
+# and Med3paExperiment builds it internally, so the extension point has to be
+# patched in before the experiment runs.
+mpc_strategies.install()
 
 json_params_dict, id_ = parse_arguments()
 go_print("running run_med3pa_analysis.py:" + id_)
@@ -141,7 +150,9 @@ class GoExecScriptRunMed3paAnalysis(GoExecutionScript):
         }
         apc_grid = build_grid(apc.get("grid") or {}, ("max_depth", "min_samples_leaf"))
 
-        _ = mpc_strategy  # add when package updates
+        # Same treatment as the IPC confidence metric: a built-in name or a
+        # formula over the IPC and APC confidence columns, resolved to one object.
+        mpc_strategy = resolve_mpc_strategy(mpc_strategy, warn=self.warn)
 
         self.set_progress(label="Loading base model", now=30)
 
@@ -179,6 +190,7 @@ class GoExecScriptRunMed3paAnalysis(GoExecutionScript):
         # calculate() unbound, so passing a bare name through raises TypeError.
         uncertainty_metric = resolve_confidence_metric(ipc.get("confidence_metric"), warn=self.warn)
         go_print(f"MED3pa confidence metric: {describe_confidence_metric(uncertainty_metric)}")
+        go_print(f"MED3pa MPC strategy: {describe_mpc_strategy(mpc_strategy)}")
 
         self.set_progress(label="Running MED3pa experiment", now=50)
 
@@ -196,6 +208,7 @@ class GoExecScriptRunMed3paAnalysis(GoExecutionScript):
             samples_ratio_max=samples_ratio.get("max", 10),
             samples_ratio_step=samples_ratio.get("step", 5),
             evaluate_models=params.get("evaluate_models", True),
+            mpc_strategy=mpc_strategy,
         )
 
         self.set_progress(label="Saving results", now=90)
@@ -213,6 +226,10 @@ class GoExecScriptRunMed3paAnalysis(GoExecutionScript):
                 # object for a custom formula; store the formula text instead.
                 if isinstance(o, UncertaintyMetric):
                     return describe_confidence_metric(o)
+                # MPCModel.get_info() hands back the strategy itself, which lands
+                # in experiment_config['med3pa_params']['pc_model'].
+                if isinstance(o, MpcStrategy):
+                    return describe_mpc_strategy(o)
                 # MED3pa used to expose Profile.to_dict(save_all) and drop the
                 # metrics for the trimmed form. It now takes no argument, and
                 # to_serializable still forwards one whenever additional_arg is
@@ -253,19 +270,45 @@ class GoExecScriptRunMed3paAnalysis(GoExecutionScript):
         # One doc per session name: re-running a session overwrites it
         db["med3pa_sessions"].replace_one({"name": session_name}, session_doc, upsert=True)
 
-        # Pickle the trained IPC/APC models so a deployment can reuse them later
+        # Pickle the trained IPC/APC models so a deployment can reuse them later.
+        # Med3paResults exposes them only through `confidence_model`, which is the
+        # model matching the experiment's `mode` — an MPCModel by default, wrapping
+        # both sub-models.
         try:
+            confidence_model = results.confidence_model
+            if isinstance(confidence_model, MPCModel):
+                ipc_model = confidence_model.IPC_model
+                apc_model = confidence_model.APC_model
+            elif isinstance(confidence_model, IPCModel):
+                ipc_model, apc_model = confidence_model, None
+            elif isinstance(confidence_model, APCModel):
+                ipc_model, apc_model = None, confidence_model
+            else:
+                raise TypeError(
+                    f"Unexpected confidence model type {type(confidence_model).__name__}; "
+                    f"cannot tell which sub-models to store for deployment."
+                )
+            if ipc_model is None:
+                raise ValueError(
+                    "The experiment produced no IPC model, which the deployment path requires."
+                )
+
             models_doc = {
                 "session_name": session_name,
                 "created_at": session_doc["created_at"],
-                "ipc_model": Binary(pickle.dumps(results.ipc_model)) if results.ipc_model else None,
-                "apc_model": Binary(pickle.dumps(results.apc_model)) if results.apc_model else None,
+                "ipc_model": Binary(pickle.dumps(ipc_model)),
+                "apc_model": Binary(pickle.dumps(apc_model)) if apc_model is not None else None,
             }
             db["med3pa_models"].replace_one({"session_name": session_name}, models_doc, upsert=True)
         except Exception as e:
-            # A model bigger than the 16MB BSON cap must not lose the analysis results;
-            # deployment for this session will just be unavailable.
-            go_print(f"WARNING: could not store IPC/APC models for session '{session_name}': {e}")
+            # A model bigger than the 16MB BSON cap must not lose the analysis results,
+            # so this stays non-fatal — but it has to be visible, because a silent
+            # failure here makes deployment impossible with a misleading error.
+            self.warn(
+                f"could not store the trained models for session '{session_name}': "
+                f"{type(e).__name__}: {e}. The analysis was saved, but deploying this "
+                f"session will fail until it is re-run successfully."
+            )
 
         self.results = {"status": "completed", "session_name": session_name,
                         "warnings": self.warnings}

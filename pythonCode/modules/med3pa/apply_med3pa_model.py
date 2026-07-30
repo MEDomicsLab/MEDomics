@@ -15,6 +15,8 @@ from med_libs.mongodb_utils import (connect_to_mongo,
                                     get_dataset_as_pd_df,
                                     get_pickled_model_from_collection)
 
+from modules.med3pa.mpc_strategies import resolve_mpc_strategy
+
 json_params_dict, id_ = parse_arguments()
 go_print("running apply_med3pa_model.py:" + id_)
 
@@ -62,7 +64,16 @@ class GoExecScriptApplyMed3paModel(GoExecutionScript):
 
         columns = session["columns"]
         threshold = float(deployment.get("min_confidence_level"))
-        mpc_strategy = deployment.get("mpc_strategy") or "minimum"
+
+        # Prefer the strategy the experiment actually ran with. The deployment
+        # copies session.config.mpc_strategy, which is what the form *requested* —
+        # and sessions created before custom MPC support always ran "minimum"
+        # regardless of what the form sent, so trusting config would apply a
+        # strategy that analysis never used.
+        pc_info = (((session.get("experiment_config") or {})
+                    .get("med3pa_params") or {})
+                   .get("pc_model") or {})
+        mpc_strategy = pc_info.get("mpc_strategy") or deployment.get("mpc_strategy") or "minimum"
 
         self.set_progress(label="Loading input data", now=15)
         if input_mode == "dataset":
@@ -129,11 +140,9 @@ class GoExecScriptApplyMed3paModel(GoExecutionScript):
         else:
             apc_values = ipc_values.copy()
 
-        if mpc_strategy == "average":
-            mpc_values = (ipc_values + apc_values) / 2.0
-        else:
-            # "minimum" is the package default; unknown/custom strategies fall back to it
-            mpc_values = np.minimum(ipc_values, apc_values)
+        # Same resolver the analysis used, so "minimum", "average" and a custom
+        # formula are all combined here exactly as they were at training time.
+        mpc_values = resolve_mpc_strategy(mpc_strategy).combine(ipc_values, apc_values)
 
         self.set_progress(label="Assigning profiles", now=75)
         tree = session.get("tree")
