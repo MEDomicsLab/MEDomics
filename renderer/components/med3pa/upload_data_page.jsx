@@ -311,10 +311,19 @@ export default function Med3paConfigForm({ onAnalysisComplete = null, onNextStep
                 <label style={{ fontSize: 11, color: "#6C757D", display: "block", marginBottom: 4 }}>f(p, y) =</label>
                 <input
                   style={{ width: "100%", boxSizing: "border-box", height: 30 }}
-                  placeholder="e.g. (1 − |p − y|)"
+                  placeholder="e.g. 1 - abs(p - y)"
                   value={med3pa_params.ipc.confidence_metric??""}
                   onChange={(e) => setIpc("confidence_metric", e.target.value)}
                 />
+                <p style={{ fontSize: 10, color: "#6C757D", margin: "6px 0 0", lineHeight: 1.5 }}>
+                  Variables: <code>p</code> (predicted probability), <code>y</code> (true label),{" "}
+                  <code>t</code> (threshold), <code>x</code> (features).
+                  <br />
+                  Functions: <code>abs</code>, <code>exp</code>, <code>log</code>, <code>sqrt</code>,{" "}
+                  <code>clip</code>, <code>where</code>, <code>minimum</code>, <code>maximum</code>, …
+                  <br />
+                  Return a <strong>confidence</strong> in [0, 1] — 1 means the prediction is trustworthy.
+                </p>
               </div>
             )}
 

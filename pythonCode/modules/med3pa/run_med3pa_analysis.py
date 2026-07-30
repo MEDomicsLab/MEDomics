@@ -20,7 +20,12 @@ from med_libs.mongodb_utils import (connect_to_mongo,
 from MED3pa.datasets import DatasetsManager
 from MED3pa.models import BaseModelManager
 from MED3pa.med3pa import Med3paExperiment
+from MED3pa.med3pa.profiles import Profile
 from MED3pa.med3pa.results import to_serializable
+from MED3pa.med3pa.uncertainty import UncertaintyMetric
+
+from modules.med3pa.confidence_metrics import (describe_confidence_metric,
+                                               resolve_confidence_metric)
 
 json_params_dict, id_ = parse_arguments()
 go_print("running run_med3pa_analysis.py:" + id_)
@@ -38,11 +43,39 @@ def parse_int_list(value, default):
     return [int(v.strip()) for v in str(value).split(",") if v.strip() != ""]
 
 
+def build_grid(grid_cfg, fields):
+    """Build a grid-search dict from only the fields the user actually filled in.
+
+    Returns None when every field was left blank, which tells MED3pa to train
+    directly. Defaulting the blanks instead would silently run a grid search
+    nobody asked for on every analysis.
+    """
+    grid = {}
+    for field in fields:
+        values = parse_int_list(grid_cfg.get(field), None)
+        if values:
+            grid[field] = values
+    return grid or None
+
+
 class GoExecScriptRunMed3paAnalysis(GoExecutionScript):
     def __init__(self, json_params: dict, _id: str = None):
         super().__init__(json_params, _id)
         self.results = {"data": "nothing to return"}
         self._progress["type"] = "process"
+        self.warnings = []
+
+    def warn(self, message: str) -> None:
+        """Record a warning where it can actually be seen.
+
+        go_print writes to stdout, but the Go server's copyOutput only reacts to
+        "response-ready*_*" and "progress*_*" lines and drops everything else on
+        the floor. copyOutputErr logs every stderr line, so warnings go there,
+        and they are also stored on the session document so the UI can show what
+        the run silently changed.
+        """
+        self.warnings.append(message)
+        print(f"WARNING: {message}", file=sys.stderr, flush=True)
 
     def _custom_process(self, json_config: dict) -> dict:
         params = json_config["med3pa_params"]
@@ -80,23 +113,33 @@ class GoExecScriptRunMed3paAnalysis(GoExecutionScript):
             "max_depth": ipc.get("max_depth") or None,
             "min_samples_split": ipc.get("min_samples_split") or 2,
         }
-        ipc_grid_cfg = ipc.get("grid", {})
-        ipc_grid = {
-            "n_estimators": parse_int_list(ipc_grid_cfg.get("n_estimators"), [50, 100, 200]),
-            "max_depth": parse_int_list(ipc_grid_cfg.get("max_depth"), [2, 3, 4, 5]),
-            "min_samples_leaf": parse_int_list(ipc_grid_cfg.get("min_samples_leaf"), [1, 2, 4]),
-        }
+        ipc_type = ipc.get("ipc_type") or "EnsembleRandomForestRegressor"
+        ipc_grid = build_grid(ipc.get("grid") or {},
+                              ("n_estimators", "max_depth", "min_samples_leaf"))
+
+        # MED3pa's IPCModel.optimize ends with `self.model.set_model(best_estimator_)`,
+        # which writes the fitted winner to the ensemble's `.model` attribute — but
+        # EnsembleRandomForestRegressorModel.predict reads `self.models`, the list of
+        # inner regressors, which is left untrained. Grid-searching that model type
+        # therefore always ends in NotFittedError, so train it directly instead.
+        if ipc_grid and ipc_type == "EnsembleRandomForestRegressor":
+            self.warn(
+                f"IPC grid search was NOT run. MED3pa cannot grid-search "
+                f"EnsembleRandomForestRegressor: IPCModel.optimize stores the tuned model "
+                f"where the ensemble's predict() never reads it, which raises NotFittedError. "
+                f"Your grid {ipc_grid} was ignored and the IPC was trained directly with "
+                f"n_estimators={ipc_params['n_estimators']}, max_depth={ipc_params['max_depth']}, "
+                f"min_samples_split={ipc_params['min_samples_split']}. "
+                f"Choose a different ipc_type to use the grid."
+            )
+            ipc_grid = None
 
         apc_params = {
             "max_depth": apc.get("tree_max_depth") or 3,
             "min_samples_leaf": apc.get("min_leading_samples") or 1,
             "ccp_alpha": apc.get("ccp_alpha") or 0.1,
         }
-        apc_grid_cfg = apc.get("grid", {})
-        apc_grid = {
-            "max_depth": parse_int_list(apc_grid_cfg.get("max_depth"), [2, 3, 4, 5]),
-            "min_samples_leaf": parse_int_list(apc_grid_cfg.get("min_samples_leaf"), [1, 2, 4]),
-        }
+        apc_grid = build_grid(apc.get("grid") or {}, ("max_depth", "min_samples_leaf"))
 
         _ = mpc_strategy  # add when package updates
 
@@ -130,14 +173,21 @@ class GoExecScriptRunMed3paAnalysis(GoExecutionScript):
             column_labels=list(x.columns),
         )
 
+        # "confidence_metric" is either a built-in MED3pa metric name or a formula
+        # typed into the config form. Both become an UncertaintyMetric instance:
+        # MED3pa 1.0.4 stores the class for its string path and then calls
+        # calculate() unbound, so passing a bare name through raises TypeError.
+        uncertainty_metric = resolve_confidence_metric(ipc.get("confidence_metric"), warn=self.warn)
+        go_print(f"MED3pa confidence metric: {describe_confidence_metric(uncertainty_metric)}")
+
         self.set_progress(label="Running MED3pa experiment", now=50)
 
         samples_ratio = params.get("samples_ratio") or {}
         results = Med3paExperiment.run(
             datasets_manager=datasets,
             base_model_manager=base_model_manager,
-            uncertainty_metric=ipc.get("confidence_metric") or "sigmoidal_error",
-            ipc_type=ipc.get("ipc_type") or "EnsembleRandomForestRegressor",
+            uncertainty_metric=uncertainty_metric,
+            ipc_type=ipc_type,
             ipc_params=ipc_params,
             apc_params=apc_params,
             ipc_grid_params=ipc_grid,
@@ -157,15 +207,35 @@ class GoExecScriptRunMed3paAnalysis(GoExecutionScript):
             plain dicts and int keys become strings (BSON requires string keys)."""
             if obj is None:
                 return None
-            if save_all:
-                return json.loads(json.dumps(obj, default=to_serializable))
-            return json.loads(json.dumps(obj, default=lambda o: to_serializable(o, additional_arg=False)))
+
+            def default(o):
+                # experiment_config carries the metric itself, which is a live
+                # object for a custom formula; store the formula text instead.
+                if isinstance(o, UncertaintyMetric):
+                    return describe_confidence_metric(o)
+                # MED3pa used to expose Profile.to_dict(save_all) and drop the
+                # metrics for the trimmed form. It now takes no argument, and
+                # to_serializable still forwards one whenever additional_arg is
+                # not None -- including False -- so asking for the trimmed form
+                # raises TypeError. Build it here instead.
+                if isinstance(o, Profile):
+                    record = o.to_dict()
+                    if save_all:
+                        return record
+                    return {"id": record["id"], "path": record["path"]}
+                return to_serializable(o)
+
+            return json.loads(json.dumps(obj, default=default))
 
         session_doc = {
             "name": session_name,
             "created_at": datetime.datetime.now().isoformat(),
             "status": "completed",
             "config": serialize(params),
+            # Anything the run silently changed (a dropped grid search, a metric
+            # returning values outside [0, 1]) — stdout warnings are discarded by
+            # the Go server, so this is the only durable record.
+            "warnings": self.warnings,
             "base_model": base_model,
             "dataset": dataset,
             "target_column": target_column,
@@ -197,7 +267,8 @@ class GoExecScriptRunMed3paAnalysis(GoExecutionScript):
             # deployment for this session will just be unavailable.
             go_print(f"WARNING: could not store IPC/APC models for session '{session_name}': {e}")
 
-        self.results = {"status": "completed", "session_name": session_name}
+        self.results = {"status": "completed", "session_name": session_name,
+                        "warnings": self.warnings}
         self.set_progress(label="Done", now=100)
         return self.results
 
