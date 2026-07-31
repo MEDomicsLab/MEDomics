@@ -27,14 +27,9 @@ from MED3pa.med3pa.uncertainty import UncertaintyMetric
 
 from modules.med3pa.confidence_metrics import (describe_confidence_metric,
                                                resolve_confidence_metric)
-from modules.med3pa import mpc_strategies
-from modules.med3pa.mpc_strategies import (MpcStrategy, describe_mpc_strategy,
+from modules.med3pa.mpc_strategies import (describe_mpc_strategy,
                                            resolve_mpc_strategy)
 
-# MPCModel hard-codes its only supported strategy in both __init__ and predict,
-# and Med3paExperiment builds it internally, so the extension point has to be
-# patched in before the experiment runs.
-mpc_strategies.install()
 
 json_params_dict, id_ = parse_arguments()
 go_print("running run_med3pa_analysis.py:" + id_)
@@ -226,10 +221,6 @@ class GoExecScriptRunMed3paAnalysis(GoExecutionScript):
                 # object for a custom formula; store the formula text instead.
                 if isinstance(o, UncertaintyMetric):
                     return describe_confidence_metric(o)
-                # MPCModel.get_info() hands back the strategy itself, which lands
-                # in experiment_config['med3pa_params']['pc_model'].
-                if isinstance(o, MpcStrategy):
-                    return describe_mpc_strategy(o)
                 # MED3pa used to expose Profile.to_dict(save_all) and drop the
                 # metrics for the trimmed form. It now takes no argument, and
                 # to_serializable still forwards one whenever additional_arg is
