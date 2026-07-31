@@ -49,6 +49,10 @@ function Collapsible({ title, subtitle, accentColor, children }) {
 export default function Med3paConfigForm({ onAnalysisComplete = null, onNextStep = null }) {
   const [med3pa_params, setMed3paParams] = useState({
     base_model: null,
+    // Alternative to base_model: a dataset column already holding predicted
+    // probabilities. Exactly one of the two is sent.
+    probability_column: null,
+    probability_threshold: null,
     chosen_dataset: null,
     session_name: null,
     target_column: null,
@@ -81,6 +85,7 @@ export default function Med3paConfigForm({ onAnalysisComplete = null, onNextStep
 
   const [ipcCustomExpr, setIpcCustomExpr] = useState(false);
   const [mpcCustomExpr, setMpcCustomExpr] = useState(false);
+  const [predictionSource, setPredictionSource] = useState("model");
   const [modelHasWarning, setModelHasWarning] = useState({ state: false, tooltip: "" })
   const [datasetHasWarning, setDatasetHasWarning] = useState({ state: false, tooltip: "" })
   const setTop = (key, val) =>
@@ -188,14 +193,71 @@ export default function Med3paConfigForm({ onAnalysisComplete = null, onNextStep
           </div>
 
 
-          <Input
+          <div style={{ display: "flex", gap: 16, marginBottom: 8 }}>
+            <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, cursor: "pointer" }}>
+              <input
+                type="radio"
+                name="prediction_source"
+                checked={predictionSource === "model"}
+                onChange={() => {
+                  setPredictionSource("model")
+                  setMed3paParams((p) => ({ ...p, probability_column: null }))
+                }}
+              />
+              Base model
+            </label>
+            <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, cursor: "pointer" }}>
+              <input
+                type="radio"
+                name="prediction_source"
+                checked={predictionSource === "probability"}
+                onChange={() => {
+                  setPredictionSource("probability")
+                  setMed3paParams((p) => ({ ...p, base_model: null }))
+                }}
+              />
+              Predicted probabilities
+            </label>
+          </div>
+
+          {predictionSource === "model" ? (
+            <Input
               name="Base Model Source Architecture"
               settingInfos={{ type: "models-input", tooltip: "" }}
               currentValue={med3pa_params.base_model?.id}
               onInputChange={(data) => setTop("base_model",data.value)}
               setHasWarning={setModelHasWarning}
             />
-          
+          ) : (
+            <div style={{ marginBottom: 8 }}>
+              <label style={{ fontSize: 12, color: "#6C757D", display: "block", marginBottom: 4 }}>
+                Probability column
+              </label>
+              <input
+                type="text"
+                placeholder="e.g. predicted_risk"
+                style={{ width: "100%", boxSizing: "border-box", height: 28, marginBottom: 4 }}
+                value={med3pa_params.probability_column ?? ""}
+                onChange={(e) => setTop("probability_column", e.target.value || null)}
+              />
+              <label style={{ fontSize: 12, color: "#6C757D", display: "block", marginBottom: 4 }}>
+                Decision threshold
+              </label>
+              <input
+                type="number"
+                step={0.01}
+                placeholder="0.5"
+                style={{ width: "100%", boxSizing: "border-box", height: 28 }}
+                value={med3pa_params.probability_threshold ?? ""}
+                onChange={(e) => setTop("probability_threshold", e.target.value === "" ? null : parseFloat(e.target.value))}
+              />
+              <p style={{ fontSize: 10, color: "#6C757D", margin: "6px 0 0", lineHeight: 1.5 }}>
+                A column of the chosen dataset holding the predicted probability of the positive
+                class. Use this when the model that produced them lives outside MEDomicsLab.
+              </p>
+            </div>
+          )}
+
           <label style={{ fontSize: 12, color: "#6C757D", display: "block", marginBottom: 4 }}>
             Training Data (.csv)
           </label>
@@ -428,6 +490,7 @@ export default function Med3paConfigForm({ onAnalysisComplete = null, onNextStep
                 <label style={{ fontSize: 11, color: "#6C757D", display: "block", marginBottom: 2 }}>ccp_alpha</label>
                 <input
                   type="number"
+                  step={0.001}
                   placeholder="e.g. 0.001"
                   style={{ width: "100%", boxSizing: "border-box", height: 28 }}
                   value={med3pa_params.apc.ccp_alpha ?? ""}

@@ -11,9 +11,8 @@ sys.path.append(str(Path(os.path.dirname(os.path.abspath(__file__))).parent.pare
 from med_libs.server_utils import go_print
 from med_libs.GoExecutionScript import GoExecutionScript, parse_arguments
 from med_libs.mongodb_utils import (connect_to_mongo,
-                                    get_child_id_by_name,
-                                    get_dataset_as_pd_df,
-                                    get_pickled_model_from_collection)
+                                    get_dataset_as_pd_df)
+from med_libs.model_loading import load_base_model
 
 from modules.med3pa.mpc_strategies import resolve_mpc_strategy
 
@@ -108,16 +107,7 @@ class GoExecScriptApplyMed3paModel(GoExecutionScript):
 
         self.set_progress(label="Loading models", now=30)
         base_model_id = deployment.get("base_model_id") or (session.get("base_model") or {}).get("id")
-        pickle_object_id = get_child_id_by_name(base_model_id, "model_sklearn.pkl")
-        if pickle_object_id is None:
-            # Fall back to the full pipeline pickle for models saved before the
-            # pycaret-free estimator export existed.
-            pickle_object_id = get_child_id_by_name(base_model_id, "model.pkl")
-        if pickle_object_id is None:
-            raise ValueError("Could not find 'model_sklearn.pkl' or 'model.pkl' inside the deployment's base model.")
-        base_mdl = get_pickled_model_from_collection(pickle_object_id)
-        if base_mdl is None:
-            raise ValueError("The base model could not be loaded from the database.")
+        base_mdl = load_base_model(base_model_id)[0] if base_model_id else None
 
         models_doc = db["med3pa_models"].find_one({"session_name": deployment["session_name"]})
         if models_doc is None or models_doc.get("ipc_model") is None:
@@ -127,11 +117,28 @@ class GoExecScriptApplyMed3paModel(GoExecutionScript):
 
         self.set_progress(label="Running base model", now=45)
         x_np = x.to_numpy()
-        if hasattr(base_mdl, "predict_proba"):
-            base_prob = base_mdl.predict_proba(x_np)[:, 1]
+        prob_threshold = float(session.get("probability_threshold") or 0.5)
+        if base_mdl is not None:
+            if hasattr(base_mdl, "predict_proba"):
+                base_prob = base_mdl.predict_proba(x_np)[:, 1]
+            else:
+                base_prob = np.asarray(base_mdl.predict(x_np), dtype=float)
         else:
-            base_prob = np.asarray(base_mdl.predict(x_np), dtype=float)
-        base_pred = (base_prob >= 0.5).astype(int) #yes or no
+            # The session ran on supplied probabilities rather than a model, so
+            # there is nothing to call -- the new data has to carry the same column.
+            probability_column = session.get("probability_column")
+            if not probability_column:
+                raise ValueError(
+                    "This deployment has neither a base model nor a probability column. "
+                    "Re-run the analysis behind it."
+                )
+            if probability_column not in df.columns:
+                raise ValueError(
+                    f"This deployment was built from supplied probabilities, so the input "
+                    f"data must contain the column '{probability_column}'."
+                )
+            base_prob = np.asarray(df[probability_column], dtype=float)
+        base_pred = (base_prob >= prob_threshold).astype(int) #yes or no
 
         self.set_progress(label="Computing confidence scores", now=60)
         ipc_values = np.asarray(ipc_model.predict(x_np), dtype=float)

@@ -19,6 +19,7 @@ import SimpleCleaningToolsDB from "./inputToolsDB/simpleCleaningToolsDB"
 import SubsetCreationToolsDB from "./inputToolsDB/subsetCreationToolsDB"
 import TransformColumnToolsDB from "./inputToolsDB/transformColumnToolsDB"
 import MEDprofilesPrepareData from "../input/MEDprofiles/MEDprofilesPrepareData"
+import ExternalModelImport from "../input/ExternalModel/ExternalModelImport"
 import { getCollectionSize } from "../mongoDB/mongoDBUtils"
 
 const SectionContainer = ({ title, children }) => (
@@ -125,6 +126,13 @@ const InputToolsComponent = ({ exportOptions }) => {
           label: "MEDprofiles",
           tools: [
             { label: "MEDprofiles", component: MEDprofilesPrepareData, description: "Prepare datasets following MEDomics profiles for standardized structure and compatibility across modules." },
+          ],
+        },
+        {
+          key: "externalmodels",
+          label: "External Models",
+          tools: [
+            { label: "Import External Model", component: ExternalModelImport, description: "Bring a model trained outside MEDomicsLab (.pkl, .joblib, .onnx) into the workspace as a .medmodel." },
           ],
         },
       ],

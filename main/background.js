@@ -440,6 +440,22 @@ if (isProd) {
   })
 
   /**
+   * @description Select a model file trained outside MEDomicsLab to import
+   * @returns {String|null} path to the selected file, or null if cancelled
+   */
+  ipcMain.handle("select-model-file", async (event) => {
+    const { filePaths } = await dialog.showOpenDialog(mainWindow, {
+      title: "Select a model file",
+      properties: ["openFile"],
+      filters: [
+        { name: "Model files", extensions: ["pkl", "pickle", "joblib", "onnx"] },
+        { name: "All files", extensions: ["*"] }
+      ]
+    })
+    return filePaths && filePaths.length > 0 ? filePaths[0] : null
+  })
+
+  /**
    * @description Returns the settings
    * @returns {Object} The settings
    * @summary Returns the settings from the settings file if it exists, otherwise returns an empty object

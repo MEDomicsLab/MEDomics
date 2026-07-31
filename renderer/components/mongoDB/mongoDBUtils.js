@@ -163,6 +163,9 @@ export async function insertMEDDataObjectIfNotExists(medData, path = null, jsonD
       case "pkl":
         await insertPKLIntoCollection(path, medData.id)
         break
+      case "onnx":
+        await insertONNXIntoCollection(path, medData.id)
+        break
       case "jpg":
         await insertJPGIntoCollection(path, medData.id)
         break
@@ -226,6 +229,30 @@ async function insertPKLIntoCollection(filePath, collectionName) {
 
   const result = await collection.insertOne(document)
   console.log(`PKL data inserted with _id: ${result.insertedId}`)
+  return result
+}
+
+/**
+ * @description Insert an ONNX model file in the database based on the associated MEDDataObject id
+ * @param {String} filePath path of the file to import in the database
+ * @param {String} collectionName name of the collection in which we want to import the data
+ */
+async function insertONNXIntoCollection(filePath, collectionName) {
+  const db = await connectToMongoDB()
+  const collection = db.collection(collectionName)
+
+  const fileSize = fs.statSync(filePath).size
+  const maxBSONSize = 16 * 1024 * 1024 // 16MB
+  if (fileSize > maxBSONSize) {
+    console.warn(`ONNX file ${filePath} size exceeds the maximum BSON document size of 16MB and will not be inserted in the database`)
+    toast.warn(`ONNX file ${filePath} size exceeds the maximum BSON document size of 16MB and only the path will be saved in the database.`)
+    const result = await collection.insertOne({ model_path: filePath })
+    console.log(`ONNX file path inserted with _id: ${result.insertedId}`)
+    return
+  }
+
+  const result = await collection.insertOne({ onnx: fs.readFileSync(filePath) })
+  console.log(`ONNX data inserted with _id: ${result.insertedId}`)
   return result
 }
 
@@ -650,6 +677,14 @@ export async function downloadCollectionToFile(collectionId, filePath, type) {
     // Convert base64 to buffer
     const pklBuffer = Buffer.from(buffer)
     fs.writeFileSync(filePath, pklBuffer)
+  } else if (type === "onnx") {
+    // Oversized graphs are left on disk and only referenced, so there is
+    // nothing to write back out in that case.
+    if (!documents[0].onnx) {
+      console.error(`No ONNX content stored in collection ${collectionId}`)
+      return
+    }
+    fs.writeFileSync(filePath, Buffer.from(documents[0].onnx.buffer))
   } else {
     throw new Error("Unsupported file type")
   }

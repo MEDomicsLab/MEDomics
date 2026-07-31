@@ -12,7 +12,21 @@ func AddHandleFunc() {
 	Utils.CreateHandleFunc(prePath+"/run_experiment/", handleRunExperiment)
 	Utils.CreateHandleFunc(prePath+"/get_file_content/", handleGetFileContent)
 	Utils.CreateHandleFunc(prePath+"/save_file_content/", handleSaveFileContent)
+	Utils.CreateHandleFunc(prePath+"/import_external_model/", handleImportExternalModel)
 	Utils.CreateHandleFunc(prePath+"/progress/", handleProgress)
+}
+
+// handleImportExternalModel handles the request to import a model trained
+// outside MEDomicsLab as a .medmodel
+// It returns the response from the python script
+func handleImportExternalModel(jsonConfig string, id string) (string, error) {
+	log.Println("Importing external model...", id)
+	response, err := Utils.StartPythonScripts(jsonConfig, "../pythonCode/modules/learning/import_external_model.py", id)
+	Utils.RemoveIdFromScripts(id)
+	if err != nil {
+		return "", err
+	}
+	return response, nil
 }
 
 // handleRunExperiment handles the request to run an experiment

@@ -13,9 +13,9 @@ sys.path.append(str(Path(os.path.dirname(os.path.abspath(__file__))).parent.pare
 from med_libs.server_utils import go_print
 from med_libs.GoExecutionScript import GoExecutionScript, parse_arguments
 from med_libs.mongodb_utils import (connect_to_mongo,
-                                    get_child_id_by_name,
-                                    get_dataset_as_pd_df,
-                                    get_pickled_model_from_collection)
+                                    get_dataset_as_pd_df)
+from med_libs.model_loading import (get_model_feature_columns,
+                                    load_base_model)
 
 from MED3pa.datasets import DatasetsManager
 from MED3pa.models import BaseModelManager
@@ -84,8 +84,13 @@ class GoExecScriptRunMed3paAnalysis(GoExecutionScript):
     def _custom_process(self, json_config: dict) -> dict:
         params = json_config["med3pa_params"]
 
-        base_model = params["base_model"]        # {"id": <workspace uuid>, "name": ...}
+        base_model = params.get("base_model")    # {"id": <workspace uuid>, "name": ...}
         dataset = params["chosen_dataset"]       # {"id": <workspace uuid>, "name": ...}
+        # Alternative to a base model: a column of already-computed predicted
+        # probabilities. MED3pa only uses the base model to fill in
+        # pseudo-probabilities, so supplying them directly works for models we
+        # have no loader for.
+        probability_column = params.get("probability_column")
         ipc = params["ipc"]
         apc = params["apc"]
         mpc_strategy = params["mpc_strategy"]
@@ -110,7 +115,28 @@ class GoExecScriptRunMed3paAnalysis(GoExecutionScript):
                 f"'{dataset.get('name')}'. Available columns: {list(df.columns)}"
             )
         y = np.array(df.pop(target_column))
-        x = df
+
+        if bool(base_model) == bool(probability_column):
+            raise ValueError(
+                "Select either a base model or a column of predicted "
+                "probabilities, but not both."
+            )
+
+        probabilities = None
+        if probability_column:
+            if probability_column not in df.columns:
+                raise ValueError(
+                    f"Probability column '{probability_column}' not found in dataset "
+                    f"'{dataset.get('name')}'. Available columns: {list(df.columns)}"
+                )
+            probabilities = np.asarray(df.pop(probability_column), dtype=float)
+            if probabilities.min() < 0 or probabilities.max() > 1:
+                raise ValueError(
+                    f"Column '{probability_column}' holds values in "
+                    f"[{probabilities.min():.3f}, {probabilities.max():.3f}], which are "
+                    f"not probabilities. It must contain the predicted probability of "
+                    f"the positive class."
+                )
 
         ipc_params = {
             "n_estimators": ipc.get("n_estimators") or 100,
@@ -151,25 +177,63 @@ class GoExecScriptRunMed3paAnalysis(GoExecutionScript):
 
         self.set_progress(label="Loading base model", now=30)
 
-        # A "model" MEDDataObject is a directory; the pickled estimator lives in
-        # its "model_sklearn.pkl" child (pure sklearn, no pycaret dependency).
-        # Fall back to the full-pipeline "model.pkl" for models saved before the
-        # pycaret-free estimator export existed.
-        if not base_model or "id" not in base_model:
-            raise ValueError("No base model was selected in the frontend.")
+        base_model_manager = None
+        model_threshold = 0.5
+        feature_columns = None
+        if base_model:
+            if "id" not in base_model:
+                raise ValueError("The selected base model has no workspace id.")
+            base_mdl, model_metadata = load_base_model(base_model["id"])
+            feature_columns = get_model_feature_columns(model_metadata)
+            model_threshold = model_metadata.get("model_threshold") or 0.5
 
-        pickle_object_id = get_child_id_by_name(base_model["id"], "model_sklearn.pkl")
-        if pickle_object_id is None:
-            pickle_object_id = get_child_id_by_name(base_model["id"], "model.pkl")
-        if pickle_object_id is None:
-            raise ValueError(
-                f"Could not find 'model_sklearn.pkl' or 'model.pkl' inside model '{base_model.get('name')}'."
-            )
-        base_mdl = get_pickled_model_from_collection(pickle_object_id)
-        if base_mdl is None:
-            raise ValueError("The base model could not be loaded from the database.")
-        base_model_manager = BaseModelManager(model=base_mdl)
+            # BaseModelManager.threshold reads `.threshold` off the wrapped model
+            # and otherwise defaults to 0.5, so a declared threshold only takes
+            # effect if it is put there. Without this, the threshold recorded at
+            # import (or by pycaret's threshold optimisation) is silently ignored
+            # when MED3pa turns probabilities into pseudo-labels.
+            if model_threshold != 0.5 and not hasattr(base_mdl, "threshold"):
+                try:
+                    base_mdl.threshold = model_threshold
+                    self.warn(
+                        f"Using the model's declared decision threshold "
+                        f"{model_threshold} instead of 0.5. Earlier runs of this "
+                        f"session ignored it, so results will differ from them."
+                    )
+                except AttributeError:
+                    self.warn(
+                        f"Model '{base_model.get('name')}' declares a decision "
+                        f"threshold of {model_threshold}, but it could not be applied "
+                        f"to a {type(base_mdl).__name__}, so MED3pa used 0.5."
+                    )
+            base_model_manager = BaseModelManager(model=base_mdl)
+        else:
+            model_threshold = params.get("probability_threshold") or 0.5
 
+        # Feed the model its own feature space, in its own order. Relying on the
+        # dataset's leftover column order silently produces plausible-looking
+        # nonsense whenever the CSV does not match how the model was trained --
+        # which an externally imported model has no reason to do.
+        if feature_columns:
+            missing = [c for c in feature_columns if c not in df.columns]
+            if missing:
+                raise ValueError(
+                    f"Dataset '{dataset.get('name')}' is missing columns the model "
+                    f"expects: {missing}. Available columns: {list(df.columns)}"
+                )
+            x = df[feature_columns]
+        else:
+            x = df
+            if base_model:
+                # Only a concern when the model is the one producing predictions;
+                # with probabilities supplied, column order just names IPC/APC
+                # features and cannot make a prediction wrong.
+                self.warn(
+                    f"Base model '{base_model.get('name')}' declares no feature list, "
+                    f"so the dataset's own column order was used. If it does not match "
+                    f"the order the model was trained on, every prediction in this "
+                    f"analysis is wrong."
+                )
 
         datasets = DatasetsManager()
         datasets.set_from_data(
@@ -178,6 +242,15 @@ class GoExecScriptRunMed3paAnalysis(GoExecutionScript):
             true_labels=y,
             column_labels=list(x.columns),
         )
+
+        # With probabilities supplied up front, MED3pa never asks for a base
+        # model (Med3paExperiment._setup_dataset only calls predict_proba when
+        # the dataset has no pseudo-probabilities yet).
+        if probabilities is not None:
+            testing_set = datasets.get_dataset_by_type(
+                dataset_type="testing", return_instance=True
+            )
+            testing_set.set_pseudo_probs_labels(probabilities, model_threshold)
 
         # "confidence_metric" is either a built-in MED3pa metric name or a formula
         # typed into the config form. Both become an UncertaintyMetric instance:
@@ -245,6 +318,10 @@ class GoExecScriptRunMed3paAnalysis(GoExecutionScript):
             # the Go server, so this is the only durable record.
             "warnings": self.warnings,
             "base_model": base_model,
+            # None unless the run used supplied probabilities instead of a model;
+            # deployments need to know so they can ask for the same column again.
+            "probability_column": probability_column,
+            "probability_threshold": model_threshold,
             "dataset": dataset,
             "target_column": target_column,
             "dataset_size": int(len(y)),
