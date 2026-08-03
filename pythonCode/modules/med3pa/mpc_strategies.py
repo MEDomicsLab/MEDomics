@@ -26,6 +26,7 @@ class UserDefinedMpcStrategy(MpcStrategy):
         # than the formula it happens to be implemented with.
         self._name = name
         self.probe_values = self._probe()
+    @property
     def name(self) -> str:
         return self._name or self.expression
     def _probe(self) -> np.ndarray:
@@ -56,7 +57,7 @@ class UserDefinedMpcStrategy(MpcStrategy):
         self.__init__(state["expression"], state["name"])
 
     def __str__(self):
-        return self.name()
+        return self.name
 
     def __repr__(self):
         return f"UserDefinedMpcStrategy({self.expression!r}, name={self._name!r})"
@@ -92,7 +93,7 @@ def resolve_mpc_strategy(value, warn=None) -> MpcStrategy:
 def describe_mpc_strategy(strategy) -> str:
     """JSON-safe description, for the saved session config."""
     if isinstance(strategy, MpcStrategy):
-        return strategy.name()
+        return strategy.name
     if isinstance(strategy, str):
         return strategy
     return type(strategy).__name__

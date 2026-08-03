@@ -132,7 +132,7 @@ const InputToolsComponent = ({ exportOptions }) => {
           key: "externalmodels",
           label: "External Models",
           tools: [
-            { label: "Import External Model", component: ExternalModelImport, description: "Bring a model trained outside MEDomicsLab (.pkl, .joblib, .onnx) into the workspace as a .medmodel." },
+            { label: "Import External Model", component: ExternalModelImport, requiresCollection: false, description: "Bring a model trained outside MEDomicsLab (.pkl, .joblib, .onnx) into the workspace as a .medmodel." },
           ],
         },
       ],
@@ -142,11 +142,18 @@ const InputToolsComponent = ({ exportOptions }) => {
   const renderActiveTool = () => {
     if (!activeTool) return null
     const ToolComponent = activeTool.component
+    // Tools default to needing a dataset; only those declaring
+    // requiresCollection: false render without one.
+    const needsCollection = activeTool.requiresCollection !== false
     return (
       <div style={{ marginTop: "20px" }}>
         <Button label="← Back to tools" className="p-button-text mb-3" onClick={() => setActiveTool(null)} />
         <h3>{activeTool.label}</h3>
-        <ToolComponent exportOptions={exportOptions} currentCollection={collectionId} collectionSize={collectionSize} />
+        {needsCollection && !collectionId ? (
+          <p style={{ textAlign: "center" }}>Please select a dataset to continue.</p>
+        ) : (
+          <ToolComponent exportOptions={exportOptions} currentCollection={collectionId} collectionSize={collectionSize} />
+        )}
       </div>
     )
   }
@@ -205,7 +212,10 @@ const InputToolsComponent = ({ exportOptions }) => {
     </Card>
   </div>
 
-  {!collectionId ? (
+  {/* Browsing stays open without a dataset, otherwise tools that do not need
+      one (requiresCollection: false) could never be reached. The requirement is
+      enforced per tool in renderActiveTool instead. */}
+  {!collectionId && !activeSection ? (
     <p style={{ textAlign: "center" }}>Please select a dataset to continue.</p>
   ) : (
     <>
