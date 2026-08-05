@@ -1,0 +1,122 @@
+# =============================================================================
+# MEDomicsLab - unified Python 3.9 environment
+# =============================================================================
+# Only DIRECT dependencies are listed. Everything else (192 packages total)
+# is resolved by pip. Verified with `pip install --dry-run` on CPython 3.9.
+#
+#   conda create -n med_conda_env python=3.9 -y
+#   conda activate med_conda_env
+#   conda install "openssl=3.0.20" -y          # <-- REQUIRED, see below
+#   pip install -r requirements_py39.txt
+#
+# -----------------------------------------------------------------------------
+# REQUIRED CONDA STEP - openssl must be pinned to 3.0.x
+# -----------------------------------------------------------------------------
+# conda now ships OpenSSL 3.5.x by default. OpenSSL 3.5 changed the error it
+# reports at end-of-data when parsing DER certificates from ASN1_R_HEADER_TOO_LONG
+# to ASN1_R_NOT_ENOUGH_DATA. CPython 3.9's _ssl.c only recognises the old reason
+# as "clean EOF", so on Windows `ssl.create_default_context()` - which loads the
+# Windows cert store as DER - dies with:
+#
+#     ssl.SSLError: [ASN1: NOT_ENOUGH_DATA] not enough data (_ssl.c:4192)
+#
+# CPython 3.11+ carries the fix; 3.9 does not, and 3.9 is EOL so it never will.
+# tornado calls create_default_context() at import time, so this takes down
+# tornado -> distributed -> dask.distributed -> lightgbm -> pycaret.setup().
+# lightgbm's dask import guard only catches ImportError, so the SSLError escapes.
+#
+# This cannot be expressed as a pip requirement: openssl is a conda-level native
+# library that CPython's _ssl module links against, not a Python package.
+#
+#     conda install -n <env> "openssl=3.0.20" -y
+#
+# Use 3.0.20, NOT 3.0.21 - the 3.0.21 build carries a `python >=3.10` constraint
+# and conda satisfies it by removing Python 3.9 from the environment.
+#
+# Strictly this only bites on Windows: _load_windows_store_certs (the DER path)
+# is guarded by `sys.platform == "win32"`, while Linux/macOS go through
+# set_default_verify_paths() and read PEM. Pinning on all platforms anyway keeps
+# the three create_conda_env_* scripts identical and costs nothing.
+#
+# CPU-only torch: the extra index below serves the `+cpu` builds, which avoids
+# pulling ~2.5 GB of bundled CUDA libraries on Linux/Windows.
+# -----------------------------------------------------------------------------
+--extra-index-url https://download.pytorch.org/whl/cpu
+
+# --- core scientific stack --------------------------------------------------
+# Upper bounds are dictated by pycaret 3.1.0:
+#   numpy <1.24 | pandas <2.0 | scipy ~=1.10.1 | scikit-learn <1.3
+numpy==1.22.4
+pandas==1.4.4
+scipy==1.10.1
+scikit-learn==1.2.2
+matplotlib==3.6.0
+pydantic==2.4.2          # MEDprofiles generated MEDclasses
+PyYAML==6.0.1            # MED3pa
+setuptools==69.5.1       # MED3pa requires <70
+
+# --- ML engine --------------------------------------------------------------
+pycaret==3.1.0
+xgboost==2.1.1           # MED3pa pin; xgboost >=3.0 requires Python >=3.10
+joblib==1.2.0
+onnxruntime==1.16.3      # external model import
+shap==0.44.1
+lightgbm==3.3.4
+pyod==1.1.0
+imbalanced-learn==0.10.1
+category-encoders==2.5.1.post0
+
+# --- deep learning (CPU builds) ---------------------------------------------
+# torch 2.8.0 is the last release with cp39 wheels; 2.1.0 is what the platform
+# is validated against and satisfies MED3pa (torch >=1.9,<3.0).
+# macOS has no `+cpu` local version - its wheels are already CPU/MPS only.
+torch==2.1.0+cpu ; sys_platform != "darwin"
+torchvision==0.16.0+cpu ; sys_platform != "darwin"
+torch==2.1.0 ; sys_platform == "darwin"
+torchvision==0.16.0 ; sys_platform == "darwin"
+torchxrayvision==1.2.1   # extraction_image / DenseNet
+transformers==4.30.2     # extraction_text / BioBERT
+huggingface-hub==0.18.0  # transformers 4.30 breaks on hub >=0.26
+safetensors==0.4.0
+
+# --- imaging ----------------------------------------------------------------
+opencv-python==4.8.1.78
+scikit-image==0.19.3
+Pillow==9.4.0
+
+# --- exploratory dashboards -------------------------------------------------
+dtale==3.7.0
+sweetviz==2.3.1
+ydata-profiling==4.6.1
+explainerdashboard==0.4.2.1
+dash==2.13.0             # dtale/explainerdashboard are not dash >=3 compatible
+dash-daq==0.5.0
+dash-auth==1.4.1
+kaleido==0.2.1           # kaleido 1.x requires plotly >=6
+plotly==5.11.0
+
+# --- time series ------------------------------------------------------------
+tsfresh==0.20.1
+dask[dataframe]==2023.9.3
+
+# --- database / web / misc --------------------------------------------------
+pymongo==4.7.3
+Flask==2.2.2
+requests==2.28.2
+tqdm==4.64.1
+colorama==0.4.6
+xxhash==3.4.1
+protobuf==4.21.12
+
+# --- MED3pa -----------------------------------------------------------------
+# Not installable from PyPI at a Python 3.9-compatible revision. Install the
+# local checkout after this file, from the repo root:
+#     pip install -e ../packages/MED3pa
+# or pin the upstream revision once the 3.9 fixes are pushed:
+#     -e git+https://github.com/MEDomicsLab/MED3pa.git@<sha>#egg=MED3pa
+# Its own pins (numpy<2.1, pandas<3, scikit_learn<2, scipy<2, setuptools<70,
+# torch<3, tqdm<5, xgboost==2.1.1, PyYAML<7) are all satisfied above.
+
+# --- developer-only (settings_generator, not needed at runtime) --------------
+# dpath==2.1.6
+# selenium==4.15.2
