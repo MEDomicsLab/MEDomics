@@ -47,7 +47,7 @@ export default function MdrCurvesChart({ metricsByDr, visibleMetrics, currentDr,
 
     return {
       animation: false,
-      grid: { left: 45, right: 20, top: 30, bottom: 25 },
+      grid: { left: 45, right: 20, top: 30, bottom: 38 },
       tooltip: {
         trigger: "axis",
         valueFormatter: (v) => (typeof v === "number" ? v.toFixed(3) : v)
