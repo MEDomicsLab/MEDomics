@@ -22,6 +22,18 @@ const TARGET_LABELS = [
   "Septic Shock Onset Threshold",
 ];
 
+// The three keys of MED3pa's AbstractUncertaintyEstimator.supported_regressors_mapping.
+// `forest` marks the ones built on RandomForestRegressor, which are the only ones
+// that accept n_estimators -- MED3pa splats these straight into the sklearn
+// constructor, so offering the parameter for a plain decision tree is a TypeError.
+const IPC_TYPES = [
+  { value: "RandomForestRegressor", label: "Random forest", forest: true },
+  { value: "EnsembleRandomForestRegressor", label: "Ensemble of random forests", forest: true },
+  { value: "DecisionTreeRegressor", label: "Decision tree", forest: false },
+];
+
+const FOREST_ONLY_FIELDS = ["n_estimators"];
+
 const MPC_STRATEGIES = [
   { value: "average", label: "Average — mean(IPC, APC)" },
   { value: "minimum", label: "Minimum — min(IPC, APC)" },
@@ -166,11 +178,28 @@ export default function Med3paConfigForm({ onAnalysisComplete = null, onNextStep
   const setIpcGrid = (key, val) =>
     setMed3paParams((p) => ({ ...p, ipc: { ...p.ipc, grid: { ...p.ipc.grid, [key]: val } } }));
 
+  // Switching to a regressor that cannot take a parameter clears it, so a value
+  // typed for a forest is not still sitting in state when a decision tree is sent.
+  const setIpcType = (value) =>
+    setMed3paParams((p) => {
+      const isForest = IPC_TYPES.find((t) => t.value === value)?.forest;
+      if (isForest) return { ...p, ipc: { ...p.ipc, ipc_type: value } };
+      const ipc = { ...p.ipc, ipc_type: value, grid: { ...p.ipc.grid } };
+      FOREST_ONLY_FIELDS.forEach((field) => {
+        ipc[field] = 0;
+        ipc.grid[field] = null;
+      });
+      return { ...p, ipc };
+    });
+
   const setApcGrid = (key, val) =>
     setMed3paParams((p) => ({ ...p, apc: { ...p.apc, grid: { ...p.apc.grid, [key]: val } } }));
 
   const setSamplesRatio = (key, val) =>
     setMed3paParams((p) => ({ ...p, samples_ratio: { ...p.samples_ratio, [key]: val } }));
+
+  const ipcIsForest = IPC_TYPES.find((t) => t.value === med3pa_params.ipc.ipc_type)?.forest ?? true;
+  const ipcGridIsIgnored = med3pa_params.ipc.ipc_type === "EnsembleRandomForestRegressor";
 
   const STEPS_CURRENT = [
     { n: "1", name: "Configure model", active: true },
@@ -369,19 +398,21 @@ export default function Med3paConfigForm({ onAnalysisComplete = null, onNextStep
               <Hint text={HINTS.ipcParams} />
             </p>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 8 }}>
-              <div>
-                <label style={{ fontSize: 11, color: "#6C757D", display: "block", marginBottom: 2 }}>
-                  n_estimators
-                  <Hint text={HINTS.ipcNEstimators} />
-                </label>
-                <input
-                  type="number"
-                  placeholder="e.g. 100"
-                  style={{ width: "100%", boxSizing: "border-box", height: 28 }}
-                  value={med3pa_params.ipc.n_estimators || ""}
-                  onChange={(e) => setIpc("n_estimators", parseInt(e.target.value) || 0)}
-                />
-              </div>
+              {ipcIsForest && (
+                <div>
+                  <label style={{ fontSize: 11, color: "#6C757D", display: "block", marginBottom: 2 }}>
+                    n_estimators
+                    <Hint text={HINTS.ipcNEstimators} />
+                  </label>
+                  <input
+                    type="number"
+                    placeholder="e.g. 100"
+                    style={{ width: "100%", boxSizing: "border-box", height: 28 }}
+                    value={med3pa_params.ipc.n_estimators || ""}
+                    onChange={(e) => setIpc("n_estimators", parseInt(e.target.value) || 0)}
+                  />
+                </div>
+              )}
               <div>
                 <label style={{ fontSize: 11, color: "#6C757D", display: "block", marginBottom: 2 }}>
                   max_depth
@@ -477,12 +508,17 @@ export default function Med3paConfigForm({ onAnalysisComplete = null, onNextStep
                   ipc_type
                   <Hint text={HINTS.ipcType} />
                 </label>
-                <input
-                  type="text"
+                <select
                   style={{ width: "100%", boxSizing: "border-box", height: 28 }}
-                  value={med3pa_params.ipc.ipc_type ?? ""}
-                  onChange={(e) => setIpc("ipc_type", e.target.value || null)}
-                />
+                  value={med3pa_params.ipc.ipc_type ?? "RandomForestRegressor"}
+                  onChange={(e) => setIpcType(e.target.value)}
+                >
+                  {IPC_TYPES.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
               </div>
               {/* <div>
                 <label style={{ fontSize: 11, color: "#6C757D", display: "block", marginBottom: 2 }}>uncertainty_metric</label>
@@ -499,19 +535,28 @@ export default function Med3paConfigForm({ onAnalysisComplete = null, onNextStep
               Grid-search ranges (comma-separated)
               <Hint text={HINTS.ipcGrid} />
             </p>
-            <div style={{ marginBottom: 6 }}>
-              <label style={{ fontSize: 11, color: "#6C757D", display: "block", marginBottom: 2 }}>
-                n_estimators
-                <Hint text={HINTS.gridNEstimators} />
-              </label>
-              <input
-                type="text"
-                placeholder="e.g. 50, 100, 200"
-                style={{ width: "100%", boxSizing: "border-box", height: 28 }}
-                value={med3pa_params.ipc.grid.n_estimators ?? ""}
-                onChange={(e) => setIpcGrid("n_estimators", e.target.value || null)}
-              />
-            </div>
+            {ipcGridIsIgnored && (
+              <p style={{ fontSize: 10, color: "#B5651D", margin: "0 0 8px", lineHeight: 1.5 }}>
+                MED3pa cannot grid-search an ensemble of random forests — its optimizer stores the tuned
+                model where the ensemble&apos;s predict() never reads it. Anything entered below is ignored
+                and the IPC is trained directly with the hyperparameters above.
+              </p>
+            )}
+            {ipcIsForest && (
+              <div style={{ marginBottom: 6 }}>
+                <label style={{ fontSize: 11, color: "#6C757D", display: "block", marginBottom: 2 }}>
+                  n_estimators
+                  <Hint text={HINTS.gridNEstimators} />
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. 50, 100, 200"
+                  style={{ width: "100%", boxSizing: "border-box", height: 28 }}
+                  value={med3pa_params.ipc.grid.n_estimators ?? ""}
+                  onChange={(e) => setIpcGrid("n_estimators", e.target.value || null)}
+                />
+              </div>
+            )}
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
               <div>
                 <label style={{ fontSize: 11, color: "#6C757D", display: "block", marginBottom: 2 }}>

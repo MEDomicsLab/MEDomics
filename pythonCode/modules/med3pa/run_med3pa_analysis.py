@@ -1,6 +1,7 @@
 import os
 import sys
 import json
+import inspect
 import pickle
 import datetime
 from pathlib import Path
@@ -8,6 +9,8 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 from bson.binary import Binary
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.tree import DecisionTreeRegressor
 
 sys.path.append(str(Path(os.path.dirname(os.path.abspath(__file__))).parent.parent))
 from med_libs.server_utils import go_print
@@ -45,6 +48,39 @@ def parse_int_list(value, default):
     if isinstance(value, list):
         return [int(v) for v in value]
     return [int(v.strip()) for v in str(value).split(",") if v.strip() != ""]
+
+
+# MED3pa hands ipc_params straight to the wrapped sklearn constructor --
+# RandomForestRegressorModel does `RandomForestRegressor(**params)` -- so a
+# parameter the chosen regressor does not accept raises TypeError instead of
+# being ignored. EnsembleRandomForestRegressor builds inner RandomForestRegressors,
+# so it accepts the same keys as a single forest.
+IPC_SKLEARN_CLASS = {
+    "RandomForestRegressor": RandomForestRegressor,
+    "EnsembleRandomForestRegressor": RandomForestRegressor,
+    "DecisionTreeRegressor": DecisionTreeRegressor,
+}
+
+
+def filter_ipc_params(params, ipc_type, label, warn):
+    """Drop parameters the chosen IPC regressor cannot accept.
+
+    Without this, choosing DecisionTreeRegressor and leaving n_estimators set
+    fails with an opaque TypeError halfway through the run.
+    """
+    regressor = IPC_SKLEARN_CLASS.get(ipc_type)
+    if regressor is None or not params:
+        return params
+
+    accepted = set(inspect.signature(regressor.__init__).parameters)
+    kept = {k: v for k, v in params.items() if k in accepted}
+    dropped = sorted(set(params) - set(kept))
+    if dropped:
+        warn(
+            f"{ipc_type} does not accept {dropped}, so {'they were' if len(dropped) > 1 else 'it was'} "
+            f"dropped from the IPC {label}. Only {sorted(kept)} were used."
+        )
+    return kept
 
 
 def build_grid(grid_cfg, fields):
@@ -138,14 +174,26 @@ class GoExecScriptRunMed3paAnalysis(GoExecutionScript):
                     f"the positive class."
                 )
 
-        ipc_params = {
-            "n_estimators": ipc.get("n_estimators") or 100,
-            "max_depth": ipc.get("max_depth") or None,
-            "min_samples_split": ipc.get("min_samples_split") or 2,
-        }
         ipc_type = ipc.get("ipc_type") or "RandomForestRegressor"
+        if ipc_type not in IPC_SKLEARN_CLASS:
+            raise ValueError(
+                f"Unknown ipc_type '{ipc_type}'. Supported regressors: "
+                f"{sorted(IPC_SKLEARN_CLASS)}."
+            )
+
+        # Send only what the user actually filled in. The values this used to
+        # substitute for blanks (100 / None / 2) are sklearn's own defaults, so
+        # omitting them changes nothing -- and it keeps the parameters the user
+        # never touched from being rejected by a regressor that lacks them.
+        ipc_params = {field: ipc[field]
+                      for field in ("n_estimators", "max_depth", "min_samples_split")
+                      if ipc.get(field)}
+        ipc_params = filter_ipc_params(ipc_params, ipc_type, "hyperparameters", self.warn)
+
         ipc_grid = build_grid(ipc.get("grid") or {},
                               ("n_estimators", "max_depth", "min_samples_leaf"))
+        # The grid is expanded into the same constructor, so it needs the same filter.
+        ipc_grid = filter_ipc_params(ipc_grid, ipc_type, "grid search", self.warn) or None
 
         # MED3pa's IPCModel.optimize ends with `self.model.set_model(best_estimator_)`,
         # which writes the fitted winner to the ensemble's `.model` attribute — but
