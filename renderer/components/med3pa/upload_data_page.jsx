@@ -1,7 +1,8 @@
 
 import Input from "../learning/input";
 import { json } from "d3";
-import { useContext, useState } from "react";
+import { useContext, useId, useState } from "react";
+import { Tooltip } from "react-tooltip";
 import { requestBackend } from "../../utilities/requests";
 import { PageInfosContext } from "../mainPages/moduleBasics/pageInfosContext";
 import { WorkspaceContext } from "../workspace/workspaceContext";
@@ -26,6 +27,71 @@ const MPC_STRATEGIES = [
   { value: "minimum", label: "Minimum — min(IPC, APC)" },
   { value: "custom",  label: "Custom function" },
 ];
+
+// Hyperparameter descriptions. Kept together so the wording stays consistent and
+// the JSX below stays readable. Defaults quoted here are the ones
+// run_med3pa_analysis.py falls back to when a field is left blank, which are not
+// always MED3pa's own defaults.
+const HINTS = {
+  ipcParams:
+    "Hyperparameters of the IPC regressor — the model that learns to predict, from a patient's features alone, how much the base model can be trusted for that patient.",
+  ipcNEstimators:
+    "Number of trees in the IPC regressor. More trees give a smoother, more stable confidence estimate but take longer to train. Ignored when a grid-search range is set below. Default: 100.",
+  ipcMaxDepth:
+    "Maximum depth of each IPC tree. Deeper trees capture finer patterns in confidence but overfit more easily. Leave blank for unlimited depth. Default: unlimited.",
+  ipcMinSamplesSplit:
+    "Minimum number of samples an IPC node must hold before it may split. Higher values give a coarser, more conservative confidence surface. Default: 2.",
+  confidenceMetric:
+    "Defines what the IPC is trained to predict. It is computed per patient from the base model's probability (p) and the true label (y), and the IPC then learns to reproduce that value from features alone. (1 − |ŷ − y|) is near 1 when the model was right about a patient and near 0 when it was confidently wrong.",
+  ipcType:
+    "Which regressor implements the IPC. Valid values: RandomForestRegressor, EnsembleRandomForestRegressor, DecisionTreeRegressor. Note that EnsembleRandomForestRegressor cannot be grid-searched — MED3pa's optimizer stores the tuned model where that ensemble's predict() never reads it, so a grid is dropped with a warning.",
+  ipcGrid:
+    "Cross-validated grid search over the IPC regressor. Leave every field blank to train directly with the parameters above; filling in any one field turns the search on.",
+  gridNEstimators: "Values of n_estimators to search over, comma-separated. Blank means do not search this parameter.",
+  gridMaxDepth: "Values of max_depth to search over, comma-separated. Blank means do not search this parameter.",
+  gridMinSamplesLeaf: "Values of min_samples_leaf to search over, comma-separated. Blank means do not search this parameter.",
+  apcTreeMaxDepth:
+    "Depth of the APC decision tree, which splits patients into profiles. This is the main control on how many profiles you get: depth d yields at most 2^d leaves. Shallower trees give fewer, broader, more interpretable profiles. Default: 3.",
+  apcMinSamplesLeaf:
+    "Minimum number of patients in a leaf of the APC tree. Raising it prevents tiny profiles whose metrics are too noisy to act on. Default: 1.",
+  apcCcpAlpha:
+    "Cost-complexity pruning strength for the APC tree. Higher values prune more aggressively, producing a smaller tree and fewer profiles. 0 disables pruning. Default: 0.1.",
+  apcGrid:
+    "Cross-validated grid search over the APC tree. Leave every field blank to train directly with the parameters above; filling in any one field turns the search on.",
+  mpcStrategy:
+    "How the per-patient IPC and per-profile APC confidences combine into the single value used for declaration. Minimum is conservative — a patient is trusted only when both agree. Average is more permissive. A custom formula lets you weight them.",
+  samplesRatio:
+    "The smallest share of the cohort a profile must cover to be reported, as a percentage. The experiment repeats profile extraction at every value from min to max, so you get profile sets at several levels of granularity rather than just one.",
+  samplesRatioMin: "Lowest population percentage threshold in the sweep. 0 keeps every profile, however small.",
+  samplesRatioMax: "Highest population percentage threshold in the sweep. Only profiles covering at least this share survive at the top end.",
+  samplesRatioStep: "Increment between successive thresholds in the sweep. Smaller steps give more profile sets and a longer run.",
+  evaluateModels:
+    "Also score the IPC and APC models themselves and store the result under models_evaluation. Adds to the runtime; useful for checking that the confidence models actually fit."
+}
+
+/**
+ * @description Small hover hint anchored next to a field label.
+ * useId keeps each anchor unique; its output contains colons, which are not
+ * valid in the CSS selector anchorSelect expects, so they are stripped.
+ */
+function Hint({ text }) {
+  const anchorId = "med3pa-hint-" + useId().replace(/:/g, "");
+  return (
+    <>
+      <span id={anchorId} style={{ cursor: "help", marginLeft: 4, color: "#ADB5BD", fontWeight: 400 }}>
+        ⓘ
+      </span>
+      <Tooltip
+        anchorSelect={"#" + anchorId}
+        place="left"
+        delayShow={150}
+        style={{ maxWidth: 300, fontSize: 11, lineHeight: 1.5, zIndex: 2000 }}
+      >
+        {text}
+      </Tooltip>
+    </>
+  );
+}
 
 function Collapsible({ title, subtitle, accentColor, children }) {
   const [open, setOpen] = useState(false);
@@ -300,10 +366,14 @@ export default function Med3paConfigForm({ onAnalysisComplete = null, onNextStep
           >
             <p style={{ fontSize: 12, fontWeight: 500, color: "#495057", margin: "4px 0 6px" }}>
               Algorithm-specific hyperparameters
+              <Hint text={HINTS.ipcParams} />
             </p>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 8 }}>
               <div>
-                <label style={{ fontSize: 11, color: "#6C757D", display: "block", marginBottom: 2 }}>n_estimators</label>
+                <label style={{ fontSize: 11, color: "#6C757D", display: "block", marginBottom: 2 }}>
+                  n_estimators
+                  <Hint text={HINTS.ipcNEstimators} />
+                </label>
                 <input
                   type="number"
                   placeholder="e.g. 100"
@@ -313,7 +383,10 @@ export default function Med3paConfigForm({ onAnalysisComplete = null, onNextStep
                 />
               </div>
               <div>
-                <label style={{ fontSize: 11, color: "#6C757D", display: "block", marginBottom: 2 }}>max_depth</label>
+                <label style={{ fontSize: 11, color: "#6C757D", display: "block", marginBottom: 2 }}>
+                  max_depth
+                  <Hint text={HINTS.ipcMaxDepth} />
+                </label>
                 <input
                   type="number"
                   placeholder="e.g. 5"
@@ -324,7 +397,10 @@ export default function Med3paConfigForm({ onAnalysisComplete = null, onNextStep
               </div>
             </div>
             <div style={{ marginBottom: 10 }}>
-              <label style={{ fontSize: 11, color: "#6C757D", display: "block", marginBottom: 2 }}>min_samples_split</label>
+              <label style={{ fontSize: 11, color: "#6C757D", display: "block", marginBottom: 2 }}>
+                min_samples_split
+                <Hint text={HINTS.ipcMinSamplesSplit} />
+              </label>
               <input
                 type="number"
                 placeholder="e.g. 2"
@@ -338,6 +414,7 @@ export default function Med3paConfigForm({ onAnalysisComplete = null, onNextStep
 
             <p style={{ fontSize: 12, fontWeight: 500, color: "#495057", margin: "6px 0 4px" }}>
               Confidence metric formulation (cᵢ)
+              <Hint text={HINTS.confidenceMetric} />
             </p>
             <p style={{ fontSize: 11, color: "#6C757D", margin: "0 0 8px" }}>
               Choose how the per-sample target variable is defined.
@@ -396,7 +473,10 @@ export default function Med3paConfigForm({ onAnalysisComplete = null, onNextStep
             </p>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 8 }}>
               <div>
-                <label style={{ fontSize: 11, color: "#6C757D", display: "block", marginBottom: 2 }}>ipc_type</label>
+                <label style={{ fontSize: 11, color: "#6C757D", display: "block", marginBottom: 2 }}>
+                  ipc_type
+                  <Hint text={HINTS.ipcType} />
+                </label>
                 <input
                   type="text"
                   style={{ width: "100%", boxSizing: "border-box", height: 28 }}
@@ -417,9 +497,13 @@ export default function Med3paConfigForm({ onAnalysisComplete = null, onNextStep
 
             <p style={{ fontSize: 12, fontWeight: 500, color: "#495057", margin: "6px 0 4px" }}>
               Grid-search ranges (comma-separated)
+              <Hint text={HINTS.ipcGrid} />
             </p>
             <div style={{ marginBottom: 6 }}>
-              <label style={{ fontSize: 11, color: "#6C757D", display: "block", marginBottom: 2 }}>n_estimators</label>
+              <label style={{ fontSize: 11, color: "#6C757D", display: "block", marginBottom: 2 }}>
+                n_estimators
+                <Hint text={HINTS.gridNEstimators} />
+              </label>
               <input
                 type="text"
                 placeholder="e.g. 50, 100, 200"
@@ -430,7 +514,10 @@ export default function Med3paConfigForm({ onAnalysisComplete = null, onNextStep
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
               <div>
-                <label style={{ fontSize: 11, color: "#6C757D", display: "block", marginBottom: 2 }}>max_depth</label>
+                <label style={{ fontSize: 11, color: "#6C757D", display: "block", marginBottom: 2 }}>
+                  max_depth
+                  <Hint text={HINTS.gridMaxDepth} />
+                </label>
                 <input
                   type="text"
                   placeholder="e.g. 2, 3, 4, 5"
@@ -440,7 +527,10 @@ export default function Med3paConfigForm({ onAnalysisComplete = null, onNextStep
                 />
               </div>
               <div>
-                <label style={{ fontSize: 11, color: "#6C757D", display: "block", marginBottom: 2 }}>min_samples_leaf</label>
+                <label style={{ fontSize: 11, color: "#6C757D", display: "block", marginBottom: 2 }}>
+                  min_samples_leaf
+                  <Hint text={HINTS.gridMinSamplesLeaf} />
+                </label>
                 <input
                   type="text"
                   placeholder="e.g. 1, 2, 4"
@@ -460,6 +550,7 @@ export default function Med3paConfigForm({ onAnalysisComplete = null, onNextStep
           >
             <p style={{ fontSize: 12, fontWeight: 500, color: "#495057", margin: "4px 0 2px" }}>
               Tree depth (max_depth) — {med3pa_params.apc.tree_max_depth}
+              <Hint text={HINTS.apcTreeMaxDepth} />
             </p>
             <input
               type="range"
@@ -477,7 +568,10 @@ export default function Med3paConfigForm({ onAnalysisComplete = null, onNextStep
             <p style={{ fontSize: 12, fontWeight: 500, color: "#495057", margin: "4px 0 6px" }}>Complexity control</p>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
               <div>
-                <label style={{ fontSize: 11, color: "#6C757D", display: "block", marginBottom: 2 }}>min_samples_leaf</label>
+                <label style={{ fontSize: 11, color: "#6C757D", display: "block", marginBottom: 2 }}>
+                  min_samples_leaf
+                  <Hint text={HINTS.apcMinSamplesLeaf} />
+                </label>
                 <input
                   type="number"
                   placeholder="e.g. 5"
@@ -487,7 +581,10 @@ export default function Med3paConfigForm({ onAnalysisComplete = null, onNextStep
                 />
               </div>
               <div>
-                <label style={{ fontSize: 11, color: "#6C757D", display: "block", marginBottom: 2 }}>ccp_alpha</label>
+                <label style={{ fontSize: 11, color: "#6C757D", display: "block", marginBottom: 2 }}>
+                  ccp_alpha
+                  <Hint text={HINTS.apcCcpAlpha} />
+                </label>
                 <input
                   type="number"
                   step={0.001}
@@ -507,10 +604,14 @@ export default function Med3paConfigForm({ onAnalysisComplete = null, onNextStep
 
             <p style={{ fontSize: 12, fontWeight: 500, color: "#495057", margin: "6px 0 4px" }}>
               Grid-search ranges (comma-separated)
+              <Hint text={HINTS.apcGrid} />
             </p>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
               <div>
-                <label style={{ fontSize: 11, color: "#6C757D", display: "block", marginBottom: 2 }}>max_depth</label>
+                <label style={{ fontSize: 11, color: "#6C757D", display: "block", marginBottom: 2 }}>
+                  max_depth
+                  <Hint text={HINTS.gridMaxDepth} />
+                </label>
                 <input
                   type="text"
                   placeholder="e.g. 2, 3, 4, 5"
@@ -520,7 +621,10 @@ export default function Med3paConfigForm({ onAnalysisComplete = null, onNextStep
                 />
               </div>
               <div>
-                <label style={{ fontSize: 11, color: "#6C757D", display: "block", marginBottom: 2 }}>min_samples_leaf</label>
+                <label style={{ fontSize: 11, color: "#6C757D", display: "block", marginBottom: 2 }}>
+                  min_samples_leaf
+                  <Hint text={HINTS.gridMinSamplesLeaf} />
+                </label>
                 <input
                   type="text"
                   placeholder="e.g. 1, 2, 4"
@@ -538,7 +642,7 @@ export default function Med3paConfigForm({ onAnalysisComplete = null, onNextStep
             subtitle="Combine IPC and APC into a single confidence signal"
             accentColor="#6A3FA0"
           >
-            <p style={{ fontSize: 12, fontWeight: 500, color: "#495057", margin: "4px 0 6px" }}>Combination strategy</p>
+            <p style={{ fontSize: 12, fontWeight: 500, color: "#495057", margin: "4px 0 6px" }}>Combination strategy <Hint text={HINTS.mpcStrategy} /></p>
             <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 8 }}>
               {MPC_STRATEGIES.map((opt) => (
                 <label key={opt.value} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, cursor: "pointer" }}>
@@ -586,10 +690,14 @@ export default function Med3paConfigForm({ onAnalysisComplete = null, onNextStep
           >
             <p style={{ fontSize: 12, fontWeight: 500, color: "#495057", margin: "4px 0 6px" }}>
               Samples ratio sweep
+              <Hint text={HINTS.samplesRatio} />
             </p>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 8 }}>
               <div>
-                <label style={{ fontSize: 11, color: "#6C757D", display: "block", marginBottom: 2 }}>min</label>
+                <label style={{ fontSize: 11, color: "#6C757D", display: "block", marginBottom: 2 }}>
+                  min
+                  <Hint text={HINTS.samplesRatioMin} />
+                </label>
                 <input
                   type="number"
                   style={{ width: "100%", boxSizing: "border-box", height: 28 }}
@@ -598,7 +706,10 @@ export default function Med3paConfigForm({ onAnalysisComplete = null, onNextStep
                 />
               </div>
               <div>
-                <label style={{ fontSize: 11, color: "#6C757D", display: "block", marginBottom: 2 }}>max</label>
+                <label style={{ fontSize: 11, color: "#6C757D", display: "block", marginBottom: 2 }}>
+                  max
+                  <Hint text={HINTS.samplesRatioMax} />
+                </label>
                 <input
                   type="number"
                   style={{ width: "100%", boxSizing: "border-box", height: 28 }}
@@ -607,7 +718,10 @@ export default function Med3paConfigForm({ onAnalysisComplete = null, onNextStep
                 />
               </div>
               <div>
-                <label style={{ fontSize: 11, color: "#6C757D", display: "block", marginBottom: 2 }}>step</label>
+                <label style={{ fontSize: 11, color: "#6C757D", display: "block", marginBottom: 2 }}>
+                  step
+                  <Hint text={HINTS.samplesRatioStep} />
+                </label>
                 <input
                   type="number"
                   style={{ width: "100%", boxSizing: "border-box", height: 28 }}
@@ -624,6 +738,7 @@ export default function Med3paConfigForm({ onAnalysisComplete = null, onNextStep
                 onChange={(e) => setTop("evaluate_models", e.target.checked)}
               />
               Evaluate models
+              <Hint text={HINTS.evaluateModels} />
             </label>
           </Collapsible>
 
