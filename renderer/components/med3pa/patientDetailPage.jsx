@@ -1,9 +1,10 @@
 import React, { useEffect, useMemo, useState } from "react"
+import { Dialog } from "primereact/dialog"
 import { getSession, listDeployments } from "./med3paDB"
 import { layoutTree, nodeIdsOnPath, getProfilesAt, getLostProfileIds, getSamplesRatios, profilesById, getMetricNames } from "./med3paResultsUtils"
 import MdrCurvesChart from "./mdrCurvesChart"
 import ApcTreeChart from "./apcTreeChart"
-import { PageHeader, Card, Kpi, MetricBar } from "./med3paUI"
+import { PageHeader, Card, Kpi, MetricBar, PRIMARY_BTN } from "./med3paUI"
 
 const BANNER = {
   accept: { bg: "#EAF3DE", color: "#3B6D11", icon: "✓", title: "Accept — reliable prediction", sub: "Confidence clears the declaration-rate threshold and the patient is not in a flagged profile." },
@@ -22,6 +23,7 @@ const BANNER = {
 export default function PatientDetailPage({ patient, goBack }) {
   const [session, setSession] = useState(null)
   const [deployment, setDeployment] = useState(null)
+  const [treeFullscreen, setTreeFullscreen] = useState(false)
 
   useEffect(() => {
     if (!patient) return
@@ -75,6 +77,17 @@ export default function PatientDetailPage({ patient, goBack }) {
 
   const banner = BANNER[patient.routing] || BANNER.flag
   const profileLabel = (patient.profile_path || []).filter((s) => s !== "*").join(" & ") || "All population"
+
+  // Shared by the inline chart and the expanded dialog so the two cannot drift.
+  const treeProps = {
+    tree: session?.tree,
+    profilesMap: profilesMap,
+    lostIds: lostIds,
+    colorMetric: "Mean confidence level",
+    colorScheme: "confidence",
+    displayMetrics: [],
+    highlightIds: highlightIds
+  }
 
   return (
     <div style={{ fontFamily: "sans-serif", padding: "1rem" }}>
@@ -133,7 +146,18 @@ export default function PatientDetailPage({ patient, goBack }) {
       {/* MDR + tree */}
       {session && (
         <Card
-          title="🌿 APC profile tree — patient's profile highlighted"
+          title={
+            <span>
+              🌿 APC profile tree — patient&apos;s profile highlighted{" "}
+              <button
+                style={{ ...PRIMARY_BTN, padding: "2px 8px", fontSize: 12, float: "right" }}
+                title="Expand tree"
+                onClick={() => setTreeFullscreen(true)}
+              >
+                ⤢
+              </button>
+            </span>
+          }
           subtitle="The chart marks the deployed DR and the highest DR at which this patient would still be declared; the highlighted path is the patient's profile chain."
           style={{ marginBottom: 16 }}
         >
@@ -145,19 +169,26 @@ export default function PatientDetailPage({ patient, goBack }) {
               extraMarker={patientDr !== null ? { value: patientDr, label: "patient", color: "#8E5BB5" } : null}
               height={320}
             />
-            <ApcTreeChart
-              tree={session.tree}
-              profilesMap={profilesMap}
-              lostIds={lostIds}
-              colorMetric="Mean confidence level"
-              colorScheme="confidence"
-              displayMetrics={[]}
-              highlightIds={highlightIds}
-              height={320}
-            />
+            <ApcTreeChart {...treeProps} height={320} />
           </div>
         </Card>
       )}
+
+      {/* Expanded tree — same chart, given the whole window. The inline copy is
+          squeezed into part of a split row, which makes deep trees unreadable. */}
+      <Dialog header="🌿 APC profile tree — expanded" visible={treeFullscreen} maximized onHide={() => setTreeFullscreen(false)}>
+        {session && (
+          <>
+            <div style={{ fontSize: 12, color: "#6C757D", marginBottom: 8 }}>
+              Highlighted path: <b>{profileLabel}</b> · drag to pan, ctrl/⌘ + wheel to zoom
+            </div>
+            <ApcTreeChart
+              {...treeProps}
+              height={Math.max(500, typeof window !== "undefined" ? window.innerHeight - 220 : 600)}
+            />
+          </>
+        )}
+      </Dialog>
 
       {/* Clinical data */}
       <Card title="📋 Clinical data" style={{ marginBottom: 20 }}>

@@ -589,7 +589,7 @@ export default function Med3paConfigForm({ onAnalysisComplete = null, onNextStep
 
           {/* APC */}
           <Collapsible
-            title="APC — Aggregate Predictive Confidence"
+            title="APC — Aggregated Predictive Confidence"
             subtitle="Group-level confidence via decision tree complexity"
             accentColor="#0F6E56"
           >
