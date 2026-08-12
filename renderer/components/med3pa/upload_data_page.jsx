@@ -40,6 +40,19 @@ const MPC_STRATEGIES = [
   { value: "custom",  label: "Custom function" },
 ];
 
+// MED3pa's two built-in confidence metrics (UncertaintyCalculator.metric_mapping),
+// with the formula each one actually computes.
+const IPC_METRICS = [
+  { value: "sigmoidal_error", label: "Sigmoidal — 1 / (1 + e^(10·ln3·(|yᵢ − ŷᵢ| − |t − yᵢ|)))" },
+  { value: "absolute_error", label: "Absolute — (1 − |ŷᵢ − yᵢ|)" },
+];
+
+// These must stay equal to DEFAULT_CONFIDENCE_METRIC in confidence_metrics.py and
+// DEFAULT_MPC_STRATEGY in mpc_strategies.py -- the values the backend falls back to
+// when the form sends nothing.
+const DEFAULT_IPC_METRIC = "sigmoidal_error";
+const DEFAULT_MPC_STRATEGY = "minimum";
+
 // Hyperparameter descriptions. Kept together so the wording stays consistent and
 // the JSX below stays readable. Defaults quoted here are the ones
 // run_med3pa_analysis.py falls back to when a field is left blank, which are not
@@ -65,9 +78,9 @@ const HINTS = {
   apcTreeMaxDepth:
     "Depth of the APC decision tree, which splits patients into profiles. This is the main control on how many profiles you get: depth d yields at most 2^d leaves. Shallower trees give fewer, broader, more interpretable profiles. Default: 3.",
   apcMinSamplesLeaf:
-    "Minimum number of patients in a leaf of the APC tree. Raising it prevents tiny profiles whose metrics are too noisy to act on. Default: 1.",
+    "Minimum number of patients in a leaf of the APC tree. Raising it prevents tiny profiles whose metrics are too noisy to act on. Default: 5.",
   apcCcpAlpha:
-    "Cost-complexity pruning strength for the APC tree. Higher values prune more aggressively, producing a smaller tree and fewer profiles. 0 disables pruning. Default: 0.1.",
+    "Cost-complexity pruning strength for the APC tree. Higher values prune more aggressively, producing a smaller tree and fewer profiles. 0 disables pruning. Default: 0.001.",
   apcGrid:
     "Cross-validated grid search over the APC tree. Leave every field blank to train directly with the parameters above; filling in any one field turns the search on.",
   mpcStrategy:
@@ -135,10 +148,10 @@ export default function Med3paConfigForm({ onAnalysisComplete = null, onNextStep
     session_name: null,
     target_column: null,
     ipc: {
-      n_estimators: 0,
-      max_depth: 0,
-      min_samples_split: 0,
-      confidence_metric: null,
+      n_estimators: 100,
+      max_depth: 5,
+      min_samples_split: 2,
+      confidence_metric: DEFAULT_IPC_METRIC,
       ipc_type: "RandomForestRegressor",
       // uncertainty_metric: "sigmoidal_error",
       grid: {
@@ -149,20 +162,20 @@ export default function Med3paConfigForm({ onAnalysisComplete = null, onNextStep
     },
     apc: {
       tree_max_depth: 3,
-      min_leading_samples: 0,
-      ccp_alpha: 0,
+      min_leading_samples: 5,
+      ccp_alpha: 0.001,
       grid: {
         max_depth: null,
         min_samples_leaf: null,
       },
     },
-    mpc_strategy: null,
+    mpc_strategy: DEFAULT_MPC_STRATEGY,
     samples_ratio: { min: 0, max: 10, step: 5 },
     evaluate_models: true,
   });
 
   const [ipcCustomExpr, setIpcCustomExpr] = useState(false);
-  const [mpcCustomExpr, setMpcCustomExpr] = useState(false);
+  const [mpcCustomExpr, setMpcCustomExpr] = useState(DEFAULT_MPC_STRATEGY);
   const [predictionSource, setPredictionSource] = useState("model");
   const [modelHasWarning, setModelHasWarning] = useState({ state: false, tooltip: "" })
   const [datasetHasWarning, setDatasetHasWarning] = useState({ state: false, tooltip: "" })
@@ -451,18 +464,22 @@ export default function Med3paConfigForm({ onAnalysisComplete = null, onNextStep
               Choose how the per-sample target variable is defined.
             </p>
             <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 8 }}>
-              <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, cursor: "pointer" }}>
-                <input
-                  type="radio"
-                  name="ipc_metric"
-                  value="continuous"
-                  checked={med3pa_params.ipc.confidence_metric === "absolute_error"}
-                  onChange={() => {setIpc("confidence_metric", "absolute_error")
-                    setIpcCustomExpr(false)
-                  }}
-                />
-                (1 − |ŷᵢ − yᵢ|)
-              </label>
+              {IPC_METRICS.map((opt) => (
+                <label key={opt.value} style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, cursor: "pointer" }}>
+                  <input
+                    type="radio"
+                    name="ipc_metric"
+                    value={opt.value}
+                    checked={!ipcCustomExpr && med3pa_params.ipc.confidence_metric === opt.value}
+                    onChange={() => {
+                      setIpc("confidence_metric", opt.value)
+                      setIpcCustomExpr(false)
+                    }}
+                  />
+                  {opt.label}
+                  {opt.value === DEFAULT_IPC_METRIC}
+                </label>
+              ))}
               <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, cursor: "pointer" }}>
                 <input
                   type="radio"
@@ -701,6 +718,7 @@ export default function Med3paConfigForm({ onAnalysisComplete = null, onNextStep
                     }}
                   />
                   {opt.label}
+                  {opt.value === DEFAULT_MPC_STRATEGY}
                 </label>
               ))}
             </div>
