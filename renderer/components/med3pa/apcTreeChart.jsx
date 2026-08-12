@@ -1,8 +1,16 @@
 import React, { useMemo, useRef, useState } from "react"
 import { layoutTree, metricColor, textColorOn } from "./med3paResultsUtils"
 
-const VIEW_W = 1000
-const VIEW_H = 620
+// Minimum canvas. The real viewBox grows with the tree so node boxes never
+// collide -- layoutTree spreads leaves evenly across a fixed 8%-92% band, so a
+// fixed width silently overlaps them once there are more than five leaves.
+const MIN_VIEW_W = 1000
+const MIN_VIEW_H = 620
+const BOX_W = 170
+const GAP_X = 26 // clear space between sibling boxes
+const GAP_Y = 30 // clear space between depth levels
+const X_SPAN = 0.84 // layoutTree maps x into 8%..92%
+const Y_SPAN = 0.8 // ...and y into 8%..88%
 
 /**
  * @description Get the value of a metric for a profile, looking first in the metrics
@@ -47,6 +55,19 @@ export default function ApcTreeChart({
   pannable = true
 }) {
   const { nodes, edges } = useMemo(() => layoutTree(tree), [tree])
+
+  // Size the canvas to the tree rather than squeezing the tree into the canvas.
+  // Every node prints its rule plus one line per displayed metric, and a lost
+  // profile adds one more, so the tallest possible box sets the level spacing.
+  const { VIEW_W, VIEW_H } = useMemo(() => {
+    const leafCount = Math.max(nodes.filter((n) => n.isLeaf).length, 1)
+    const maxDepth = Math.max(...nodes.map((n) => n.depth), 0)
+    const maxBoxH = 22 + (2 + displayMetrics.length) * 15
+    return {
+      VIEW_W: Math.max(MIN_VIEW_W, Math.ceil(((leafCount - 1) * (BOX_W + GAP_X)) / X_SPAN)),
+      VIEW_H: Math.max(MIN_VIEW_H, Math.ceil((maxDepth * (maxBoxH + GAP_Y)) / Y_SPAN))
+    }
+  }, [nodes, displayMetrics])
 
   // Pan / zoom state applied as a transform on the content group.
   const svgRef = useRef(null)
@@ -109,7 +130,7 @@ export default function ApcTreeChart({
     )
   }
 
-  const boxW = 170
+  const boxW = BOX_W
   const sx = (x) => (x / 100) * VIEW_W
   const sy = (y) => (y / 100) * VIEW_H
 
