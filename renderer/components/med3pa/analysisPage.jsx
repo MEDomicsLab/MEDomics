@@ -10,6 +10,7 @@ import {
   getSamplesRatios,
   getProfilesAt,
   getLostProfileIds,
+  getLowerEndPopulation,
   profilesById
 } from "./med3paResultsUtils"
 import MdrCurvesChart from "./mdrCurvesChart"
@@ -277,7 +278,8 @@ export default function AnalysisPage({ goToPage, initialSessionName = null, refr
               />
               {drEntry && (
                 <span style={{ fontSize: 11, color: "#6C757D" }}>
-                  min confidence: {drEntry.min_confidence_level?.toFixed(3) ?? "—"} · population kept: {((drEntry.population_percentage ?? 0) * 100).toFixed(1)}%
+                  min confidence: {drEntry.min_confidence_level?.toFixed(3) ?? "—"} · population kept:{" "}
+                  {((getLowerEndPopulation(session?.metrics_by_dr, Math.round(currentDr)) ?? drEntry.population_percentage ?? 0) * 100).toFixed(1)}%
                 </span>
               )}
             </div>

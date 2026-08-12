@@ -33,6 +33,45 @@ export function getCurve(metricsByDr, metric) {
 }
 
 /**
+ * @description Population kept at a DR under a strictly-greater-than rule.
+ *
+ * MED3pa keeps everyone at or above the threshold (`confidence >= t`), so a group
+ * of patients sharing one confidence value is admitted all at once. That makes the
+ * reported population jump — DR 7 and DR 27 can both report 27.2% because no
+ * threshold in between separates that tied group.
+ *
+ * This returns the population from the last operating point *before* the tied
+ * group was admitted, i.e. what `confidence > t` would keep.
+ *
+ * Note: the metrics shown alongside this figure are still computed on the
+ * at-or-above population, so the two describe different sets of patients.
+ *
+ * @param {Object} metricsByDr session.metrics_by_dr
+ * @param {Number} dr the declaration rate being displayed
+ * @returns {Number|null} population fraction (0-1), or null when there is no
+ *   lower operating point (the threshold is already the lowest)
+ */
+export function getLowerEndPopulation(metricsByDr, dr) {
+  const entry = metricsByDr?.[String(dr)]
+  if (!entry || entry.min_confidence_level === null || entry.min_confidence_level === undefined) return null
+
+  const lowerKeys = Object.keys(metricsByDr)
+    .map(Number)
+    .filter((k) => k < dr)
+    .sort((a, b) => b - a)
+
+  for (const key of lowerKeys) {
+    const candidate = metricsByDr[String(key)]
+    // The first entry with a strictly higher threshold is the operating point
+    // immediately below this one; everything between shares this threshold.
+    if (candidate && candidate.min_confidence_level > entry.min_confidence_level) {
+      return candidate.population_percentage ?? null
+    }
+  }
+  return null
+}
+
+/**
  * @description Entry of metrics_by_dr at a given DR (nearest key fallback)
  */
 export function getMetricsEntryAt(metricsByDr, dr) {
