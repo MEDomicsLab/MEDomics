@@ -135,6 +135,52 @@ export function getLostProfileIds(lostProfiles, ratio, dr) {
 }
 
 /**
+ * @description The declaration rate at which each profile drops out, for a given samples ratio.
+ *
+ * A profile is listed in lost_profiles for every DR at or below the point it
+ * stops surviving, so the highest DR at which it appears there is the moment it
+ * greys out in the tree. Profiles sharing a DR are grouped into one point.
+ *
+ * Profiles lost at *every* DR are skipped: their branch matches no patient in the
+ * evaluation split, so they were never present and never disappeared.
+ *
+ * @param {Object} lostProfiles session.lost_profiles
+ * @param {String|Number} ratio the selected samples ratio
+ * @returns {Array} [{dr, profiles: [{id, label}]}] sorted by dr
+ */
+export function getProfileDisappearances(lostProfiles, ratio) {
+  const byDr = lostProfiles?.[String(ratio)]
+  if (!byDr) return []
+  const drs = Object.keys(byDr)
+    .map(Number)
+    .sort((a, b) => a - b)
+  if (drs.length === 0) return []
+
+  const lostAt = {}
+  drs.forEach((dr) => {
+    const atThisDr = byDr[String(dr)] || []
+    atThisDr.forEach((profile) => {
+      if (!lostAt[profile.id]) lostAt[profile.id] = { drs: [], path: profile.path || [] }
+      lostAt[profile.id].drs.push(dr)
+    })
+  })
+
+  const byPoint = {}
+  Object.keys(lostAt).forEach((id) => {
+    const entry = lostAt[id]
+    if (entry.drs.length === drs.length) return // never present
+    const dr = Math.max(...entry.drs)
+    const label = entry.path.filter((c) => c !== "*").join(" & ") || "All population"
+    if (!byPoint[dr]) byPoint[dr] = []
+    byPoint[dr].push({ id: Number(id), label: label })
+  })
+
+  return Object.keys(byPoint)
+    .map((dr) => ({ dr: Number(dr), profiles: byPoint[dr].sort((a, b) => a.id - b.id) }))
+    .sort((a, b) => a.dr - b.dr)
+}
+
+/**
  * @description Map node_id -> profile dict for quick lookup
  */
 export function profilesById(profilesList) {

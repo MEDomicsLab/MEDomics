@@ -11,6 +11,7 @@ import {
   getProfilesAt,
   getLostProfileIds,
   getLowerEndPopulation,
+  getProfileDisappearances,
   profilesById
 } from "./med3paResultsUtils"
 import MdrCurvesChart from "./mdrCurvesChart"
@@ -97,6 +98,12 @@ export default function AnalysisPage({ goToPage, initialSessionName = null, refr
   const lostIds = useMemo(
     () => (session && samplesRatio !== null ? getLostProfileIds(session.lost_profiles, samplesRatio, currentDr) : new Set()),
     [session, samplesRatio, currentDr]
+  )
+  // Same samples ratio as the tree, so a dot on the DR axis marks exactly the point
+  // where that profile greys out in the tree beside it.
+  const lostMarkers = useMemo(
+    () => (session && samplesRatio !== null ? getProfileDisappearances(session.lost_profiles, samplesRatio) : []),
+    [session, samplesRatio]
   )
 
   const treeColorOptions = useMemo(() => {
@@ -300,8 +307,14 @@ export default function AnalysisPage({ goToPage, initialSessionName = null, refr
                 </label>
               ))}
             </Card>
-            <Card title="📈 Metrics by declaration rate">
-              <MdrCurvesChart metricsByDr={session.metrics_by_dr} visibleMetrics={visibleMetrics} currentDr={currentDr} height={320} />
+            <Card title="📈 Metrics by declaration rate" subtitle="Dots on the DR axis mark where each profile drops out of the tree · hover for details">
+              <MdrCurvesChart
+                metricsByDr={session.metrics_by_dr}
+                visibleMetrics={visibleMetrics}
+                currentDr={currentDr}
+                lostMarkers={lostMarkers}
+                height={320}
+              />
             </Card>
             <Card
               title={
