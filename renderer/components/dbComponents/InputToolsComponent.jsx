@@ -1,38 +1,28 @@
-import { useContext, useEffect, useState } from "react"
+import { Button } from "primereact/button"
 import { Card } from "primereact/card"
 import { Dropdown } from "primereact/dropdown"
-import { Button } from "primereact/button"
+import { useContext, useEffect, useState } from "react"
 import { Stack } from "react-bootstrap"
+import MEDprofilesPrepareData from "../input/MEDprofiles/MEDprofilesPrepareData"
+import { getCollectionSize } from "../mongoDB/mongoDBUtils"
 import { DataContext } from "../workspace/dataContext"
-
-// import tools
+import ModuleLandingShell, { ModuleGuideText } from "../mainPages/moduleBasics/ModuleLandingShell"
 import BasicToolsDB from "./inputToolsDB/basicToolsDB"
+import ConvertCategoricalColumnIntoNumericDB from "./inputToolsDB/convertCategoricalColumnIntoNumericDB"
+import DropColumnsAndTagsToolsDB from "./inputToolsDB/dropColumnsToolsDB"
 import DropDuplicatesToolsDB from "./inputToolsDB/dropDuplicatesToolsDB"
 import FeatureReductionToolsDB from "./inputToolsDB/featureReductionToolsDB/featureReductionToolsDB"
-import ConvertCategoricalColumnIntoNumericDB from "./inputToolsDB/convertCategoricalColumnIntoNumericDB"
 import GroupingTaggingToolsDB from "./inputToolsDB/groupingTaggingToolsDB"
 import HoldoutSetCreationToolsDB from "./inputToolsDB/holdoutSetCreationToolsDB"
 import MergeToolsDB from "./inputToolsDB/mergeToolsDB"
-import DropColumnsAndTagsToolsDB from "./inputToolsDB/dropColumnsToolsDB"
 import NormalizationToolsDB from "./inputToolsDB/normalizationToolsDB"
 import SimpleCleaningToolsDB from "./inputToolsDB/simpleCleaningToolsDB"
 import SubsetCreationToolsDB from "./inputToolsDB/subsetCreationToolsDB"
 import TransformColumnToolsDB from "./inputToolsDB/transformColumnToolsDB"
-import MEDprofilesPrepareData from "../input/MEDprofiles/MEDprofilesPrepareData"
-import { getCollectionSize } from "../mongoDB/mongoDBUtils"
 
 const SectionContainer = ({ title, children }) => (
   <div className="mb-3">
-    <h6
-      style={{
-        padding: "0.6rem 0.8rem",
-        borderBottom: "1px solid #ddd",
-        fontWeight: 600,
-        borderRadius: "6px 6px 0 0",
-      }}
-    >
-      {title}
-    </h6>
+    <h6 className="module-landing-input-section-title">{title}</h6>
     <Stack direction="vertical" gap={1} style={{ marginTop: "0.5rem" }}>
       {children}
     </Stack>
@@ -135,7 +125,7 @@ const InputToolsComponent = ({ exportOptions }) => {
     if (!activeTool) return null
     const ToolComponent = activeTool.component
     return (
-      <div style={{ marginTop: "20px" }}>
+      <div style={{ marginTop: "12px" }}>
         <Button label="← Back to tools" className="p-button-text mb-3" onClick={() => setActiveTool(null)} />
         <h3>{activeTool.label}</h3>
         <ToolComponent exportOptions={exportOptions} currentCollection={collectionId} collectionSize={collectionSize} />
@@ -144,119 +134,101 @@ const InputToolsComponent = ({ exportOptions }) => {
   }
 
   return (
-    <div style={{ display: "flex", height: "100%", overflow: "hidden" }}>
-      {/* Sidebar */}
-      <aside style={{ width: "280px", borderRight: "1px solid #ddd", padding: "1rem", overflowY: "auto" }}>
-        <h3 style={{ textAlign: "center", marginBottom: "1rem" }}>Input Sections</h3>
+    <ModuleLandingShell
+      title="Input Module"
+      description="Preprocess and prepare tabular data for analysis and modeling."
+      contentMaxWidth="1100px"
+      alignTop
+      infoContent={
+        <ModuleGuideText>
+          <p className="mb-0">
+            This module consolidates all the tools necessary for preprocessing tabular data — from import and merge
+            through cleaning, transformation, sampling, and feature reduction.
+          </p>
+        </ModuleGuideText>
+      }
+      documentation={{
+        url: "https://medomicslab.gitbook.io/medomics-docs/tutorials/design/input-module",
+        label: "Input Module documentation",
+      }}
+    >
+      <div className="module-landing-input-layout">
+        <aside className="module-landing-input-sidebar">
+          <h5 className="module-landing-input-sidebar-title">Input Sections</h5>
 
-        {Object.entries(SECTIONS).map(([key, section]) => (
-          <SectionContainer key={key} title={section.label}>
-            {section.subsections.map((sub) => (
-              <div
-                key={sub.key}
-                onClick={() => {
-                  setActiveSection(sub.key)
-                  setActiveTool(null)
-                }}
-                style={{
-                  cursor: "pointer",
-                  padding: "8px 10px",
-                  marginBottom: "6px",
-                  borderRadius: "8px",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  ...(activeSection === sub.key ? { backgroundColor: "#569fff" } : {}),
-                  border: "1px solid #ddd",
-                  transition: "all 0.2s ease-in-out",
-                }}
-              >
-                <span>{sub.label}</span>
-                <i className="pi pi-angle-right" style={{ fontSize: "1.1rem", color: "#a3a3a3" }}></i>
-              </div>
-            ))}
-          </SectionContainer>
-        ))}
-      </aside>
+          {Object.entries(SECTIONS).map(([key, section]) => (
+            <SectionContainer key={key} title={section.label}>
+              {section.subsections.map((sub) => (
+                <div
+                  key={sub.key}
+                  onClick={() => {
+                    setActiveSection(sub.key)
+                    setActiveTool(null)
+                  }}
+                  className={`module-landing-input-nav-item ${activeSection === sub.key ? "is-active" : ""}`}
+                >
+                  <span>{sub.label}</span>
+                  <i className="pi pi-angle-right" style={{ fontSize: "1rem", color: "#a3a3a3" }} />
+                </div>
+              ))}
+            </SectionContainer>
+          ))}
+        </aside>
 
-      {/* Main Content */}
-      <main style={{ flex: 1, padding: "1.5rem", overflowY: "auto" }}>
-  <div style={{ textAlign: "center", marginBottom: "20px" }}>
-    <h2>Database Input Module</h2>
-    <Card title="Select CSV File" style={{ marginBottom: "20px" }}>
-      <Dropdown
-        filter
-        style={{ maxWidth: "300px" }}
-        value={selectedCSVFiles.find((item) => item.id === collectionId)}
-        onChange={(e) => setCollectionId(e.value.id)}
-        options={selectedCSVFiles}
-        optionLabel="name"
-        placeholder="Select CSV file"
-        className="w-full md:w-14rem"
-      />
-    </Card>
-  </div>
+        <main className="module-landing-input-main">
+          <Card title="Select CSV File" style={{ marginBottom: "16px" }}>
+            <Dropdown
+              filter
+              style={{ maxWidth: "300px" }}
+              value={selectedCSVFiles.find((item) => item.id === collectionId)}
+              onChange={(e) => setCollectionId(e.value.id)}
+              options={selectedCSVFiles}
+              optionLabel="name"
+              placeholder="Select CSV file"
+              className="w-full md:w-14rem"
+            />
+          </Card>
 
-  {!collectionId ? (
-    <p style={{ textAlign: "center" }}>Please select a dataset to continue.</p>
-  ) : (
-    <>
-      {/* only showcase the active tool */}
-      {activeTool ? (
-        renderActiveTool()
-      ) : (
-        Object.values(SECTIONS)
-          .flatMap((s) => s.subsections)
-          .filter((sub) => sub.key === activeSection)
-          .map((sub) => (
-            <div key={sub.key}>
-              <h3>{sub.label}</h3>
-              <p style={{ color: "#a3a3a3", marginBottom: "1.5rem" }}>
-                {sub.description || "Explore and apply tools for this data preparation stage."}
-              </p>
-
-              <div className="grid grid-cols-2 gap-4">
-                {sub.tools.map((tool, i) => (
-                  <div
-                    key={i}
-                    onClick={() => setActiveTool(tool)}
-                    style={{
-                      border: "1px solid #d1d5db",
-                      borderRadius: "10px",
-                      padding: "0.8rem 1rem",
-                      cursor: "pointer",
-                      transition: "all 0.2s ease-in-out",
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "center",
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.backgroundColor = "#569fff"
-                      e.currentTarget.style.transform = "scale(1.01)"
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.backgroundColor = "transparent"
-                      e.currentTarget.style.transform = "scale(1)"
-                    }}
-                  >
-                    <div>
-                      <h4 style={{ margin: 0, fontSize: "1rem" }}>{tool.label}</h4>
-                      <p style={{ margin: "0.3rem 0 0 0", fontSize: "0.9rem", color: "#a3a3a3" }}>
-                        {tool.description}
+          {!collectionId ? (
+            <p style={{ textAlign: "center", color: "var(--ml-text-muted)" }}>Please select a dataset to continue.</p>
+          ) : (
+            <>
+              {activeTool ? (
+                renderActiveTool()
+              ) : (
+                Object.values(SECTIONS)
+                  .flatMap((s) => s.subsections)
+                  .filter((sub) => sub.key === activeSection)
+                  .map((sub) => (
+                    <div key={sub.key}>
+                      <h3>{sub.label}</h3>
+                      <p style={{ color: "var(--ml-text-muted)", marginBottom: "1rem", fontSize: "0.86rem" }}>
+                        {sub.description || "Explore and apply tools for this data preparation stage."}
                       </p>
-                    </div>
-                    <i className="pi pi-angle-right" style={{ fontSize: "1.4rem", color: "#4338ca" }}></i>
-                  </div>
-                ))}
-              </div>
-            </div>
-          ))
-      )}
-    </>
-  )}
-</main>
 
-    </div>
+                      <div className="module-landing-tool-grid">
+                        {sub.tools.map((tool, i) => (
+                          <div
+                            key={i}
+                            onClick={() => setActiveTool(tool)}
+                            className="module-landing-input-tool-tile"
+                          >
+                            <div>
+                              <h4>{tool.label}</h4>
+                              <p>{tool.description}</p>
+                            </div>
+                            <i className="pi pi-angle-right" style={{ fontSize: "1.2rem", color: "var(--ml-accent)" }} />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))
+              )}
+            </>
+          )}
+        </main>
+      </div>
+    </ModuleLandingShell>
   )
 }
 

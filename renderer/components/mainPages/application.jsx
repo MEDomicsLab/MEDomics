@@ -1,5 +1,4 @@
 import { randomUUID } from "crypto"
-import { shell } from "electron"
 import { Badge } from "primereact/badge"
 import { Button } from "primereact/button"
 import { Card } from "primereact/card"
@@ -22,6 +21,7 @@ import { DataContext } from "../workspace/dataContext"
 import { MEDDataObject } from "../workspace/NewMedDataObject"
 import { WorkspaceContext } from "../workspace/workspaceContext"
 import ModulePage from "./moduleBasics/modulePage"
+import ModuleLandingShell, { ModuleGuideText } from "./moduleBasics/ModuleLandingShell"
 
 /**
  *
@@ -515,42 +515,31 @@ const ApplicationPageWithModulePage = ({ pageId = "application-456" }) => {
   return (
     <>
       <ModulePage pageId={pageId} shadow>
-        <div style={{ padding: "0.5rem" }}>
-
-          <div className="application-introduction">
-
-            <h2>🚀 Model Deployment</h2>
-
-            <p>
-              This module allows users to deploy a machine learning model for inference.
-              First, you'll have to choose a model. Then, you can select between two input methods:
-            </p>
-
-            <p>
-              <span className="app-tool-name">→ Manual Sample Entry:</span> Fill in the required feature values manually to test a single sample.
-            </p>
-
-            <p>
-              <span className="app-tool-name">→ Test File Input:</span> Upload a dataset file (CSV format) to run batch predictions on multiple samples.
-            </p>
-
-            <div>
+        <ModuleLandingShell
+          title="Application Module"
+          description="Deploy a machine learning model for single-sample or batch inference."
+          documentation={{
+            url: "https://medomicslab.gitbook.io/medomics-docs/tutorials/deployment/application-module",
+            label: "Application Module documentation",
+          }}
+          infoContent={
+            <ModuleGuideText>
               <p>
-                📖 Learn more about this tool in our{' '}
-                <u
-                  onClick={() => shell.openExternal("https://medomicslab.gitbook.io/medomics-docs/tutorials/deployment/application-module")}
-                  style={{ color: "#4991dfff", textDecoration: "none", cursor: "pointer" }}
-                >
-                  documentation. 🔗
-                </u>
+                Select a model and provide input data. You can either enter a single sample manually
+                or upload a CSV dataset for batch predictions.
               </p>
-            </div>
-
+              <p className="mb-0">
+                <strong>Single sample:</strong> Fill in required feature values to test one prediction.
+                <br />
+                <strong>Dataset file:</strong> Upload a CSV to run batch predictions on multiple samples.
+              </p>
+            </ModuleGuideText>
+          }
+        >
+          <div className="module-landing-application-panel">
+            <ApplicationPage pageId={pageId} />
           </div>
-
-          <ApplicationPage pageId={pageId} />
-
-        </div>
+        </ModuleLandingShell>
       </ModulePage>
     </>
   )

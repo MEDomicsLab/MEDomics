@@ -1,23 +1,21 @@
-.exploratory {
+.exploratory.module-landing-shell .module-landing-content {
   display: flex;
   flex-direction: column;
   gap: 1rem;
-  width: 100%;
-  padding: 1rem;
 }
 
-.exploratory > .p-card {
+.exploratory.module-landing-shell .module-landing-content > .p-card {
   box-shadow:
     2px 2px 3px -1px rgb(0 0 0 / 20%),
     0 1px 1px 0 rgb(0 0 0 / 14%),
     0px 0px 3px 2px rgb(0 0 0 / 12%);
 }
 
-.exploratory > .p-card .p-card-content {
+.exploratory.module-landing-shell .module-landing-content > .p-card .p-card-content {
   padding: 0;
 }
 
-.exploratory > .p-card .p-card-body {
+.exploratory.module-landing-shell .module-landing-content > .p-card .p-card-body {
   padding: 1rem;
   padding-top: 0.25rem;
 }

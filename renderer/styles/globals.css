@@ -189,6 +189,10 @@ a {
   text-align: right;
 }
 
+.text-italic {
+  font-style: italic;
+}
+
 hr.solid {
   border-top: 3px solid #bbb;
   margin: 0 0 0.25rem 0;
@@ -348,6 +352,31 @@ body {
 .flexlayout__tabset_tabbar_outer {
   border-radius: 0.5rem 0.5rem 0rem 0rem;
 }
+
+.flexlayout__tab_button--selected.design-tab {
+    background-color: #1d3666 !important;
+    color: #ffffff !important;
+    border-bottom: 2px solid #355fad;
+}
+
+.flexlayout__tab_button--selected.development-tab {
+    background-color: #076464 !important;
+    color: #ffffff !important;
+    border-bottom: 2px solid #579e9e;
+}
+
+.flexlayout__tab_button--selected.deployment-tab {
+    background-color: #3d81e7 !important;
+    color: #ffffff !important;
+    border-bottom: 2px solid #9ab4da;
+}
+
+.flexlayout__tab_button--selected.settings-tab {
+    background-color: #6e4b8b !important;
+    color: #ffffff !important;
+    border-bottom: 2px solid #d1b1eb;
+}
+
 
 .align-center {
   display: flex;

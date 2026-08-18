@@ -2,6 +2,7 @@
 /* eslint-disable no-undef */
 /* eslint-disable camelcase */
 
+import { ipcRenderer } from "electron"
 import {
   Action,
   Actions,
@@ -22,59 +23,63 @@ import {
 } from "flexlayout-react"
 import fs from "fs"
 import Image from "next/image"
+import { confirmDialog } from "primereact/confirmdialog"
 import * as Prism from "prismjs"
 import "prismjs/themes/prism-coy.css"
 import * as React from "react"
 import * as Icons from "react-bootstrap-icons"
+import { Gear, Send } from "react-bootstrap-icons"
+import { FaDatabase, FaMagnifyingGlassChart } from "react-icons/fa6"
+import { LuNetwork } from "react-icons/lu"
+import { PiFlaskFill, PiGraph, PiGraphFill } from "react-icons/pi"
+import { SiApachesuperset } from "react-icons/si"
+import { TbFileExport } from "react-icons/tb"
 import Iframe from "react-iframe"
 import { toast } from "react-toastify"
 import { getPathSeparator, loadCSVFromPath, loadJSONFromPath, loadJsonPath, loadXLSXFromPath } from "../../../utilities/fileManagementUtils"
 import DataTableWrapperBPClass from "../../dataTypeVisualisation/dataTableWrapperBPClass"
 import DataTableFromDB from "../../dbComponents/dataTableFromDB"
 import InputToolsComponent from "../../dbComponents/InputToolsComponent"
+import CodeEditor from "../../flow/codeEditor"
+import JupyterNotebookViewer from "../../flow/JupyterNoteBookViewer"
 import MEDprofilesViewer from "../../input/MEDprofiles/MEDprofilesViewer"
 import ApplicationPage from "../../mainPages/application"
 import EvaluationPage from "../../mainPages/evaluation"
+import EvaluationLandingPage from "../../mainPages/evaluationLandingPage"
 import ExploratoryPage from "../../mainPages/exploratory"
 import ExtractionImagePage from "../../mainPages/extractionImage"
+import ExtractionLandingPage from "../../mainPages/extractionLandingPage"
 import ExtractionMEDimagePage from "../../mainPages/extractionMEDimage"
 import ExtractionTextPage from "../../mainPages/extractionText"
-import ExtractionLandingPage from "../../mainPages/extractionLandingPage"
-import EvaluationLandingPage from "../../mainPages/evaluationLandingPage"
 import ExtractionTSPage from "../../mainPages/extractionTS"
 import HomePage from "../../mainPages/home"
 import HtmlViewer from "../../mainPages/htmlViewer"
+import IPythonPage from "../../mainPages/ipython"
 import LearningPage from "../../mainPages/learning"
+import LearningLandingPage from "../../mainPages/learningLandingPage"
+import LoggingPage from "../../mainPages/logging"
 import MED3paPage from "../../mainPages/med3pa"
 import MEDflPage from "../../mainPages/medfl"
 import ModelViewer from "../../mainPages/modelViewer"
 import ModulePage from "../../mainPages/moduleBasics/modulePage"
 import OutputPage from "../../mainPages/output"
 import SettingsPage from "../../mainPages/settings"
-import LoggingPage from "../../mainPages/logging"
 import Superset from "../../mainPages/superset/supersetEmbedder"
 import SupersetFrame from "../../mainPages/superset/SupersetFrame"
 import TerminalPage from "../../mainPages/terminal"
-import IPythonPage from "../../mainPages/ipython"
-import { getCollectionSize, updateMEDDataObjectName, updateMEDDataObjectPath, updateMEDDataObjectType } from "../../mongoDB/mongoDBUtils"
+import { getCollectionSize, updateMEDDataObjectName, updateMEDDataObjectPath } from "../../mongoDB/mongoDBUtils"
 import { DataContext } from "../../workspace/dataContext"
 import { MEDDataObject } from "../../workspace/NewMedDataObject"
+import { WorkspaceContext } from "../../workspace/workspaceContext"
 import { LayoutModelContext } from "../layoutContext"
 import { showPopup } from "./popupMenu"
 import { TabStorage } from "./tabStorage"
 import { Utils } from "./utils"
 import ZoomPanPinchComponent from "./zoomPanPinchComponent"
-import CodeEditor from "../../flow/codeEditor"
-import { WorkspaceContext } from "../../workspace/workspaceContext"
-import { confirmDialog } from "primereact/confirmdialog"
-import JupyterNotebookViewer from "../../flow/JupyterNoteBookViewer"
-import { ipcRenderer } from "electron"
 
 const util = require("util")
 const exec = util.promisify(require("child_process").exec)
 const { spawn } = require('child_process')
-import { SiApachesuperset  } from "react-icons/si"
-import { PiGraph } from "react-icons/pi"
 
 var fields = ["Name", "Field1", "Field2", "Field3", "Field4", "Field5"]
 
@@ -1122,6 +1127,8 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
       return <ExtractionLandingPage/>
     }  else if (component === "evaluationLandingPage") {
       return <EvaluationLandingPage/>
+    } else if (component === "learningLandingPage") {
+      return <LearningLandingPage/>
     } else if (component === "extractionMEDimagePage") {
       if (node.getExtraData().data == null) {
         const config = node.getConfig()
@@ -1313,10 +1320,10 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
       return icon
     } else {
       if (component === "InputToolsDB" || component === "inputPage" || component === "dataTableFromDB") {
-        return <span style={{ marginRight: 3 }}>🛢️</span>
+        return <FaDatabase style={{ marginRight: 3 }} />
       }
       if (component === "exploratoryPage") {
-        return <span style={{ marginRight: 3 }}>🔎</span>
+        return <FaMagnifyingGlassChart style={{ marginRight: 3 }} />
       }
       if (component === "evaluationPage") {
         return <span style={{ marginRight: 3 }}>✅</span>
@@ -1324,14 +1331,14 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
       if (component === "resultsPage") {
         return <span style={{ marginRight: 3 }}>📊</span>
       }
-      if (component === "learningPage") {
-        return <span style={{ marginRight: 3 }}>📖</span>
+      if (component === "learningPage" || component === "learningLandingPage") {
+        return <LuNetwork style={{ marginRight: 3 }} />
       }
       if (component === "extractionLandingPage") {
-        return <span style={{ marginRight: 3 }}>❯❯❯❯</span>
+        return <TbFileExport style={{ marginRight: 3 }} />
       }
       if (component === "evaluationLandingPage") {
-        return <span style={{ marginRight: 3 }}>🧪</span>
+        return <PiFlaskFill style={{ marginRight: 3 }} />
       }
       if (component === "extractionTextPage") {
         return <span style={{ marginRight: 3 }}>📄</span>
@@ -1346,7 +1353,7 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
         return <span style={{ marginRight: 3 }}>📈</span>
       }
       if (component === "medflPage" || component === "htmlViewer") {
-        return <span style={{ marginRight: 3 }}>🌐</span>
+        return <PiGraphFill style={{ marginRight: 3 }} />
       }
       if (component === "med3paPage") {
         return <span style={{ marginRight: 3 }}>👥</span>
@@ -1368,10 +1375,10 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
         return <span style={{ marginRight: 3 }}>🏁</span>
       }
       if (component === "applicationPage") {
-        return <span style={{ marginRight: 3 }}>📦</span>
+        return <Send style={{ marginRight: 3 }} />
       }
       if (component === "Settings") {
-        return <span style={{ marginRight: 3 }}>⚙️</span>
+        return <Gear style={{ marginRight: 3 }} />
       }
       if (component === "supersetPage") {
         return <SiApachesuperset style={{ marginRight: 3 }} />
@@ -1669,3 +1676,4 @@ function showImage(url, scale) {
 
 
 export { MainContainer }
+
