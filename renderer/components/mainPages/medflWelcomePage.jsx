@@ -38,7 +38,10 @@ export default function MedflWelcomePage() {
     >
       <Message severity="success" text="This package will be available soon!" className="gap-3 m-4 w-50" />
       <Stack direction="horizontal" gap={4} className="flex-wrap align-items-stretch justify-content-center module-landing-tool-grid w-100">
-        <Card className="flex-fill shadow-sm border-primary h-100 hover-border-success module-landing-tool-card" style={{ cursor: "pointer" }}>
+        <Card 
+          className="flex-fill shadow-sm border-primary h-100 hover-border-success module-landing-tool-card" 
+          style={{ cursor: "pointer", opacity: 0.5 }}
+        >
           <Card.Header className="bg-primary text-white d-flex align-items-center">
             <FaCogs className="me-2" color="white" />
             <h5 className="text-white mb-0">Simulation FL</h5>
@@ -54,7 +57,10 @@ export default function MedflWelcomePage() {
           </Card.Body>
         </Card>
 
-        <Card className="flex-fill shadow-sm border-success h-100 module-landing-tool-card" style={{ cursor: "pointer" }}>
+        <Card 
+          className="flex-fill shadow-sm border-success h-100 module-landing-tool-card" 
+          style={{ cursor: "pointer", opacity: 0.5 }}
+        >
           <Card.Header className="bg-success text-white d-flex align-items-center">
             <FaGlobe className="me-2" color="white" />
             <h5 className="text-white mb-0">Real-World FL</h5>

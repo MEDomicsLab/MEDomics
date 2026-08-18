@@ -45,7 +45,7 @@ export default function ExtractionLandingPage() {
         <Stack direction="horizontal" gap={4} className="flex-wrap align-items-stretch justify-content-center module-landing-tool-grid w-100">
           <Card
             className="shadow-sm border-primary h-100 hover-border-success module-landing-tool-card"
-            style={{ cursor: "pointer", flex: "1 1 320px", minWidth: "280px" }}
+            style={{ cursor: "pointer", flex: "1 1 320px", minWidth: "280px", opacity: 0.5 }}
           >
             <Card.Header className="bg-primary text-white d-flex align-items-center">
               <LuBrain className="me-2" color="white" />
@@ -64,7 +64,7 @@ export default function ExtractionLandingPage() {
 
           <Card
             className="shadow-sm border-success h-100 module-landing-tool-card"
-            style={{ cursor: "pointer", flex: "1 1 320px", minWidth: "280px" }}
+            style={{ cursor: "pointer", flex: "1 1 320px", minWidth: "280px", opacity: 0.5 }}
           >
             <Card.Header className="bg-success text-white d-flex align-items-center">
               <FaAlignJustify className="me-2" color="white" />
@@ -85,7 +85,7 @@ export default function ExtractionLandingPage() {
         <Stack direction="horizontal" gap={4} className="flex-wrap align-items-stretch justify-content-center module-landing-tool-grid w-100">
           <Card
             className="shadow-sm border-secondary h-100 module-landing-tool-card"
-            style={{ cursor: "pointer", flex: "1 1 320px", minWidth: "280px" }}
+            style={{ cursor: "pointer", flex: "1 1 320px", minWidth: "280px", opacity: 0.5 }}
           >
             <Card.Header className="bg-secondary text-white d-flex align-items-center">
               <FaChartLine className="me-2" color="white" />
@@ -104,7 +104,7 @@ export default function ExtractionLandingPage() {
 
           <Card
             className="shadow-sm border-warning h-100 module-landing-tool-card"
-            style={{ cursor: "pointer", flex: "1 1 320px", minWidth: "280px" }}
+            style={{ cursor: "pointer", flex: "1 1 320px", minWidth: "280px", opacity: 0.5 }}
           >
             <Card.Header className="bg-warning text-white d-flex align-items-center">
               <FaImage className="me-2" color="white" />

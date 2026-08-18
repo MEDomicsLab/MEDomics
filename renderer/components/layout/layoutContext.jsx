@@ -107,11 +107,11 @@ function LayoutModelProvider({ children, layoutModel, setLayoutModel }) {
         case "openPandasProfiling":
           return openInPandasProfiling(action)
         case "openExtractionLandingPage":
-          return openGeneric(action, "Extraction", "extractionLandingPage")
+          return openGeneric(action, "Extraction", "extractionLandingPage", "design-tab")
         case "openEvaluationLandingPage":
-          return openGeneric(action, "Evaluation", "evaluationLandingPage")
+          return openGeneric(action, "Evaluation", "evaluationLandingPage", "development-tab")
         case "openLearningLandingPage":
-          return openGeneric(action, "Machine Learning", "learningLandingPage")
+          return openGeneric(action, "Machine Learning", "learningLandingPage", "development-tab")
         /*********** OPEN *****************/
         case "openResultsModule":
           return openResults(action)
@@ -142,7 +142,7 @@ function LayoutModelProvider({ children, layoutModel, setLayoutModel }) {
         case "openSupersetFrameModule":
           return openSupersetFrame(action)
         case "openSettings":
-          return openGeneric(action, "Settings", "Settings")
+          return openGeneric(action, "Settings", "Settings", "settings-tab")
         case "openInputToolsDB":
           return openInputToolsDB(action, "InputToolsDB")
         case "add":
@@ -278,8 +278,11 @@ function LayoutModelProvider({ children, layoutModel, setLayoutModel }) {
   /**
    * @summary Generic function that adds a tab without a medDataObject to the layout model
    * @params {Object} action - The action passed on by the dispatchLayout function
+   * @params {String} type - The type of the tab
+   * @params {String} component - The component to be used in the tab
+   * @params {String} className - The class of the tab
    */
-  function openGeneric(action, type, component = undefined) {
+  function openGeneric(action, type, component = undefined, className = undefined) {
     console.log("OPEN GENERIC", action)
     if (component == undefined) {
       component = type
@@ -294,6 +297,8 @@ function LayoutModelProvider({ children, layoutModel, setLayoutModel }) {
         name: type,
         id: component,
         component: component,
+        className: className ?? "", 
+        // Classe appliquée au conteneur du contenu de l'onglet (optionnel)
         config: { path: path, uuid: id, extension: type }
       }
       let layoutRequestQueueCopy = [...layoutRequestQueue]
@@ -327,7 +332,7 @@ function LayoutModelProvider({ children, layoutModel, setLayoutModel }) {
    * @params {Object} action - The action passed on by the dispatchLayout function
    */
   const openApplication = (action) => {
-    openGeneric(action, "Application", "applicationPage")
+    openGeneric(action, "Application", "applicationPage", "deployment-tab")
   }
 
   /**
@@ -343,7 +348,7 @@ function LayoutModelProvider({ children, layoutModel, setLayoutModel }) {
    * @params {Object} action - The action passed on by the dispatchLayout function
    */
   const openInput = (action) => {
-    openGeneric(action, "Input", "inputPage")
+    openGeneric(action, "Input", "inputPage", "design-tab")
   }
 
   /**
@@ -351,7 +356,7 @@ function LayoutModelProvider({ children, layoutModel, setLayoutModel }) {
    * @params {Object} action - The action passed on by the dispatchLayout function
    */
   const openExploratory = (action) => {
-    openGeneric(action, "Exploratory", "exploratoryPage")
+    openGeneric(action, "Exploratory", "exploratoryPage", "design-tab")
   }
 
   /**
@@ -391,7 +396,7 @@ function LayoutModelProvider({ children, layoutModel, setLayoutModel }) {
    * @params {Object} action - The action passed on by the dispatchLayout function
    */
   const openMEDfl = (action) => {
-    openGeneric(action, "Federated Learning", "medflPage")
+    openGeneric(action, "Federated Learning", "medflPage", "development-tab")
   }
 
   /**

@@ -168,7 +168,7 @@ export default function EvaluationLandingPage() {
               {/* Explainer Dashboard Card */}
               <Card
                 className="shadow-sm border-primary hover-border-success module-landing-tool-card"
-                style={{ cursor: "pointer", flex: "1 1 320px", minWidth: "280px" }}
+                style={{ cursor: "pointer", flex: "1 1 320px", minWidth: "280px", opacity: isStartDisabled? 0.5 : 1 }}
               >
                 <Card.Header className="bg-danger text-white d-flex align-items-center">
                   <TbZoom className="me-2" color="white"/>
@@ -199,7 +199,7 @@ export default function EvaluationLandingPage() {
               {/* MED3pa Card */}
               <Card
                 className="shadow-sm border-success module-landing-tool-card"
-                style={{ cursor: "pointer", flex: "1 1 320px", minWidth: "280px" }}
+                style={{ cursor: "pointer", flex: "1 1 320px", minWidth: "280px", opacity: 0.5 }}
               >
                 <Card.Header className="bg-success text-white d-flex align-items-center">
                   <FaAlignJustify className="me-2" color="white"/>

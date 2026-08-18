@@ -354,6 +354,7 @@ export default function LearningLandingPage() {
                 border: `2px solid ${BRAND_NAVY}`,
                 borderRadius: "12px",
                 overflow: "hidden",
+                opacity: (isExtDisabled || loadingML) ? 0.5 : 1
               }}
               aria-labelledby="experimental-scene-title"
             >
@@ -369,7 +370,7 @@ export default function LearningLandingPage() {
                 </div>
               </Card.Header>
               <Card.Body className="d-flex flex-column p-4">
-                <p className="text-muted text-center mb-1" style={{ fontSize: "0.8rem", fontWeight: 600, letterSpacing: "0.04em" }}>
+                <p className="text text-center mb-1" style={{ fontSize: "0.8rem", fontWeight: 600, letterSpacing: "0.04em" }}>
                   STEP 1 · MODEL EXPLORATION
                 </p>
                 <Card.Text className="text-center mb-4" style={{ lineHeight: 1.55 }}>
@@ -430,6 +431,7 @@ export default function LearningLandingPage() {
                 border: "1px solid #dee2e6",
                 borderRadius: "12px",
                 overflow: "hidden",
+                opacity: (isMLDisabled || loadingML) ? 0.5 : 1
               }}
               aria-labelledby="main-scene-title"
             >
@@ -442,7 +444,7 @@ export default function LearningLandingPage() {
                 </div>
               </Card.Header>
               <Card.Body className="d-flex flex-column p-4">
-                <p className="text-muted text-center mb-1" style={{ fontSize: "0.8rem", fontWeight: 600, letterSpacing: "0.04em" }}>
+                <p className="text text-center mb-1" style={{ fontSize: "0.8rem", fontWeight: 600, letterSpacing: "0.04em" }}>
                   STEP 2 · TRAIN & FINALIZE
                 </p>
                 <Card.Text className="text-center mb-4" style={{ lineHeight: 1.55 }}>
