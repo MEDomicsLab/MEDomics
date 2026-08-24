@@ -45,9 +45,10 @@ jobs:
           go build main.go 
           cd ..
 
-      - name: Build libmongocrypt
-        shell: bash
-        run: bash ./utilScripts/libmongocrypt_prebuild.sh
+      - name: Set up MSVC environment
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
 
       - name: Prebuild libmongocrypt
         run: bash ./utilScripts/libmongocrypt_prebuild.sh
