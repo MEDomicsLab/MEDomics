@@ -51,6 +51,7 @@ jobs:
           arch: x64
 
       - name: Prebuild libmongocrypt
+        shell: bash
         run: bash ./utilScripts/libmongocrypt_prebuild.sh
 
       - name: Build for Windows
