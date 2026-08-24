@@ -45,6 +45,10 @@ jobs:
           go build main.go 
           cd ..
 
+      - name: Build libmongocrypt
+        shell: bash
+        run: bash ./utilScripts/libmongocrypt_prebuild.sh
+
       - name: Prebuild libmongocrypt
         run: bash ./utilScripts/libmongocrypt_prebuild.sh
 
