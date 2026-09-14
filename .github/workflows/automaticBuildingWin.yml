@@ -7,7 +7,10 @@ permissions:
   contents: write
 jobs:
   build-windows:
-    runs-on: windows-latest
+    # Pinned for the same reason as automaticBuilding.yml: windows-latest now
+    # ships Visual Studio 18, and the CMake 3.25.1 that libmongocrypt downloads
+    # has no generator for it.
+    runs-on: windows-2022
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -19,7 +22,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 18.13
+          node-version: 22
 
       - name: Get tag name
         shell: bash

@@ -16,6 +16,15 @@ cd libmongocrypt
 # Build libmongocrypt node bindings
 cd bindings/node
 
+# Upstream's build-static.sh hardcodes -DENABLE_MORE_WARNINGS_AS_ERRORS=ON (it
+# overwrites CMAKE_FLAGS, so the env var cannot be used to override it). Newer
+# Apple clang then fails libmongocrypt's own test target on
+# -Wgnu-folding-constant. We link against the library, not its tests, so turn
+# the warnings-as-errors escalation off. Uses -i.bak for BSD/macOS sed
+# compatibility, and is a no-op if the clone was already patched.
+sed -i.bak 's/-DENABLE_MORE_WARNINGS_AS_ERRORS=ON/-DENABLE_MORE_WARNINGS_AS_ERRORS=OFF/' ./etc/build-static.sh
+rm -f ./etc/build-static.sh.bak
+
 bash ./etc/build-static.sh
 
 npm run rebuild

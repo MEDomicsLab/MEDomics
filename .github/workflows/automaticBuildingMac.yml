@@ -7,7 +7,9 @@ permissions:
   contents: write
 jobs:
   build-mac:
-    runs-on: macos-latest
+    # macos-latest is now macOS 26, where electron-builder 26.x fails setting
+    # the partition list on the temporary keychain it creates for signing.
+    runs-on: macos-15
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -74,7 +76,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 18.13
+          node-version: 22
 
       - name: Mac OS X with M1 chip
         run: uname -m
