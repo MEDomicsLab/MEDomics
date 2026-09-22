@@ -7,9 +7,14 @@ permissions:
   contents: write
 jobs:
   build-windows:
-    runs-on: windows-latest
+    # Pinned: windows-latest now ships Visual Studio 18, but CMAKE_GENERATOR below
+    # asks for "Visual Studio 17 2022", and libmongocrypt pulls its own CMake 3.25.1
+    # which has no generator for VS 18 at all.
+    runs-on: windows-2022
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      CMAKE_GENERATOR: "Visual Studio 17 2022"
+      CMAKE_GENERATOR_PLATFORM: "x64"
 
     steps:
       - name: Checkout code
@@ -19,7 +24,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 18.13
+          node-version: 22
 
       - name: Get tag name
         shell: bash
@@ -45,7 +50,13 @@ jobs:
           go build main.go 
           cd ..
 
+      - name: Set up MSVC environment
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
       - name: Prebuild libmongocrypt
+        shell: bash
         run: bash ./utilScripts/libmongocrypt_prebuild.sh
 
       - name: Build for Windows
@@ -116,12 +127,15 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 18.13
+          node-version: 22
 
       - name: Get tag name
         run: |
           VERSION=${GITHUB_REF/refs\/tags\//}
-          NEW_VERSION="${VERSION}"
+          # Strip the leading "v": electron-builder puts package.json's version
+          # verbatim into artifactName, and the Rename/Archive steps below expect
+          # the stripped form.
+          NEW_VERSION="${VERSION#v}"
           node -p "let pkg=require('./package.json'); pkg.version='$NEW_VERSION'; require('fs').writeFileSync('package.json', JSON.stringify(pkg, null, 2));"
 
       - name: Print package.json
@@ -169,7 +183,9 @@ jobs:
           VERSION: ${{ steps.get-tag.outputs.VERSION }}
 
   build-mac:
-    runs-on: macos-latest
+    # macos-latest is now macOS 26, where electron-builder 26.x fails setting
+    # the partition list on the temporary keychain it creates for signing.
+    runs-on: macos-15
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -236,7 +252,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 18.13
+          node-version: 22
 
       - name: Mac OS X with M1 chip
         run: uname -m
@@ -292,8 +308,12 @@ jobs:
 
       - name: Update version
         run: |
-          node -p "let pkg=require('./package.json'); pkg.version='${GITHUB_REF/refs\/tags\//}'; require('fs').writeFileSync('package.json', JSON.stringify(pkg, null, 2));"
-          echo "Version updated to ${GITHUB_REF/refs\/tags\//}"
+          VERSION=${GITHUB_REF/refs\/tags\//}
+          # Strip the leading "v" so the artifact names match what the notarize,
+          # staple and Archive steps below look for.
+          NEW_VERSION="${VERSION#v}"
+          node -p "let pkg=require('./package.json'); pkg.version='$NEW_VERSION'; require('fs').writeFileSync('package.json', JSON.stringify(pkg, null, 2));"
+          echo "Version updated to $NEW_VERSION"
 
       # Before building the app, allocate more memory to the shell
       - name: Allocate more memory
