@@ -80,7 +80,7 @@ const nodesParams = {
     type: "flStrategyNode",
     classes: "object",
     nbInput: 1,
-    nbOutput: 0,
+    nbOutput: 1,
     input: ["model"],
     output: ["fl_strategy"],
     img: "strategy.png",
@@ -88,6 +88,18 @@ const nodesParams = {
     section: "train",
     possibleSettings: {}
   },
+  federated_shap: {
+    type: "flShapNode",
+    classes: "object",
+    nbInput: 1,
+    nbOutput: 0,
+    input: ["fl_strategy"],
+    output: ["federated_shap"],
+    img: "shap.png",
+    title: "Federated SHAP",
+    section: "explainability",
+    possibleSettings: {}
+  }
   // fl_pipeline: {
   //   type: "flPipelineNode",
   //   classes: "object ",

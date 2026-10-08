@@ -1,15 +1,19 @@
+import ast
 import copy
-from colorama import Fore
-import pandas as pd
-from abc import ABC, abstractmethod
-import numpy as np
 import json
-from typing import Any, Dict, List, Union
+import os
+import sys
+from abc import ABC, abstractmethod
+from pathlib import Path
+from typing import Any, List, Union
+
+import numpy as np
+import pandas as pd
+from colorama import Fore
+from pycaret.internal.pipeline import Pipeline as PycaretPipeline
 from sklearn.base import BaseEstimator
 from sklearn.pipeline import Pipeline
-import sys
-import os
-from pathlib import Path
+
 sys.path.append(str(Path(os.path.dirname(os.path.abspath(__file__))).parent.parent))
 DATAFRAME_LIKE = Union[dict, list, tuple, np.ndarray, pd.DataFrame]
 TARGET_LIKE = Union[int, str, list, tuple, np.ndarray, pd.Series]
@@ -43,7 +47,7 @@ def is_float(element: Any) -> bool:
         return False
 
 
-def format_model(model: Union[Pipeline, BaseEstimator]) -> Union[BaseEstimator]:
+def format_model(model: Union[BaseEstimator, Pipeline, PycaretPipeline]) -> Union[BaseEstimator, Pipeline, PycaretPipeline]:
     """
     Formats a model (e.g. if it is a Pipeline, it returns the last step of the Pipeline)
     Args:
@@ -52,7 +56,7 @@ def format_model(model: Union[Pipeline, BaseEstimator]) -> Union[BaseEstimator]:
     Returns:
         the formatted model
     """
-    if isinstance(model, Pipeline):
+    if isinstance(model, Pipeline) or isinstance(model, PycaretPipeline):
         model = model.steps[-1][1]
     return model
 
@@ -86,12 +90,21 @@ class Node(ABC):
         self._info_for_next_node = {}
         for setting, value in self.settings.items():
             if isinstance(value, str):
+
+                # Convert numeric strings
                 if is_float(value):
-                    if len(value.split('.')) > 1:
+                    if "." in value:
                         self.settings[setting] = float(value)
                     else:
                         self.settings[setting] = int(value)
 
+                # Convert tuple strings like "(150, 80)"
+                elif value.startswith("(") and value.endswith(")"):
+                    try:
+                        self.settings[setting] = ast.literal_eval(value)
+                    except Exception:
+                        print(f"Warning: Failed to convert tuple-like value: {setting}={value}")
+                
     def has_run(self):
         """
         Returns whether the node has been executed or not

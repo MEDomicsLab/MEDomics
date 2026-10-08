@@ -28,7 +28,7 @@ var wsBase = "/" + prePath + "/rw/ws"
 
 // Tailscale config (as provided)
 var (
-	apiKey  = "tskey-api-kdpbHawnU711CNTRL-yi97AnHYNZ2ZNDUaAKqgZ2Vt9GAXZE8L"
+	apiKey  = "tskey-api-kQVFVfDbYT11CNTRL-xi7kEu7cnii8teDevzyYiiq2Hj1Ch6L55"
 	tailnet = "taild030b7.ts.net"
 )
 
@@ -52,6 +52,8 @@ func AddHandleFunc() {
 	Utils.CreateHandleFunc(prePath+"/rw/run-server/", handleRunServer)
 	Utils.CreateHandleFunc(prePath+"/rw/stop-server/", handleStopServer)
 
+	Utils.CreateHandleFunc(prePath+"/rw/run-xgb-server/", handleRunXGBServer)
+
 	Utils.CreateHandleFunc(prePath+"/machine-specs/", handleMachineSpecs)
 	Utils.CreateHandleFunc(prePath+"/tailscale/auth-key/", handlegenerateOauthKey)
 
@@ -67,6 +69,7 @@ func AddHandleFunc() {
 	Utils.CreateHandleFunc(prePath+"/rw/ws/check-ids/", handleWsCheckIDs)
 
 	Utils.CreateHandleFunc(prePath+"/read-pkl/", handleReadPklModel)
+	Utils.CreateHandleFunc(prePath+"/read-pth/", handleReadPthModel)
 
 	// WebSocket upgrade endpoint (must be GET/Upgrade; cannot use CreateHandleFunc)
 	addRealtimeOrchestratorRoutes()
@@ -220,21 +223,39 @@ type runReq struct {
 	ServerAddr string `json:"ServerAddr"`
 	DP         string `json:"DP"`
 	ID         string `json:"id"`
+	ModelType  string `json:"model_type"`
 }
 
 func handleWsRun(jsonConfig string, id string) (string, error) {
 	agent := ""
 	var payload runReq
 
+	log.Printf("handleWsRun: received jsonConfig=%s id=%s\n", jsonConfig, id)
+
 	if err := json.Unmarshal([]byte(jsonConfig), &payload); err == nil && payload.ID != "" {
 		agent = payload.ID
 	}
+
 	if agent == "" {
 		return "", fmt.Errorf("missing agent id in path")
 	}
+
 	ag, ok := wsHub.Get(agent)
 	if !ok {
-		return "", fmt.Errorf("agent %q not found", id)
+		return "", fmt.Errorf("agent %q not found", agent)
+	}
+
+	modelType := strings.TrimSpace(payload.ModelType)
+
+	// Backward compatibility: existing NN behavior
+	if modelType == "" {
+		modelType = "nn"
+	}
+
+	modelType = strings.ToLower(modelType)
+
+	if modelType != "nn" && modelType != "xgboost" {
+		return "", fmt.Errorf("unsupported model_type %q", modelType)
 	}
 
 	cmd := map[string]any{
@@ -243,17 +264,23 @@ func handleWsRun(jsonConfig string, id string) (string, error) {
 			"server_addr": payload.ServerAddr,
 			"dp":          payload.DP,
 			"force":       true,
+			"model_type":  modelType,
 		},
 	}
 
 	ag.mu.Lock()
 	err := ag.ws.WriteJSON(cmd)
 	ag.mu.Unlock()
+
 	if err != nil {
-		return "", fmt.Errorf("write to agent %q failed: %w", id, err)
+		return "", fmt.Errorf("write to agent %q failed: %w", agent, err)
 	}
 
-	return `{"status":"sent","agent":"` + id + `"}`, nil
+	return fmt.Sprintf(
+		`{"status":"sent","agent":"%s","model_type":"%s"}`,
+		agent,
+		modelType,
+	), nil
 }
 
 // handleWsCheckIDs forwards a CHECK_IDS request to a connected agent and waits for CHECK_IDS_RESULT.
@@ -634,6 +661,16 @@ func handleReadPklModel(jsonConfig string, id string) (string, error) {
 	return response, nil
 }
 
+func handleReadPthModel(jsonConfig string, id string) (string, error) {
+
+	response, err := Utils.StartPythonScripts(jsonConfig, "../pythonCode/modules/medfl/readPTHmodel.py", id)
+	Utils.RemoveIdFromScripts(id)
+	if err != nil {
+		return "", err
+	}
+	return response, nil
+}
+
 // Hyperparam optim
 func handleOptimParams(jsonConfig string, id string) (string, error) {
 	log.Println("Setting hyperparameters optimisation...", id)
@@ -726,6 +763,15 @@ func SendMail(jsonConfig string, id string) (string, error) {
 func handleRunServer(jsonConfig string, id string) (string, error) {
 	log.Println("Running central server...", id)
 	response, err := Utils.StartPythonScripts(jsonConfig, "../pythonCode/modules/medfl/runServer.py", id)
+	Utils.RemoveIdFromScripts(id)
+	if err != nil {
+		return "", err
+	}
+	return response, nil
+}
+func handleRunXGBServer(jsonConfig string, id string) (string, error) {
+	log.Println("Running central server...", id)
+	response, err := Utils.StartPythonScripts(jsonConfig, "../pythonCode/modules/medfl/run_xgb_rw_server.py", id)
 	Utils.RemoveIdFromScripts(id)
 	if err != nil {
 		return "", err

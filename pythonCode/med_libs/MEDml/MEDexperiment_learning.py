@@ -8,6 +8,35 @@ import json
 from .nodes.NodeObj import *
 from .nodes import *
 
+PYCARET_SETUP_ALLOWED_KEYS = {
+    "target",
+    "train_size",
+    "fold",
+    "fold_strategy",
+    "session_id",
+    "normalize",
+    "normalize_method",
+    "transformation",
+    "transformation_method",
+    "handle_unknown_categorical",
+    "remove_outliers",
+    "outliers_method",
+    "fix_imbalance",
+    "fix_imbalance_method",
+    "feature_selection",
+    "feature_selection_method",
+    "pca",
+    "pca_method",
+    "class_weight",
+    "numeric_features",
+    "categorical_features",
+    "ignore_features",
+    "date_features",
+    "ordinal_features",
+    "log_experiment",
+    "index"
+}
+
 
 def create_pycaret_exp(ml_type: str) -> json:
     """
@@ -77,6 +106,9 @@ class MEDexperimentLearning(MEDexperiment):
         elif node_type == "finalize":
             from med_libs.MEDml.nodes.Finalize import Finalize
             return Finalize(node_config['id'], self.global_json_config)
+        elif node_type == "group_models":
+            from med_libs.MEDml.nodes.GroupModels import GroupModels
+            return GroupModels(node_config['id'], self.global_json_config)
         elif node_type == "combine_models":
             from med_libs.MEDml.nodes.CombineModels import CombineModels
             return CombineModels(node_config['id'], self.global_json_config)
@@ -143,6 +175,10 @@ class MEDexperimentLearning(MEDexperiment):
         node.CodeHandler.add_line("code", f"temp_df = df[df['{kwargs['target']}'].notna()]")
         temp_df.replace("", float("NaN"), inplace=True)
         temp_df.dropna(how='all', axis=1, inplace=True)
+        if 'variables' in node.settings and node.settings['variables']:
+            first_col = temp_df.columns[0]
+            unique_columns = list(set([first_col] + [kwargs['target']] + node.settings['variables']))
+            temp_df = temp_df[unique_columns]
         node.CodeHandler.add_line("code", f"temp_df.dropna(how='all', axis=1, inplace=True)")
         medml_logger = MEDml_logger()
 
@@ -154,16 +190,27 @@ class MEDexperimentLearning(MEDexperiment):
             del kwargs['test_data']
             pycaret_exp.setup(temp_df, test_data=test_data_df, log_experiment=medml_logger, **kwargs)
         else:
-            pycaret_exp.setup(temp_df, log_experiment=medml_logger, **kwargs)
+            clean_kwargs = {
+                k: v for k, v in kwargs.items()
+                if k in PYCARET_SETUP_ALLOWED_KEYS
+            }
+
+            pycaret_exp.setup(
+                temp_df,
+                log_experiment=medml_logger,
+                **clean_kwargs
+            )
+
             node.CodeHandler.add_line("code", f"pycaret_exp.setup(temp_df, {node.CodeHandler.convert_dict_to_params(kwargs)})")
         
         node.CodeHandler.add_line(
             "code", f"dataset = pycaret_exp.get_config('X').join(pycaret_exp.get_config('y'))")
+        # Get the combined dataset
+        full_data = pycaret_exp.get_config('X').join(pycaret_exp.get_config('y'))
         dataset_metaData = {
-            'dataset': pycaret_exp.get_config('X').join(pycaret_exp.get_config('y')),
+            'dataset': full_data.head(10) if len(full_data) > 10 else full_data,
             'X_test': pycaret_exp.get_config('X_test'),
             'y_test': pycaret_exp.get_config('y_test'),
-
         }
         self.global_json_config["columns"] = copy.deepcopy(list(
             temp_df.columns.values.tolist()))

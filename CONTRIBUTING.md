@@ -42,5 +42,5 @@ All JavaScript must adhere to JavaScript Standard Style.
 
 All CSS must adhere to CSS Guidelines.
 
-### More infos 👉[HERE](https://medomics-udes.gitbook.io/medomicslab-docs/contributing)
+### More infos 👉[HERE](https://medomicslab.gitbook.io/medomics-docs/contributing)
 ## Thank you again for your contribution and making MEDomicsLab even better!

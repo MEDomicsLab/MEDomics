@@ -33,9 +33,9 @@ export default function MedflWelcomePage() {
             <div>
               <h3 style={{ fontSize: "3.5rem", fontWeight: "400" }} className="text-center mb-3 w-75 mx-auto">
                 <span style={{ fontWeight: "800" }} className="text-primary">
-                  MEDfl
+                  MEDfl,
                 </span>{" "}
-                A Friendly Federated Learning Framework for Medicine
+                A Collaborative Framework for Federated Learning in Medicine
               </h3>
             </div>
 
@@ -49,8 +49,8 @@ export default function MedflWelcomePage() {
               {/* Simulation Card */}
               <Card className="flex-fill shadow-sm border-primary h-100 hover-border-success" onClick={(e) => choosePage(e, "MEDfl")} style={{ cursor: "pointer" }}>
                 <Card.Header className="bg-primary text-white d-flex align-items-center">
-                  <FaCogs className="me-2" />
-                  <h5 className="mb-0">Simulation FL</h5>
+                  <FaCogs className="me-2 text-light" />
+                  <h5 className="mb-0 text-light">Simulation FL</h5>
                 </Card.Header>
                 <Card.Body className="d-flex flex-column justify-content-center align-items-center p-4">
                   <Image src={myimage} alt="Simulation" width={120} height={120} />
@@ -66,8 +66,8 @@ export default function MedflWelcomePage() {
               {/* Real-World Card */}
               <Card className="flex-fill shadow-sm border-success h-100" style={{ cursor: "pointer" }} onClick={(e) => choosePage(e, "flRwWorkflow")}>
                 <Card.Header className="bg-success text-white d-flex align-items-center">
-                  <FaGlobe className="me-2" />
-                  <h5 className="mb-0">Real-World FL</h5>
+                  <FaGlobe className="me-2 text-light"  />
+                  <h5 className="mb-0 text-light">Real-World FL</h5>
                 </Card.Header>
                 <Card.Body className="d-flex flex-column justify-content-center align-items-center p-4">
                   <Image src={myimage} alt="Real World" width={120} height={120} />

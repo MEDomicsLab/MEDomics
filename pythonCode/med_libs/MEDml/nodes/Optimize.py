@@ -40,6 +40,7 @@ class Optimize(Node):
         for model in kwargs['models']:
             input_models.append(format_model(model))
         if "models" in self.type:
+
             self.CodeHandler.add_line(
                 "code",
                 f"optimized_model = pycaret_exp.{self.type}(trained_models, {self.CodeHandler.convert_dict_to_params(settings)})", 1)
@@ -54,12 +55,10 @@ class Optimize(Node):
             self.CodeHandler.add_line(
                 "code", f"trained_models_optimized.append(optimized_model)", 1)
             for model in input_models:
-
                 print(Fore.CYAN +
                       f"optimizing: {model.__class__.__name__}" + Fore.RESET)
                 trained_models.append(
                     getattr(experiment['pycaret_exp'], self.type)(model, **settings))
-
 
         self.CodeHandler.add_line(
             "code", f"trained_models = trained_models_optimized")

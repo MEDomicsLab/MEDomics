@@ -32,6 +32,9 @@ func AddHandleFunc() {
 	Utils.CreateHandleFunc(prePath+"/create_group_DB/", handleCreateGroupDB)
 	Utils.CreateHandleFunc(prePath+"/normalizeDB/", handleNormalizeDB)
 	Utils.CreateHandleFunc(prePath+"/generate_sample_data/", handleGenerateSampleData)
+	Utils.CreateHandleFunc(prePath+"/find_duplicate_columns_DB", handleFindDuplicateColumnsDB)
+	Utils.CreateHandleFunc(prePath+"/drop_columns_tags/", handleDeleteColumnsAndTags)
+
 }
 
 // handleMerge handles the request to merge the datasets for the DB
@@ -285,20 +288,52 @@ func handleCreateGroupDB(jsonConfig string, id string) (string, error) {
 	return response, nil
 }
 
-func handleNormalizeDB(jsonConfig string, id string) (string, error) {
-	log.Println("Normalizing DB...", id)
-	response, err := Utils.StartPythonScripts(jsonConfig, "../pythonCode/modules/input/normalizeDB.py", id)
-	if err != nil {
-		return "", err
-	}
-	return response, nil
-}
+
 
 // handleMerge handles the request to merge the datasets for the DB
 // It returns the response from the python script
 func handleGenerateSampleData(jsonConfig string, id string) (string, error) {
 	log.Println("Generating sample data file...", id)
 	response, err := Utils.StartPythonScripts(jsonConfig, "../pythonCode/modules/input/generate_sample_data.py", id)
+	Utils.RemoveIdFromScripts(id)
+	if err != nil {
+		return "", err
+	}
+	return response, nil
+}
+
+func handleNormalizeDB(jsonConfig string, id string) (string, error) {
+	log.Println("Normalizing DB...", id)
+	response, err := Utils.StartPythonScripts(jsonConfig, "../pythonCode/modules/input/normalizeDB.py", id)
+	Utils.RemoveIdFromScripts(id)
+	if err != nil {
+		return "", err
+	}
+	return response, nil
+}
+
+// handleFindDuplicateColumnsDB to identify duplicate columns from a CSV
+// It returns the response from the python script
+func handleFindDuplicateColumnsDB(jsonConfig string, id string) (string, error) {
+
+	log.Println(">> [DEBUG] route /input/find_duplicate_columns_DB hit", id)
+	log.Println("Finding duplicate columns...", id)
+
+	// Call the Python script
+	response, err := Utils.StartPythonScripts(jsonConfig, "../pythonCode/modules/input/find_duplicate_columnsDB.py", id)
+	log.Println(">>> PYTHON RESPONSE:\n", response)
+	Utils.RemoveIdFromScripts(id)
+
+	if err != nil {
+		log.Println("Error executing Python script:", err)
+		return "", err
+	}
+
+	return response, nil
+}
+func handleDeleteColumnsAndTags(jsonConfig string, id string) (string, error) {
+	log.Println("Deleting Columns...", id)
+	response, err := Utils.StartPythonScripts(jsonConfig, "../pythonCode/modules/input/drop_columns_tags.py", id)
 	Utils.RemoveIdFromScripts(id)
 	if err != nil {
 		return "", err

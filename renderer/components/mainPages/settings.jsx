@@ -76,7 +76,9 @@ const SettingsPage = ({ pageId = "settings", checkJupyterIsRunning, startJupyter
     ipcRenderer.invoke("get-settings").then((receivedSettings) => {
       console.log("received settings", receivedSettings)
       setSettings(receivedSettings)
-      if (receivedSettings?.condaPath) {
+      if (pythonEmbedded.pythonEmbedded) {
+        setCondaPath(pythonEmbedded.pythonEmbedded)
+      } else if (receivedSettings?.condaPath) {
         setCondaPath(receivedSettings?.condaPath)
       }
       if (receivedSettings?.seed) {
@@ -134,7 +136,7 @@ const SettingsPage = ({ pageId = "settings", checkJupyterIsRunning, startJupyter
 
   useEffect(() => {
     ipcRenderer.invoke("getBundledPythonEnvironment").then((res) => {
-      console.log("Python imbedded: ", res)
+      console.log("Python embedded: ", res)
       if (res !== null) {
         ipcRenderer.invoke("getInstalledPythonPackages", res).then((pythonPackages) => {
           // console.log("Installed Python Packages: ", pythonPackages)

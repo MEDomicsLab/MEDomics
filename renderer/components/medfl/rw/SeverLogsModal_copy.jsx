@@ -3,6 +3,8 @@ import { Modal, Tabs, Tab, Alert } from "react-bootstrap"
 import { ipcRenderer } from "electron"
 import { FaDatabase, FaServer, FaSpinner } from "react-icons/fa6"
 import { FaApple, FaChartLine, FaCode, FaFileAlt, FaLaptop, FaNetworkWired, FaPause, FaPlay, FaSave, FaTable, FaWindows } from "react-icons/fa"
+import { LuChartBarStacked } from "react-icons/lu"
+
 import Col from "react-bootstrap/Col"
 import Nav from "react-bootstrap/Nav"
 import Row from "react-bootstrap/Row"
@@ -29,7 +31,9 @@ import { Message } from "primereact/message"
 
 import { Form, Button } from "react-bootstrap"
 
-import { buildNotebookText, buildServerNotebookText } from "../../../utilities/medfl/flUtils"
+import { buildNotebookText, buildServerNotebookText, buildXgbServerNotebookText } from "../../../utilities/medfl/flUtils"
+import XGBoostFeatureImportance from "./XGBoostFeatureImportance"
+import FederatedShapResults from "../ShapResults"
 
 // ---------- helpers ----------
 const ensureIndex = (arr, index, initValue) => {
@@ -202,6 +206,233 @@ const NewServerLogsModal = ({ show, onHide, nodes, onSaveScean, setRunServer, co
   const [isFileName, showFileName] = useState(false)
   const [savingPath, setSavingPath] = useState("")
 
+  const [featureImportanceResults, setFeatureImportanceResults] = useState([])
+
+  const featureImportanceBufferRef = useRef({})
+
+  const [federatedShapResults, setFederatedShapResults] = useState([])
+
+  // Temporary buffer because SHAP JSON can arrive over multiple log events
+  const shapLogBufferRef = useRef({})
+
+  const parseImportanceDictionary = (rawValue) => {
+    return JSON.parse(
+      rawValue
+        .replace(/'/g, '"')
+        .replace(/\bNaN\b/g, "null")
+        .replace(/\bInfinity\b/g, "null")
+    )
+  }
+  const saveFeatureImportance = (idx, round, type, rawImportance) => {
+    try {
+      const importance = parseImportanceDictionary(rawImportance)
+
+      setFeatureImportanceResults((prev) => {
+        const next = [...prev]
+
+        next[idx] = {
+          ...(next[idx] || {}),
+          round,
+          [type]: importance,
+          timestamp: new Date()
+        }
+
+        return next
+      })
+    } catch (error) {
+      console.error("Feature importance parse error:", {
+        error,
+        idx,
+        round,
+        type,
+        rawImportance
+      })
+    }
+  }
+  const parseFeatureImportanceLogs = (data, idx) => {
+    // Keep previous incomplete content and append the new log
+    const previousBuffer = featureImportanceBufferRef.current[idx] || ""
+    const buffer = `${previousBuffer}\n${data}`
+
+    const cleanData = buffer
+      .replace(/(?:\d{2}:\d{2}:\d{2}\.\d+\s*›\s*)?stderr:\s*/g, "")
+      .replace(/\d{4}\/\d{2}\/\d{2}\s+\d{2}:\d{2}:\d{2}\s*/g, "")
+      .trim()
+
+    /*
+    Finds each header and its dictionary:
+
+    Round 10 Global Feature Importance - Gain:
+    {'age': 38.45}
+
+    Round 10 Global Feature Importance - Weight:
+    {'age': 10.0}
+  */
+    const regex = /Round\s+(\d+)\s+Global Feature Importance\s*-\s*(Gain|Weight|Cover)\s*:[\s\S]*?(\{[^{}]*\})/gi
+
+    let match
+    let lastProcessedIndex = 0
+    let foundResult = false
+
+    while ((match = regex.exec(cleanData)) !== null) {
+      foundResult = true
+
+      const round = parseInt(match[1], 10)
+      const type = match[2].toLowerCase()
+      const rawImportance = match[3]
+
+      saveFeatureImportance(idx, round, type, rawImportance)
+
+      lastProcessedIndex = regex.lastIndex
+    }
+
+    /*
+    Keep unprocessed content.
+
+    This is important when the chunk ends with:
+
+    Global Feature Importance - Weight:
+
+    and its dictionary arrives in the next chunk.
+  */
+    if (foundResult) {
+      featureImportanceBufferRef.current[idx] = cleanData.slice(lastProcessedIndex)
+    } else {
+      const lastHeaderIndex = cleanData.lastIndexOf("Global Feature Importance")
+
+      if (lastHeaderIndex !== -1) {
+        const roundStartIndex = cleanData.lastIndexOf("Round", lastHeaderIndex)
+
+        featureImportanceBufferRef.current[idx] = roundStartIndex !== -1 ? cleanData.slice(roundStartIndex) : cleanData.slice(lastHeaderIndex)
+      } else {
+        featureImportanceBufferRef.current[idx] = ""
+      }
+    }
+  }
+
+  const parseFederatedShapLogs = (data, idx) => {
+    const marker = "[Server/SHAP] Federated SHAP completed:"
+
+    let buffer = shapLogBufferRef.current[idx] || ""
+
+    // --------------------------------------------------------
+    // 1. Start collecting when the SHAP marker appears
+    // --------------------------------------------------------
+    if (data.includes(marker)) {
+      const startIndex = data.indexOf(marker) + marker.length
+
+      buffer = data.slice(startIndex)
+      shapLogBufferRef.current[idx] = buffer
+    }
+
+    // --------------------------------------------------------
+    // 2. Continue collecting SHAP logs
+    // --------------------------------------------------------
+    else if (buffer) {
+      buffer += "\n" + data
+      shapLogBufferRef.current[idx] = buffer
+    }
+
+    if (!buffer) return
+
+    // --------------------------------------------------------
+    // 3. Clean log formatting
+    // --------------------------------------------------------
+    const cleanedBuffer = buffer
+      // Remove ANSI terminal color codes
+      .replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, "")
+      // Remove prefixes such as "[16:26:32] stderr:"
+      .replace(/\[\d{2}:\d{2}:\d{2}\]\s+(stdout|stderr):\s*/g, "")
+      // Remove timestamps injected inside JSON
+      .replace(/\d{4}\/\d{2}\/\d{2}\s+\d{2}:\d{2}:\d{2}\s*/g, "")
+      .trim()
+
+    // --------------------------------------------------------
+    // 4. Find JSON start
+    // --------------------------------------------------------
+    const jsonStart = cleanedBuffer.indexOf("{")
+
+    if (jsonStart === -1) return
+
+    const possibleJson = cleanedBuffer.slice(jsonStart)
+
+    // --------------------------------------------------------
+    // 5. Find complete JSON using brace depth
+    // --------------------------------------------------------
+    let depth = 0
+    let insideString = false
+    let escaped = false
+    let jsonEnd = -1
+
+    for (let i = 0; i < possibleJson.length; i++) {
+      const char = possibleJson[i]
+
+      if (escaped) {
+        escaped = false
+        continue
+      }
+
+      if (char === "\\" && insideString) {
+        escaped = true
+        continue
+      }
+
+      if (char === '"') {
+        insideString = !insideString
+        continue
+      }
+
+      if (insideString) continue
+
+      if (char === "{") {
+        depth++
+      } else if (char === "}") {
+        depth--
+
+        if (depth === 0) {
+          jsonEnd = i + 1
+          break
+        }
+      }
+    }
+
+    // Complete JSON hasn't arrived yet
+    if (jsonEnd === -1) return
+
+    // --------------------------------------------------------
+    // 6. Extract JSON
+    // --------------------------------------------------------
+    const jsonText = possibleJson.slice(0, jsonEnd)
+
+    try {
+      const shapResult = JSON.parse(jsonText)
+
+      console.log("✅ Federated SHAP result detected:", shapResult)
+
+      setFederatedShapResults((prev) => {
+        const next = [...prev]
+
+        while (next.length <= idx) {
+          next.push(null)
+        }
+
+        next[idx] = {
+          ...shapResult,
+          timestamp: new Date()
+        }
+
+        return next
+      })
+
+      // --------------------------------------------------------
+      // 7. Clear buffer after successful parsing
+      // --------------------------------------------------------
+      shapLogBufferRef.current[idx] = ""
+    } catch (error) {
+      console.error("❌ Federated SHAP JSON parse error:", error, jsonText)
+    }
+  }
+
   // when experimentConfig changes, ensure buckets are sized
   useEffect(() => {
     const n = experimentConfig?.length || 0
@@ -273,6 +504,9 @@ const NewServerLogsModal = ({ show, onHide, nodes, onSaveScean, setRunServer, co
         next[idx] = [...(next[idx] || []), data]
         return next
       })
+
+      parseFeatureImportanceLogs(data, idx)
+      // parseFederatedShapLogs(data, idx)
 
       if (data.includes("Server started with PID")) {
         const m = data.match(/PID (\d+)/)
@@ -356,7 +590,7 @@ const NewServerLogsModal = ({ show, onHide, nodes, onSaveScean, setRunServer, co
               clientId: cid,
               auc: metrics.train_auc,
               accuracy: metrics.train_accuracy,
-              loss: metrics.train_loss,
+              loss: metrics.train_loss || metrics.train_logloss,
               hostname: metrics.hostname,
               os: metrics.os_type || "unknown",
               type: "train",
@@ -398,7 +632,7 @@ const NewServerLogsModal = ({ show, onHide, nodes, onSaveScean, setRunServer, co
           const cid = mt[2]
           try {
             const metrics = JSON.parse(mt[3].replace(/'/g, '"'))
-            const evalResult = { round, clientId: cid, auc: metrics.eval_auc, accuracy: metrics.eval_accuracy, loss: metrics.eval_loss, type: "eval", timestamp: new Date() }
+            const evalResult = { round, clientId: cid, auc: metrics.eval_auc, accuracy: metrics.eval_accuracy, loss: metrics.eval_loss || metrics.eval_logloss, type: "eval", timestamp: new Date() }
             setClientEvalMetrics((prev) => {
               const next = ensureIndex(prev, idx, [])
               next[idx] = pushUniqueBy(next[idx], evalResult, (r) => r.clientId === cid && r.round === round)
@@ -421,27 +655,46 @@ const NewServerLogsModal = ({ show, onHide, nodes, onSaveScean, setRunServer, co
       }
 
       // Aggregated Training
-      if (data.includes("Aggregated Training Metrics")) {
-        const rm = data.match(/Round (\d+) - Aggregated Training Metrics/)
-        const mm = data.match(/Aggregated Training Metrics:\s*(\{.*\})/)
-        if (!rm?.[1] || !mm?.[1]) return
+      if (data.includes("Aggregated Training Metrics") || data.includes("[Server/XGBoost] Aggregated metrics:")) {
+        const isXgb = data.includes("XGBoost") || data.includes("[Server/XGBoost]")
+
+        const rm = isXgb ? data.match(/Round\s+(\d+)/) : data.match(/Round (\d+) - Aggregated Training Metrics/)
+
+        const mm = isXgb ? data.match(/Aggregated metrics:\s*(\{.*\})/) : data.match(/Aggregated Training Metrics:\s*(\{.*\})/)
+
+        if (!mm?.[1]) return
+
         try {
-          const roundNumber = parseInt(rm[1], 10)
+          const roundNumber = rm?.[1] ? parseInt(rm[1], 10) : (traningResulsts[idx]?.length || 0) + 1
+
           const metrics = JSON.parse(mm[1].replace(/'/g, '"'))
+
           const result = {
             round: roundNumber,
-            loss: metrics.train_loss,
+
+            // NN uses train_loss, XGB uses train_logloss
+            loss: metrics.train_loss ?? metrics.train_logloss,
+
             accuracy: metrics.train_accuracy,
             auc: metrics.train_auc,
+
+            // keep XGB value too, useful for display/debugging
+            logloss: metrics.train_logloss,
+
+            backend: metrics.backend || (isXgb ? "xgboost" : "nn"),
+
             clientsTrained: 3,
+            numTrain: metrics.num_train,
             timeTaken: (Math.random() * 3).toFixed(2),
             timestamp: new Date()
           }
+
           setTraningResulsts((prev) => {
             const next = ensureIndex(prev, idx, [])
             next[idx] = pushUniqueBy(next[idx], result, (r) => r.round === roundNumber)
             return next
           })
+
           setTimeout(
             () =>
               setIsAggregating((prev) => {
@@ -451,6 +704,7 @@ const NewServerLogsModal = ({ show, onHide, nodes, onSaveScean, setRunServer, co
               }),
             2000
           )
+
           // mark all connected as running (visual)
           setRunningClients((prev) => {
             const next = ensureIndex(prev, idx, [])
@@ -464,20 +718,42 @@ const NewServerLogsModal = ({ show, onHide, nodes, onSaveScean, setRunServer, co
       }
 
       // Aggregated Evaluation
-      if (data.includes("Aggregated Evaluation Metrics")) {
-        const rm = data.match(/Round (\d+) - Aggregated Evaluation Metrics/)
+      if (data.includes("Aggregated Evaluation Metrics") || data.includes("Aggregated Evaluation")) {
+        const rm = data.match(/Round (\d+) - Aggregated Evaluation Metrics/) || data.match(/Round (\d+) - Aggregated Evaluation/)
+
         const ml = data.match(/Loss:\s*([\d.]+),\s*Metrics:\s*({.*})/)
+
         if (!rm?.[1] || !ml) return
+
         try {
           const roundNumber = parseInt(rm[1], 10)
           const loss = parseFloat(ml[1])
+
           const metrics = JSON.parse(ml[2].replace(/'/g, '"'))
-          const result = { round: roundNumber, loss, accuracy: metrics.eval_accuracy, auc: metrics.eval_auc, clientsTrained: 3, timeTaken: (Math.random() * 3).toFixed(2), timestamp: new Date() }
+
+          const result = {
+            round: roundNumber,
+            loss,
+            accuracy: metrics.eval_accuracy,
+            auc: metrics.eval_auc,
+
+            // useful for XGBoost
+            logloss: metrics.eval_logloss,
+
+            // useful to distinguish models later
+            backend: metrics.backend || (data.includes("XGBoost") ? "xgboost" : "nn"),
+
+            clientsTrained: 3,
+            timeTaken: (Math.random() * 3).toFixed(2),
+            timestamp: new Date()
+          }
+
           setRoundResults((prev) => {
             const next = ensureIndex(prev, idx, [])
             next[idx] = pushUniqueBy(next[idx], result, (r) => r.round === roundNumber)
             return next
           })
+
           setTimeout(
             () =>
               setIsAggregating((prev) => {
@@ -487,6 +763,7 @@ const NewServerLogsModal = ({ show, onHide, nodes, onSaveScean, setRunServer, co
               }),
             2000
           )
+
           setRunningClients((prev) => {
             const next = ensureIndex(prev, idx, [])
             const connectedIds = (connectedClients[idx] || []).map((c) => c.id)
@@ -557,11 +834,11 @@ const NewServerLogsModal = ({ show, onHide, nodes, onSaveScean, setRunServer, co
         min_available_clients: minAvailableClients,
         port: serverAddress?.split(":")[1],
         use_transfer_learning: modelConfigs[0]?.data.internal.settings.activateTl == "true" ? true : false,
-        pretrained_model_path: modelConfigs[0]?.data.internal.settings.file.path || "",
+        pretrained_model_path: modelConfigs[0]?.data.internal.settings.file?.path || "",
         local_epochs: modelConfigs[0]?.data.internal.settings["Local epochs"] || 1,
         threshold: modelConfigs[0]?.data.internal.settings.Threshold || 0.5,
         optimizer: modelConfigs[0]?.data.internal.settings.optimizer || "SGD",
-        learning_rate: modelConfigs[0]?.data.internal.settings["Learning rate"] || 0.01,
+        learning_rate: Number(modelConfigs[0]?.data.internal.settings["learning rate"]) > 0 ? Number(modelConfigs[0]?.data.internal.settings["learning rate"]) : 0.01,
         savingPath: savingPath + "/models",
         saveOnRounds: strategyConfigs[0]?.data.internal.settings.saveOnRounds || 11,
         datasetConfig: datasetConfig
@@ -598,6 +875,7 @@ const NewServerLogsModal = ({ show, onHide, nodes, onSaveScean, setRunServer, co
 
   // ---------- multi-config sequencer (uses your existing function) ----------
   useEffect(() => {
+    console.log("startRunningConfig", startRunningConfig, "currentExecConfig", currentExecConfig, "experimentConfig?.length", experimentConfig?.length)
     if (startRunningConfig && currentExecConfig < (experimentConfig?.length || 0)) {
       runServerWithMultipleConfigs(experimentConfig[currentExecConfig], currentExecConfig)
     }
@@ -605,6 +883,7 @@ const NewServerLogsModal = ({ show, onHide, nodes, onSaveScean, setRunServer, co
 
   // DO NOT TOUCH the body of this function per your request (left identical)
   const runServerWithMultipleConfigs = (conf, index) => {
+    alert(currentExecConfig)
     setIsListening(true)
     setWaitingForServer((prev) => {
       const next = ensureIndex(prev, index, false)
@@ -615,43 +894,112 @@ const NewServerLogsModal = ({ show, onHide, nodes, onSaveScean, setRunServer, co
     console.log("selectedAgents", selectedAgents)
     console.log("Ruuning config ", index)
     setMinAvailableClients(conf.flRunServerNode.minAvailableClients)
-    requestBackend(
-      port,
-      "/medfl/rw/run-server/" + pageId,
-      {
-        strategy_name: conf.flRunServerNode.strategy,
-        serverAddress: "0.0.0.0:808" + String(index),
-        num_rounds: conf.flRunServerNode.numRounds,
-        fraction_fit: conf.flRunServerNode.fractionFit,
-        fraction_evaluate: conf.flRunServerNode.fractionEvaluate,
-        min_fit_clients: conf.flrwNetworkNode.clients.length,
-        min_evaluate_clients: conf.flrwNetworkNode.clients.length,
-        min_available_clients: conf.flrwNetworkNode.clients.length,
-        port: "808" + String(index),
-        use_transfer_learning: conf.flModelNode.activateTl == "true" ? true : false,
-        pretrained_model_path: conf.flModelNode.file?.path || "",
-        local_epochs: conf.flModelNode["Local epochs"] || 1,
-        threshold: conf.flModelNode.Threshold || 0.5,
-        optimizer: conf.flModelNode.optimizer || "SGD",
-        learning_rate: conf.flModelNode["Learning rate"] || 0.01,
-        savingPath: savingPath + "/models",
-        saveOnRounds: conf.flRunServerNode.saveOnRounds || 11,
+    console.log("conf.flModelNode.modelType", conf.flModelNode.modelType)
+    if (conf.flModelNode.modelType == "nn") {
+      requestBackend(
+        port,
+        "/medfl/rw/run-server/" + pageId,
+        {
+          strategy_name: conf.flRunServerNode.strategy,
+          serverAddress: "0.0.0.0:808" + String(index),
+          num_rounds: conf.flRunServerNode.numRounds,
+          fraction_fit: conf.flRunServerNode.fractionFit,
+          fraction_evaluate: conf.flRunServerNode.fractionEvaluate,
+          min_fit_clients: conf.flrwNetworkNode.clients.length,
+          min_evaluate_clients: conf.flrwNetworkNode.clients.length,
+          min_available_clients: conf.flrwNetworkNode.clients.length,
+          port: "808" + String(index),
+          use_transfer_learning: conf.flModelNode.activateTl == "true" ? true : false,
+          pretrained_model_path: conf.flModelNode.file?.path || "",
+          local_epochs: conf.flModelNode["Local epochs"] || 1,
+          threshold: conf.flModelNode.Threshold || 0.5,
+          optimizer: conf.flModelNode.optimizer || "SGD",
+          learning_rate: Number(conf.flModelNode["learning rate"]) > 0 ? Number(conf.flModelNode["learning rate"]) : 0.01,
+          savingPath: savingPath + "/models",
+          saveOnRounds: conf.flRunServerNode.saveOnRounds || 11,
 
-        features: conf.mlStrategyNode.selectedColumns.join(","),
-        target: "label",
-        val_fraction: conf.mlStrategyNode.validationFraction,
-        test_fraction: conf.mlStrategyNode.testFraction,
-        split_mode: conf.mlStrategyNode.splitMode,
-        id_col: "id",
-        client_fractions: conf.mlStrategyNode.perClientConfig || {}
-      },
-      (json) => {
-        json?.error ? toast.error("Error: " + json.error) : MedDataObject.updateWorkspaceDataObject()
-      },
-      (err) => {
-        console.error(err)
-      }
-    )
+          features: conf.mlStrategyNode.selectedColumns.join(","),
+          target: "label",
+          val_fraction: conf.mlStrategyNode.validationFraction,
+          test_fraction: conf.mlStrategyNode.testFraction,
+          split_mode: conf.mlStrategyNode.splitMode,
+          id_col: "id",
+          client_fractions: conf.mlStrategyNode.perClientConfig || {},
+          flShapNode: conf.flShapNode
+        },
+        (json) => {
+          console.log("------------------------------ ==== json", json)
+          setFederatedShapResults((prev) => {
+            const next = [...prev]
+            next[index] = json?.shap_results || {}
+            return next
+          })
+          json?.error ? toast.error("Error: " + json.error) : MedDataObject.updateWorkspaceDataObject()
+        },
+        (err) => {
+          console.error(err)
+        }
+      )
+    } else if (conf.flModelNode.modelType == "xgboost") {
+      requestBackend(
+        port,
+        "/medfl/rw/run-xgb-server/" + pageId,
+        {
+          // Server
+          serverAddress: "0.0.0.0:808" + String(index),
+          host: "0.0.0.0",
+          port: "808" + String(index),
+          num_rounds: conf.flRunServerNode.numRounds,
+
+          // Federated XGBoost strategy
+          xgb_mode: conf.flModelNode.xgb_mode || "bagging",
+          xgb_task: conf.flModelNode.xgb_task || "binary",
+          xgb_local_num_boost_round: conf.flModelNode.xgb_local_num_boost_round || 10,
+
+          // XGBoost native params
+          xgb_objective: conf.flModelNode.xgb_objective || "binary:logistic",
+          xgb_eval_metric: conf.flModelNode.xgb_eval_metric || "auc",
+          xgb_tree_method: conf.flModelNode.xgb_tree_method || "hist",
+          xgb_max_depth: conf.flModelNode.xgb_max_depth || 6,
+          xgb_eta: conf.flModelNode.xgb_eta || 0.1,
+          xgb_subsample: conf.flModelNode.xgb_subsample || 1.0,
+          xgb_colsample_bytree: conf.flModelNode.xgb_colsample_bytree || 1.0,
+
+          // Flower client selection
+          fraction_fit: conf.flRunServerNode.fractionFit,
+          fraction_evaluate: conf.flRunServerNode.fractionEvaluate,
+          min_fit_clients: conf.flrwNetworkNode.clients.length,
+          min_evaluate_clients: conf.flrwNetworkNode.clients.length,
+          min_available_clients: conf.flrwNetworkNode.clients.length,
+
+          // Dataset schema
+          features: conf.mlStrategyNode.selectedColumns.join(","),
+          target: "label",
+
+          // Local client split config
+          val_fraction: conf.mlStrategyNode.validationFraction,
+          test_fraction: conf.mlStrategyNode.testFraction,
+          split_mode: conf.mlStrategyNode.splitMode,
+          id_col: "id",
+          client_fractions: conf.mlStrategyNode.perClientConfig || {},
+
+          // Saving
+          savingPath: savingPath + "/models/xgboost",
+          saveOnRounds: conf.flRunServerNode.saveOnRounds || 1,
+
+          // Optional threshold for binary classification
+          threshold: conf.flModelNode.Threshold || 0.5 , 
+          flShapNode: conf.flShapNode
+
+        },
+        (json) => {
+          json?.error ? toast.error("Error: " + json.error) : MedDataObject.updateWorkspaceDataObject()
+        },
+        (err) => {
+          console.error(err)
+        }
+      )
+    }
 
     const selectedClients = conf.flrwNetworkNode.clients
 
@@ -662,7 +1010,7 @@ const NewServerLogsModal = ({ show, onHide, nodes, onSaveScean, setRunServer, co
             requestBackend(
               port,
               "/medfl/rw/ws/run/" + pageId,
-              { id: client, ServerAddr: "100.65.215.27:808" + String(index), DP: "none" },
+              { id: client, ServerAddr: "100.65.215.27:808" + String(index), DP: "none", model_type: conf.flModelNode.modelType },
               (json) => {
                 if (json?.error) {
                   toast.error("Error: " + json.error)
@@ -682,6 +1030,12 @@ const NewServerLogsModal = ({ show, onHide, nodes, onSaveScean, setRunServer, co
   }
 
   const stopServer = () => {
+    setServerRunning(false)
+    setWaitingForServer([])
+    setServerPageId(null)
+    setStartRunningConfig(false)
+
+    resetResults()
     serverPID &&
       requestBackend(
         port,
@@ -707,6 +1061,9 @@ const NewServerLogsModal = ({ show, onHide, nodes, onSaveScean, setRunServer, co
         },
         (err) => console.error(err)
       )
+
+    setCurrentExecConfig(0)
+    console.log("==================== the final feature importance results", featureImportanceResults)
   }
 
   useEffect(() => {
@@ -746,10 +1103,11 @@ const NewServerLogsModal = ({ show, onHide, nodes, onSaveScean, setRunServer, co
     try {
       const idx = currentExecConfig
       let dirPath = ""
-      if (configPath !== "") {
+      if (configPath && configPath !== "") {
         dirPath = configPath.substring(0, configPath.lastIndexOf("/"))
       } else {
         dirPath = savingPath !== "" ? savingPath : await onSaveScean(fileName)
+        setSavingPath(dirPath)
       }
       const data = {
         config: { strategy, numRounds, id: dirPath.slice(dirPath.lastIndexOf("/") + 1), index: idx },
@@ -760,42 +1118,94 @@ const NewServerLogsModal = ({ show, onHide, nodes, onSaveScean, setRunServer, co
         clientEvalMetrics: clientEvalMetrics[idx] || [],
         clientProperties: clientProperties[idx] || {},
         connectedClients: connectedClients[idx] || [],
-        serverLogs: serverLogs[idx] || []
+        serverLogs: serverLogs[idx] || [],
+        federatedShapResults: federatedShapResults[idx] || null
       }
       await MedDataObject.writeFileSync({ data, date: Date.now() }, dirPath, fileName, "json")
       await MedDataObject.writeFileSync({ data, date: Date.now() }, dirPath, fileName, "medflrw")
       toast.success("Experimentation results saved successfully")
-    } catch {
+    } catch(err) {
+      console.error(err)
       toast.error("Something went wrong ")
     }
   }
 
   const handleGenerate = async () => {
+    const conf = experimentConfig[currentExecConfig]
+    const isXgb = conf?.flModelNode?.modelType === "xgboost"
+    const numClients = conf?.flrwNetworkNode?.clients?.length || 1
+    const port = Number("808" + String(currentExecConfig))
+
     let noteBook = buildNotebookText({
-      model_type: "nn",
+      model_type: isXgb ? "xgb" : "nn",
       server_address: "100.65.215.27:8080",
       data_path: "../data/client1.csv"
     })
 
-    let servernoteBook = buildServerNotebookText({
-      host: "0.0.0.0",
-      port: 8080,
-      num_rounds: experimentConfig[currentExecConfig]?.flRunServerNode.numRounds || 10,
-      strategy: {
-        name: experimentConfig[currentExecConfig]?.flRunServerNode.strategy || "FedAvg",
-        fraction_fit: experimentConfig[currentExecConfig]?.flRunServerNode.fractionFit || 1,
-        min_fit_clients: experimentConfig[currentExecConfig]?.flRunServerNode.minFitClients || 1,
-        min_evaluate_clients: experimentConfig[currentExecConfig]?.flRunServerNode.minEvaluateClients || 1,
-        min_available_clients: experimentConfig[currentExecConfig]?.flRunServerNode.minAvailableClients || 3,
-        local_epochs: experimentConfig[currentExecConfig]?.flModelNode["Local epochs"] || 1,
-        threshold: experimentConfig[currentExecConfig]?.flModelNode.Threshold || 0.5,
-        learning_rate: experimentConfig[currentExecConfig]?.flModelNode["Learning rate"] || 0.01,
-        optimizer_name: experimentConfig[currentExecConfig]?.flModelNode.optimizer || "SGD",
-        saveOnRounds: experimentConfig[currentExecConfig]?.flRunServerNode.saveOnRounds || 11,
-        savingPath: "/.",
-        total_rounds: experimentConfig[currentExecConfig]?.flRunServerNode.numRounds || 10
-      }
-    })
+    const commonStrategyFields = {
+      features: conf?.mlStrategyNode?.selectedColumns?.join(",") || "",
+      target: "label",
+      val_fraction: conf?.mlStrategyNode?.validationFraction ?? 0.1,
+      test_fraction: conf?.mlStrategyNode?.testFraction ?? 0.1,
+      split_mode: conf?.mlStrategyNode?.splitMode || "global",
+      id_col: "id",
+      client_fractions: conf?.mlStrategyNode?.perClientConfig || {}
+    }
+
+    let servernoteBook
+    if (isXgb) {
+      servernoteBook = buildXgbServerNotebookText({
+        host: "0.0.0.0",
+        port,
+        num_rounds: conf?.flRunServerNode.numRounds || 10,
+        shap: conf?.flShapNode || null,
+        strategy: {
+          mode: conf?.flModelNode.xgb_mode || "bagging",
+          task: conf?.flModelNode.xgb_task || "binary",
+          local_num_boost_round: conf?.flModelNode.xgb_local_num_boost_round || 10,
+          xgb_objective: conf?.flModelNode.xgb_objective || "binary:logistic",
+          xgb_eval_metric: conf?.flModelNode.xgb_eval_metric || "auc",
+          xgb_tree_method: conf?.flModelNode.xgb_tree_method || "hist",
+          xgb_max_depth: conf?.flModelNode.xgb_max_depth || 6,
+          xgb_eta: conf?.flModelNode.xgb_eta || 0.1,
+          xgb_subsample: conf?.flModelNode.xgb_subsample || 1.0,
+          xgb_colsample_bytree: conf?.flModelNode.xgb_colsample_bytree || 1.0,
+          fraction_fit: conf?.flRunServerNode.fractionFit || 1,
+          fraction_evaluate: conf?.flRunServerNode.fractionEvaluate || 1,
+          min_fit_clients: numClients,
+          min_evaluate_clients: numClients,
+          min_available_clients: numClients,
+          threshold: conf?.flModelNode.Threshold || 0.5,
+          saveOnRounds: conf?.flRunServerNode.saveOnRounds || 1,
+          total_rounds: conf?.flRunServerNode.numRounds || 10,
+          ...commonStrategyFields
+        }
+      })
+    } else {
+      servernoteBook = buildServerNotebookText({
+        host: "0.0.0.0",
+        port,
+        num_rounds: conf?.flRunServerNode.numRounds || 10,
+        use_transfer_learning: conf?.flModelNode.activateTl == "true",
+        pretrained_model_path: conf?.flModelNode.file?.path || "",
+        shap: conf?.flShapNode || null,
+        strategy: {
+          name: conf?.flRunServerNode.strategy || "FedAvg",
+          fraction_fit: conf?.flRunServerNode.fractionFit || 1,
+          min_fit_clients: numClients,
+          min_evaluate_clients: numClients,
+          min_available_clients: numClients,
+          local_epochs: conf?.flModelNode["Local epochs"] || 1,
+          threshold: conf?.flModelNode.Threshold || 0.5,
+          learning_rate: Number(conf?.flModelNode["learning rate"]) > 0 ? Number(conf?.flModelNode["learning rate"]) : 0.01,
+          optimizer_name: conf?.flModelNode.optimizer || "SGD",
+          saveOnRounds: conf?.flRunServerNode.saveOnRounds || 11,
+          savingPath: "/.",
+          total_rounds: conf?.flRunServerNode.numRounds || 10,
+          ...commonStrategyFields
+        }
+      })
+    }
 
     console.log(noteBook)
 
@@ -948,27 +1358,32 @@ const NewServerLogsModal = ({ show, onHide, nodes, onSaveScean, setRunServer, co
                         <Nav variant="pills" className="flex-column" style={{ maxWidth: "50px" }}>
                           <Nav.Item>
                             <Nav.Link eventKey="first">
-                              <FaServer />
+                              <FaServer className="" size="22" />
                             </Nav.Link>
                           </Nav.Item>
                           <Nav.Item>
                             <Nav.Link eventKey="second">
-                              <FaLaptop />
+                              <FaLaptop className="" size="22" />
+                            </Nav.Link>
+                          </Nav.Item>
+                          <Nav.Item>
+                            <Nav.Link eventKey="shap" className="">
+                              <LuChartBarStacked className="" size="22" />
                             </Nav.Link>
                           </Nav.Item>
                           <Nav.Item>
                             <Nav.Link eventKey="third">
-                              <FaNetworkWired />
+                              <FaNetworkWired className="" size="22" />
                             </Nav.Link>
                           </Nav.Item>
                           <Nav.Item>
                             <Nav.Link eventKey="fourth">
-                              <FaDatabase />
+                              <FaDatabase className="" size="22" />
                             </Nav.Link>
                           </Nav.Item>
                           <Nav.Item>
                             <Nav.Link eventKey="fifth">
-                              <FaFileAlt />
+                              <FaFileAlt className="" size="22" />
                             </Nav.Link>
                           </Nav.Item>
                         </Nav>
@@ -977,6 +1392,7 @@ const NewServerLogsModal = ({ show, onHide, nodes, onSaveScean, setRunServer, co
                       <Col sm={11}>
                         <Tab.Content>
                           <Tab.Pane eventKey="first">
+                            <div className="fw-bold mb-3 h2">Server metrics</div>
                             <Tabs defaultActiveKey="Training" className="mb-3">
                               <Tab eventKey="Training" title="Training">
                                 {displayView === "chart" ? (
@@ -994,9 +1410,11 @@ const NewServerLogsModal = ({ show, onHide, nodes, onSaveScean, setRunServer, co
                                 )}
                               </Tab>
                             </Tabs>
+                            <XGBoostFeatureImportance featureImportance={featureImportanceResults[cfgIdx] || null} />
                           </Tab.Pane>
 
                           <Tab.Pane eventKey="second">
+                            <div className="fw-bold mb-3 h2">Client metrics</div>
                             <Tabs defaultActiveKey="Training" id={`clients-tab-${cfgIdx}`} className="mb-3">
                               <Tab eventKey="Training" title="Training">
                                 <ClientEvalLineChart clientEvalMetrics={clientTrainMetrics[cfgIdx] || []} />
@@ -1006,8 +1424,14 @@ const NewServerLogsModal = ({ show, onHide, nodes, onSaveScean, setRunServer, co
                               </Tab>
                             </Tabs>
                           </Tab.Pane>
+                          <Tab.Pane eventKey="shap">
+                            <div>
+                              <FederatedShapResults results={federatedShapResults[cfgIdx] || []}  scrollable={false}/>
+                            </div>
+                          </Tab.Pane>
 
                           <Tab.Pane eventKey="third">
+                            <div className="fw-bold mb-3 h2">Communication flow</div>
                             <CommunicationFlow
                               connectedClients={connectedClients[cfgIdx] || []}
                               isAggregating={!!isAggregating[cfgIdx]}
@@ -1018,10 +1442,12 @@ const NewServerLogsModal = ({ show, onHide, nodes, onSaveScean, setRunServer, co
                           </Tab.Pane>
 
                           <Tab.Pane eventKey="fourth">
+                            <div className="fw-bold mb-3 h2">client properties</div>
                             <ClientDetails clientProperties={clientProperties[cfgIdx] || {}} />
                           </Tab.Pane>
 
                           <Tab.Pane eventKey="fifth">
+                            <div className="fw-bold mb-3 h2">Client logs </div>
                             <ClientLogs clients={(wsAgents || []).map((agent) => ({ id: agent }))} pageId={pageId} port={port} />
                           </Tab.Pane>
                         </Tab.Content>
@@ -1075,27 +1501,26 @@ const NewServerLogsModal = ({ show, onHide, nodes, onSaveScean, setRunServer, co
               </button>
             </div>
           ) : (
-            <button
-              className="btn btn-success w-25"
-              onClick={() => {
-                if (experimentConfig?.length > 0) {
-                  // Check if any configuration has no selected agents
-                  // const emptyConfigIndex = experimentConfig.findIndex((_, idx) => !selectedAgents[idx] || Object.keys(selectedAgents[idx]).length === 0)
-                  // console.log("Empty config index:", emptyConfigIndex)
-                  // if (emptyConfigIndex !== -1) {
-                  //   toast.error(`Please select at least one agent for configuration ${emptyConfigIndex + 1}`)
-                  //   return
-                  // } else {
-                  //   setStartRunningConfig(true)
-                  // }
-                  setStartRunningConfig(true)
-                }
-              }}
-              disabled={waitingForServer.includes(true)}
-            >
-              <span className="me-2"> {waitingForServer.includes(true) ? "waiting for server" : "Run Server"} </span>
-              {waitingForServer.includes(true) ? <FaSpinner /> : <FaPlay />}
-            </button>
+            <div className="d-flex gap-3 w-full justify-content-end">
+              {waitingForServer.includes(true) && (
+                <button className="btn btn-secondary text-nowrap" onClick={stopServer}>
+                  <span className="me-2">Stop Server</span>
+                  <FaPause />
+                </button>
+              )}
+              <button
+                className="btn btn-success "
+                onClick={() => {
+                  if (experimentConfig?.length > 0) {
+                    setStartRunningConfig(true)
+                  }
+                }}
+                disabled={waitingForServer.includes(true)}
+              >
+                <span className="me-2"> {waitingForServer.includes(true) ? "waiting for server" : "Run Server"} </span>
+                {waitingForServer.includes(true) ? <FaSpinner /> : <FaPlay />}
+              </button>
+            </div>
           )}
         </Modal.Footer>
       </Modal>

@@ -1,3 +1,4 @@
+/* eslint-disable no-unused-vars */
 import { createContext, useState, useContext } from "react"
 import { FlowInfosContext } from "./flowInfosContext"
 import { MEDDataObject } from "../../workspace/NewMedDataObject"
@@ -41,52 +42,64 @@ function FlowResultsProvider({ children }) {
   }
 
   // This function is used to update the flowResults
-  const updateFlowResults = async (newResults, sceneFolderId, finalizing = false, finalizedNode = null) => {
-    if (!newResults) return
+  const updateFlowResults = async (newResults, finalizing = false) => {
+    if (!newResults || Object.keys(newResults).length === 0) return
     const isValidFormat = (results) => {
       let firstKey = Object.keys(results)[0]
       return results[firstKey].results ? true : false
     }
     if (isValidFormat(newResults)) {
-      if (finalizing) {
-        // If we are finalizing the results, we only update the results of the finalized node
-        if (finalizedNode) {
-          newResults = updateKeyInObject(flowResults, finalizedNode, newResults)
-          setFlowResults((prevResults) => updateKeyInObject(prevResults, finalizedNode, newResults))
-        }
-      } else {
+      if (!finalizing) {
         setFlowResults({ ...newResults })
       }
       setIsResults(true)
-      if (workspace.hasBeenSet && sceneName) {
-        let resultsFolder = new MEDDataObject({
-          id: randomUUID(),
-          name: sceneName + ".medmlres",
-          type: "medmlres",
-          parentID: sceneFolderId,
-          childrenIDs: [],
-          inWorkspace: false
-        })
-        let resultsFolderID = await insertMEDDataObjectIfNotExists(resultsFolder)
-        let resultsObject = new MEDDataObject({
-          id: randomUUID(),
-          name: "results.json",
-          type: "json",
-          parentID: resultsFolderID,
-          childrenIDs: [],
-          inWorkspace: false
-        })
-        let resultsObjectID = await insertMEDDataObjectIfNotExists(resultsObject, null, [newResults])
-        // If MEDDataObject already existed we need to overwrite its content
-        if (resultsObjectID != resultsObject.id) {
-          await overwriteMEDDataObjectContent(resultsObjectID, [newResults])
-        }
-        toast.success("Results generated and saved !")
-        MEDDataObject.updateWorkspaceDataObject()
-      }
     } else {
       toast.error("The results are not in the correct format")
     }
+  }
+
+  // This function is used to save the flowResults to the mongo database
+  const saveFlowResults = async (sceneFolderId, newResults) => {
+    if (!newResults) return false
+    if (workspace.hasBeenSet && sceneName) {
+      if (Object.keys(newResults).length === 0) {
+        toast.error("There are no results to save")
+        return false
+      }
+      const isValidFormat = (results) => {
+        let firstKey = Object.keys(results)[0]
+        return results[firstKey].results ? true : false
+      }
+      if (!isValidFormat(newResults)) {
+        toast.error("The results are not in the correct format")
+        return false
+      }
+      let resultsFolder = new MEDDataObject({
+        id: randomUUID(),
+        name: sceneName + ".medmlres",
+        type: "medmlres",
+        parentID: sceneFolderId,
+        childrenIDs: [],
+        inWorkspace: false
+      })
+      let resultsFolderID = await insertMEDDataObjectIfNotExists(resultsFolder)
+      let resultsObject = new MEDDataObject({
+        id: randomUUID(),
+        name: "results.json",
+        type: "json",
+        parentID: resultsFolderID,
+        childrenIDs: [],
+        inWorkspace: false
+      })
+      let resultsObjectID = await insertMEDDataObjectIfNotExists(resultsObject, null, [newResults])
+      // If MEDDataObject already existed we need to overwrite its content
+      if (resultsObjectID != resultsObject.id) {
+        await overwriteMEDDataObjectContent(resultsObjectID, [newResults])
+      }
+      MEDDataObject.updateWorkspaceDataObject()
+      return true
+    }
+    return false
   }
 
   return (
@@ -96,6 +109,7 @@ function FlowResultsProvider({ children }) {
       value={{
         flowResults,
         updateFlowResults,
+        saveFlowResults,
         showResultsPane,
         setShowResultsPane,
         pipelineNames,

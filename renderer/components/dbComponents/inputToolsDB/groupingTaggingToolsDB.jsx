@@ -208,6 +208,7 @@ const GroupingTaggingToolsDB = () => {
         if (jsonResponse.error) {
           toast.error("Error detected while creating tags.")
           console.log("error while creating tags", jsonResponse.error)
+          setLoading(false)
           return
         }
         toast.success("Tags created successfully.")
@@ -220,6 +221,23 @@ const GroupingTaggingToolsDB = () => {
       }
     )
   }
+
+  const selectColumnsByString = (pastedString) => {
+    const namesToSelect = pastedString.split(',').map(s => s.trim().toLowerCase())
+    let newSelection = { ...selectedColumnsToTag }
+
+    const traverse = (nodes) => {
+        nodes.forEach(node => {
+            if (namesToSelect.includes(node.label.toLowerCase())) {
+                newSelection[node.key] = { checked: true, partialChecked: false }
+            }
+            if (node.children) traverse(node.children)
+        })
+    }
+
+    traverse(treeSelectData)
+    setSelectedColumnsToTag(newSelection)
+}
 
   // Handle the selection of a tag
   const handleTagSelection = (selectedTag) => {
@@ -271,6 +289,7 @@ const GroupingTaggingToolsDB = () => {
                   <PlusSquare size={15} />
                 </Button>
               </div>
+              <i>Hit enter to add a tag</i>
               <div style={{ display: "flex", alignItems: "flex-start" }}>
                 <Chips
                   className="w-full md:w-14rem margintop8px small-token token-bg-transparent"
@@ -324,42 +343,68 @@ const GroupingTaggingToolsDB = () => {
           </div>
         </div>
       </div>
-      <div style={{ display: "flex", justifyContent: "center", alignItems: "center" }}>
-        <div style={{ display: "flex", flexDirection: "column", marginRight: "20px" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "465px" }}>
-            {/* Column Selection Title */}
-            <h6 style={{ margin: "0rem", height: "1.5rem" }}>Select columns to tag</h6>
-            {/* Tag Selection Title */}
-            <h6 style={{ margin: "0rem", height: "1.5rem" }}>Select tags to apply</h6>
+      <div className="card p-fluid" style={{border: "none"}}>
+        {/* The 'formgrid grid' class handles the responsive columns automatically */}
+        <div className="formgrid grid align-items-end" style={{border: "none"}}>
+          
+          {/* Input 1: Paste Text */}
+          <div className="field col-12 md:col-3">
+            <h6 htmlFor="paste-columns" className="font-bold block mb-2">
+              Paste column names
+            </h6>
+            <InputText
+              id="paste-columns"
+              placeholder="Paste comma-separated names..."
+              onPaste={(e) => {
+                const data = e.clipboardData.getData("Text");
+                selectColumnsByString(data);
+              }}
+            />
           </div>
 
-          <div style={{ display: "flex", justifyContent: "center", alignItems: "center", marginTop: "10px" }}>
-            {/* TreeSelect for Columns */}
+          {/* Input 2: TreeSelect */}
+          <div className="field col-12 md:col-3">
+            <h6 htmlFor="select-columns" className="font-bold block mb-2 mt-2">
+              or Select columns
+            </h6>
             <TreeSelect
+              inputId="select-columns"
               value={selectedColumnsToTag}
               options={treeSelectData}
               onChange={(e) => setSelectedColumnsToTag(e.value)}
-              placeholder="Select Collections and Columns"
+              placeholder="Select Collections"
               selectionMode="checkbox"
               display="chip"
               filter
               panelClassName="groupingToolTree"
-              style={{ width: "300px", height: "50px", marginRight: "20px" }}
             />
-            {/* MultiSelect for Tags */}
+          </div>
+
+          {/* Input 3: MultiSelect */}
+          <div className="field col-12 md:col-3">
+            <h6 htmlFor="select-tags" className="font-bold block mb-2 mt-2">
+              Select tags to apply
+            </h6>
             <MultiSelect
+              inputId="select-tags"
               value={selectedTags}
               options={Object.keys(tagsDict).map((key) => ({ label: key, value: key }))}
               onChange={(e) => handleTagSelection(e.value)}
               placeholder="Select Tags"
-              style={{ width: "300px", height: "50px", marginRight: "20px" }}
+              maxSelectedLabels={2} 
             />
-            {/* Apply Button */}
+          </div>
+
+          {/* Input 4: Action Button */}
+          {/* On desktop, this aligns at the bottom. On mobile, it takes full width */}
+          <div className="field col-12 md:col-3">
+              {/* We use a hidden label to keep vertical alignment consistent with other fields */}
+            <h6 className="block mb-2 opacity-0 mobile-hidden">Action</h6>
             <Button
-              icon={"pi pi-check"}
+              label="Apply Tags"
+              icon="pi pi-check"
               onClick={() => applyTagsToColumns(selectedColumnsToTag, selectedTags)}
               className="p-button-success"
-              style={{ width: "100px" }}
               tooltip="Apply tags to selected columns"
               loading={loading}
               tooltipOptions={{ position: "top" }}

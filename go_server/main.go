@@ -14,6 +14,7 @@ import (
 	Learning "go_module/blueprints/learning"
 	MED3pa "go_module/blueprints/med3pa"
 	MEDfl "go_module/blueprints/medfl"
+	Superset "go_module/blueprints/superset"
 	Utils "go_module/src"
 	"log"
 	"net/http"
@@ -36,6 +37,7 @@ func main() {
 	Application.AddHandleFunc()
 	MED3pa.AddHandleFunc()
 	MEDfl.AddHandleFunc()
+	Superset.AddHandleFunc()
 	Utils.CreateHandleFunc("get_server_health", handleGetServerHealth)
 	Utils.CreateHandleFunc("removeId/", handleRemoveId)
 	Utils.CreateHandleFunc("clearAll", handleClearAll)
@@ -49,9 +51,8 @@ func main() {
 
 	if len(os.Args) == 6 {
 		condaEnv = os.Args[5]
-	} 
-	
-	
+	}
+
 	log.Println("Conda env: " + condaEnv)
 	os.Setenv("MED_ENV", condaEnv)
 	os.Setenv("MED_TMP", os.Args[4])
@@ -65,7 +66,6 @@ func main() {
 		log.Println("Error starting server: ", err)
 		return
 	}
-
 
 }
 

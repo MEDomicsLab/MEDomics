@@ -199,61 +199,6 @@ const ResultsPane = ({ runFinalizeAndSave, isExperiment }) => {
     return [paths, fullPaths]
   }
 
-  function findAllPaths(flowContent) {
-    let links = flowContent.edges
-    // Create a graph as an adjacency list
-    const graph = {}
-
-    // Populate the graph based on the links
-    links.forEach((link) => {
-      const { source, target } = link
-
-      if (!graph[source]) {
-        graph[source] = []
-      }
-      graph[source].push(target)
-    })
-
-    function explore(node, path) {
-      if (!graph[node]) {
-        // If there are no outgoing links from this node, add the path to the result
-        let isValid = true
-        path.forEach((id) => {
-          let node = flowContent.nodes.find((node) => node.id == id)
-          // this condition is here because a group node creates another path that is not valid
-          if (node.type == "groupNode") {
-            isValid = false
-          }
-        })
-        isValid =
-          isValid &&
-          flowContent.nodes
-            .find((node) => node.id == path[path.length - 1])
-            .data.setupParam.classes.split(" ")
-            .includes("endNode")
-        isValid && result.push(path)
-        return
-      }
-
-      graph[node].forEach((neighbor) => {
-        // Avoid cycles by checking if the neighbor is not already in the path
-        if (!path.includes(neighbor)) {
-          explore(neighbor, [...path, neighbor])
-        }
-      })
-    }
-
-    const result = []
-
-    Object.keys(graph).forEach((id) => {
-      let sourceNode = flowContent.nodes.find((node) => node.id == id)
-      if (sourceNode.data.setupParam.classes.split(" ").includes("startNode")) {
-        explore(id, [id])
-      }
-    })
-    return result
-  }
-
   const getName = (id) => {
     let node = flowContent.nodes.find((node) => node.id == id)
     if (node && node.name == "Model") {

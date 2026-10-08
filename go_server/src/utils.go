@@ -162,6 +162,15 @@ func StartPythonScripts(jsonParam string, filename string, id string) (string, e
 		log.Println("running script in prod: " + script)
 	}
 	log.Println("Conda env: " + condaEnv)
+
+	// UNCOMMENT TO WRITE JSON PARAM TO FILE FOR DEBUGGING
+	// jsonParamBytes := []byte(jsonParam)
+	// err = os.WriteFile("jsonParam.txt", jsonParamBytes, 0644)
+	// if err != nil {
+	// 	log.Println("Error writing jsonParam to file")
+	// 	return "", err
+	// }
+
 	Scripts[id] = ScriptInfo{
 		Cmd:      exec.Command(condaEnv, "-u", script, "--json-param", jsonParam, "--id", id),
 		Progress: "",
@@ -183,7 +192,7 @@ func StartPythonScripts(jsonParam string, filename string, id string) (string, e
 	err = Scripts[id].Cmd.Start()
 	Mu.Unlock()
 	if err != nil {
-		log.Println("Error starting command " + script)
+		log.Println("Error starting command " + Scripts[id].Cmd.String())
 		return "", err
 	}
 	response := ""
@@ -201,36 +210,55 @@ func StartPythonScripts(jsonParam string, filename string, id string) (string, e
 // It is used to transfer stdout and stderr to the terminal
 func copyOutput(r io.Reader, response *string) {
 	scanner := bufio.NewScanner(r)
-	lineText := ""
+
 	for scanner.Scan() {
-		lineText = scanner.Text()
+		lineText := scanner.Text()
+
 		if strings.Contains(lineText, "response-ready*_*") {
-			path := strings.Split(lineText, "*_*")[1]
-			*response = ReadFile(path)
-			//	delete this file
-			err := os.Remove(path)
-			if err != nil {
-				log.Println(err)
+			parts := strings.Split(lineText, "*_*")
+			if len(parts) >= 2 {
+				path := parts[1]
+				path = strings.Trim(path, "\" \t\n\r")
+
+				*response = ReadFile(path)
+
+				err := os.Remove(path)
+				if err != nil {
+					log.Println(err)
+				}
 			}
 		} else if strings.Contains(lineText, "progress*_*") {
-			id := strings.Split(lineText, "*_*")[1]
-			progress := strings.Split(lineText, "*_*")[2]
-			log.Println("Progress: " + progress)
-			Mu.Lock()
-			Scripts[id] = ScriptInfo{
-				Cmd:      Scripts[id].Cmd,
-				Progress: progress,
+			parts := strings.Split(lineText, "*_*")
+			if len(parts) >= 3 {
+				id := parts[1]
+				progress := strings.Trim(parts[2], "\" \t\n\r")
+
+				log.Println("Progress: " + progress)
+
+				Mu.Lock()
+				if script, ok := Scripts[id]; ok {
+					Scripts[id] = ScriptInfo{
+						Cmd:      script.Cmd,
+						Progress: progress,
+					}
+				}
+				Mu.Unlock()
 			}
-			Mu.Unlock()
 		} else {
+			// This is the missing part
 			log.Println(lineText)
 		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		log.Println("Error reading script output:", err)
 	}
 }
 
 // ReadFile reads a file and returns its content as a string
 func ReadFile(filename string) string {
-	absPath, _ := filepath.Abs(filename)
+	cleanPath := strings.Trim(filename, "\" \t\n\r")
+	absPath, _ := filepath.Abs(cleanPath)
 	log.Println("Reading file: " + absPath)
 	data, err := os.ReadFile(absPath)
 	if err != nil {

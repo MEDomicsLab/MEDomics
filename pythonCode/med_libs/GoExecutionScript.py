@@ -15,9 +15,9 @@ def parse_arguments() -> tuple[dict, str]:
         A tuple of the json params and the id
     """
     parser = argparse.ArgumentParser()
+    parser.add_argument('--debug', type=bool, default=False)
     parser.add_argument('--json-param', type=str, default='.')
     parser.add_argument('--id', type=str, default='.')
-    parser.add_argument('--debug', type=bool, default=False)
     args = parser.parse_args()
     if not args.debug:
         json_params = json.loads(args.json_param)
@@ -142,20 +142,44 @@ class GoExecutionScript(ABC):
         msg = "progress*_*" + self._id + "*_*" + json.dumps(self._progress)
         go_print(msg)
 
+    def _find_non_serializable(self, obj, path="root"):
+        try:
+            json.dumps(obj)
+            return None
+        except TypeError:
+            pass
+
+        if isinstance(obj, dict):
+            for k, v in obj.items():
+                bad = self._find_non_serializable(v, f"{path}.{k}")
+                if bad is not None:
+                    return bad
+        elif isinstance(obj, (list, tuple)):
+            for i, v in enumerate(obj):
+                bad = self._find_non_serializable(v, f"{path}[{i}]")
+                if bad is not None:
+                    return bad
+        else:
+            return path, type(obj).__name__, repr(obj)
+
+        return path, type(obj).__name__, repr(obj)
+
+
     def send_response(self, response: dict):
-        """
-        handle sending the response to the Go server
+        bad = self._find_non_serializable(response)
+        if bad is not None:
+            path, typ, value = bad
+            raise TypeError(f"Non-serializable object at {path}: {typ} -> {value}")
 
-        Args:
-            response: The response to send
-
-        """
         to_send = json.dumps(response)
-        file_path = os.path.expanduser(os.path.join(os.environ.get("MED_TMP", "~"),"temp_requests.txt")) # Before was -> file_path = os.path.join(os.getcwd(), "temp_requests.txt")
-        # Fixing the permission denied error on Mac
+
+        file_path = os.path.expanduser(
+            os.path.join(os.environ.get("MED_TMP", "~"), "temp_requests.txt")
+        )
+
         go_print("FILE PATH: " + file_path)
-        f = open(file_path, "w")
-        f.write(to_send)
-        f.close()
+        with open(file_path, "w") as f:
+            f.write(to_send)
+
         self.set_progress(label="Done", now=100)
         go_print(f"response-ready*_*{file_path}")

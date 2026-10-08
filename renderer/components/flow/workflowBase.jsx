@@ -1,7 +1,7 @@
 /* eslint-disable react/prop-types */
 import { useRef, useCallback, useEffect, useContext, useState } from "react"
 import { toast } from "react-toastify"
-import ReactFlow, { Controls, ControlButton, Background, MiniMap, addEdge, useReactFlow } from "reactflow"
+import ReactFlow, { Controls, ControlButton, Background, MiniMap, addEdge, useReactFlow, reconnectEdge } from "reactflow"
 import { FlowFunctionsContext } from "./context/flowFunctionsContext"
 import { PageInfosContext } from "../mainPages/moduleBasics/pageInfosContext"
 import { FlowInfosContext } from "./context/flowInfosContext"
@@ -12,6 +12,7 @@ import Row from "react-bootstrap/Row"
 import Col from "react-bootstrap/Col"
 import { Button } from "primereact/button"
 import { ErrorRequestContext } from "../generalPurpose/errorRequestContext"
+import { useTheme } from "../theme/themeContext"
 
 /**
  *
@@ -47,14 +48,15 @@ import { ErrorRequestContext } from "../generalPurpose/errorRequestContext"
  * It manages base workflow functions such as node creation, node deletion, node connection, etc.
  */
 const WorkflowBase = ({ isGoodConnection, groupNodeHandlingDefault, onDeleteNode, onNodeDrag, isExperiment, mandatoryProps, ui, uiTopLeft, uiTopRight, uiTopCenter, customOnConnect }) => {
-  const { reactFlowInstance, setReactFlowInstance, addSpecificToNode, nodeTypes, nodes, setNodes, onNodesChange, edges, setEdges, onEdgesChange, runNode } = mandatoryProps
+  const { reactFlowInstance, setReactFlowInstance, addSpecificToNode, duplicateNode, nodeTypes, nodes, setNodes, onNodesChange, edges, setEdges, onEdgesChange, runNode } = mandatoryProps
 
   const edgeUpdateSuccessful = useRef(true)
   const { pageId } = useContext(PageInfosContext) // used to get the page infos
-  const { updateNode, nodeUpdate, updateEdge, edgeUpdate, node2Delete, node2Run, newConnectionCreated, hasNewConnection  , node2Duplicate} = useContext(FlowFunctionsContext) // used to get the function to update the node
+  const { updateNode, nodeUpdate, updateEdge, edgeUpdate, node2Delete, node2Run, node2Duplicate, setNode2Duplicate, newConnectionCreated, hasNewConnection } = useContext(FlowFunctionsContext) // used to get the function to update the node
   const { showAvailableNodes, setShowAvailableNodes, updateFlowContent } = useContext(FlowInfosContext) // used to update the flow infos
   const { showResultsPane, setShowResultsPane, isResults, flowResults } = useContext(FlowResultsContext) // used to update the flow infos
   const { showError, setShowError } = useContext(ErrorRequestContext) // used to get the flow infos
+  const { isDarkMode } = useTheme() // used to get the current theme mode
   const [hasBeenAnError, setHasBeenAnError] = useState(false) // used to get the flow infos
   const [miniMapState, setMiniMapState] = useState(true) // used to get the flow infos
   const [numberOfNodes, setNumberOfNodes] = useState(0) // used to get the flow infos
@@ -135,6 +137,12 @@ const WorkflowBase = ({ isGoodConnection, groupNodeHandlingDefault, onDeleteNode
     runNode(node2Run)
   }, [node2Run])
 
+  // this useEffect is used to duplicate a node when the node2Duplicate object changes
+  useEffect(() => {
+    duplicateNode(node2Duplicate)
+    setNode2Duplicate(null)
+  }, [node2Duplicate])
+
   // this useEffect is used to update the nodes when the flowResults object changes
   useEffect(() => {
     console.log("updating nodes from ", flowResults)
@@ -158,6 +166,7 @@ const WorkflowBase = ({ isGoodConnection, groupNodeHandlingDefault, onDeleteNode
       }
 
       const setHasRunRec = (obj) => {
+        console.log("obj", obj)
         Object.keys(obj).forEach((id) => {
           setHasRun(id)
           obj[id].next_nodes && setHasRunRec(obj[id].next_nodes)
@@ -326,6 +335,7 @@ const WorkflowBase = ({ isGoodConnection, groupNodeHandlingDefault, onDeleteNode
 
       // check if sourceNode's outputs is compatible with targetNode's inputs
       let isValidConnection = false
+      if (!sourceNode.data) return
       sourceNode.data.setupParam.output.map((output) => {
         if (targetNode.data.setupParam.input.includes(output)) {
           isValidConnection = true
@@ -542,8 +552,7 @@ const WorkflowBase = ({ isGoodConnection, groupNodeHandlingDefault, onDeleteNode
     })
     newConnectionCreated() // this is used to update the workflow when a connection is created
     if (!alreadyExists) {
-      console.log("connection changed")
-      setEdges((els) => updateEdge(oldEdge, newConnection, els))
+      setEdges((eds) => reconnectEdge(oldEdge, newConnection, eds))
     } else {
       toast.error("Connection refused: it already exists", {
         position: "bottom-right",
@@ -592,6 +601,7 @@ const WorkflowBase = ({ isGoodConnection, groupNodeHandlingDefault, onDeleteNode
         onEdgeUpdate={onEdgeUpdate}
         onEdgeUpdateStart={onEdgeUpdateStart}
         onEdgeUpdateEnd={onEdgeUpdateEnd}
+        colorMode={isDarkMode ? 'dark' : 'light'}
         fitView
       >
         <Background />

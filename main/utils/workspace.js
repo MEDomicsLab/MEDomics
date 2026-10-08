@@ -204,19 +204,18 @@ export const createMedomicsDirectory = (directoryPath) => {
     fs.mkdirSync(mongoDataDir)
   }
 
-  if (!fs.existsSync(mongoConfigPath)) {
-    // Create mongod.conf
-    const mongoConfig = `
-    systemLog:
-      destination: file
-      path: ${path.join(medomicsDir, "mongod.log")}
-      logAppend: true
-    storage:
-      dbPath: ${mongoDataDir}
-    net:
-      bindIp: localhost
-      port: ${MEDconfig.mongoPort}
-    `
-    fs.writeFileSync(mongoConfigPath, mongoConfig)
-  }
+  // Create mongod.conf
+  const mongoConfig = `
+  systemLog:
+    destination: file
+    path: ${path.join(medomicsDir, "mongod.log")}
+    logAppend: true
+  storage:
+    dbPath: ${mongoDataDir}
+  net:
+    bindIp: localhost
+    port: ${MEDconfig.mongoPort}
+  `
+  fs.writeFileSync(mongoConfigPath, mongoConfig)
+  
 }

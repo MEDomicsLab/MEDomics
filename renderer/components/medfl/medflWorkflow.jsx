@@ -42,6 +42,7 @@ import FlOptimizeNode from "./nodesTypes/flOptimizeNode.jsx"
 import FlStrategyNode from "./nodesTypes/flStrategyNode.jsx"
 import FlPipelineNode from "./nodesTypes/flPipelineNode.jsx"
 import FlResultsNode from "./nodesTypes/flResultsNode.jsx"
+import FlShapNode from "./nodesTypes/flShapNode.jsx"
 import { Button } from "primereact/button"
 import RunPipelineModal from "./runPipelineModal"
 import FlConfigModal from "./flConfigModal"
@@ -137,6 +138,7 @@ const MedflWorkflow = ({ setWorkflowType, workflowType }) => {
       flTrainModelNode: FlTrainModelNode,
       flSaveModelNode: FlSaveModelNode,
       flMergeresultsNode: FlCompareResults,
+      flShapNode: FlShapNode,
       boxNode: boxNode,
       analysisBoxNode: analysisBoxNode
     }),
@@ -230,23 +232,26 @@ const MedflWorkflow = ({ setWorkflowType, workflowType }) => {
         },
         "box-training"
       )
-      let analysisBox = createBoxNode(
+
+      let explainabilityBox = createBoxNode(
         { x: 1500, y: 350 },
         {
-          nodeType: "analysisBoxNode",
-          name: "Analysis",
+          nodeType: "boxNode",
+          name: "Explainability",
           draggable: false,
           selectable: true,
           image: "",
           size: { width: 500, height: 300 },
-          borderColor: "rgba(150, 201, 230, 0.8)",
+          borderColor: "rgba(230, 194, 150, 0.8)",
           selectedBorderColor: "rgb(255, 187, 0)"
         },
-        "box-analysis"
+        "box-explainability"
       )
+
       // const newBoxes = [initBox, trainBox, analysisBox]
-      const newBoxes = [initBox, trainBox]
+      const newBoxes = [initBox, trainBox, explainabilityBox]
       newBoxes.forEach((box) => {
+       
         const exists = nodes.find((node) => node.name == box.name && (node.type == "boxNode" || node.type == "analysisBoxNode"))
         if (exists && exists.type === "analysisBoxNode" && !exists.data.setupParam) {
           // If the analysis box exists but does not have setupParam, we need to update it
@@ -269,6 +274,7 @@ const MedflWorkflow = ({ setWorkflowType, workflowType }) => {
           return
         }
         if (exists) return
+
         newId = `box-node_${uuid.v4()}`
         box = addSpecificToNode(box)
         boxes.push(box)
@@ -1032,7 +1038,7 @@ const MedflWorkflow = ({ setWorkflowType, workflowType }) => {
           // save the results on a file
           if (flConfig[0]?.flSaveModelNode?.fileName) {
             try {
-              let path = Path.join(globalData[UUID_ROOT].path, EXPERIMENTS)
+              let path = Path.join(globalData["ROOT"].path, EXPERIMENTS)
 
               MEDDataObject.createFolderFromPath(path + "/FL")
               MEDDataObject.createFolderFromPath(path + "/FL/Results")
@@ -1076,7 +1082,7 @@ const MedflWorkflow = ({ setWorkflowType, workflowType }) => {
                 }
               })
               try {
-                let path = Path.join(globalData[UUID_ROOT].path, EXPERIMENTS)
+                let path = Path.join(globalData["ROOT"].path, EXPERIMENTS)
 
                 MEDDataObject.createFolderFromPath(path + "/FL")
                 MEDDataObject.createFolderFromPath(path + "/FL/Results")

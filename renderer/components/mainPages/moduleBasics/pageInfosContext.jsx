@@ -12,6 +12,7 @@ const PageInfosContext = createContext()
 function PageInfosProvider({ children }) {
   const [config, setConfig] = useState(null)
   const [pageId, setPageId] = useState("")
+  const [configPath, setConfigPath] = useState("")
 
   return (
     // in the value attribute we pass the pageInfos and the function to update it.
@@ -21,7 +22,9 @@ function PageInfosProvider({ children }) {
         config,
         setConfig,
         pageId,
-        setPageId
+        setPageId,
+        configPath,
+        setConfigPath
       }}
     >
       {children}

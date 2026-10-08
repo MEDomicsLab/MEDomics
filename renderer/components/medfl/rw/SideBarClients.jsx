@@ -279,7 +279,7 @@ export default function SideBarClients({
       ) : sorted.length === 0 ? (
         <div style={{ padding: 16, fontSize: 14, color: "#6b7280" }}>No devices found.</div>
       ) : (
-        <ul style={{ listStyle: "none", margin: 0, padding: 0, maxHeight: 200, overflowY: "auto" }}>
+        <ul style={{ listStyle: "none", margin: 0, padding: 0, maxHeight: 130, overflowY: "auto" }}>
           {sorted.map((d) => {
             const status = getStatus(d)
             const isServer = (d.tags || []).includes(serverTag)

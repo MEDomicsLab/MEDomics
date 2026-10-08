@@ -4,6 +4,13 @@ import { Column } from 'primereact/column'
 
 const renderDataTableFromStringifiedDF = (jsonString) => {
   try {
+    if (!jsonString) {
+      return (
+        <div className="p-message p-message-error m-2 p-4">
+          No data available to display.
+        </div>
+      )
+    }
     // Parse the JSON string
     const jsonData = JSON.parse(jsonString)
     

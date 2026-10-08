@@ -1,7 +1,8 @@
-import { app, ipcMain, Menu, dialog, BrowserWindow, protocol, shell } from "electron"
+import { app, ipcMain, Menu, dialog, BrowserWindow, protocol, shell, nativeTheme } from "electron"
 import axios from "axios"
+import os from "os"
 import serve from "electron-serve"
-import { createWindow } from "./helpers"
+import { createWindow, TerminalManager } from "./helpers"
 import { installExtension, REACT_DEVELOPER_TOOLS } from "electron-extension-installer"
 import MEDconfig from "../medomics.dev"
 import { runServer, findAvailablePort } from "./utils/server"
@@ -15,7 +16,9 @@ import {
   installRequiredPythonPackages
 } from "./utils/pythonEnv"
 import { installMongoDB, checkRequirements } from "./utils/installation"
+
 const fs = require("fs")
+const terminalManager = new TerminalManager()
 var path = require("path")
 let mongoProcess = null
 const dirTree = require("directory-tree")
@@ -44,7 +47,7 @@ autoUpdater.autoInstallOnAppQuit = true
 // on Linux: ~/.config/{app name}/logs/main.log
 // on macOS: ~/Library/Logs/{app name}/main.log
 // on Windows: %USERPROFILE%\AppData\Roaming\{app name}\logs\main.log
-const APP_NAME = isProd ? "medomicslab-application" : "medomicslab-application (development)"
+const APP_NAME = isProd ? "medomics-platform" : "medomics-platform (development)"
 
 const originalConsoleLog = console.log
 /**
@@ -84,7 +87,6 @@ function sendStatusToWindow(text) {
 }
 
 autoUpdater.on("checking-for-update", () => {
-  console.log("DEBUG: checking for update")
   sendStatusToWindow("Checking for update...")
 })
 
@@ -97,7 +99,7 @@ autoUpdater.on("update-available", (info) => {
     buttons: ["Download", "Later"],
     title: "Application Update",
     message: "A new version is available",
-    detail: `MEDomicsLab ${info.version} is available. You have ${app.getVersion()}. Would you like to download it now?`
+    detail: `MEDomics ${info.version} is available. You have ${app.getVersion()}. Would you like to download it now?`
   }
 
   dialog.showMessageBox(mainWindow, dialogOpts).then((returnValue) => {
@@ -136,19 +138,19 @@ autoUpdater.on("update-downloaded", (info) => {
     buttons: ["Restart", "Later"],
     title: "Application Update",
     message: "Update Downloaded",
-    detail: `MEDomicsLab ${info.version} has been downloaded. Restart the application to apply the updates.`
+    detail: `MEDomics ${info.version} has been downloaded. Restart the application to apply the updates.`
   }
 
   // For Linux, provide additional instructions
   if (process.platform === "linux") {
-    downloadPath = path.join(process.env.HOME, ".cache", "medomicslab-application-updater", "pending")
+    downloadPath = path.join(process.env.HOME, ".cache", "medomics-platform-updater", "pending")
     debFilePath = info.files[0].url.split("/").pop()
     dialogOpts = {
       type: "info",
       buttons: ["Copy Command & Quit", "Copy Command", "Later"],
       title: "Application Update",
       message: "Update Downloaded",
-      detail: `MEDomicsLab ${info.version} has been downloaded. On Linux, you may need to run the installer with sudo:\n\nsudo dpkg -i ${path.join(downloadPath, debFilePath)} \n\nClick 'Copy Command & Restart' to copy this command to your clipboard and restart the application, or 'Copy Command' to just copy it.`
+      detail: `MEDomics ${info.version} has been downloaded. On Linux, you may need to run the installer with sudo:\n\nsudo dpkg -i ${path.join(downloadPath, debFilePath)} \n\nClick 'Copy Command & Restart' to copy this command to your clipboard and restart the application, or 'Copy Command' to just copy it.`
     }
   }
 
@@ -277,7 +279,7 @@ if (isProd) {
         {
           label: "Documentation",
           click() {
-            openWindowFromURL("https://medomics-udes.gitbook.io/medomicslab-docs")
+            openWindowFromURL("https://medomics-udes.gitbook.io/medomics-docs")
           }
         },
         { type: "separator" },
@@ -297,18 +299,16 @@ if (isProd) {
   console.log("process.resourcesPath: ", process.resourcesPath)
   console.log(MEDconfig.runServerAutomatically ? "Server will start automatically here (in background of the application)" : "Server must be started manually")
   let bundledPythonPath = getBundledPythonEnvironment()
-  if (MEDconfig.runServerAutomatically && bundledPythonPath !== null) {
-    // Find the bundled python environment
-    if (bundledPythonPath !== null) {
-      runServer(isProd, serverPort, serverProcess, serverState, bundledPythonPath)
-        .then((process) => {
-          serverProcess = process
-          console.log("Server process started: ", serverProcess)
-        })
-        .catch((err) => {
-          console.error("Failed to start server: ", err)
-        })
-    }
+  if (MEDconfig.runServerAutomatically) {
+    // Start the Go server – Python path is optional (passed if available)
+    runServer(isProd, serverPort, serverProcess, serverState, bundledPythonPath)
+      .then((process) => {
+        serverProcess = process
+        console.log("Server process started: ", serverProcess)
+      })
+      .catch((err) => {
+        console.error("Failed to start server: ", err)
+      })
   } else {
     //**** NO SERVER ****//
     findAvailablePort(MEDconfig.defaultPort)
@@ -824,19 +824,56 @@ ipcMain.handle("checkMongoIsRunning", async (event) => {
   return isRunning
 })
 
-app.on("window-all-closed", () => {
-  console.log("app quit")
-  stopMongoDB(mongoProcess)
+let isQuitting = false
+
+app.on("before-quit", async (event) => {
+  if (isQuitting) return // Already handling quit
+  
+  event.preventDefault()
+  isQuitting = true
+  
+  console.log("App quitting — cleaning up terminals and services...")
+  
+  try {
+    // Wait for all PTY processes to exit gracefully (up to 3 seconds)
+    // This prevents the node-pty SIGABRT crash caused by thread::join()
+    // blocking during teardown when child processes haven't exited yet
+    await terminalManager.cleanupAsync(3000)
+  } catch (error) {
+    console.error("Error during terminal cleanup:", error)
+    // Fallback: force-kill synchronously
+    terminalManager.cleanup()
+  }
+  
+  // Stop MongoDB
+  try {
+    await stopMongoDB(mongoProcess)
+  } catch (error) {
+    console.warn("Error stopping MongoDB:", error)
+  }
+  
+  // Stop the server
   if (MEDconfig.runServerAutomatically) {
     try {
-      // Check if the serverProcess has the kill method
       serverProcess.kill()
       console.log("serverProcess killed")
     } catch (error) {
       console.log("serverProcess already killed")
     }
   }
+  
+  console.log("Cleanup complete, quitting app")
   app.quit()
+})
+
+app.on("window-all-closed", () => {
+  // On macOS, apps typically stay open until Cmd+Q.
+  // On other platforms, close all windows to quit.
+  if (process.platform !== "darwin") {
+    app.quit()
+  } else {
+    app.quit()
+  }
 })
 
 app.on("ready", async () => {
@@ -848,6 +885,104 @@ app.on("ready", async () => {
     })
   }
   autoUpdater.checkForUpdatesAndNotify()
+})
+
+// Handle theme toggle
+ipcMain.handle("toggle-theme", (event, theme) => {
+  if (theme === "dark") {
+    nativeTheme.themeSource = "dark"
+  } else if (theme === "light") {
+    nativeTheme.themeSource = "light"
+  } else {
+    nativeTheme.themeSource = "system"
+  }
+  return nativeTheme.shouldUseDarkColors
+})
+
+ipcMain.handle("get-theme", () => {
+  return nativeTheme.themeSource // Return the themeSource instead of shouldUseDarkColors
+})
+
+// Forward nativeTheme updated event to renderer
+nativeTheme.on("updated", () => {
+  if (mainWindow && mainWindow.webContents) {
+    mainWindow.webContents.send("theme-updated")
+  }
+})
+
+// Terminal IPC Handlers
+ipcMain.handle("terminal-create", async (event, options) => {
+  try {
+    // Ensure cwd is a string, not an object
+    let cwd = options.cwd
+    if (typeof cwd === "object" && cwd !== null) {
+      // If cwd is an object, try to extract a path property or use a default
+      cwd = cwd.path || cwd.workingDirectory || os.homedir()
+    } else if (!cwd || typeof cwd !== "string") {
+      // If cwd is null, undefined, or not a string, use home directory
+      cwd = os.homedir()
+    }
+
+    const terminalInfo = terminalManager.createTerminal(options.terminalId, {
+      cwd: cwd,
+      cols: options.cols,
+      rows: options.rows,
+      useIPython: options.useIPython || false,
+      shellPath: options.shellPath || null
+    })
+
+    // Set up event handlers for this terminal
+    terminalManager.setupTerminalEventHandlers(options.terminalId, mainWindow)
+
+    return terminalInfo
+  } catch (error) {
+    console.error("Failed to create terminal:", error)
+    throw error
+  }
+})
+
+// Clone an existing terminal - used for split terminal functionality
+ipcMain.handle("terminal-clone", async (event, sourceTerminalId, newTerminalId, options) => {
+  try {
+    const terminalInfo = terminalManager.cloneTerminal(sourceTerminalId, newTerminalId, {
+      cols: options.cols,
+      rows: options.rows
+    })
+
+    // Set up event handlers for the cloned terminal
+    terminalManager.setupTerminalEventHandlers(newTerminalId, mainWindow)
+
+    return terminalInfo
+  } catch (error) {
+    console.error("Failed to clone terminal:", error)
+    throw error
+  }
+})
+
+ipcMain.on("terminal-input", (event, terminalId, data) => {
+  terminalManager.writeToTerminal(terminalId, data)
+})
+
+ipcMain.on("terminal-resize", (event, terminalId, cols, rows) => {
+  terminalManager.resizeTerminal(terminalId, cols, rows)
+})
+
+ipcMain.handle("terminal-kill", async (event, terminalId) => {
+  terminalManager.killTerminal(terminalId)
+})
+
+ipcMain.handle("terminal-list", async () => {
+  return terminalManager.getAllTerminals()
+})
+
+// Get current working directory of a terminal
+ipcMain.handle("terminal-get-cwd", async (event, terminalId) => {
+  return terminalManager.getCurrentWorkingDirectory(terminalId)
+})
+
+// Get available shell executables on this system
+ipcMain.handle("terminal-get-available-shells", async () => {
+  return terminalManager.getAvailableShells()
 })
 
 /**
@@ -878,7 +1013,13 @@ function startMongoDB(workspacePath) {
     console.log("Starting MongoDB with config: " + mongoConfigPath)
     let mongod = getMongoDBPath()
     if (process.platform !== "darwin") {
-      mongoProcess = spawn(mongod, ["--config", mongoConfigPath])
+      mongoProcess = spawn(mongod, [
+      "--config",
+      mongoConfigPath,
+      "--port",
+      MEDconfig.mongoPort
+    ])
+
     } else {
       if (fs.existsSync(getMongoDBPath())) {
         mongoProcess = spawn(getMongoDBPath(), ["--config", mongoConfigPath])
@@ -988,7 +1129,9 @@ export function getMongoDBPath() {
     // Check if mongod is in the process.env.PATH
     const paths = process.env.PATH.split(path.delimiter)
     for (let i = 0; i < paths.length; i++) {
+      console.log(`Checking for mongod in: index ${i}, path ${paths[i]}`)
       const binPath = path.join(paths[i], "mongod")
+      console.log(`Checking if mongod exists at: ${binPath}`)
       if (fs.existsSync(binPath)) {
         return binPath
       }
@@ -998,10 +1141,18 @@ export function getMongoDBPath() {
     if (fs.existsSync("/usr/bin/mongod")) {
       return "/usr/bin/mongod"
     }
-    console.error("mongod not found in /usr/bin/mongod")
 
-    if (fs.existsSync("/home/" + process.env.USER + "/.medomics/mongodb/bin/mongod")) {
-      return "/home/" + process.env.USER + "/.medomics/mongodb/bin/mongod"
+    // Check the tarball install location used by after-install.sh
+    if (fs.existsSync("/usr/local/bin/mongod")) {
+      return "/usr/local/bin/mongod"
+    }
+
+    if (fs.existsSync("/usr/local/lib/mongodb/bin/mongod")) {
+      return "/usr/local/lib/mongodb/bin/mongod"
+    }
+
+    if (fs.existsSync(process.env.HOME + "/.medomics/mongodb/bin/mongod")) {
+      return process.env.HOME + "/.medomics/mongodb/bin/mongod"
     }
     return null
   } else {

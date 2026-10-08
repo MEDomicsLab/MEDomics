@@ -5,6 +5,7 @@ import sys
 import pymongo
 
 from pathlib import Path
+
 sys.path.append(
     str(Path(os.path.dirname(os.path.abspath(__file__))).parent.parent))
 from med_libs.server_utils import go_print
@@ -29,7 +30,7 @@ class GoExecScriptRunExperiment(GoExecutionScript):
     """
 
     def __init__(self, json_params: dict, _id: str = None, isProgressInThread: bool = False):
-        super().__init__(json_params, _id)
+        super().__init__(json_params, _id, debug=False)
         self.storing_mode = USE_RAM_FOR_EXPERIMENTS_STORING
         # self.storing_mode = USE_SAVE_FOR_EXPERIMENTS_STORING
         self.current_experiment = None
@@ -49,13 +50,12 @@ class GoExecScriptRunExperiment(GoExecutionScript):
         mongo_client = pymongo.MongoClient("mongodb://localhost:54017/")
         database = mongo_client[json_config["DBName"]]
         collection = database[json_config["id"]]
-        finalize = json_config.get("saveAndFinalize", False)
-        model_to_finalize = json_config.get("modelToFinalize", None)
-        model_save_name = json_config.get("modelName", None)
         flow = list(collection.find({}, {'_id': False}))[0]
-        flow['finalize'] = finalize
-        flow['modelToFinalize'] = model_to_finalize
-        flow['modelName'] = model_save_name
+        flow['finalize'] = json_config.get("saveAndFinalize", False)
+        flow['modelToFinalize'] = json_config.get("modelToFinalize", None)
+        flow['modelName'] = json_config.get("modelName", None)
+        flow['workspacePath'] = json_config.get('workspacePath', None)
+        flow['sceneName'] = json_config.get('sceneName', None)
         self.current_experiment = MEDexperimentLearning(flow)
         self.current_experiment.start()
         results_pipeline = self.current_experiment.get_results()

@@ -86,12 +86,24 @@ const nodesParams = {
     type: "flRunServerNode",
     classes: "object",
     nbInput: 1,
-    nbOutput: 0,
+    nbOutput: 1,
     input: ["ml_strategy"],
-    output: ["results"],
+    output: ["fl_strategy"],
     img: "strategy.png",
     title: "FL Strategy",
     section: "train",
+    possibleSettings: {}
+  } , 
+    federated_shap: {
+    type: "flShapNode",
+    classes: "object",
+    nbInput: 1,
+    nbOutput: 0,
+    input: ["fl_strategy"],
+    output: ["federated_shap"],
+    img: "shap.png",
+    title: "Federated SHAP",
+    section: "explainability",
     possibleSettings: {}
   }
 

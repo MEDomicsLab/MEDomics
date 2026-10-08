@@ -90,6 +90,8 @@ function LayoutModelProvider({ children, layoutModel, setLayoutModel }) {
           return openDataTable(action)
         case "openInDataTableFromDBViewer":
           return openDataTableFromDB(action)
+        case "openGenericCodeEditor":
+          return openGenericCodeEditor(action)
         case "openInCodeEditor":
           return openCodeEditor(action)
         case "openInJupyterNotebook":
@@ -117,6 +119,8 @@ function LayoutModelProvider({ children, layoutModel, setLayoutModel }) {
         case "openInFlClientsModule":
           return openInFlClientsModule(action)
 
+        case "openextractionLandingPage":
+          return openGeneric(action, "Extraction Module", "extractionLandingPage")
         /*********** OPEN *****************/
         case "openResultsModule":
           return openResults(action)
@@ -153,6 +157,10 @@ function LayoutModelProvider({ children, layoutModel, setLayoutModel }) {
         case "openMED3paModule":
           return openMED3pa(action)
 
+        case "openSupersetModule":
+          return openSuperset(action)
+        case "openSupersetFrameModule":
+          return openSupersetFrame(action)
         case "openSettings":
           return openGeneric(action, "Settings", "Settings")
         case "openInputToolsDB":
@@ -292,24 +300,38 @@ function LayoutModelProvider({ children, layoutModel, setLayoutModel }) {
    * @params {Object} action - The action passed on by the dispatchLayout function
    */
   function openGeneric(action, type, component = undefined) {
+    console.log("OPEN GENERIC", action)
     if (component == undefined) {
       component = type
     }
 
     let id = type
     let isAlreadyIn = checkIfIDIsInLayoutModel(id, layoutModel)
+    let path = action.payload?.path ?? null
     if (!isAlreadyIn) {
       const newChild = {
         type: "tab",
         name: type,
         id: component,
         component: component,
-        config: { path: null, uuid: id, extension: type }
+        config: { path: path, uuid: id, extension: type }
       }
       let layoutRequestQueueCopy = [...layoutRequestQueue]
       layoutRequestQueueCopy.push({ type: "ADD_TAB", payload: newChild })
       setLayoutRequestQueue(layoutRequestQueueCopy)
     }
+  }
+
+  /**
+   * @summary Function that adds a tab with a code editor to the layout model
+   * @params {Object} action - The action passed on by the dispatchLayout function
+   * @params {String} component - The component to be used in the tab
+   * @params {String} type - The type of the tab
+   * 
+   * @returns {Object} - The new child to be added to the layout model
+   */
+  const openGenericCodeEditor = (action) => {
+    openGeneric(action, "Code Editor", "Code Editor")
   }
 
   /**
@@ -434,6 +456,22 @@ function LayoutModelProvider({ children, layoutModel, setLayoutModel }) {
    */
   const openMED3pa = (action) => {
     openGeneric(action, "MED3pa", "med3paPage")
+  }
+
+  /**
+   * @summary Function that adds a tab of the Superset Module to the layout model
+   * @params {Object} action - The action passed on by the dispatchLayout function
+   */
+  const openSuperset = (action) => {
+    openGeneric(action, "Dashboard Viewer", "supersetPage")
+  }
+
+  /**
+   * @summary Function that adds a tab of the Superset Module to the layout model
+   * @params {Object} action - The action passed on by the dispatchLayout function
+   */
+  const openSupersetFrame = (action) => {
+    openGeneric(action, "Superset", "SupersetFramePage")
   }
 
   /**
@@ -606,7 +644,7 @@ function LayoutModelProvider({ children, layoutModel, setLayoutModel }) {
    * @params {Object} action - The action passed on by the dispatchLayout function, it uses the payload in the action as a JSON object to add a new child to the layout model
    */
   const openInMEDflresults = (action) => {
-    openInDotDotDot(action, "medflResultsPage")
+    openInDotDotDot(action, "medflResultsPage", globalData)
   }
 
   /**
@@ -614,11 +652,11 @@ function LayoutModelProvider({ children, layoutModel, setLayoutModel }) {
    * @params {Object} action - The action passed on by the dispatchLayout function, it uses the payload in the action as a JSON object to add a new child to the layout model
    */
   const openInMEDflOptresults = (action) => {
-    openInDotDotDot(action, "medflOptResultsPage")
+    openInDotDotDot(action, "medflOptResultsPage", globalData)
   }
 
   const openInMEDflRwresults = (action) => {
-    openInDotDotDot(action, "medflRwResultsPage")
+    openInDotDotDot(action, "medflRwResultsPage", globalData)
   }
 
   /**
@@ -626,7 +664,7 @@ function LayoutModelProvider({ children, layoutModel, setLayoutModel }) {
    * @params {Object} action - The action passed on by the dispatchLayout function, it uses the payload in the action as a JSON object to add a new child to the layout model
    */
   const openInFlModule = (action) => {
-    openInDotDotDot(action, "medflPage")
+    openInDotDotDot(action, "medflPage", globalData)
   }
 
   /**
@@ -634,7 +672,7 @@ function LayoutModelProvider({ children, layoutModel, setLayoutModel }) {
    * @params {Object} action - The action passed on by the dispatchLayout function, it uses the payload in the action as a JSON object to add a new child to the layout model
    */
   const openInRwFlModule = (action) => {
-    openInDotDotDot(action, "flRwWorkflowPage")
+    openInDotDotDot(action, "flRwWorkflowPage", globalData)
   }
 
   /**
@@ -642,7 +680,7 @@ function LayoutModelProvider({ children, layoutModel, setLayoutModel }) {
    * @params {Object} action - The action passed on by the dispatchLayout function, it uses the payload in the action as a JSON object to add a new child to the layout model
    */
   const openInFlClientsModule = (action) => {
-    openInDotDotDot(action, "flClientsPage")
+    openInDotDotDot(action, "flClientsPage", globalData)
   }
 
   /**
@@ -696,7 +734,7 @@ function LayoutModelProvider({ children, layoutModel, setLayoutModel }) {
   // The children are wrapped by the LayoutModelContext.Provider and will have access to the layoutModel, the dispatchLayout function and the flexlayoutInterpreter function
   return (
     <LayoutModelContext.Provider
-      value={{ layoutModel, setLayoutModel, dispatchLayout, flexlayoutInterpreter, layoutMainState, setLayoutMainState, layoutRequestQueue, setLayoutRequestQueue, developerMode, setDeveloperMode, isEditorOpen, setIsEditorOpen }}
+      value={{ layoutModel, setLayoutModel, dispatchLayout, flexlayoutInterpreter, layoutMainState, setLayoutMainState, layoutRequestQueue, setLayoutRequestQueue, developerMode, setDeveloperMode, isEditorOpen, setIsEditorOpen, jupyterStatus, setJupyterStatus }}
     >
       {children}
     </LayoutModelContext.Provider>

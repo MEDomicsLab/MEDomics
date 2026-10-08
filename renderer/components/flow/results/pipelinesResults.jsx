@@ -57,6 +57,10 @@ function getNodeResults(flowResults, flowContent, pipeline, targetId) {
 
     // Iterate through the flowResults to find the targetId
     for (const [key, value] of Object.entries(flowResults)) {
+      // Check if key is part of the pipeline
+      if (!pipeline.some(p => key.includes(p))) {
+        continue
+      }
       nodeResults = traverse(value, key)
       if (nodeResults) {
         break // Exit loop when we get a non-empty result
@@ -209,26 +213,7 @@ const PipelineResult = ({ index, pipeline, selectionMode, flowContent, highlight
         setBody(createBody())
       }
     }
-  }, [pipeline, selectedId])
-
-  /**
-   * @description this function checks if the results dictionary contains a specific id and returns the results if it does.
-   * @param {*} obj results dictionary
-   * @param {*} id id to check in the results dictionary
-   * @returns 
-   */
-  const checkIfObjectContainsId = (obj, id) => {
-    let res = false
-    if (!obj) {
-      return res
-    }
-    Object.keys(obj).forEach((key) => {
-      if (key.includes(id)) {
-        res = obj[key]
-      }
-    })
-    return res
-  }
+  }, [selectedId])
 
   /**
    * @returns {JSX.Element} The body of the accordion tab
@@ -356,7 +341,7 @@ const PipelinesResults = ({ pipelines, fullPipelines, selectionMode, flowContent
       const getName = (id, pipeline = null) => {
         let node = flowContent.nodes.find((node) => node.id == id)
         if (pipeline) {
-          let nextNode = pipeline.indexOf(id) + 1 < pipeline.length ? flowContent.nodes.find((node) => node.id == pipeline[pipeline.indexOf(id) + 1]) : null
+          // let nextNode = pipeline.indexOf(id) + 1 < pipeline.length ? flowContent.nodes.find((node) => node.id == pipeline[pipeline.indexOf(id) + 1]) : null
           // if (nextNode && nextNode.data.internal.type == "group_models") {
           //   let prevEdges = flowContent.edges.filter((edge) => edge.target == nextNode.id)
           //   let prevIds = prevEdges.map((edge) => edge.source)
@@ -414,7 +399,7 @@ const PipelinesResults = ({ pipelines, fullPipelines, selectionMode, flowContent
           modelNode = flowContent.nodes.find((node) => node.data.internal.type == "combine_models" && pipeline.includes(node.id))
         } else {
           modelNode = flowContent.nodes.find((node) => node.data.internal.type == "model" && pipeline.includes(node.id))
-          newName = modelNode.data.internal.name !== "Model" ? modelNode.data.internal.name : ''
+          newName = modelNode.data.internal.nameID !== "Model" ? modelNode.data.internal.nameID : ''
         }
         if (!modelNode || !modelNode.id) {
           toast.error("No model node found in the pipeline")
@@ -424,7 +409,6 @@ const PipelinesResults = ({ pipelines, fullPipelines, selectionMode, flowContent
       }
 
       /**
-       *
        * @param {Event} e click event
        * @returns {void}
        *

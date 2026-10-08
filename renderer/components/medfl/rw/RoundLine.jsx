@@ -76,6 +76,7 @@ const RoundLineChart = ({ roundResults, title }) => {
 
   return (
     <div className=" p-3 border rounded bg-white">
+      
       <ReactECharts option={option} style={{ height: 400 }} />
     </div>
   )

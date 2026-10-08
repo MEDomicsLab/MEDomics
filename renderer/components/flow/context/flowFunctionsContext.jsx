@@ -75,14 +75,6 @@ function FlowFunctionsProvider({ children }) {
     setNode2Delete(nodeId)
   }
 
-  /**
-   *
-   * @param {String} nodeId id of the node to duplicate
-   */
-
-  const onDuplicateNode = (nodeId) => {
-    setNode2Duplicate(nodeId)
-  }
 
   /**
    *
@@ -90,6 +82,14 @@ function FlowFunctionsProvider({ children }) {
    */
   const runNode = (nodeId) => {
     setNode2Run(nodeId)
+  }
+
+  /**
+   *
+   * @param {String} nodeId id of the node to duplicate
+   */
+  const onDuplicateNode = (nodeId) => {
+    setNode2Duplicate(nodeId)
   }
 
   const newConnectionCreated = () => {
@@ -110,10 +110,10 @@ function FlowFunctionsProvider({ children }) {
         runNode,
         node2Delete,
         onDeleteNode,
+        onDuplicateNode,
         newConnectionCreated,
         hasNewConnection,
         node2Duplicate,
-        onDuplicateNode,
         setNode2Duplicate
       }}
     >

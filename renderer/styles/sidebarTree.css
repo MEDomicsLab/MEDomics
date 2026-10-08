@@ -2,6 +2,7 @@
   --design-color: #1d3666;
   --development-color: #076464;
   --deployment-color: #0b6648;
+  --settings-color: #6e4b8b;
 
   --rct-search-text-offset: 3rem;
   --rct-color-tree-bg: rgb(53, 53, 53);
@@ -198,6 +199,14 @@
 
 .deployment .medomics-layer-text {
   background-color: var(--deployment-color);
+}
+
+.settings.medomics-layer {
+  border-color: var(--settings-color);
+}
+
+.settings .medomics-layer-text {
+  background-color: var(--settings-color);
 }
 
 .medomics-layer:hover .medomics-layer-text {

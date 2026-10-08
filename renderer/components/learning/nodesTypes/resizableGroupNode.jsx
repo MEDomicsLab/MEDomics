@@ -2,7 +2,7 @@ import { useCallback, useRef, useState } from 'react';
 import { Handle, Position } from 'reactflow';
 import 'reactflow/dist/style.css';
 
-const ResizableGroupNode = ({ data, id, selected }) => {
+const ResizableGroupNode = ({ data }) => {
   const nodeRef = useRef(null);
   const [size, setSize] = useState(data.size || { width: 300, height: 400 });
 
@@ -29,7 +29,7 @@ const ResizableGroupNode = ({ data, id, selected }) => {
 
       {/* Resize handle (bottom-right corner) */}
       <div
-        onMouseDown={(e) => {
+        onMouseDown={() => {
           document.addEventListener('mousemove', onResize);
           document.addEventListener('mouseup', () => {
             document.removeEventListener('mousemove', onResize);

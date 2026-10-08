@@ -629,7 +629,7 @@ const ServerLogosModal = ({ show, onHide, nodes, onSaveScean, setRunServer, conf
         local_epochs: modelConfigs[0]?.data.internal.settings["Local epochs"] || 1,
         threshold: modelConfigs[0]?.data.internal.settings.Threshold || 0.5,
         optimizer: modelConfigs[0]?.data.internal.settings.optimizer || "SGD",
-        learning_rate: modelConfigs[0]?.data.internal.settings["Learning rate"] || 0.01,
+        learning_rate: Number(modelConfigs[0]?.data.internal.settings["learning rate"]) > 0 ? Number(modelConfigs[0]?.data.internal.settings["learning rate"]) : 0.01,
         savingPath: savingPath + "/models",
         saveOnRounds: strategyConfigs[0]?.data.internal.settings.saveOnRounds || 5
       },
@@ -685,6 +685,7 @@ const ServerLogosModal = ({ show, onHide, nodes, onSaveScean, setRunServer, conf
   }, [startRunningConfig, currentExecConfig])
 
   const runServerWithMultipleConfigs = (conf, index) => {
+    console.log("-+++++++++++++++++++++++ => Running server with config index:", index, conf)
     setIsListening(true)
     setWaitingForServer(true)
     console.log("experimentConfig", experimentConfig)
@@ -710,9 +711,10 @@ const ServerLogosModal = ({ show, onHide, nodes, onSaveScean, setRunServer, conf
         local_epochs: conf.flModelNode["Local epochs"] || 1,
         threshold: conf.flModelNode.Threshold || 0.5,
         optimizer: conf.flModelNode.optimizer || "SGD",
-        learning_rate: conf.flModelNode["Learning rate"] || 0.01,
+        learning_rate: Number(conf.flModelNode["learning rate"]) > 0 ? Number(conf.flModelNode["learning rate"]) : 0.01,
         savingPath: savingPath + "/models",
-        saveOnRounds: conf.flRunServerNode.saveOnRounds || 5
+        saveOnRounds: conf.flRunServerNode.saveOnRounds || 5,
+        flShapNode: conf.flShapNode || {}
       },
       (json) => {
         if (json.error) {

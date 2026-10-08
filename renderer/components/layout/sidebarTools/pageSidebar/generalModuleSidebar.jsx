@@ -2,6 +2,7 @@ import React, { useContext } from "react"
 import { Stack, Accordion } from "react-bootstrap"
 import { WorkspaceContext } from "../../../workspace/workspaceContext"
 import SidebarDirectoryTreeControlled from "../directoryTree/sidebarDirectoryTreeControlled"
+import SupersetPanel from "../../../mainPages/superset/supersetPanel"
 
 /**
  * @description - This component is the sidebar for almost all the modules in the application
@@ -33,7 +34,8 @@ const GeneralModuleSidebar = ({children, pageTitle="Undefined"}) => {
         <Accordion defaultActiveKey={["dirTree"]} alwaysOpen>
           <SidebarDirectoryTreeControlled />
         </Accordion>
-
+        
+        {workspace.hasBeenSet == true && (<SupersetPanel />)}
         {/* We render the workspace only if it is set, otherwise it throws an error */}
       </Stack>
     </>

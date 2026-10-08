@@ -1,3 +1,4 @@
+/* eslint-disable */
 import { InputSwitch } from "primereact/inputswitch"
 import { Button, Stack } from "react-bootstrap"
 import * as Icon from "react-bootstrap-icons"
@@ -163,7 +164,7 @@ const CombineModelsNode = ({ id, data }) => {
             })}
           </>
         }
-        nodeLink={"https://medomics-udes.gitbook.io/medomicslab-docs/tutorials/development/learning-module"}
+        nodeLink={"https://medomicslab.gitbook.io/medomics-docs/tutorials/development/learning-module"}
       />
     </>
   )

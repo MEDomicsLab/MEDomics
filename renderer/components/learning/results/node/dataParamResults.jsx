@@ -14,7 +14,7 @@ const DataParamResults = ({ selectedResults, type }) => {
   const generateDataTables = (data) => {
     console.log(data)
     console.log(data.paths[0])
-    if (typeof data.paths[0] !== "string") {
+    if (typeof data.paths[0] !== "string" && data.table && Object.keys(data.table).length > 0) {
       let jsonTable = JSON.parse(data.table)
       console.log(jsonTable)
       return <DataTable

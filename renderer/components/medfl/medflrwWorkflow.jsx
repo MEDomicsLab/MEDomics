@@ -70,6 +70,7 @@ import NewServerLogsModal from "./rw/SeverLogsModal_copy.jsx"
 import RwNetworkNode from "./nodesTypes/flrwNetworkNode.jsx"
 import MedDataObject from "../workspace/medDataObject.js"
 import { overwriteMEDDataObjectContent } from "../mongoDB/mongoDBUtils.js"
+import FlShapNode from "./nodesTypes/flShapNode.jsx"
 
 const staticNodesParams = nodesParams // represents static nodes parameters
 
@@ -162,7 +163,9 @@ const MedflrwWorkflow = ({ setWorkflowType, workflowType, mode = "fl" }) => {
       boxNode: boxNode,
       analysisBoxNode: analysisBoxNode,
       mlStrategyNode: MlStrategyNode,
-      flrwNetworkNode: RwNetworkNode
+      flrwNetworkNode: RwNetworkNode , 
+            flShapNode: FlShapNode,
+      
     }),
     []
   )
@@ -201,18 +204,32 @@ const MedflrwWorkflow = ({ setWorkflowType, workflowType, mode = "fl" }) => {
         "box-networks"
       )
       let trainBox = createBoxNode(
-        { x: 1200, y: 250 },
+        { x: 1200, y: 150 },
         {
           nodeType: "boxNode",
           name: "Training",
           draggable: false,
           selectable: true,
           image: "",
-          size: { width: 500, height: 500 },
+          size: { width: 500, height: 700 },
           borderColor: "rgba(230, 222, 150, 0.8)",
           selectedBorderColor: "rgb(255, 187, 0)"
         },
         "box-training"
+      )
+      let explainabilityBox = createBoxNode(
+        { x: 1800, y: 250 },
+        {
+          nodeType: "boxNode",
+          name: "Explainability",
+          draggable: false,
+          selectable: true,
+          image: "",
+          size: { width: 500, height: 500 },
+          borderColor: "rgba(242, 175, 255, 0.8)",
+          selectedBorderColor: "rgb(234, 0, 255)"
+        },
+        "box-explainability"
       )
       let analysisBox = createBoxNode(
         { x: 1500, y: 350 },
@@ -229,7 +246,7 @@ const MedflrwWorkflow = ({ setWorkflowType, workflowType, mode = "fl" }) => {
         "box-analysis"
       )
       // const newBoxes = [initBox, trainBox, analysisBox]
-      const newBoxes = [initBox, trainBox, netBox]
+      const newBoxes = [initBox, trainBox, netBox, explainabilityBox]
       newBoxes.forEach((box) => {
         const exists = nodes.find((node) => node.name == box.name && (node.type == "boxNode" || node.type == "analysisBoxNode"))
         if (exists && exists.type === "analysisBoxNode" && !exists.data.setupParam) {
@@ -1031,74 +1048,57 @@ const MedflrwWorkflow = ({ setWorkflowType, workflowType, mode = "fl" }) => {
   /**
    * save the workflow as a json file
    */
-// const onSave = useCallback(
-//     async (scean) => {
-//       let dirPath = ""
-//       if (reactFlowInstance) {
-//         console.log("Saving scene", scean)
-//         const flow = deepCopy(reactFlowInstance.toObject())
-//         flow.MLType = MLType
-//         console.log("flow debug", flow)
-//         flow.nodes.forEach((node) => {
-//           node.data.setupParam = null
-//         })
-//         flow.intersections = intersections
-//         if (configPath && configPath != ""  ) {
-//           // 1. grab just “fileName.exe”
-//           const base = configPath.slice(configPath.lastIndexOf("/") + 1)
-//           // 2. drop everything after the last “.”
-//           const nameWithoutExt = base.slice(0, base.lastIndexOf("."))
+  const onSave = useCallback(
+    async (scean) => {
+      let dirPath = ""
+      if (reactFlowInstance) {
+        console.log("Saving scene", scean)
+        const flow = deepCopy(reactFlowInstance.toObject())
+        flow.MLType = MLType
+        console.log("flow debug", flow)
+        flow.nodes.forEach((node) => {
+          node.data.setupParam = null
+        })
+        flow.intersections = intersections
+        if (configPath && configPath != "") {
+          // 1. grab just “fileName.exe”
+          const base = configPath.slice(configPath.lastIndexOf("/") + 1)
+          // 2. drop everything after the last “.”
+          const nameWithoutExt = base.slice(0, base.lastIndexOf("."))
 
-//           dirPath = configPath.substring(0, configPath.lastIndexOf("/"))
+          dirPath = configPath.substring(0, configPath.lastIndexOf("/"))
 
-//           await MedDataObject.writeFileSync(flow, dirPath, nameWithoutExt, "rwfl")
+          await MedDataObject.writeFileSync(flow, dirPath, nameWithoutExt, "rwfl")
 
-//           toast.success("Scene has been saved successfully")
-//         } else {
-//           const now = new Date()
-//           const pad = (n) => String(n).padStart(2, "0")
-//           const timestamp = [now.getFullYear(), pad(now.getMonth() + 1), pad(now.getDate())].join("") + "_" + [pad(now.getHours()), pad(now.getMinutes()), pad(now.getSeconds())].join("")
+          toast.success("Scene has been saved successfully")
+        } else {
+          const now = new Date()
+          const pad = (n) => String(n).padStart(2, "0")
+          const timestamp = [now.getUTCFullYear(), pad(now.getUTCMonth() + 1), pad(now.getUTCDate())].join("") + "_" + [pad(now.getUTCHours()), pad(now.getUTCMinutes()), pad(now.getUTCSeconds())].join("")
 
-//           let configPath = globalData["UUID_ROOT"].path + "/EXPERIMENTS"
+          let configPath = globalData["ROOT"].path + "/EXPERIMENTS"
 
-//           MedDataObject.createFolderFromPath(configPath + "/FL")
-//           MedDataObject.createFolderFromPath(configPath + "/FL/Sceans")
-//           MedDataObject.createFolderFromPath(configPath + "/FL/Sceans/FL_RW_" + timestamp)
-//           MedDataObject.createFolderFromPath(configPath + "/FL/Sceans/FL_RW_" + timestamp + "/models")
-//           MedDataObject.createFolderFromPath(configPath + "/FL/Sceans/FL_RW_" + timestamp + "/notebooks")
+          const folderName = "FL_RW_" + scean + "_" + timestamp
 
-//           dirPath = configPath + "/FL/Sceans/FL_RW_" + timestamp
+          MedDataObject.createFolderFromPath(configPath + "/FL")
+          MedDataObject.createFolderFromPath(configPath + "/FL/Sceans")
+          MedDataObject.createFolderFromPath(configPath + "/FL/Sceans/" + folderName)
+          MedDataObject.createFolderFromPath(configPath + "/FL/Sceans/" + folderName + "/models")
+          MedDataObject.createFolderFromPath(configPath + "/FL/Sceans/" + folderName + "/notebooks")
 
-//           await MedDataObject.writeFileSync(flow, dirPath, scean, "rwfl")
+          dirPath = configPath + "/FL/Sceans/" + folderName
 
-//           toast.success("Scene has been saved successfully")
-//         }
+          await MedDataObject.writeFileSync(flow, dirPath, scean, "rwfl")
 
-//         return dirPath
-//       }
-//     },
+          toast.success("Scene has been saved successfully")
+        }
 
-//     [reactFlowInstance, MLType, intersections]
-//   )
-
-  const onSave = useCallback(async () => {
-    if (reactFlowInstance && metadataFileID) {
-      const flow = deepCopy(reactFlowInstance.toObject())
-      flow.MLType = MLType
-      flow.intersections = intersections
-      flow.isExperiment = true
-      console.log("scene saved", flow)
-      flow.nodes.forEach((node) => {
-        node.data.setupParam = null
-      })
-      let success = await overwriteMEDDataObjectContent(metadataFileID, [flow])
-      if (success) {
-        toast.success("Scene " + 'sceneName' + " has been saved successfully")
-      } else {
-        toast.error("Error while saving scene: " + 'sceneName')
+        return dirPath
       }
-    }
-  }, [reactFlowInstance, MLType, intersections])
+    },
+
+    [reactFlowInstance, MLType, intersections]
+  )
 
   /**
    * Clear the canvas if the user confirms

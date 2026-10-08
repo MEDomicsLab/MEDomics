@@ -14,14 +14,15 @@ import ReactLoading from "react-loading"
  * @description This component is the base for all the flow pages. It contains the sidebar, the workflow and the backdrop.
  *
  */
-const ModulePageWithProvider = ({ children, pageId, shadow = false, additionnalClassName = "", scrollable = true }) => {
+const ModulePageWithProvider = ({ children, pageId, configPath = "", shadow = false, additionnalClassName = "", scrollable = true }) => {
   // here is the use of the context to update the flowInfos
-  const { setPageId } = useContext(PageInfosContext)
+  const { setPageId, setConfigPath } = useContext(PageInfosContext)
   const { loader } = useContext(LoaderContext)
   // this useEffect is used to update the flowInfos when the pageId or the workflowType changes
   useEffect(() => {
     setPageId(pageId)
-  }, [pageId])
+    setConfigPath(configPath)
+  }, [pageId, configPath])
 
   return (
     <>

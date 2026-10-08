@@ -3,7 +3,7 @@ import { ipcRenderer } from "electron"
 import Head from "next/head"
 import { ConfirmDialog } from "primereact/confirmdialog"
 import { ConfirmPopup } from "primereact/confirmpopup"
-import React, { useEffect, useState } from "react"
+import React, { useEffect, useRef, useState } from "react"
 import { ToastContainer } from "react-toastify"
 import { ActionContextProvider } from "../components/layout/actionContext"
 import { LayoutModelProvider } from "../components/layout/layoutContext"
@@ -14,6 +14,8 @@ import { MEDDataObject } from "../components/workspace/NewMedDataObject"
 import { WorkspaceProvider } from "../components/workspace/workspaceContext"
 import { loadMEDDataObjects, updateGlobalData } from "../utilities/appUtils/globalDataUtils"
 import { NotificationContextProvider } from "../components/generalPurpose/notificationContext"
+import { ThemeProvider } from "../components/theme/themeContext"
+import { SupersetRequestProvider } from "../components/mainPages/superset/supersetRequestContext"
 
 import { MEDflContextProvider } from "../components/workspace/medflContext"
 
@@ -27,7 +29,7 @@ import "react-tooltip/dist/react-tooltip.css"
 // --primereact
 import "primeicons/primeicons.css"
 import "primereact/resources/primereact.min.css"
-import "primereact/resources/themes/lara-light-indigo/theme.css"
+// Theme will be loaded dynamically via themeUtils.js
 
 // blueprintjs
 import "@blueprintjs/core/lib/css/blueprint.css"
@@ -58,6 +60,7 @@ import "../styles/learning/sidebar.css"
 import "../styles/output.css"
 import "../styles/sidebarTree.css"
 import "../styles/workspaceSidebar.css"
+import "../styles/theme.css"
 
 /**
  * This is the main app component. It is the root component of the app.
@@ -66,26 +69,7 @@ import "../styles/workspaceSidebar.css"
  * @constructor
  */
 function App() {
-  /* TODO: Add a dark mode toggle button  
-  const [isDarkMode, setIsDarkMode] = useState(false)
-  const [theme, setTheme] = useState("light-mode")
-  const darkMode = useDarkMode(false)
-
-  useEffect(() => {
-    console.log("isDarkMode", isDarkMode)
-    if (isDarkMode) {
-      darkMode.enable
-    } else {
-      darkMode.disable
-    }
-  }, [isDarkMode])
-
-  useEffect(() => {
-    document.documentElement.className = theme
-    // localStorage.setItem("theme", themeName)
-  }, [theme])
-  */
-
+  // Note: Component and pageProps are required by Next.js but not used in this layout-based app
   let initialLayout = {
     // this is the intial layout model for flexlayout model that is passed to the LayoutManager -- See flexlayout-react docs for more info
     global: {
@@ -106,8 +90,8 @@ function App() {
         children: [
           {
             type: "tab",
-            name: "Terminal",
-            component: "terminal"
+            name: "Logging",
+            component: "logging"
           }
         ]
       }
@@ -148,6 +132,10 @@ function App() {
   const [port, setPort] = useState() // The port of the server
 
   const [globalData, setGlobalData] = useState({}) // The global data object
+  const workspaceSync = useRef({ running: false, pending: null }) // Keeps the workspace scans from overlapping
+
+  const [launched, setLaunched] = useState(false) // Superset launched
+  const [supersetPort, setSupersetPort] = useState(8080) // Superset port
 
   /**
    * @ReadMe
@@ -233,14 +221,34 @@ function App() {
 
   // This useEffect hook is called whenever the `workspaceObject` state changes.
   useEffect(() => {
-    async function getGlobalData() {
-      await updateGlobalData(workspaceObject)
-      const newGlobalData = await loadMEDDataObjects()
-      setGlobalData(newGlobalData)
+    // Scans must not overlap: two concurrent scans both insert the same new folder/file in the DB,
+    // creating duplicates whose files never show up in the workspace.
+    // A refresh requested during a scan runs once, after it, with the latest workspace object.
+    const sync = workspaceSync.current
+    async function getGlobalData(workspace) {
+      sync.running = true
+      try {
+        await updateGlobalData(workspace)
+        const newGlobalData = await loadMEDDataObjects()
+        setGlobalData(newGlobalData)
+      } catch (error) {
+        console.error("Failed to update the global data:", error)
+      } finally {
+        sync.running = false
+        if (sync.pending) {
+          const nextWorkspace = sync.pending
+          sync.pending = null
+          getGlobalData(nextWorkspace)
+        }
+      }
     }
     if (workspaceObject.hasBeenSet == true) {
       console.log("workspaceObject changed", workspaceObject)
-      getGlobalData()
+      if (sync.running) {
+        sync.pending = workspaceObject
+      } else {
+        getGlobalData(workspaceObject)
+      }
     }
   }, [workspaceObject])
 
@@ -248,41 +256,50 @@ function App() {
     <>
       <Head>
         <meta name="viewport" content="initial-scale=1.0, width=device-width" />
-        <title>MEDomicsLab</title>
+        <title>MEDomics</title>
         {/* <script src="http://localhost:8097"></script> */}
         {/* Uncomment if you want to use React Dev tools */}
       </Head>
       <div style={{ height: "100%", width: "100%" }}>
-        <HotkeysProvider>
-        <MEDflContextProvider>
-          <ActionContextProvider>
-            <NotificationContextProvider>
-              <DataContextProvider globalData={globalData} setGlobalData={setGlobalData}>
-                <WorkspaceProvider
-                  workspace={workspaceObject}
-                  setWorkspace={setWorkspaceObject}
-                  port={port}
-                  setPort={setPort}
-                  recentWorkspaces={recentWorkspaces}
-                  setRecentWorkspaces={setRecentWorkspaces}
-                >
-                  <ServerConnectionProvider port={port} setPort={setPort}>
-                    <LayoutModelProvider // This is the LayoutContextProvider, which provides the layout model to all the children components of the LayoutManager
-                      layoutModel={layoutModel}
-                      setLayoutModel={setLayoutModel}
+        <ThemeProvider>
+          <HotkeysProvider>
+             <MEDflContextProvider>
+            <ActionContextProvider>
+              <NotificationContextProvider>
+                <DataContextProvider globalData={globalData} setGlobalData={setGlobalData}>
+                  <WorkspaceProvider
+                    workspace={workspaceObject}
+                    setWorkspace={setWorkspaceObject}
+                    port={port}
+                    setPort={setPort}
+                    recentWorkspaces={recentWorkspaces}
+                    setRecentWorkspaces={setRecentWorkspaces}
+                  >
+                    <SupersetRequestProvider
+                      launched={launched}
+                      setLaunched={setLaunched}
+                      supersetPort={supersetPort}
+                      setSupersetPort={setSupersetPort}
                     >
-                      {/* This is the WorkspaceProvider, which provides the workspace model to all the children components of the LayoutManager */}
-                      {/* This is the LayoutContextProvider, which provides the layout model to all the children components of the LayoutManager */}
-                      <LayoutManager layout={initialLayout} />
-                      {/** We pass the initialLayout as a parameter */}
-                    </LayoutModelProvider>
-                  </ServerConnectionProvider>
-                </WorkspaceProvider>
-              </DataContextProvider>
-            </NotificationContextProvider>
-          </ActionContextProvider>
-          </MEDflContextProvider>
-        </HotkeysProvider>
+                    <ServerConnectionProvider port={port} setPort={setPort}>
+                      <LayoutModelProvider // This is the LayoutContextProvider, which provides the layout model to all the children components of the LayoutManager
+                        layoutModel={layoutModel}
+                        setLayoutModel={setLayoutModel}
+                      >
+                        {/* This is the WorkspaceProvider, which provides the workspace model to all the children components of the LayoutManager */}
+                        {/* This is the LayoutContextProvider, which provides the layout model to all the children components of the LayoutManager */}
+                        <LayoutManager layout={initialLayout} />
+                        {/** We pass the initialLayout as a parameter */}
+                      </LayoutModelProvider>
+                    </ServerConnectionProvider>
+                    </SupersetRequestProvider>
+                  </WorkspaceProvider>
+                </DataContextProvider>
+              </NotificationContextProvider>
+            </ActionContextProvider>
+            </MEDflContextProvider>
+          </HotkeysProvider>
+        </ThemeProvider>
         <ConfirmPopup />
         <ConfirmDialog />
         <ToastContainer // This is the ToastContainer, which is used to display toast notifications

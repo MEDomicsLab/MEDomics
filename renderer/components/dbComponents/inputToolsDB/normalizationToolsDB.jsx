@@ -14,7 +14,8 @@ import { ServerConnectionContext } from "../../serverConnection/connectionContex
 import { DataContext } from "../../workspace/dataContext"
 import { MEDDataObject } from "../../workspace/NewMedDataObject"
 import { randomUUID } from "crypto" 
-import { Tooltip } from 'primereact/tooltip';
+import { Tooltip } from 'primereact/tooltip'
+import { InputSwitch } from "primereact/inputswitch";
         
 
 const NormalizeToolsDB = ({ currentCollection }) => {
@@ -26,6 +27,7 @@ const NormalizeToolsDB = ({ currentCollection }) => {
   const [normalizationMethod, setNormalizationMethod] = useState("minmax")
   const [newDatasetName, setNewDatasetName] = useState("")
   const [loading, setLoading] = useState(false)
+  const [keepTags, setKeepTags] = useState(true) // clone tags onto new normalized datasets
 
   const op = useRef(null)
 
@@ -41,6 +43,7 @@ const NormalizeToolsDB = ({ currentCollection }) => {
         try {
           const cols = await getCollectionColumns(currentCollection)
           setColumns(cols)
+          setSelectedColumns([])
         } catch (error) {
           toast.error("Error fetching columns")
         }
@@ -80,7 +83,9 @@ const NormalizeToolsDB = ({ currentCollection }) => {
       columns: selectedColumns,
       method: normalizationMethod,
       newDatasetName: id,
-      overwrite: overwrite
+      overwrite: overwrite,
+      keepTags,                            
+      tagsCollectionName: "column_tags"   
     }
 
     if (!exists || !overwrite) {
@@ -122,9 +127,10 @@ const NormalizeToolsDB = ({ currentCollection }) => {
   return (
     <div>
        <Tooltip
-      target=".experimental-tag"
-      content="This tool is experimental and mostly intended for visual exploration. We recommand using the Learning Module for validated pipelines."
-    />
+        target=".experimental-tag"
+        content="This tool is experimental and mostly intended for visual exploration. We recommand using the Learning Module for validated pipelines."
+        position="left"
+      />
 
     <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "-5px" }}>
       <div
@@ -161,25 +167,27 @@ const NormalizeToolsDB = ({ currentCollection }) => {
           style={{ width: "100%" }}
         />
       </div>
-
-      <div className="mb-3">
+      
+      <div style={{ display: "flex", justifyContent: "center", alignItems: "center" }}>
         <Dropdown
           value={normalizationMethod}
           options={normalizationOptions}
           onChange={(e) => setNormalizationMethod(e.value)}
           placeholder="Select normalization method"
-          style={{ width: "250px" }}
+          style={{ width: "250px", marginRight: "5px" }}
         />
-      </div>
-
-      <div style={{ display: "flex", justifyContent: "center", alignItems: "center" }}>
-        <div className="p-inputgroup w-full md:w-30rem" style={{ margin: "5px", fontSize: "1rem", width: "250px", marginTop: "20px" }}>
-          <InputText value={newDatasetName} onChange={(e) => setNewDatasetName(e.target.value)} placeholder="New normalized dataset name" />
-          <span className="p-inputgroup-addon">.csv</span>
-        </div>
+         <span style={{ display: "flex", alignItems: "center", margin: "10px" }}>
+              <InputSwitch
+                checked={keepTags}
+                onChange={(e) => setKeepTags(e.value)}
+                 tooltip="Clone column tags from the source dataset onto the new normalized collection."
+                tooltipOptions={{ position: "top" }}
+              />
+              <label style={{ marginLeft: 8 }}>Keep tags</label>
+            </span>
         <Button
-          icon="pi pi-plus"
-          style={{ margin: "5px", fontSize: "1rem", padding: "6px 10px", width: "150px", height: "50px", marginTop: "20px" }}
+          icon="pi pi-save"
+          style={{ margin: "5px", fontSize: "1rem" }}
           loading={loading}
           onClick={(e) => op.current.toggle(e)}
           tooltip="Normalize columns and save"
@@ -187,12 +195,12 @@ const NormalizeToolsDB = ({ currentCollection }) => {
         />
       </div>
 
-      <OverlayPanel ref={op} showCloseIcon={true} dismissable={true} style={{ width: "430px", padding: "10px" }} onHide={() => setNewDatasetName("")}>
+      <OverlayPanel ref={op} showCloseIcon={true} dismissable={true} style={{ width: "430px", padding: "10px" }}>
         <h4 style={{ fontSize: "0.8rem", margin: "10px 0" }}>
           Do you want to <b>overwrite</b> the dataset or <b>create a new one</b>?
         </h4>
         <div style={{ display: "flex", justifyContent: "space-between" }}>
-          <Button className="p-button-danger" label="Overwrite" style={{ width : "200px", margin: "5px", fontSize: "0.8rem", padding: "6px 10px" }} onClick={() => handleNormalizeRequest(true)} />
+          <Button className="p-button-danger" loading={loading} label="Overwrite" style={{ width : "200px", margin: "5px", fontSize: "0.8rem", padding: "6px 10px" }} onClick={() => handleNormalizeRequest(true)} />
           <div className="p-inputgroup w-full md:w-30rem" style={{ margin: "5px", fontSize: "0.8rem" }}>
             <InputText value={newDatasetName} onChange={(e) => setNewDatasetName(e.target.value)} placeholder="New collection name"/>
             <span className="p-inputgroup-addon">.csv</span>

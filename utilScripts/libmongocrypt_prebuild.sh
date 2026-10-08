@@ -1,4 +1,16 @@
-git clone --branch node-v6.0.1 https://github.com/mongodb/libmongocrypt.git
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+cd "$ROOT_DIR"
+
+if [ -d "libmongocrypt/.git" ]; then
+	echo "Using existing libmongocrypt repository"
+else
+	git clone --branch node-v6.0.1 https://github.com/mongodb/libmongocrypt.git
+fi
+
 cd libmongocrypt
 
 # Build libmongocrypt node bindings

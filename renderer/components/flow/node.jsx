@@ -11,7 +11,7 @@ import NodeWrapperResults from "./nodeWrapperResults"
 import { OverlayPanel } from "primereact/overlaypanel"
 import { Stack } from "react-bootstrap"
 import { IoClose, IoDuplicateOutline } from "react-icons/io5"
-import { BsPlay, BsThreeDots } from "react-icons/bs"
+import { BsPlay } from "react-icons/bs"
 import { Tooltip } from "primereact/tooltip"
 import { AiOutlineInfoCircle } from "react-icons/ai"
 import { defaultValueFromType } from "../../utilities/learning/inputTypesUtils"
@@ -151,7 +151,7 @@ const NodeObject = ({ id, data, nodeSpecific, nodeBody, defaultSettings, onClick
           key={id}
           id={id}
           pt={{
-            body: { className: `${nodeBody ? "padding-0_2rem-important" : "padding-0-important"}` }
+            body: { className: `${nodeBody ? "padding-0_2rem-important" : "padding-0-important"} ` }
           }}
           onClick={(e) => (data.internal.isLocked ? null : onClickCustom ? onClickCustom(e) : op.current.toggle(e))}
           // if the node has run and the results pane is displayed, the node is displayed normally

@@ -26,15 +26,19 @@ export default function MlStrategyNode({ id, data }) {
 
   const [selectedClient, setSelectedClient] = useState(data.internal.settings.checkedClients ? data.internal.settings.checkedClients[0] : "")
 
+  const [splitMode, setSplitMode] = useState(data.internal?.settings?.splitMode || "global")
+
   // Initialize selected columns with all available columns (first time)
   useEffect(() => {
-    if (!selectedColumns || selectedColumns.length === 0) {
+    if (!selectedColumns || selectedColumns.length === 0 || !selectedColumns[0] || typeof selectedColumns[0] !== "object") {
       setSelectedColumns(data.internal.settings.intersectionColumns || [])
     }
-  }, [data.internal.settings.intersectionColumns])
+
+    console.log("MlStrategyNode useEffect for intersectionColumns", { selectedColumns, intersectionColumns: data.internal.settings.intersectionColumns })
+  }, [data.internal.settings.intersectionColumns ])
 
   useEffect(() => {
-    if (!selectedColumns || selectedColumns.length === 0) {
+    if (!selectedColumns || selectedColumns.length === 0 || !selectedColumns[0] || typeof selectedColumns[0] !== "object") {
       setSelectedClient(data.internal.settings.checkedClients ? data.internal.settings.checkedClients[0] : "")
     }
   }, [data.internal.settings.checkedClients])
@@ -81,6 +85,11 @@ export default function MlStrategyNode({ id, data }) {
       updatedData: data.internal
     })
   }
+
+  useEffect(() => {
+    updateSplitMode(splitMode)
+  }, [splitMode])
+
 
   const checkIds = () => {
     requestBackend(
@@ -159,7 +168,7 @@ export default function MlStrategyNode({ id, data }) {
             />
 
             <span className="d-block my-3">Split mode</span>
-            <Tabs defaultActiveKey="global" id="split-mode-tab" className="mb-3" onSelect={updateSplitMode} activeKey={data.internal.settings.splitMode || "global"}>
+            <Tabs defaultActiveKey="global" id="split-mode-tab" className="mb-3" onSelect={setSplitMode} activeKey={data.internal.settings.splitMode || "global"}>
               <Tab eventKey="global" title="Global">
                 <FlInput name="Test fraction" currentValue={testFraction} onInputChange={handleTestFraction} settingInfos={{ type: "float", tooltip: "" }} setHasWarning={() => {}} />
 
@@ -183,7 +192,6 @@ export default function MlStrategyNode({ id, data }) {
                   <>
                     <FlInput
                       name="Validation fraction"
-             
                       currentValue={data.internal.settings.perClientConfig?.[selectedClient]?.val_fraction || 0}
                       onInputChange={(v) => {
                         const num = Number(v?.value ?? v)

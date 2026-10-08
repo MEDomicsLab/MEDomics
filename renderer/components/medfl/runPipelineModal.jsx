@@ -103,9 +103,8 @@ const RunPipelineModal = ({ show, onHide, configs, nodes, onRun }) => {
             if (node.data.internal.settings.activateTl == "false") {
               delete node.data.internal.settings.file
             } else {
+              // keep "Hidden size" / "Number of layers": the backend rebuilds the architecture from them
               delete node.data.internal.settings["Model type"]
-              delete node.data.internal.settings["Hidden size"]
-              delete node.data.internal.settings["Number of layers"]
             }
             n = node.data.internal.settings
 

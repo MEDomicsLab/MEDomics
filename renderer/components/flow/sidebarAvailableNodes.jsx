@@ -32,7 +32,7 @@ const SectionContainer = ({ title, children }) => (
 )
 
 const SidebarAvailableNodes = ({ title, sidebarType, experimenting }) => {
-  const { initializationNodes, trainingNodes, networkNodes, otherNodes } = useMemo(() => {
+  const { initializationNodes, trainingNodes, networkNodes, otherNodes , explainabilityNodes } = useMemo(() => {
     const originalNodes = nodesParams[sidebarType] || {}
     const filteredNodes = experimenting
       ? Object.fromEntries(Object.entries(originalNodes).filter(([, node]) => node?.experimenting === true))
@@ -45,6 +45,7 @@ const SidebarAvailableNodes = ({ title, sidebarType, experimenting }) => {
           if (section.includes("init")) acc.initializationNodes[nodeName] = node
           else if (section.includes("train")) acc.trainingNodes[nodeName] = node
           else if (section.includes("network")) acc.networkNodes[nodeName] = node
+          else if (section.includes("explainability")) acc.explainabilityNodes[nodeName] = node
           else acc.otherNodes[nodeName] = node
           return acc
         },
@@ -52,6 +53,7 @@ const SidebarAvailableNodes = ({ title, sidebarType, experimenting }) => {
           initializationNodes: {},
           trainingNodes: {},
           networkNodes: {},
+          explainabilityNodes: {},
           otherNodes: {}
         }
       )
@@ -61,6 +63,7 @@ const SidebarAvailableNodes = ({ title, sidebarType, experimenting }) => {
     return {
       initializationNodes: {},
       trainingNodes: {},
+      explainabilityNodes: {},
       otherNodes: filteredNodes
     }
   }, [sidebarType, experimenting])
@@ -111,7 +114,7 @@ const SidebarAvailableNodes = ({ title, sidebarType, experimenting }) => {
             {Object.keys(networkNodes).length > 0 && <SectionContainer title="Network Nodes">{Object.entries(networkNodes).map(([nodeName, node]) => renderNode(nodeName, node))}</SectionContainer>}
 
             {Object.keys(trainingNodes).length > 0 && <SectionContainer title="Training Nodes">{Object.entries(trainingNodes).map(([nodeName, node]) => renderNode(nodeName, node))}</SectionContainer>}
-
+            {Object.keys(explainabilityNodes).length > 0 && <SectionContainer title="Explainability Nodes">{Object.entries(explainabilityNodes).map(([nodeName, node]) => renderNode(nodeName, node))}</SectionContainer>}
             {Object.keys(otherNodes).length > 0 && <SectionContainer title="Other Nodes">{Object.entries(otherNodes).map(([nodeName, node]) => renderNode(nodeName, node))}</SectionContainer>}
           </>
         ) : (

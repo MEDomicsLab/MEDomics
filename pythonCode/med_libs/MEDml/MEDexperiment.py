@@ -143,6 +143,9 @@ class MEDexperiment(ABC):
                     self.global_json_config['nodes'][current_node_id] = self.global_json_config['nodes'][tmp_subid_list[0]]
                     self.global_json_config['nodes'][current_node_id]['associated_id'] = tmp_subid_list[1]
                     self.global_json_config['nodes'][current_node_id]['id'] = current_node_id
+
+                # if self.global_json_config['nodes'][current_node_id]['data']['internal']['type'] == 'group_models':
+
                 # then, we create the node normally
                 node = self.create_Node(self.global_json_config['nodes'][current_node_id])
                 nodes[current_node_id] = self.handle_node_creation(node, pipelines_objects)
@@ -210,7 +213,11 @@ class MEDexperiment(ABC):
                     experiment = node_info['experiment']
 
                 self._nb_nodes_done += 1.0
-                self._progress['now'] = round(self._nb_nodes_done / self._nb_nodes * 100.0, 2)
+                progress = round(self._nb_nodes_done / self._nb_nodes * 100.0, 2)
+                if progress >= 100.0 or self._progress['now'] >= 100.0:
+                    # cap progress at 80%
+                    progress = 80.0
+                self._progress['now'] = progress
                 self._results_pipeline[current_node_id] = {
                     'next_nodes': copy.deepcopy(next_nodes_id_json),
                     'results': copy.deepcopy(node_info['results'])
@@ -222,7 +229,7 @@ class MEDexperiment(ABC):
                     results=self._results_pipeline[current_node_id]['next_nodes'],
                     experiment=self.copy_experiment(experiment)
                 )
-
+            self._progress['now'] = 100.0
             print('finished')
             self._progress['currentLabel'] = 'finished'
 
@@ -278,6 +285,10 @@ class MEDexperiment(ABC):
                 exp_to_return = experiment
                 self._progress['currentLabel'] = node.username
                 if not node.has_run() or prev_node.has_changed():
+                    if node.type == 'group_models':
+                        print("group_models")
+                        data = node.execute(experiment, **prev_node.get_info_for_next_node())
+                        node_can_go = data['prev_node_complete']
                     if node.type == 'combine_models':
                         # Assemble all trained models from previous nodes
                         can_run = False
@@ -316,7 +327,6 @@ class MEDexperiment(ABC):
                         self.modify_node_info(node_info, node, new_experiment)
                         node_info['experiment'] = new_experiment
                         exp_to_return = new_experiment
-
                     else:
                         self.modify_node_info(node_info, node, experiment)
                         node_info['experiment'] = experiment
@@ -326,10 +336,24 @@ class MEDexperiment(ABC):
 
                 self._nb_nodes_done += 1
                 self._progress['now'] = round(self._nb_nodes_done / self._nb_nodes * 100, 2)
+                progress = round(self._nb_nodes_done / self._nb_nodes * 100, 2)
+                if progress >= 100.0 or self._progress['now'] >= 100.0:
+                    # cap progress at 80%
+                    progress = 80.0
+                self._progress['now'] = progress
                 results[current_node_id] = {
                     'next_nodes': copy.deepcopy(next_nodes_id_json),
                     'results': node_info['results']
                 }
+                if node_can_go:
+                    self.execute_next_nodes(
+                        prev_node=node,
+                        next_nodes_to_execute=next_nodes_id_json,
+                        next_nodes=node_info['next_nodes'],
+                        results=results[current_node_id]['next_nodes'],
+                        experiment=exp_to_return
+                    )
+                print(f'END-{node.username}')
                 self.execute_next_nodes(
                     prev_node=node,
                     next_nodes_to_execute=next_nodes_id_json,
@@ -429,9 +453,6 @@ class MEDexperiment(ABC):
                     except TypeError:
                         pass
 
-                    except TypeError:
-                        pass
-
         return return_dict
 
     def get_progress(self) -> dict:
@@ -495,6 +516,13 @@ class MEDexperiment(ABC):
         model_save_name = self.global_json_config.get('modelName', None)
         if model_save_name is not None:
             self.global_json_config['nodes']['save']['data']['internal']['settings']['model_name'] = model_save_name
+        path_save = None
+        scene_name = self.global_json_config.get('sceneName', None)
+        workspace_path = self.global_json_config.get('workspacePath', None)
+        if workspace_path is not None and scene_name is not None:
+            path_save = os.path.join(workspace_path, scene_name, "models")
+        if path_save is not None:
+            self.global_json_config['nodes']['save']['data']['internal']['settings']['pathSave'] = path_save
         node = self.create_Node(self.global_json_config['nodes']['save'])
         experiment = self.copy_experiment(experiment)
         self._progress['currentLabel'] = 'Saving experiment'

@@ -1,3 +1,5 @@
+from turtle import pd
+
 from MEDfl.rw.server import FederatedServer, Strategy
 from MEDfl.LearningManager.model import Model
 from MEDfl.rw.model import Net
@@ -19,6 +21,11 @@ from med_libs.GoExecutionScript import GoExecutionScript, parse_arguments
 go_print("Starting the Federated Learning Server...")
 from datetime import datetime
 import time
+
+from MEDfl.LearningManager.shap import (
+    SHAPConfig,
+)
+
 
 json_params_dict, id_ = parse_arguments()
 
@@ -43,15 +50,42 @@ class GoExecScriptRunPipelineFromMEDfl(GoExecutionScript):
         """
         from flwr.common import ndarrays_to_parameters
 
+        import torch
+
         go_print(f"Loading pretrained model from: {model_path}")
-        loaded_model = Model.load_model(model_path)
+        # Only plain state_dicts are accepted (weights_only also refuses arbitrary pickled objects)
+        try:
+            state_dict = torch.load(model_path, map_location=torch.device('cpu'), weights_only=True)
+        except Exception as e:
+            raise ValueError(
+                f"Could not load '{model_path}' as a state_dict. Save the pretrained model with "
+                f"torch.save(model.state_dict(), path), not torch.save(model, path). Details: {e}")
+        if not isinstance(state_dict, dict):
+            raise ValueError(
+                f"'{model_path}' does not contain a state_dict (got {type(state_dict).__name__}). "
+                f"Save it with torch.save(model.state_dict(), path).")
+
         features_str = json_config['features']
 
         features_list = [f.strip() for f in features_str.split(",")]
 
         num_features = len(features_list)
+
+        # Check the input size before training starts
+        first_layer = state_dict.get('blocks.0.lin.weight')
+        if first_layer is not None and first_layer.shape[1] != num_features:
+            raise ValueError(
+                f"The pretrained model expects {first_layer.shape[1]} input features, "
+                f"but {num_features} features are selected.")
+
+        # The clients always build MEDfl's default Net(num_features), so the pretrained model must match it
         model = Net(num_features)
-        model.load_state_dict(loaded_model)
+        try:
+            model.load_state_dict(state_dict, strict=True)
+        except RuntimeError as e:
+            raise ValueError(
+                "The pretrained model does not match the real-world network architecture "
+                f"(MEDfl Net with default hidden layers). Details: {e}")
         model.eval()
 
         state_dict = model.state_dict()
@@ -76,6 +110,36 @@ class GoExecScriptRunPipelineFromMEDfl(GoExecutionScript):
         else:
             go_print("Transfer learning not enabled. Starting with random weights.")
 
+        shap_config = None
+         
+        if json_config.get("flShapNode"):
+            
+
+            shap_config = SHAPConfig(
+                enabled=True,
+
+                # Required for XGBoost.
+                explainer="gradient",
+
+                # train, validation, or test
+                data_split=json_config["flShapNode"].get("dataSplit", "validation"),
+
+                # Used as TreeExplainer background data.
+                background_size=json_config["flShapNode"].get("backgroundSize", 100),
+
+                # Maximum samples explained per client.
+                explanation_size=json_config["flShapNode"].get("explanationSize", 50),
+
+                random_seed=json_config["flShapNode"].get("random_seed", 42),
+
+                minimum_samples=json_config["flShapNode"].get("minimumSamples", 10),
+
+                clipping_value=None,
+
+                include_client_results=json_config["flShapNode"].get("includeClientResults", True),
+
+            )
+
         custom_strategy = Strategy(
             name=json_config['strategy_name'],
             fraction_fit=json_config['fraction_fit'],
@@ -87,7 +151,7 @@ class GoExecScriptRunPipelineFromMEDfl(GoExecutionScript):
             learning_rate=json_config['learning_rate'],
             optimizer_name=json_config['optimizer'],
             threshold=json_config['threshold'],
-            savingPath=json_config['savingPath'],
+            savingPath=None,
             saveOnRounds=json_config['saveOnRounds'],
             total_rounds=json_config['num_rounds'],
             
@@ -98,6 +162,7 @@ class GoExecScriptRunPipelineFromMEDfl(GoExecutionScript):
             split_mode=json_config['split_mode'],
             id_col=json_config['id_col'],
             client_fractions=json_config['client_fractions'],
+           
         )
 
         server = FederatedServer(
@@ -105,16 +170,16 @@ class GoExecScriptRunPipelineFromMEDfl(GoExecutionScript):
             port=json_config['port'],
             num_rounds=json_config['num_rounds'],
             strategy=custom_strategy,
+            shap_config=shap_config
         )
+        self.server = server
         server.start()
 
     def _custom_process(self, json_config: dict) -> dict:
         """Start the server as a subprocess and return its PID."""
-        self.server_process = multiprocessing.Process(target=self._start_server, args=(json_config,))
-        self.server_process.start()
-
-        go_print(f"Server started with PID {self.server_process.pid}")
-        self.results = {"pid": self.server_process.pid}
+        go_print("Starting server in the same Python process...")
+        self._start_server(json_config)
+        self.results = {"status": "server_stopped" , "shap_results": self.server.federated_shap_result}
         return self.results
 
 

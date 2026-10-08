@@ -78,7 +78,8 @@ export const axiosPostJsonGo = async (port, topic, json2send, jsonReceivedCB, on
       try {
         cleanResponse = JSON.parse(nanToNull(response.data.response_message))
       } catch (error) {
-        cleanResponse = JSON.parse(parsingCleaning(nanToNull(response.data.response_message)).replaceAll("\\", ""))
+        // NaN is replaced after the cleaning, once the quotes are unescaped
+        cleanResponse = JSON.parse(nanToNull(parsingCleaning(response.data.response_message).replaceAll("\\", "")))
       }
       jsonReceivedCB(cleanResponse)
     } else {
@@ -157,7 +158,8 @@ const parsingCleaning = (response) => {
  * @returns {Object} json
  */
 export const nanToNull = (json) => {
-  let jsonStr = json
-  jsonStr = jsonStr.replaceAll("NaN", "null")
-  return jsonStr
+  // Only replace bare NaN values: strings are matched first and kept as-is, so "NaN" inside them
+  // (e.g. base64 images or column names) is not corrupted.
+  // The string pattern is "unrolled" so it does not overflow the stack on very large responses
+  return json.replace(/"[^"\\]*(?:\\.[^"\\]*)*"|NaN/g, (match) => (match === "NaN" ? "null" : match))
 }

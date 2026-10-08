@@ -1,8 +1,6 @@
 import numpy as np
 import pandas as pd
 from sklearn.model_selection import StratifiedKFold, train_test_split
-from sklearn.preprocessing import KBinsDiscretizer
-from sklearn.utils.multiclass import type_of_target
 
 
 def get_cv_stratification_details(dataset, stratify_column, class_names, cv_folds=5, random_state=42):
@@ -193,18 +191,86 @@ def get_subsampling_details(dataset, class_names, stratify_columns=None, test_si
             stats_df[f'Test Class {cls} %'] = stats_df[col] / stats_df['Test Samples']
     
     return stats_df
- 
-# Helper – bin any continuous column so it becomes categorical
-def _bin_cont(s: pd.Series, n_bins: int = 5) -> pd.Series:
-    if type_of_target(s) == "continuous":
-        enc = KBinsDiscretizer(
-            n_bins=n_bins,
-            encode="ordinal",
-            strategy="quantile"
-        )
-        return pd.Series(
-            enc.fit_transform(s.to_frame()).ravel(),
-            index=s.index,
-            name=s.name,
-        )
-    return s
+
+def get_bootstrapping_details(n_samples, class_names, folds, y=None):
+    """
+    Gets detailed bootstrapping report with optional stratification
+    
+    Args:
+        n_samples (int): Total number of samples in the dataset.
+        class_names (str): A string of class names separated by underscores, e.g. "class1_class2_class3".
+        y (np.array): The stratification vector. If None, no stratification.
+        folds (list): A list containing dictionaries with the train and test indices for each bootstrap iteration.
+    Returns:
+        pd.DataFrame: A DataFrame containing the bootstrapping details for each iteration.
+    """
+    # Analyze each iteration
+    iteration_stats = []
+    for i, fold in enumerate(folds):
+        
+        # Perform bootstrapping
+        boot_indices = fold['train_indices']
+        oob_indices = fold['test_indices']
+        
+        # Initialize stats entry
+        stats_entry = {
+            'Iteration': i + 1,
+            'Bootstrap Samples': len(boot_indices),
+            'Bootstrap Samples %': round(len(boot_indices) / n_samples, 2),
+            'OOB Samples': len(oob_indices),
+            'OOB Samples %': round(len(oob_indices) / n_samples, 2)
+        }
+        
+        # Add class distribution if stratified
+        if y is not None:
+            boot_classes, boot_counts = np.unique(y[boot_indices], return_counts=True)
+            oob_classes, oob_counts = np.unique(y[oob_indices], return_counts=True)
+            
+            # Add bootstrap class counts
+            for cls, cnt in zip(boot_classes, boot_counts):
+                if '_' in str(cls):
+                    # Handle multi-label classes
+                    cls_idxs = [c for c in cls.split('_')]
+                    class_name = []
+                    for c in range(len(class_names.split('_'))):
+                        if class_names.split('_')[c].startswith('XTAGX') and int(cls_idxs[c]) == 1:
+                            class_name.append(class_names.split('_')[c][5:])  # Remove 'XTAGX' prefix
+                        elif not class_names.split('_')[c].startswith('XTAGX'):
+                            class_name.append(class_names.split('_')[c] + '-' + str(cls_idxs[c]))
+                    class_name = '_'.join(class_name)
+                else:
+                    class_name = class_names + '-' + str(cls)
+                stats_entry[f'Bootstrap Class {cls}'] = round(cnt, 2)
+
+            # Add OOB class counts
+            for cls, cnt in zip(oob_classes, oob_counts):
+                if '_' in str(cls):
+                    # Handle multi-label classes
+                    cls_idxs = [c for c in cls.split('_')]
+                    class_name = []
+                    for c in range(len(class_names.split('_'))):
+                        if class_names.split('_')[c].startswith('XTAGX') and int(cls_idxs[c]) == 1:
+                            class_name.append(class_names.split('_')[c][5:])  # Remove 'XTAGX' prefix
+                        elif not class_names.split('_')[c].startswith('XTAGX'):
+                            class_name.append(class_names.split('_')[c] + '-' + str(cls_idxs[c]))
+                    class_name = '_'.join(class_name)
+                else:
+                    class_name = class_names + '-' + str(cls)
+                stats_entry[f'OOB Class {cls}'] = round(cnt, 2)
+
+        iteration_stats.append(stats_entry)
+    
+    # Convert to DataFrame
+    stats_df = pd.DataFrame(iteration_stats)
+
+    # Calculate percentages
+    for col in stats_df.columns:
+        if col.startswith('Bootstrap Class '):
+            cls = col.replace('Bootstrap Class ', '')
+            stats_df[f'Bootstrap Class {cls} %'] = stats_df[col] / stats_df['Bootstrap Samples']
+        elif col.startswith('OOB Class '):
+            cls = col.replace('OOB Class ', '')
+            stats_df[f'OOB Class {cls} %'] = stats_df[col] / stats_df['OOB Samples']
+
+    return stats_df
+

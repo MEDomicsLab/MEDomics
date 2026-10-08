@@ -7,7 +7,7 @@ import numpy as np
 import pandas as pd
 from bson import ObjectId
 from mongodb_utils import connect_to_mongo
-from utils.data_split_utils import (get_cv_stratification_details,
+from utils.data_split_utils import (get_bootstrapping_details, get_cv_stratification_details,
                                     get_subsampling_details)
 
 from .NodeObj import *
@@ -90,9 +90,12 @@ class Split(Node):
         print("======= Split =======")
 
         # Generic parameters
-        dataset = kwargs.get("dataset")
+        pycaret_exp = experiment["pycaret_exp"]
+        medml_logger = experiment["medml_logger"]
+        cleaning_settings = kwargs.get("cleaning_settings", {})
         target = kwargs.get("target")
         stratify_columns = self.settings['global'].get("stratify_columns", [])
+        dataset = pycaret_exp.get_config('X').join(pycaret_exp.get_config('y'))
         experiment_df = experiment.get("df", dataset)
         random_state = int(self.settings['global']['random_state'])
         split_type = self.settings['outer_split_type']
@@ -133,11 +136,6 @@ class Split(Node):
 
         use_stratification = bool(stratify_columns)
         strat_classes_name = stratify_columns[0]
-
-        # Build kwargs for the first Pycaret setup 
-        pycaret_exp = experiment["pycaret_exp"]
-        medml_logger = experiment["medml_logger"]
-        cleaning_settings = kwargs.get("cleaning_settings", {})
 
         # Add tags to stratify_columns if use_tags is enabled
         if use_tags:
@@ -247,7 +245,7 @@ class Split(Node):
             ]
             filtered_settings = { k: v for k, v in cleaning_settings.items() if k not in excluded }
 
-            setup_kwargs_cv, stratify_columns = self._build_setup_kwargs(
+            setup_kwargs, stratify_columns = self._build_setup_kwargs(
                 base_kwargs=kwargs["setup_settings"],
                 stratify_columns=stratify_columns,
                 ignore_features=ignore_features,
@@ -255,9 +253,9 @@ class Split(Node):
                 medml_logger=medml_logger,
                 cleaning_settings=filtered_settings,
             )
-            setup_kwargs_cv["fold"] = cv_folds
-            pycaret_exp.setup(data=experiment.get("df", dataset), **setup_kwargs_cv)
-            code_handler_kwargs = deepcopy(setup_kwargs_cv)
+            setup_kwargs["fold"] = cv_folds
+            pycaret_exp.setup(data=experiment.get("df", dataset), **setup_kwargs)
+            code_handler_kwargs = deepcopy(setup_kwargs)
             del code_handler_kwargs['log_experiment']
             self.CodeHandler.add_line("code", f"pycaret_exp.setup(data=pycaret_exp.get_config('data'), {self.CodeHandler.convert_dict_to_params(code_handler_kwargs)})")
 
@@ -271,7 +269,7 @@ class Split(Node):
                 splitter = StratifiedKFold(n_splits=cv_folds, shuffle=True, random_state=random_state)
                 self.CodeHandler.add_line("code", f"splitter = StratifiedKFold(n_splits={cv_folds}, shuffle=True, random_state={random_state})")
                 fold_iter = splitter.split(np.zeros(n_samples), y)
-                self.CodeHandler.add_line("code", f"fold_iter = splitter.split(np.zeros({n_samples}), y)")
+                self.CodeHandler.add_line("code", f"fold_iter = splitter.split(np.zeros(len(dataset)), y)")
             else:
                 splitter = KFold(n_splits=cv_folds, shuffle=True, random_state=random_state)
                 self.CodeHandler.add_line("code", f"splitter = KFold(n_splits={cv_folds}, shuffle=True, random_state={random_state})")
@@ -395,6 +393,16 @@ class Split(Node):
             
             iteration_result = {"type": "bootstrapping", "folds": folds}
 
+            # Get stratification details
+            try:
+                if use_stratification:
+                    y = dataset[stratify_columns].values
+                else:
+                    y = None
+                stats_df = get_bootstrapping_details(n_samples, strat_classes_name, folds, y)
+            except Exception as e:
+                print(f"Warning: Could not compute bootstrapping stratification details: {e}")
+                stats_df = None
 
         # OUTER: USER-DEFINED
         elif split_type.lower() == "user_defined":
@@ -416,7 +424,7 @@ class Split(Node):
             raise ValueError(f"Invalid split type: {split_type}")
 
         # Payload for next node
-        self._info_for_next_node = {
+        self._info_for_next_node = { 
             "splitted": True,
             "random_state": random_state,
             "setup_settings": kwargs["setup_settings"],
@@ -424,6 +432,7 @@ class Split(Node):
             "table": "dataset",
             "paths": ["path"],
             "stratify_columns": stratify_columns,
+            "final_setup_kwargs": setup_kwargs,
         }
 
         return {

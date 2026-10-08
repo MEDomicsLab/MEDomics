@@ -48,30 +48,65 @@ const HyperParameterInput = ({
   const [hasError, setHasError] = useState(false)
   const [errorMessage, setErrorMessage] = useState("")
 
+  // Determine the effective type (for multi parameters)
+  const effectiveType =
+  paramInfo.type === "multi"
+    ? (paramInfo.effectiveType || "string")
+    : paramInfo.type
+
   // Initialize component state based on currentValue prop
   useEffect(() => {
-    if (currentValue) {
-      currentValue = Array.isArray(currentValue) ? currentValue : parseInputValue(currentValue)
-      if (Array.isArray(currentValue)) {
-        setInputMode('discrete')
-        setDiscreteValues(currentGridValues || currentValue)
-      } else if (typeof currentValue === 'object' && currentValue.start && currentValue.end) {
-        setInputMode('range')
-        setRangeStart(currentValue.start)
-        setRangeEnd(currentValue.end)
-        setRangeStep(currentValue.step || getDefaultStep(paramInfo.type))
-      } else {
-        setInputMode('discrete')
-        setDiscreteValues(currentGridValues || [currentValue])
-      }
-    } else {
-      // Default initialization
-      setDiscreteValues(currentGridValues || [])
-      setRangeStart(paramInfo.min || 0)
-      setRangeEnd(paramInfo.max || 10)
-      setRangeStep(getDefaultStep(paramInfo.type))
+  const isEmptyDict =
+    typeof currentValue === "object" &&
+    currentValue !== null &&
+    !Array.isArray(currentValue) &&
+    Object.keys(currentValue).length === 0;
+
+  if (currentValue && !isEmptyDict) {
+    const parsedValue = Array.isArray(currentValue)
+      ? currentValue
+      : parseInputValue(currentValue);
+
+    if (Array.isArray(parsedValue)) {
+      setInputMode("discrete");
+      setDiscreteValues(currentGridValues || parsedValue);
+    } 
+    else if (
+      typeof parsedValue === "object" &&
+      parsedValue.start !== undefined &&
+      parsedValue.end !== undefined
+    ) {
+      setInputMode("range");
+      setRangeStart(parsedValue.start);
+      setRangeEnd(parsedValue.end);
+      setRangeStep(parsedValue.step || getDefaultStep(effectiveType));
+    } 
+    else {
+      setInputMode("discrete");
+      setDiscreteValues(currentGridValues || [parsedValue]);
     }
-  }, [])
+  } 
+  else {
+    // currentValue = {} ou null
+    setDiscreteValues(currentGridValues || []);
+    setRangeStart(paramInfo.min || 0);
+    setRangeEnd(paramInfo.max || 10);
+    setRangeStep(getDefaultStep(effectiveType));
+  }
+}, [currentValue, currentGridValues, effectiveType]);
+
+  // maybe to delete
+  useEffect(() => {
+  if (paramInfo.type === "multi" && inputMode === null) {
+    if (effectiveType === "int" || effectiveType === "float") {
+      setInputMode("range")
+    } else {
+      setInputMode("discrete")
+    }
+  }
+}, [effectiveType])
+
+
 
   // Helper function to get default step based on parameter type
   const getDefaultStep = (type) => {
@@ -88,7 +123,7 @@ const HyperParameterInput = ({
   // Validate inputs and generate grid values based on current settings
   const generateGridValues = () => {
     if (inputMode === 'discrete') {
-      throw new Error("Discrete mode must be range mode")
+      return
     }
     let newGridValues = []
     if (rangeStart === null || rangeEnd === null || rangeStep === null) {
@@ -116,7 +151,7 @@ const HyperParameterInput = ({
       onParamChange(model, {
         name: name,
         value: newGridValues,
-        type: paramInfo.type,
+        type: effectiveType,
         mode: inputMode
       })
       return
@@ -131,7 +166,7 @@ const HyperParameterInput = ({
     let current = rangeStart
     
     while (current <= rangeEnd) {
-      if (paramInfo.type === 'int') {
+      if (effectiveType === 'int') {
         values.push(Math.round(current))
       } else {
         values.push(Number(current.toFixed(5))) // Limit float precision
@@ -144,48 +179,86 @@ const HyperParameterInput = ({
     onParamChange(model, {
       name: name,
       value: values,
-      type: paramInfo.type,
+      type: effectiveType,
       mode: inputMode
     })
   }
 
   // Update parent component when values change
   useEffect(() => {
-    if (inputMode === 'range'){
-      generateGridValues()
-    } else if (inputMode === 'discrete') {
-      if (!hasError &&  discreteValues.length > 0) {
-        onParamChange(model, {
-          name: name,
-          value: discreteValues,
-          type: paramInfo.type,
-          mode: inputMode
-        })
-      }
+    if (
+    inputMode === "range" &&
+    rangeStart !== null &&
+    rangeEnd !== null &&
+    rangeStep !== null
+  ) {
+    generateGridValues()
+  } 
+    else if (inputMode === "discrete") {
+  if (!hasError && discreteValues.length > 0) {
+
+    const cleanValues =
+      effectiveType === "dict"
+        ? discreteValues.filter(
+            v =>
+              v &&
+              typeof v === "object" &&
+              !Array.isArray(v) &&
+              Object.keys(v).length > 0
+          )
+        : discreteValues;
+
+    if (cleanValues.length > 0) {
+      onParamChange(model, {
+        name: name,
+        value: cleanValues,
+        type: effectiveType,
+        mode: inputMode
+      });
     }
+  }
+}
     setHasWarning(hasError)
   }, [inputMode, discreteValues, rangeStart, rangeEnd, rangeStep])
 
   // Parse input value to handle different types
-  const parseInputValue = (value) => {
-    if (paramInfo.type === 'int') {
-      if (!/^-?\d+$/.test(String(value))) {
-        toast.warn("Value must be an integer", { position: "bottom-right" })
-        value = Math.round(Number(value))
-      } else {
-        value = parseInt(value)
-      }
-    } else if (paramInfo.type === 'float') {
-      if (isNaN(Number(value))) {
-        toast.warn("Value must be a number", { position: "bottom-right" })
-        return
-      }
-      value = parseFloat(value)
-    } else if (paramInfo.type === 'bool') {
-      value = value === 'True' || value === true
+ const parseInputValue = (value) => {
+  if (effectiveType === 'int') {
+    if (!/^-?\d+$/.test(String(value))) {
+      toast.warn("Value must be an integer", { position: "bottom-right" })
+      return Math.round(Number(value))
     }
-    return value
+    return parseInt(value)
   }
+
+  if (effectiveType === 'float') {
+    if (isNaN(Number(value))) {
+      toast.warn("Value must be a number", { position: "bottom-right" })
+      return null
+    }
+    return parseFloat(value)
+  }
+
+  if (effectiveType === 'bool') {
+    return value === true || value === 'True'
+  }
+
+  if (effectiveType === 'none') {
+    return null
+  }
+
+  if (effectiveType === 'dict') {
+    try {
+      return typeof value === "string" ? JSON.parse(value) : value
+    } catch {
+      toast.warn("Invalid dictionary format. Use valid JSON.")
+      return null
+    }
+  }
+
+  return value
+}
+
 
   // Handle adding a discrete value based on parameter type
   const handleAddDiscreteValue = (value) => {
@@ -193,7 +266,8 @@ const HyperParameterInput = ({
     
     // Validate based on type
     let validatedValue = parseInputValue(value)
-    if (!validatedValue) return
+    if (validatedValue === null || validatedValue === undefined) return
+
 
     // Check if value already exists
     if (!discreteValues.includes(validatedValue)) {
@@ -222,7 +296,7 @@ const HyperParameterInput = ({
 
   // Render discrete value input based on parameter type
   const renderDiscreteInput = () => {
-    switch (paramInfo.type) {
+    switch (effectiveType) {
       case 'string':
         return (
           <Chips
@@ -347,6 +421,22 @@ const HyperParameterInput = ({
             </div>
           </div>
         )
+        case 'dict':
+        return (
+          <Chips
+            value={discreteValues}
+            onChange={(e) => {
+              const parsed = e.value
+                .map(v => parseInputValue(v))
+                .filter(v => v !== null)
+              setDiscreteValues(parsed)
+            }}
+            disabled={disabled}
+            placeholder='{"0":1.0,"1":0.5}'
+            className="w-full"
+          />
+        )
+
         
       default:
         return (
@@ -363,13 +453,14 @@ const HyperParameterInput = ({
 
   // Render range input fields (only applicable for numeric types)
   const renderRangeInput = () => {
-    if (paramInfo.type !== 'int' && paramInfo.type !== 'float') {
+    if (effectiveType !== 'int' && effectiveType !== 'float')
+    {
       return (
         <Message severity="warn" text="Range mode is only available for numeric parameters" />
       )
     }
 
-    const isInteger = paramInfo.type === 'int'
+    const isInteger = effectiveType === 'int'
     
     return (
       <div className="flex flex-column gap-3">
@@ -442,7 +533,7 @@ const HyperParameterInput = ({
       <div className="p-3 mb-3" style={{ border: "1px solid #ccc", borderRadius: "8px" }}>
         <div className="flex align-items-center" style={{ marginBottom: '1rem' }}>
           <h6 className="flex align-center">{name}</h6>
-          {(paramInfo.type === 'int' || paramInfo.type === 'float') && (
+          {(effectiveType === 'int' || effectiveType === 'float') && (
             <SelectButton 
               className="flex align-center"
               value={inputMode} 
@@ -452,7 +543,7 @@ const HyperParameterInput = ({
                 setHasError(false)
                 setErrorMessage("")
               }}
-              disabled={disabled || (paramInfo.type !== 'int' && paramInfo.type !== 'float')}
+              disabled={disabled || (effectiveType !== 'int' && effectiveType !== 'float')}
             />
           )}
         </div>

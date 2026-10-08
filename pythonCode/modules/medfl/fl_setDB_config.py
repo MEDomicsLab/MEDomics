@@ -41,7 +41,7 @@ class GoExecScriptDBconfigFromMEDfl(GoExecutionScript):
         #                 "Hello World from MEDfl backend @ " + time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()) + " !"}
 
       
-
+        print("thiiiiiiis is the path" + json_config['path'])
         set_db_config(json_config['path'])
 
         db_manager = DatabaseManager()

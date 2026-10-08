@@ -2,6 +2,7 @@ from pymongo import MongoClient
 from pymongo.errors import DuplicateKeyError, PyMongoError
 import pickle
 import pandas as pd
+from pycaret.classification import load_model
 
 def connect_to_mongo():
     client = MongoClient('mongodb://localhost:54017/')
@@ -129,12 +130,26 @@ def get_pickled_model_from_collection(collection_name):
 
     # Find the document containing the model
     model_document = collection.find_one()
+    if not model_document:
+        raise ValueError(f"No document found in collection {collection_name}")
     if model_document and 'model' in model_document:
         # Deserialize the model
         pickled_model = model_document['model']
         model = pickle.loads(pickled_model)
         return model
-
+    elif 'model_path' in model_document:
+        model_path = model_document['model_path']
+        try:
+            model = load_model(model_path)
+        except FileNotFoundError as e:
+            print(f"Error loading model from path {model_path}: {e}")
+            model_path = model_path.split(".pkl")[0]  # Remove .pkl if exists
+            model = load_model(model_path)
+        return model
+    elif 'pklContent' in model_document:
+        pickled_model = model_document['pklContent']
+        model = pickle.loads(pickled_model)
+        return model
     return None
 
 def get_dataset_as_pd_df(collection_name):

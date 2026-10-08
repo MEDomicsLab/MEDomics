@@ -10,6 +10,7 @@ from typing import Union
 import numpy as np
 import pandas as pd
 from colorama import Fore
+from sklearn.pipeline import Pipeline
 
 from .NodeObj import Node, format_model
 
@@ -22,6 +23,8 @@ from mongodb_utils import (get_child_id_by_name,
 
 DATAFRAME_LIKE = Union[dict, list, tuple, np.ndarray, pd.DataFrame]
 TARGET_LIKE = Union[int, str, list, tuple, np.ndarray, pd.Series]
+MONGO_BSON_MAX = 16_777_216 # 16MB
+MONGO_SAFETY_MARGIN = 1_000_000 # 1MB safety margin
 
 
 class ModelIO(Node):
@@ -50,11 +53,42 @@ class ModelIO(Node):
         if self.type == 'save_model':
             self.CodeHandler.add_line("code", f"for model in trained_models:")
             for model in kwargs['models']:
-                model = format_model(model)
+                # Retrieve fitted model
+                fitted_model = format_model(model)
+                if dir(fitted_model).__contains__('feature_names_in_'):
+                    model_features = fitted_model.__getattribute__('feature_names_in_')
+                elif dir(fitted_model).__contains__('feature_name_') and model_features is None:
+                    model_features = fitted_model.__getattribute__('feature_names_in_')
+                elif dir(fitted_model).__contains__('classifier_') and dir(fitted_model.classifier_).__contains__('feature_names_in_'):
+                    model_features = fitted_model.classifier_.feature_names_in_
+                else:
+                    raise ValueError(f"Could not find model features. Model attributes : {dir(fitted_model)}, model type: {type(fitted_model)}")
+                if model_features is None:
+                    raise ValueError(f"Could not find model features. Model attributes : {dir(fitted_model)}, model type: {type(fitted_model)}")
+
+                model_features = list(model_features)
+
+                # Model's name
                 if 'model_name' in settings.keys() and settings['model_name']:
                     model_name = settings['model_name']
                 else:
-                    model_name = model.__class__.__name__
+                    model_name = fitted_model.__class__.__name__
+
+                # Path save model (if too big for MongoDB)
+                if 'pathSave' in settings.keys() and settings['pathSave']:
+                    path_save = settings['pathSave']
+                    os.makedirs(path_save, exist_ok=True)
+
+                # Serialize model
+                serialized_model = pickle.dumps(model)
+
+                # Model's threshold
+                model_threshold = None
+                if hasattr(model, 'steps'):
+                    classifier = model.steps[-1][1]
+                    if hasattr(classifier, 'probability_threshold'):
+                        model_threshold = classifier.probability_threshold
+
                 # .medmodel object
                 model_med_object = MEDDataObject(
                     id = str(uuid.uuid4()),
@@ -64,11 +98,18 @@ class ModelIO(Node):
                     childrenIDs = [],
                     inWorkspace = False
                 )
+
+                # Check if the model size is less than MongoDB BSON limit (16MB)
+                fits_mongo = len(serialized_model) <= (MONGO_BSON_MAX - MONGO_SAFETY_MARGIN)
+                if not fits_mongo:
+                    if 'pathSave' not in settings.keys() or not settings['pathSave']:
+                        raise ValueError("Model is too large to be stored in MongoDB. Please provide a valid 'pathSave' setting to save the model locally.")
+                    model_med_object.inWorkspace = True
+                    model_med_object.path = path_save + f"/{model_name}_model.pkl"
                 model_med_object_id = insert_med_data_object_if_not_exists(model_med_object, None)
 
                 settings_copy = copy.deepcopy(settings)
                 settings_copy['model_name'] = model_name
-                """ getattr(experiment['pycaret_exp'], self.type)(model, **settings_copy) """
                 self.CodeHandler.add_line(
                     "code", 
                     f"pycaret_exp.save_model(model, {self.CodeHandler.convert_dict_to_params(settings_copy)})", 
@@ -85,13 +126,24 @@ class ModelIO(Node):
                     inWorkspace = False
                 )
 
-                serialized_model = pickle.dumps(model)
-                serialized_model_id = insert_med_data_object_if_not_exists(serialized_model_med_object, [{'model': serialized_model}])
-                # If model already existed we overwrite its content
-                if serialized_model_id != serialized_model_med_object.id:
-                    success_pkl = overwrite_med_data_object_content(serialized_model_id, [{'model': serialized_model}])
-                    print("pickle overwrite succeed : ", success_pkl)
-                
+                if fits_mongo:
+                    serialized_model_id = insert_med_data_object_if_not_exists(serialized_model_med_object, [{'model': serialized_model}])
+                    # If model already existed we overwrite its content
+                    if serialized_model_id != serialized_model_med_object.id:
+                        success_pkl = overwrite_med_data_object_content(serialized_model_id, [{'model': serialized_model}])
+                        print("pickle overwrite succeed : ", success_pkl)
+                else:
+                    # Save model locally
+                    path_save = Path(path_save) / f"{model_name}_model.pkl"
+                    with open(path_save, "wb") as f:
+                        f.write(serialized_model)
+                    # Read it back as binary to store the path in the database
+                    serialized_model_id = insert_med_data_object_if_not_exists(serialized_model_med_object, [{'model_path': str(path_save)}])
+                    # If model already existed we overwrite its content
+                    if serialized_model_id != serialized_model_med_object.id:
+                        success_pkl = overwrite_med_data_object_content(serialized_model_id, [{'model_path': str(path_save)}])
+                        print("pickle overwrite succeed : ", success_pkl)
+
                 # .medmodel metadata
                 metadata_med_object = MEDDataObject(
                     id=str(uuid.uuid4()),
@@ -102,7 +154,7 @@ class ModelIO(Node):
                     inWorkspace = False
                 )
                 to_write = {
-                    "columns": self.global_config_json["columns"],
+                    "columns": model_features,
                     "target": self.global_config_json["target_column"],
                     "steps": self.global_config_json["steps"],
                     "ml_type": self.global_config_json["MLType"]
@@ -111,6 +163,8 @@ class ModelIO(Node):
                     to_write['selectedTags'] = self.global_config_json['selectedTags']
                 if 'selectedVariables' in self.global_config_json:
                     to_write['selectedVariables'] = self.global_config_json['selectedVariables']
+                if model_threshold is not None:
+                    to_write['model_threshold'] = model_threshold
 
                 metadata_model_id = insert_med_data_object_if_not_exists(metadata_med_object, [to_write])
                 if metadata_model_id != metadata_med_object.id:

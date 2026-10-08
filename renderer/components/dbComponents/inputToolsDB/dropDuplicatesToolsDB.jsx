@@ -9,6 +9,8 @@ import { DataContext } from "../../workspace/dataContext"
 import { Card } from "primereact/card"
 import { Skeleton } from "primereact/skeleton"
 import { ScrollPanel } from "primereact/scrollpanel"
+import { requestBackend } from "../../../utilities/requests"
+import { ServerConnectionContext } from "../../serverConnection/connectionContext"
 
 const DropDuplicatesToolsDB = ({ currentCollection }) => {
   const { globalData } = useContext(DataContext)
@@ -18,6 +20,7 @@ const DropDuplicatesToolsDB = ({ currentCollection }) => {
   const [selectedColumn, setSelectedColumn] = useState(null)
   const [loadingData, setLoadingData] = useState(false)
   const [loadingDuplicates, setLoadingDuplicates] = useState(false)
+  const { port } = useContext(ServerConnectionContext)
 
   const fetchData = async () => {
     setLoadingData(true)
@@ -52,40 +55,52 @@ const DropDuplicatesToolsDB = ({ currentCollection }) => {
     }
   }
 
-  const findDuplicateColumns = async (allKeys, collection) => {
+  // Calls the python backend to detect duplicated columns.
+  // Returns duplicated columns for deletion
+  const findDuplicateColumns = async () => {
     setLoadingDuplicates(true)
-    let duplicatePairs = []
-    const documentCount = await collection.countDocuments()
-
-    if (documentCount <= 1) {
-      setDuplicateColumns(duplicatePairs)
-      return
-    }
 
     try {
-      for (let i = 0; i < allKeys.length; i++) {
-        for (let j = i + 1; j < allKeys.length; j++) {
-          const column1 = allKeys[i]
-          const column2 = allKeys[j]
-
-          const pipeline = [{ $project: { areEqual: { $eq: [`$${column1}`, `$${column2}`] } } }, { $match: { areEqual: false } }, { $count: "mismatchedDocuments" }]
-
-          const result = await collection.aggregate(pipeline).toArray()
-          if (result.length === 0 || (result[0]?.mismatchedDocuments || 0) === 0) {
-            duplicatePairs.push({ column1, column2 })
-          }
-        }
+      const requestBody = {
+        collectionName: globalData[currentCollection]?.id
       }
 
-      setDuplicateColumns(duplicatePairs)
-      setLoadingDuplicates(false)
+      requestBackend(
+        port,
+        "/input/find_duplicate_columns_DB",
+        requestBody,
+        (response) => {
+          console.log("Backend response:", response)
+
+          if (response?.duplicates) {
+            // Store duplicated columns into a state for future deletion
+            setDuplicateColumns(
+              response.duplicates.map(([c1, c2]) => ({
+                column1: c1,
+                column2: c2
+              }))
+            )
+          } else {
+            toast.warn("No duplicates found or response format incorrect.")
+            console.warn("Unexpected format:", response)
+          }
+
+          setLoadingDuplicates(false)
+        },
+        (error) => {
+          console.log("error: ", error)
+          toast.error("Error finding duplicate columns.")
+          setLoadingDuplicates(false)
+        }
+      )
     } catch (error) {
+      console.error("Unexpected error:", error)
+      toast.error("Unexpected error while finding duplicate columns.")
       setLoadingDuplicates(false)
-      console.error("Error finding duplicate columns:", error)
-      toast.error("An error occurred while finding duplicate columns.")
     }
   }
 
+  // Delete selected columns then refresh data to display up to date data form MongoDB
   const handleDeleteColumn = async () => {
     if (!selectedColumn) {
       toast.warn("Please select a column to delete.")
@@ -146,18 +161,18 @@ const DropDuplicatesToolsDB = ({ currentCollection }) => {
           </DataTable>
         </Card>
       )}
-      {loadingDuplicates && 
+      {loadingDuplicates && (
         <div className="w-full md:w-6 p-3" style={{ width: "900px" }}>
           <h5>Finding duplicate columns...</h5>
           <Skeleton className="mb-2" borderRadius="16px"></Skeleton>
           <Skeleton width="10rem" className="mb-2" borderRadius="16px"></Skeleton>
           <Skeleton width="5rem" borderRadius="16px" className="mb-2"></Skeleton>
         </div>
-      }
+      )}
       {duplicateColumns.length > 0 && (
         <>
-        <h5 style={{ marginTop: "20px" }}>Duplicate Columns</h5>
-          <ScrollPanel style={{ width: '100%', height: '300px', marginTop: "20px" }}>
+          <h5 style={{ marginTop: "20px" }}>Duplicate Columns</h5>
+          <ScrollPanel style={{ width: "100%", height: "300px", marginTop: "20px" }}>
             {duplicateColumns.map((pair, index) => (
               <li key={index} style={{ marginBottom: "10px" }}>
                 {pair.column1} and {pair.column2}{" "}
@@ -176,14 +191,14 @@ const DropDuplicatesToolsDB = ({ currentCollection }) => {
                 />
               </li>
             ))}
-        </ScrollPanel>
+          </ScrollPanel>
         </>
       )}
 
       {selectedColumn && (
         <div style={{ marginTop: "20px", textAlign: "center" }}>
           <h5>Selected Column: {selectedColumn}</h5>
-          <Button outlined size="small"label="Confirm Delete" icon="pi pi-trash" className="p-button-danger" onClick={handleDeleteColumn} />
+          <Button outlined size="small" label="Confirm Delete" icon="pi pi-trash" className="p-button-danger" onClick={handleDeleteColumn} />
         </div>
       )}
     </div>

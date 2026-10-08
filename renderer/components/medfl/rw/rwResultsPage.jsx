@@ -6,6 +6,7 @@ import { Server, Laptop, Hdd } from "react-bootstrap-icons"
 import { loadFileFromPathSync } from "../../../utilities/fileManagementUtils"
 import ClientEvalLineChart from "./ ClientsLineChart"
 import ClientDetails from "./ClientDetails"
+import FederatedShapResults from "../ShapResults"
 import { BsFillFileEarmarkBarGraphFill } from "react-icons/bs"
 import { PiGraphFill } from "react-icons/pi"
 import { FaHashtag, FaPlayCircle, FaClock, FaCalendarAlt } from "react-icons/fa"
@@ -245,11 +246,11 @@ const RwResultsPage = ({ url }) => {
                 </thead>
                 <tbody>
                   <tr>
-                    <td>{data.devices.server.hostname}</td>
-                    <td>{data.devices.server.os}</td>
-                    <td>{data.devices.server.addresses[0]}</td>
-                    <td>{new Date(data.devices.server.lastSeen).toUTCString()}</td>
-                    <td>{data.devices.server.clientVersion}</td>
+                    <td>{data.devices.server?.hostname}</td>
+                    <td>{data.devices.server?.os}</td>
+                    <td>{data.devices.server?.addresses[0]}</td>
+                    <td>{new Date(data.devices.server?.lastSeen).toUTCString()}</td>
+                    <td>{data.devices.server?.clientVersion}</td>
                   </tr>
                 </tbody>
               </Table>
@@ -270,7 +271,7 @@ const RwResultsPage = ({ url }) => {
                   </tr>
                 </thead>
                 <tbody>
-                  {data.devices.clients.map((client) => (
+                  {data.devices.clients?.map((client) => (
                     <tr key={client.id}>
                       <td>{client.hostname}</td>
                       <td>{client.os}</td>
@@ -287,6 +288,12 @@ const RwResultsPage = ({ url }) => {
         <Tab eventKey="Datasets" title="Client Datasets">
           <ClientDetails clientProperties={data ? data.clientProperties : []} />
         </Tab>
+
+        {data.federatedShapResults && (
+          <Tab eventKey="shap" title="SHAP">
+            <FederatedShapResults results={data.federatedShapResults} scrollable={false} />
+          </Tab>
+        )}
       </Tabs>
     </Container>
   )

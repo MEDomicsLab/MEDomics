@@ -9,6 +9,11 @@
   height: 20px;
 }
 
+/* Dark mode inversion for icon nodes */
+[data-theme="dark"] .icon-nodes {
+  filter: invert(1);
+}
+
 .btn-contour {
   border: 1px solid #1a1a1a7a;
   cursor: pointer;
@@ -43,7 +48,7 @@
 .custom-lbl {
   font-size: 14px;
   font-weight: 400;
-  margin-bottom: 5px;
+  margin-bottom: 50px;
   position: relative;
   top: 0px;
   left: 15px;
@@ -68,6 +73,12 @@
 .css-t3ipsp-control {
   border-color: hsl(0, 0%, 70%) !important;
   box-shadow: 0 0 0 0.25rem rgb(13 110 253 / 25%) !important;
+}
+
+/* Override Bootstrap floating label color */
+.form-floating > .form-select ~ label,
+.form-floating > .form-control ~ label {
+  color: inherit !important;
 }
 
 .list-multiple {

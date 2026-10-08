@@ -1,9 +1,59 @@
-import { app } from "electron"
+import { app, dialog } from "electron"
 const fs = require("fs")
 var path = require("path")
+const { join } = require("path")
+const { readdir, stat, rm } = require("fs/promises")
 const util = require("util")
 const { execSync } = require("child_process")
 const exec = util.promisify(require("child_process").exec)
+
+/**
+ * Recursively calculates the size of a directory in bytes.
+ * @param {string} dir - The directory path.
+ * @returns {Promise<number>} The total size in bytes.
+ */
+async function getDirectorySize(dir) {
+    const files = await readdir(dir, { withFileTypes: true })
+
+    const paths = files.map(async file => {
+        const path = join(dir, file.name)
+        if (file.isDirectory()) {
+            // Recurse into subdirectories
+            return await getDirectorySize(path)
+        } else if (file.isFile()) {
+            // Get size of files
+            const { size } = await stat(path)
+            return size
+        }
+        return 0
+    })
+
+    // Await all paths, flatten the array of sizes (due to recursion), and sum them up
+    const sizes = await Promise.all(paths)
+    return sizes.flat(Infinity).reduce((accumulator, size) => accumulator + size, 0)
+}
+
+/**
+ * Checks a directory's size and deletes it if it is empty.
+ * @param {string} directoryPath - The path to the directory to check and potentially delete.
+ */
+async function checkSizeAndDeleteIfZero(directoryPath) {
+    try {
+        const size = await getDirectorySize(directoryPath)
+        console.log(`Directory size is: ${size} bytes`)
+
+        if (size === 0) {
+            console.log(`Directory is empty. Deleting...`)
+            // The { recursive: true } option allows deleting a directory and its contents (even if empty)
+            await rm(directoryPath, { recursive: true, force: true }) 
+            console.log(`Directory deleted: ${directoryPath}`)
+        } else {
+            console.log(`Directory is not empty (size: ${size} bytes). Not deleting.`)
+        }
+    } catch (error) {
+        console.error(`Error processing directory ${directoryPath}:`, error.message)
+    }
+}
 
 export function getPythonEnvironment(medCondaEnv = "med_conda_env") {
   // Returns the python environment
@@ -35,8 +85,8 @@ export function getPythonEnvironment(medCondaEnv = "med_conda_env") {
     }
   }
   // If the python environment is found, the conda path is saved in the settings file if it is not already defined
-  if (pythonEnvironment !== undefined && pythonEnvironment !== null) {
-    if (settingsFound && settings.condaPath === undefined) {
+  if (pythonEnvironment) {
+    if (settingsFound && (settings.condaPath === undefined || settings.condaPath !== pythonEnvironment)) {
       settings.condaPath = pythonEnvironment
       fs.writeFileSync(settingsFilePath, JSON.stringify(settings))
     }
@@ -80,11 +130,6 @@ function getCondaPath(parentPath) {
     }
     if (condaPath === null && process.platform !== "darwin") {
       console.log("No conda environment found")
-      dialog.showMessageBoxSync({
-        type: "error",
-        title: "No conda environment found",
-        message: "No conda environment found. Please install anaconda or miniconda and try again."
-      })
     }
   }
   return condaPath
@@ -147,9 +192,6 @@ export function getBundledPythonEnvironment() {
 
   let bundledPythonPath = null
 
-  // Check if the python path can be found in the .medomics directory
-  let medomicsDirExists = fs.existsSync(path.join(app.getPath("home"), ".medomics", "python"))
-
   if (process.env.NODE_ENV === "production") {
     // Get the user path followed by .medomics
     let userPath = getHomePath()
@@ -169,12 +211,17 @@ export function getBundledPythonEnvironment() {
 
     bundledPythonPath = path.join(userPath, ".medomics", "python")
   } else {
+    // Check if the python path can be found in the .medomics directory
+    let medomicsDirExists = fs.existsSync(path.join(app.getPath("home"), ".medomics", "python"))
     if (medomicsDirExists) {
       bundledPythonPath = path.join(getHomePath(), ".medomics", "python")
     } else {
       bundledPythonPath = path.join(process.cwd(), "python")
     }
   }
+
+  // Check if the python folder is empty, if yes, delete it
+  checkSizeAndDeleteIfZero(bundledPythonPath)
 
   pythonEnvironment = path.join(bundledPythonPath, "bin", "python")
   if (process.platform == "win32") {
@@ -320,7 +367,7 @@ export async function installBundledPythonExecutable(mainWindow) {
     let userPath = getHomePath()
 
     medomicsPath = path.join(userPath, ".medomics")
-    pythonParentFolderExtractString = "-C " + medomicsPath
+    pythonParentFolderExtractString = medomicsPath
     let pythonPath = path.join(medomicsPath, "python")
     // Check if the .medomics directory exists
     if (fs.existsSync(medomicsPath)) {
@@ -337,7 +384,14 @@ export async function installBundledPythonExecutable(mainWindow) {
     }
     bundledPythonPath = pythonPath
   } else {
-    bundledPythonPath = path.join(process.cwd(), "python")
+    // Check if the python path can be found in the .medomics directory
+    let medomicsDirExists = fs.existsSync(path.join(app.getPath("home"), ".medomics", "python"))
+    if (medomicsDirExists) {
+      bundledPythonPath = path.join(getHomePath(), ".medomics", "python")
+    } else {
+      bundledPythonPath = path.join(process.cwd(), "python")
+    }
+    pythonParentFolderExtractString = bundledPythonPath.split("python")[0]
   }
   // Check if the python executable is already installed
   let pythonExecutablePath = null
@@ -358,7 +412,7 @@ export async function installBundledPythonExecutable(mainWindow) {
       execCallbacksForChildWithNotifications(downloadPromise.child, "Python Downloading", mainWindow)
 
       const { stdout, stderr } = await downloadPromise
-      let extractCommand = `tar -xvf ${outputFileName} ${pythonParentFolderExtractString}`
+      let extractCommand = `tar -xvf ${outputFileName} -C ${pythonParentFolderExtractString}`
       let extractionPromise = exec(extractCommand, { shell: "powershell.exe" })
       execCallbacksForChildWithNotifications(extractionPromise.child, "Python Exec. Extracting", mainWindow)
 
@@ -383,7 +437,7 @@ export async function installBundledPythonExecutable(mainWindow) {
       }
 
       let url = `https://github.com/indygreg/python-build-standalone/releases/download/20240224/${file}`
-      let extractCommand = `tar -xvf ${file} ${pythonParentFolderExtractString}`
+      let extractCommand = `tar -xvf ${file} -C ${pythonParentFolderExtractString}`
       let downloadPromise = exec(`/bin/bash -c "$(curl -fsSLO ${url})"`)
       execCallbacksForChildWithNotifications(downloadPromise.child, "Python Downloading", mainWindow)
       const { stdout, stderr } = await downloadPromise
@@ -414,18 +468,19 @@ export async function installBundledPythonExecutable(mainWindow) {
       }
 
       let url = `https://github.com/indygreg/python-build-standalone/releases/download/20240224/${file}`
-      let extractCommand = `tar -xvf ${file}  ${pythonParentFolderExtractString}`
 
-      let downloadPromise = exec(`wget ${url}`)
+      // Download the python executable
+      let downloadPromise = exec(`wget ${url} -P ${pythonParentFolderExtractString}`)
       execCallbacksForChildWithNotifications(downloadPromise.child, "Python Downloading", mainWindow)
       const { stdout: download, stderr: downlaodErr } = await downloadPromise
       // Extract the python executable
+      let extractCommand = `tar -xvf ${path.join(pythonParentFolderExtractString, file)} -C ${pythonParentFolderExtractString}`
       let extractionPromise = exec(extractCommand)
       execCallbacksForChildWithNotifications(extractionPromise.child, "Python Exec. Extracting", mainWindow)
       const { stdout: extrac, stderr: extracErr } = await extractionPromise
 
       // Remove the downloaded file
-      let removeCommand = `rm ${file}`
+      let removeCommand = `rm ${path.join(pythonParentFolderExtractString, file)}`
       let removePromise = exec(removeCommand)
       execCallbacksForChildWithNotifications(removePromise.child, "Python Exec. Removing", mainWindow)
       const { stdout: remove, stderr: removeErr } = await removePromise

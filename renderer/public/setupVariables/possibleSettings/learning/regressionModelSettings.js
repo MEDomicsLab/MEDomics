@@ -79,10 +79,15 @@ const regressionModelSettings = {
                 "tooltip": "int, default=8771. The seed of the pseudo random number generator that selects a random feature to update."          
               },
             "selection": {
-                "type": "string",
+                "type": "list",
                 "default_val": "cyclic",
-                "tooltip": "String, default=’cyclic’. If set to ‘random’, a random coefficient is updated every iteration rather than looping over features sequentially by default."
-            }
+                "tooltip": "<p>Feature update strategy during optimization. Default = <code>cyclic</code>.</p>\n<ul>\n<li><code>cyclic</code>: Updates features sequentially.</li>\n<li><code>random</code>: Updates a random feature at each iteration.</li>\n</ul>",
+                "choices": {
+                    "cyclic": "Cyclic (default)",
+                    "random": "Random"
+                }
+        }
+
         },
         "code": "lasso",
         "label": "Lasso Regression"
@@ -115,9 +120,18 @@ const regressionModelSettings = {
                 "tooltip": "float, default=0.0001. Tolerance for stopping criteria."
             },
             "solver": {
-                "type": "string",
+                "type": "list",
                 "default_val": "auto",
-                "tooltip": "string, default=’auto’. Algorithm to use in the optimization problem."
+                "tooltip": "<p>Algorithm used to solve the optimization problem. Default = <code>auto</code>.</p>\n<ul>\n<li><code>auto</code>: Automatically chooses the best solver based on the data.</li>\n<li><code>svd</code>: Singular Value Decomposition.</li>\n<li><code>cholesky</code>: Uses the Cholesky decomposition.</li>\n<li><code>lsqr</code>: Least squares approach via QR decomposition.</li>\n<li><code>sparse_cg</code>: Conjugate gradient for sparse data.</li>\n<li><code>sag</code>: Stochastic Average Gradient.</li>\n<li><code>saga</code>: Variant of SAG that supports L1.</li>\n</ul>",
+                "choices": {
+                    "auto": "Auto (default)",
+                    "svd": "Singular Value Decomposition",
+                    "cholesky": "Cholesky Decomposition",
+                    "lsqr": "Least Squares (QR)",
+                    "sparse_cg": "Sparse Conjugate Gradient",
+                    "sag": "Stochastic Average Gradient (SAG)",
+                    "saga": "SAGA"
+                }
             },
             "positive": {
                 "type": "bool",
@@ -186,10 +200,14 @@ const regressionModelSettings = {
                 "tooltip": "int, default=8771. The seed of the pseudo random number generator that selects a random feature to update."          
              },
             "selection": {
-                "type": "string",
+                "type": "list",
                 "default_val": "cyclic",
-                "tooltip": "String, default=’cyclic’. If set to ‘random’, a random coefficient is updated every iteration rather than looping over features sequentially by default."
-            }
+                "tooltip": "<p>Feature selection strategy. Default = <code>cyclic</code>.</p>\n<ul>\n<li><code>cyclic</code>: Updates coefficients sequentially.</li>\n<li><code>random</code>: Updates a random coefficient at each iteration.</li>\n</ul>",
+                "choices": {
+                    "cyclic": "Cyclic (default)",
+                    "random": "Random"
+                }
+                }
         },
         "code": "en",
         "label": "Elastic Net"
@@ -212,9 +230,12 @@ const regressionModelSettings = {
                 "tooltip": "deprecated"
             },
             "precompute": {
-                "type": "string",
+                "type": "list",
                 "default_val": "auto",
-                "tooltip": "String, default=’auto’. Whether to use a precomputed Gram matrix to speed up calculations."
+                "tooltip": "<p>Whether to precompute the Gram matrix for speed. Default = <code>auto</code>. Automatically decides based on the dataset size and structure.</p>",
+                "choices": {
+                    "auto": "Auto (default)"
+                }
             },
             "n_nonzero_coefs": {
                 "type": "int",
@@ -283,9 +304,12 @@ const regressionModelSettings = {
                 "tooltip": "bool, default=False. When set to True, forces the coefficients to be positive."
             },
             "precompute": {
-                "type": "string",
+                "type": "list",
                 "default_val": "auto",
-                "tooltip": "String, default=’auto’. Whether to use a precomputed Gram matrix to speed up calculations."
+                "tooltip": "<p>Whether to precompute the Gram matrix for speed. Default = <code>auto</code>. Automatically decides based on the dataset size and structure.</p>",
+                "choices": {
+                    "auto": "Auto (default)"
+                }
             },
             "copy_X": {
                 "type": "bool",
@@ -339,9 +363,12 @@ const regressionModelSettings = {
                 "tooltip": "deprecated"
             },
             "precompute": {
-                "type": "string",
-                "default_val": "auto",
-                "tooltip": "String, default=’auto’. Whether to use a precomputed Gram matrix to speed up calculations."
+            "type": "list",
+            "default_val": "auto",
+            "tooltip": "<p>Whether to precompute the Gram matrix for speed. Default = <code>auto</code>. Automatically decides based on the dataset size and structure.</p>",
+            "choices": {
+                "auto": "Auto (default)"
+            }
             }
         },
         "code": "omp",
@@ -477,9 +504,15 @@ const regressionModelSettings = {
     "par": {
         "options": {
             "loss": {
-                "type": "string",
+                "type": "list",
                 "default_val": "epsilon_insensitive",
-                "tooltip": "String, default=’epsilon_insensitive’. The loss function to be used. ‘Hinge’ gives a linear SVM. ‘Log_loss’ gives logistic regression, a probabilistic classifier. ‘Modified_huber’ is another smooth loss that brings tolerance to outliers as well as probability estimates. ‘Squared_hinge’ is like hinge but is quadratically penalized. ‘Perceptron’ is the linear loss used by the perceptron algorithm. The other losses, ‘Squared_error’, ‘Huber’, ‘Epsilon_insensitive’ and ‘Squared_epsilon_insensitive’ are designed for regression but can be useful in classification as well"
+                "tooltip": "<p>Loss function used in regression tasks. Default = <code>epsilon_insensitive</code>.</p>\n<ul>\n<li><code>squared_error</code>: Ordinary least squares (L2 loss)</li>\n<li><code>huber</code>: Robust loss function, tolerant to outliers</li>\n<li><code>epsilon_insensitive</code>: Ignores errors within epsilon margin</li>\n<li><code>squared_epsilon_insensitive</code>: Same as above, but with squared penalty</li>\n</ul>",
+                "choices": {
+                    "squared_error": "Squared Error (L2)",
+                    "huber": "Huber",
+                    "epsilon_insensitive": "Epsilon Insensitive (default)",
+                    "squared_epsilon_insensitive": "Squared Epsilon Insensitive"
+                }
             },
             "penalty": {
                 "type": "NoneType",
@@ -487,9 +520,15 @@ const regressionModelSettings = {
                 "tooltip": "{‘l1’, ‘l2’}, default=’None’ Specifies the norm used in the penalization. The ‘l2’ penalty is the standard used in SVC. The ‘l1’ leads to coef_ vectors that are sparse."
             },
             "learning_rate": {
-                "type": "string",
+                "type": "list",
                 "default_val": "invscaling",
-                "tooltip": "String, default=’invscaling’. The learning rate schedule:‘constant’: eta = eta0‘ Pptimal’: eta = 1.0 / (alpha * (t + t0)) where t0 is chosen by a heuristic proposed by Leon Bottou. ‘Invscaling’: eta = eta0 / pow(t, power_t) ‘Adaptive’: eta = eta0, as long as the training keeps decreasing. Each time n_iter_no_change consecutive epochs fail to decrease the training loss by tol or fail to increase validation score by tol if early_stopping is True, the current learning rate is divided by 5."
+                "tooltip": "<p>Learning rate schedule. Default = <code>invscaling</code>.</p>\n<ul>\n<li><code>constant</code>: η = η₀ (fixed learning rate)</li>\n<li><code>optimal</code>: η = 1 / (α × (t + t₀)), recommended for SGD</li>\n<li><code>invscaling</code>: η = η₀ / t<sup>power_t</sup></li>\n<li><code>adaptive</code>: Keeps η = η₀ as long as training improves</li>\n</ul>",
+                "choices": {
+                    "constant": "Constant",
+                    "optimal": "Optimal",
+                    "invscaling": "Inverse Scaling (default)",
+                    "adaptive": "Adaptive"
+                }
             },
             "epsilon": {
                 "type": "float",
@@ -638,9 +677,15 @@ const regressionModelSettings = {
                 "tooltip": "int, default=8771, The generator used to initialize the centers"          
               },
             "loss": {
-                "type": "string",
+                "type": "list",
                 "default_val": "absolute_error",
-                "tooltip": "String, default=’absolute_error’. The loss function to be used. ‘Hinge’ gives a linear SVM. ‘Log_loss’ gives logistic regression, a probabilistic classifier. ‘Modified_huber’ is another smooth loss that brings tolerance to outliers as well as probability estimates. ‘Squared_hinge’ is like hinge but is quadratically penalized. ‘Perceptron’ is the linear loss used by the perceptron algorithm. The other losses, ‘Squared_error’, ‘Huber’, ‘Epsilon_insensitive’ and ‘Squared_epsilon_insensitive’ are designed for regression but can be useful in classification as well"
+                "tooltip": "<p>Loss function used for regression. Default = <code>absolute_error</code>.</p>\n<ul>\n<li><code>squared_error</code>: L2 loss (mean squared error)</li>\n<li><code>absolute_error</code>: L1 loss (mean absolute error)</li>\n<li><code>huber</code>: Combines L1 and L2, robust to outliers</li>\n<li><code>quantile</code>: For quantile regression</li>\n</ul>",
+                "choices": {
+                    "squared_error": "Squared Error (MSE)",
+                    "absolute_error": "Absolute Error (MAE, default)",
+                    "huber": "Huber",
+                    "quantile": "Quantile"
+                }
             },
             "base_estimator": {
                 "type": "string",
@@ -746,9 +791,17 @@ const regressionModelSettings = {
                 "tooltip": "int, default=1. Regularization strength."
             },
             "kernel": {
-                "type": "string",
+                "type": "list",
                 "default_val": "linear",
-                "tooltip": "String, default=’linear’, Specifies the kernel type to be used in the algorithm."
+                "tooltip": "<p>Specifies the kernel type used in Kernel Ridge Regression. Default = <code>linear</code>.</p>\n<ul>\n<li><code>linear</code>: Linear kernel</li>\n<li><code>poly</code>: Polynomial kernel</li>\n<li><code>rbf</code>: Radial basis function (Gaussian kernel)</li>\n<li><code>sigmoid</code>: Sigmoid kernel</li>\n<li><code>cosine</code>: Cosine similarity kernel</li>\n<li><code>precomputed</code>: Use a precomputed kernel matrix</li>\n</ul>",
+                "choices": {
+                    "linear": "Linear (default)",
+                    "poly": "Polynomial",
+                    "rbf": "RBF",
+                    "sigmoid": "Sigmoid",
+                    "cosine": "Cosine",
+                    "precomputed": "Precomputed"
+                }
             },
             "gamma": {
                 "type": "NoneType",
@@ -776,10 +829,17 @@ const regressionModelSettings = {
     },
     "svm": {
         "options": {
-            "kernel": {
-                "type": "string",
+           "kernel": {
+                "type": "list",
                 "default_val": "rbf",
-                "tooltip": "String, default=’rbf’, Specifies the kernel type to be used in the algorithm."
+                "tooltip": "<p>Specifies the kernel type to be used in the SVM algorithm. Default = <code>rbf</code>.</p>\n<ul>\n<li><code>linear</code>: Linear kernel</li>\n<li><code>poly</code>: Polynomial kernel</li>\n<li><code>rbf</code>: Radial Basis Function (default)</li>\n<li><code>sigmoid</code>: Sigmoid kernel</li>\n<li><code>precomputed</code>: Kernel matrix must be precomputed</li>\n</ul>",
+                "choices": {
+                    "linear": "Linear",
+                    "poly": "Polynomial",
+                    "rbf": "RBF (default)",
+                    "sigmoid": "Sigmoid",
+                    "precomputed": "Precomputed"
+                }
             },
             "degree": {
                 "type": "int",
@@ -787,9 +847,13 @@ const regressionModelSettings = {
 				"tooltip": "int, default=3. Degree of the polynomial kernel function (‘poly’). Must be non-negative. Ignored by all other kernels."
             },
             "gamma": {
-                "type": "string",
+                "type": "list",
                 "default_val": "scale",
-                "tooltip": "String, default=’scale’. Kernel coefficient for ‘rbf’, ‘poly’ and ‘sigmoid’."
+                "tooltip": "<p>Kernel coefficient for <code>rbf</code>, <code>poly</code> and <code>sigmoid</code> kernels. Default = <code>scale</code>.</p>\n<ul>\n<li><code>scale</code>: 1 / (n_features × X.var())</li>\n<li><code>auto</code>: 1 / n_features</li>\n</ul>",
+                "choices": {
+                    "scale": "Scale (default)",
+                    "auto": "Auto"
+                }
             },
             "coef0": {
                 "type": "float",
@@ -868,9 +932,15 @@ const regressionModelSettings = {
                 "tooltip": "NoneType, default=None. Limiting distance of neighbors to return. If radius is a float, then n_neighbors must be set to None."
             },
             "algorithm": {
-                "type": "string",
+                "type": "list",
                 "default_val": "auto",
-                "tooltip": "String, default=’auto’. Algorithm used to compute the nearest neighbors:‘ball_tree’ will use BallTree.‘kd_tree’ will use KDTree.‘brute’ will use a brute-force search.‘auto’ will attempt to decide the most appropriate algorithm based on the values passed to fit method. (default)"
+                "tooltip": "<p>Algorithm used to compute the nearest neighbors. Default = <code>auto</code>.</p>\n<ul>\n<li><code>auto</code>: Chooses the best algorithm based on data</li>\n<li><code>ball_tree</code>: Uses BallTree</li>\n<li><code>kd_tree</code>: Uses KDTree</li>\n<li><code>brute</code>: Brute-force search</li>\n</ul>",
+                "choices": {
+                    "auto": "Auto (default)",
+                    "ball_tree": "BallTree",
+                    "kd_tree": "KDTree",
+                    "brute": "Brute Force"
+                }
             },
             "leaf_size": {
                 "type": "int",
@@ -878,10 +948,19 @@ const regressionModelSettings = {
                 "tooltip": "int, default=30. Leaf size passed to BallTree or KDTree. This can affect the speed of the construction and query, as well as the memory required to store the tree. The optimal value depends on the nature of the problem."
             },
             "metric": {
-                "type": "string",
+                "type": "list",
                 "default_val": "minkowski",
-                "tooltip": "String, default=’minkowski’. Distance metric for searching neighbors."
-            },
+                "tooltip": "<p>Distance metric for nearest neighbor search. Default = <code>minkowski</code>.</p>\n<ul>\n<li><code>euclidean</code>: Standard L2 distance</li>\n<li><code>manhattan</code>: L1 distance</li>\n<li><code>chebyshev</code>: L∞ distance</li>\n<li><code>minkowski</code>: Generalized distance (default)</li>\n<li><code>cosine</code>: Cosine distance</li>\n<li><code>hamming</code>: Fraction of non-matching components</li>\n<li><code>precomputed</code>: Use a precomputed distance matrix</li>\n</ul>",
+                "choices": {
+                    "minkowski": "Minkowski (default)",
+                    "euclidean": "Euclidean",
+                    "manhattan": "Manhattan",
+                    "chebyshev": "Chebyshev",
+                    "cosine": "Cosine",
+                    "hamming": "Hamming",
+                    "precomputed": "Precomputed"
+                }
+             },
             "metric_params": {
                 "type": "NoneType",
                 "default_val": "None",
@@ -898,9 +977,13 @@ const regressionModelSettings = {
                 "tooltip": "int, default=-1. Number of CPU cores used when parallelizing over classes if multi_class=’ovr’”. This parameter is ignored when the solver is set to ‘liblinear’ regardless of whether ‘multi_class’ is specified or not."
             },
             "weights": {
-                "type": "string",
-                "default_val": "uniform",
-                "tooltip": "String, default=’uniform’. Weight function used in prediction. Possible values: ‘uniform’ : Uniform weights. All points in each neighborhood are weighted equally. ‘Distance’ : weight points by the inverse of their distance. in this case, closer neighbors of a query point will have a greater influence than neighbors which are further away. Callable : a user-defined function which accepts an array of distances, and returns an array of the same shape containing the weights."
+            "type": "list",
+            "default_val": "uniform",
+            "tooltip": "<p>Weight function used in prediction. Default = <code>uniform</code>.</p>\n<ul>\n<li><code>uniform</code>: All neighbors are weighted equally</li>\n<li><code>distance</code>: Closer neighbors have greater influence</li>\n<li><code>callable</code>: You can also provide a custom function (not available via UI)</li>\n</ul>",
+            "choices": {
+                "uniform": "Uniform (default)",
+                "distance": "Distance"
+            }
             }
         },
         "code": "knn",
@@ -909,14 +992,24 @@ const regressionModelSettings = {
     "dt": {
         "options": {
             "criterion": {
-                "type": "string",
+                "type": "list",
                 "default_val": "squared_error",
-                "tooltip": "String, default=”squared_error”. The function to measure the quality of a split. Supported criteria are “gini” for the Gini impurity and “log_loss” and “entropy” both for the Shannon information gain"
+                "tooltip": "<p>Function to measure the quality of a split. Default = <code>squared_error</code>.</p>\n<ul>\n<li><code>squared_error</code>: Mean squared error (MSE)</li>\n<li><code>absolute_error</code>: Mean absolute error (MAE)</li>\n<li><code>poisson</code>: For count data</li>\n<li><code>friedman_mse</code>: MSE with improvement score (for GBDTs)</li>\n</ul>",
+                "choices": {
+                    "squared_error": "Mean Squared Error (default)",
+                    "absolute_error": "Mean Absolute Error",
+                    "poisson": "Poisson",
+                    "friedman_mse": "Friedman MSE"
+                }
             },
             "splitter": {
-                "type": "string",
+                "type": "list",
                 "default_val": "best",
-                "tooltip": "String, default=”best”. The strategy used to choose the split at each node. Supported strategies are “best” to choose the best split and “random” to choose the best random split."
+                "tooltip": "<p>Strategy used to choose the split at each node. Default = <code>best</code>.</p>\n<ul>\n<li><code>best</code>: Chooses the best split</li>\n<li><code>random</code>: Chooses the best random split</li>\n</ul>",
+                "choices": {
+                    "best": "Best (default)",
+                    "random": "Random"
+                }
             },
             "max_depth": {
                 "type": "NoneType",
@@ -1227,9 +1320,14 @@ const regressionModelSettings = {
                 "tooltip": "int, default=8771. Controls the random seed given at each estimator at each boosting iteration."
               },
             "loss": {
-                "type": "string",
+                "type": "list",
                 "default_val": "linear",
-                "tooltip": "String, default=’linear’. The loss function to be used. ‘Hinge’ gives a linear SVM. ‘Log_loss’ gives logistic regression, a probabilistic classifier. ‘Modified_huber’ is another smooth loss that brings tolerance to outliers as well as probability estimates. ‘Squared_hinge’ is like hinge but is quadratically penalized. ‘Perceptron’ is the linear loss used by the perceptron algorithm. The other losses, ‘Squared_error’, ‘Huber’, ‘Epsilon_insensitive’ and ‘Squared_epsilon_insensitive’ are designed for regression but can be useful in classification as well"
+                "tooltip": "<p>Loss function used when updating the weights after each boosting iteration. Default = <code>linear</code>.</p>\n<ul>\n<li><code>linear</code>: No change to the weights</li>\n<li><code>square</code>: Penalizes larger errors more strongly</li>\n<li><code>exponential</code>: Exponentially increases weight on wrong predictions</li>\n</ul>",
+                "choices": {
+                    "linear": "Linear (default)",
+                    "square": "Square",
+                    "exponential": "Exponential"
+                }
             }
         },
         "code": "ada",
@@ -1248,14 +1346,24 @@ const regressionModelSettings = {
                 "tooltip": "float, default=0.1. Weight applied to each classifier at each boosting iteration. A higher learning rate increases the contribution of each classifier. There is a trade-off between the learning_rate and n_estimators parameters. Values must be in the range (0.0, inf)."
             },
             "loss": {
-                "type": "string",
+                "type": "list",
                 "default_val": "squared_error",
-                "tooltip": "String, default=’squared_error’. The loss function to be used. ‘Hinge’ gives a linear SVM. ‘Log_loss’ gives logistic regression, a probabilistic classifier. ‘Modified_huber’ is another smooth loss that brings tolerance to outliers as well as probability estimates. ‘Squared_hinge’ is like hinge but is quadratically penalized. ‘Perceptron’ is the linear loss used by the perceptron algorithm. The other losses, ‘Squared_error’, ‘Huber’, ‘Epsilon_insensitive’ and ‘Squared_epsilon_insensitive’ are designed for regression but can be useful in classification as well"
+                "tooltip": "<p>Loss function to be optimized. Default = <code>squared_error</code>.</p>\n<ul>\n<li><code>squared_error</code>: Mean squared error regression loss</li>\n<li><code>absolute_error</code>: Mean absolute error regression loss</li>\n<li><code>huber</code>: Combination of squared error and absolute error</li>\n<li><code>quantile</code>: Used for quantile regression</li>\n</ul>",
+                "choices": {
+                    "squared_error": "Mean Squared Error (default)",
+                    "absolute_error": "Mean Absolute Error",
+                    "huber": "Huber Loss",
+                    "quantile": "Quantile Loss"
+                }
             },
             "criterion": {
-                "type": "string",
+                "type": "list",
                 "default_val": "friedman_mse",
-                "tooltip": "String, default=”friedman_mse”. The function to measure the quality of a split. Supported criteria are “gini” for the Gini impurity and “log_loss” and “entropy” both for the Shannon information gain"
+                "tooltip": "<p>Function to measure the quality of a split. Default = <code>friedman_mse</code>.</p>\n<ul>\n<li><code>friedman_mse</code>: Mean squared error with improvement score (default)</li>\n<li><code>squared_error</code>: Mean squared error</li>\n</ul>",
+                "choices": {
+                    "friedman_mse": "Friedman MSE (default)",
+                    "squared_error": "Mean Squared Error"
+                }
             },
             "min_samples_split": {
                 "type": "int",
@@ -1349,14 +1457,25 @@ const regressionModelSettings = {
     "mlp": {
         "options": {
             "activation": {
-                "type": "string",
+                "type": "list",
                 "default_val": "relu",
-                "tooltip": "String, default=’relu’. Activation function for the hidden layer."
+                "tooltip": "<p>Activation function for the hidden layer (used in the forward pass).</p>\n<ul>\n<li><code>identity</code>: f(x) = x</li>\n<li><code>logistic</code>: f(x) = 1 / (1 + exp(-x))</li>\n<li><code>tanh</code>: f(x) = tanh(x)</li>\n<li><code>relu</code>: f(x) = max(0, x)</li>\n</ul>",
+                "choices": {
+                    "identity": "Identity",
+                    "logistic": "Logistic (sigmoid)",
+                    "tanh": "Tanh",
+                    "relu": "ReLU (default)"
+                }
             },
             "solver": {
-                "type": "string",
+                "type": "list",
                 "default_val": "adam",
-                "tooltip": "string, default=’adam’. Algorithm to use in the optimization problem."
+                "tooltip": "<p>Solver for weight optimization.</p>\n<ul>\n<li><code>lbfgs</code>: Quasi-Newton optimizer (faster for small datasets)</li>\n<li><code>sgd</code>: Stochastic Gradient Descent</li>\n<li><code>adam</code>: Stochastic optimizer recommended for most tasks (default)</li>\n</ul>",
+                "choices": {
+                    "lbfgs": "LBFGS",
+                    "sgd": "Stochastic Gradient Descent",
+                    "adam": "Adam (default)"
+                }
             },
             "alpha": {
                 "type": "float",
@@ -1369,9 +1488,14 @@ const regressionModelSettings = {
 				"tooltip": "String, default=’auto’. Size of minibatches for stochastic optimizers."
             },
             "learning_rate": {
-                "type": "string",
+                "type": "list",
                 "default_val": "constant",
-                "tooltip": "String, default=’constant’. The learning rate schedule:‘constant’: eta = eta0‘ Pptimal’: eta = 1.0 / (alpha * (t + t0)) where t0 is chosen by a heuristic proposed by Leon Bottou. ‘Invscaling’: eta = eta0 / pow(t, power_t) ‘Adaptive’: eta = eta0, as long as the training keeps decreasing. Each time n_iter_no_change consecutive epochs fail to decrease the training loss by tol or fail to increase validation score by tol if early_stopping is True, the current learning rate is divided by 5."
+                "tooltip": "<p>Learning rate schedule for weight updates. Default = <code>constant</code>.</p>\n<ul>\n<li><code>constant</code>: eta = eta0</li>\n<li><code>invscaling</code>: eta = eta0 / pow(t, power_t)</li>\n<li><code>adaptive</code>: eta = eta0, reduced when validation score stops improving</li>\n</ul>",
+                "choices": {
+                    "constant": "Constant (default)",
+                    "invscaling": "Inverse scaling",
+                    "adaptive": "Adaptive"
+                }
             },
             "learning_rate_init": {
                 "type": "float",
@@ -1389,9 +1513,12 @@ const regressionModelSettings = {
                 "tooltip": "int, default=500. The maximum number of iterations to be run."
             },
             "loss": {
-                "type": "string",
+                "type": "list",
                 "default_val": "squared_error",
-                "tooltip": "String, default=’squared_error’. The loss function to be used. ‘Hinge’ gives a linear SVM. ‘Log_loss’ gives logistic regression, a probabilistic classifier. ‘Modified_huber’ is another smooth loss that brings tolerance to outliers as well as probability estimates. ‘Squared_hinge’ is like hinge but is quadratically penalized. ‘Perceptron’ is the linear loss used by the perceptron algorithm. The other losses, ‘Squared_error’, ‘Huber’, ‘Epsilon_insensitive’ and ‘Squared_epsilon_insensitive’ are designed for regression but can be useful in classification as well"
+                "tooltip": "<p>Loss function used to optimize the network. Only <code>squared_error</code> is currently supported.</p>",
+                "choices": {
+                    "squared_error": "Squared error (default)"
+                }
             },
             "hidden_layer_sizes": {
                 "type": "tuple",
@@ -1475,9 +1602,15 @@ const regressionModelSettings = {
     "lightgbm": {
         "options": {
             "boosting_type": {
-                "type": "string",
+                "type": "list",
                 "default_val": "gbdt",
-                "tooltip": "String, default='gbdt'. traditional Gradient Boosting Decision Tree."
+                "tooltip": "<p>Boosting method for training the LightGBM regressor. Default = <code>gbdt</code>.</p>\n<ul>\n<li><code>gbdt</code>: Traditional Gradient Boosting Decision Tree</li>\n<li><code>dart</code>: DART (Dropouts meet Additive Regression Trees)</li>\n<li><code>goss</code>: Gradient-based One-Side Sampling</li>\n<li><code>rf</code>: Random Forest</li>\n</ul>",
+                "choices": {
+                    "gbdt": "Gradient Boosting Decision Tree (default)",
+                    "dart": "DART",
+                    "goss": "GOSS",
+                    "rf": "Random Forest"
+                }
             },
             "objective": {
                 "type": "NoneType",
@@ -1576,9 +1709,15 @@ const regressionModelSettings = {
     "dummy": {
         "options": {
             "strategy": {
-                "type": "string",
+                "type": "list",
                 "default_val": "mean",
-                "tooltip": "String, default=”mean”. Strategy to use to generate predictions. “mean”: always predicts the mean of the training set."
+                "tooltip": "<p>Strategy to generate predictions. Default = <code>mean</code>.</p>\n<ul>\n<li><code>mean</code>: Always predicts the mean of the training targets</li>\n<li><code>median</code>: Predicts the median of the training targets</li>\n<li><code>quantile</code>: Predicts a specified quantile of the training targets</li>\n<li><code>constant</code>: Always predicts a constant value provided by the user</li>\n</ul>",
+                "choices": {
+                    "mean": "Mean (default)",
+                    "median": "Median",
+                    "quantile": "Quantile",
+                    "constant": "Constant"
+                }
             },
             "constant": {
                 "type": "NoneType",
