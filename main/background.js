@@ -9,11 +9,11 @@ import { runServer, findAvailablePort } from "./utils/server"
 import { setWorkingDirectory, getRecentWorkspacesOptions, loadWorkspaces, createMedomicsDirectory, updateWorkspace, createWorkingDirectory } from "./utils/workspace"
 import {
   getBundledPythonEnvironment,
+  getMissingPythonRequirements,
   getInstalledPythonPackages,
-  installPythonPackage,
   installBundledPythonExecutable,
   checkPythonRequirements,
-  installRequiredPythonPackages
+  installPythonRequirements
 } from "./utils/pythonEnv"
 import { installMongoDB, checkRequirements } from "./utils/installation"
 
@@ -601,15 +601,6 @@ ipcMain.handle("installBundledPythonExecutable", async (event) => {
   if (pythonInstalled === null) {
     // If Python is not installed, install it
     return installBundledPythonExecutable(mainWindow)
-  } else {
-    // Check if the required packages are installed
-    let requirementsInstalled = checkPythonRequirements()
-    if (requirementsInstalled) {
-      return true
-    } else {
-      await installRequiredPythonPackages(mainWindow)
-      return true
-    }
   }
 })
 
@@ -619,6 +610,14 @@ ipcMain.handle("checkRequirements", async (event) => {
 
 ipcMain.handle("checkPythonRequirements", async (event) => {
   return checkPythonRequirements()
+})
+
+ipcMain.handle("getMissingPythonRequirements", async (event) => {
+  return getMissingPythonRequirements()
+})
+
+ipcMain.handle("installMissingPythonRequirements", async (event, pythonPath, requirements) => {
+  return installPythonRequirements(mainWindow, pythonPath, requirements)
 })
 
 ipcMain.handle("checkMongoDBisInstalled", async (event) => {

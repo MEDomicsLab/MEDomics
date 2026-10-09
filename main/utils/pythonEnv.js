@@ -4,7 +4,7 @@ var path = require("path")
 const { join } = require("path")
 const { readdir, stat, rm } = require("fs/promises")
 const util = require("util")
-const { execSync } = require("child_process")
+const { execSync, execFileSync, spawn } = require("child_process")
 const exec = util.promisify(require("child_process").exec)
 
 /**
@@ -92,6 +92,74 @@ export function getPythonEnvironment(medCondaEnv = "med_conda_env") {
     }
   }
   return pythonEnvironment
+}
+
+// This script will run inside the bundled Python to check for missing requirements.
+// Specifiers are also taken into account.
+const MISSING_REQUIREMENTS_SCRIPT = `
+import json, sys
+from importlib import metadata
+try:
+    from packaging.requirements import Requirement
+except ImportError:
+    from pip._vendor.packaging.requirements import Requirement
+missing=[]
+for line in open(sys.argv[1], encoding="utf-8"):
+    line = line.split("#")[0].strip()
+    if not line or line.startswith("-"):
+        continue
+    req = Requirement(line)
+    if req.marker is not None and not req.marker.evaluate():
+        continue
+    try:
+        installed = metadata.version(req.name)
+    except metadata.PackageNotFoundError:
+        installed = None
+    if installed is None or not req.specifier.contains(installed, prereleases=True):
+        missing.append({"requirement": line, "name": req.name, "installed": installed})
+print(json.dumps(missing))
+`
+
+/**
+ * @description Lists all the missing requirements for the Python package
+ * @param {String} pythonPath The path to the Python executable
+ * @param {String} requirementsFilePath The path to the requirements file
+ * @returns {Array<{requirement: String, name: String, installed: String|null}} null when package is absent 
+ */
+export function getMissingPythonRequirements(pythonPath = null, requirementsFilePath = null) {
+  pythonPath = pythonPath || getBundledPythonEnvironment()
+  requirementsFilePath = requirementsFilePath || (process.env.NODE_ENV === "production" ? path.join(process.resourcesPath, "pythonEnv", "merged_requirements.txt") : path.join(process.cwd(), "pythonEnv", "merged_requirements.txt"))
+  const output = execFileSync(pythonPath, ["-c", MISSING_REQUIREMENTS_SCRIPT, requirementsFilePath], { encoding: "utf-8" })
+  return JSON.parse(output.trim().split("\n").pop())
+}
+
+export function checkPythonRequirements(pythonPath = null, requirementsFilePath = null) {
+  try {
+    const missing = getMissingPythonRequirements(pythonPath, requirementsFilePath)
+    return missing.length === 0
+  } catch (error) {
+    console.error("Error checking Python requirements:", error)
+    return false
+  }
+}
+
+/**
+ * @description pipinstalls the requirements for the Python package. pip's outputs are streamed to the notification system.
+ * @param {String} mainWindow The main window of the Electron app
+ * @param {String} pythonPath The path to the Python executable
+ * @param {String} requirements list of requirements to install.
+ * @returns {Promise<{success: Boolean, code: Number}>}
+ */
+export function installPythonRequirements(mainWindow, pythonPath, requirements) {
+  return new Promise((resolve) => {
+    const child = spawn(pythonPath, ["-m", "pip", "install", ...requirements])
+    execCallbacksForChildWithNotifications(child, "Python Package Installation", mainWindow)
+    child.on("error", (error) => {
+      console.error("Error during Python package installation:", error)
+      resolve({ success: false, code: -1 })
+    })
+    child.on("close", (code) => resolve({ success: code === 0, code }))
+  })
 }
 
 /**
@@ -233,13 +301,10 @@ export function getBundledPythonEnvironment() {
   return pythonEnvironment
 }
 
-export async function installRequiredPythonPackages(mainWindow) {
-  let requirementsFileName = "merged_requirements.txt"
-  if (process.env.NODE_ENV === "production") {
-    installPythonPackage(mainWindow, pythonExecutablePath, null, path.join(process.cwd(), "resources", "pythonEnv", requirementsFileName))
-  } else {
-    installPythonPackage(mainWindow, pythonExecutablePath, null, path.join(process.cwd(), "pythonEnv", requirementsFileName))
-  }
+export function getRequirementsFilePath() {
+  const requirementsFileName = process.platform === "darwin" ? "requirements_mac.txt" : "merged_requirements.txt"
+  const pythonEnvDir = process.env.NODE_ENV === "production" ? path.join(process.resourcesPath, "pythonEnv") : path.join(process.cwd(), "pythonEnv")
+  return path.join(pythonEnvDir, requirementsFileName)
 }
 
 function comparePythonInstalledPackages(pythonPackages, requirements) {
@@ -271,32 +336,6 @@ function comparePythonInstalledPackages(pythonPackages, requirements) {
   return missingPackages
 }
 
-export function checkPythonRequirements(pythonPath = null, requirementsFilePath = null) {
-  let pythonRequirementsMet = false
-  if (pythonPath === null) {
-    // pythonPath = getPythonEnvironment()
-    pythonPath = getBundledPythonEnvironment()
-  }
-  if (requirementsFilePath === null) {
-    if (process.env.NODE_ENV === "production") {
-      requirementsFilePath = path.join(process.resourcesPath, "pythonEnv", "merged_requirements.txt")
-    } else {
-      requirementsFilePath = path.join(process.cwd(), "pythonEnv", "merged_requirements.txt")
-    }
-  }
-  let pythonPackages = getInstalledPythonPackages(pythonPath)
-  let requirements = fs.readFileSync(requirementsFilePath, "utf8").split("\n")
-  // # Remove empty lines and \r
-  requirements = requirements.filter((line) => line.trim() !== "")
-  requirements = requirements.map((line) => line.replace("\r", ""))
-
-  let missingPackages = comparePythonInstalledPackages(pythonPackages, requirements)
-  if (missingPackages.length === 0) {
-    pythonRequirementsMet = true
-  }
-  return pythonRequirementsMet
-}
-
 export function getInstalledPythonPackages(pythonPath = null) {
   let pythonPackages = []
   if (pythonPath === null) {
@@ -319,19 +358,21 @@ export function getInstalledPythonPackages(pythonPath = null) {
 
 export async function installPythonPackage(mainWindow, pythonPath, packageName = null, requirementsFilePath = null) {
   console.log("Installing python package: ", packageName, requirementsFilePath, " with pythonPath: ", pythonPath)
-  let execSyncResult = null
   let pipUpgradePromise = exec(`${pythonPath} -m pip install --upgrade pip`)
   execCallbacksForChildWithNotifications(pipUpgradePromise.child, "Python pip Upgrade", mainWindow)
   await pipUpgradePromise
-  if (requirementsFilePath !== null) {
-    let installPythonPackagePromise = exec(`${pythonPath} -m pip install -r ${requirementsFilePath}`)
-    execCallbacksForChildWithNotifications(installPythonPackagePromise.child, "Python Package Installation from requirements", mainWindow)
-    await installPythonPackagePromise
-  } else {
+  requirementsFilePath = requirementsFilePath || getRequirementsFilePath()
+  if (requirementsFilePath === null && packageName === null) {
+    console.error("No requirements file found. Cannot install packages.")
+    return
+  } else if (packageName !== null) {
     let installPythonPackagePromise = exec(`${pythonPath} -m pip install ${packageName}`)
     execCallbacksForChildWithNotifications(installPythonPackagePromise.child, "Python Package Installation", mainWindow)
     await installPythonPackagePromise
   }
+  let installPythonPackagePromise = exec(`${pythonPath} -m pip install -r ${requirementsFilePath}`)
+  execCallbacksForChildWithNotifications(installPythonPackagePromise.child, "Python Package Installation from requirements", mainWindow)
+  await installPythonPackagePromise
 }
 
 export function execCallbacksForChildWithNotifications(child, id, mainWindow) {
@@ -419,11 +460,7 @@ export async function installBundledPythonExecutable(mainWindow) {
       const { stdout: extrac, stderr: extracErr } = await extractionPromise
 
       // Install the required python packages
-      if (process.env.NODE_ENV === "production") {
-        installPythonPackage(mainWindow, pythonExecutablePath, null, path.join(process.cwd(), "resources", "pythonEnv", "merged_requirements.txt"))
-      } else {
-        installPythonPackage(mainWindow, pythonExecutablePath, null, path.join(process.cwd(), "pythonEnv", "merged_requirements.txt"))
-      }
+      installPythonPackage(mainWindow, pythonExecutablePath)
       let removeCommand = `rm ${outputFileName}`
       let removePromise = exec(removeCommand, { shell: "powershell.exe" })
       execCallbacksForChildWithNotifications(removePromise.child, "Python Exec. Removing", mainWindow)
@@ -454,11 +491,7 @@ export async function installBundledPythonExecutable(mainWindow) {
       const { stdout: remove, stderr: removeErr } = await removePromise
 
       // Install the required python packages
-      if (process.env.NODE_ENV === "production") {
-        installPythonPackage(mainWindow, pythonExecutablePath, null, path.join(process.resourcesPath, "pythonEnv", "requirements_mac.txt"))
-      } else {
-        installPythonPackage(mainWindow, pythonExecutablePath, null, path.join(process.cwd(), "pythonEnv", "requirements_mac.txt"))
-      }
+      installPythonPackage(mainWindow, pythonExecutablePath)
     } else if (process.platform == "linux") {
       // Download the right python executable (arm64 or x86_64)
       // https://github.com/indygreg/python-build-standalone/releases/download/20240224/cpython-3.9.18+20240224-x86_64_v4-unknown-linux-gnu-install_only.tar.gz      let file = "cpython-3.9.18+20240224-x86_64_v4-unknown-linux-gnu-install_only.tar.gz"
@@ -489,11 +522,7 @@ export async function installBundledPythonExecutable(mainWindow) {
       console.log("process.cwd(): ", process)
       console.log("process.resourcesPath: ", process.resourcesPath)
       // Install the required python packages
-      if (process.env.NODE_ENV === "production") {
-        installPythonPackage(mainWindow, pythonExecutablePath, null, path.join(process.resourcesPath, "pythonEnv", "merged_requirements.txt"))
-      } else {
-        installPythonPackage(mainWindow, pythonExecutablePath, null, path.join(process.cwd(), "pythonEnv", "merged_requirements.txt"))
-      }
+      installPythonPackage(mainWindow, pythonExecutablePath)
     }
   }
 }

@@ -1,71 +1,120 @@
 /* eslint-disable no-unused-vars */
-import React, { useEffect, useState, useContext } from "react"
-import { connectToMongoDB } from "../mongoDB/mongoDBUtils"
-var path = require("path")
-import fs from "fs"
-const { spawn } = require("child_process")
+import useInterval from "@khalidalansi/use-interval"
 import { ipcRenderer } from "electron"
-import ModulePage from "./moduleBasics/modulePage"
-import { Button } from "primereact/button"
-import { TabView, TabPanel } from "primereact/tabview"
-import { Col } from "react-bootstrap"
+import fs from "fs"
 import { Check2Circle, Folder2Open, XCircleFill } from "react-bootstrap-icons"
-import { InputText } from "primereact/inputtext"
-import { InputNumber } from "primereact/inputnumber"
-import { DataTable } from "primereact/datatable"
+import { Button } from "primereact/button"
 import { Column } from "primereact/column"
-import { WorkspaceContext } from "../workspace/workspaceContext"
-import FirstSetupModal from "../generalPurpose/installation/firstSetupModal"
+import { DataTable } from "primereact/datatable"
+import { InputNumber } from "primereact/inputnumber"
+import { InputText } from "primereact/inputtext"
+import { TabPanel, TabView } from "primereact/tabview"
+import { useCallback, useContext, useEffect, useRef, useState } from "react"
+import { Col } from "react-bootstrap"
+import { toast } from "react-toastify"
 import { requestBackend } from "../../utilities/requests"
-const util = require("util")
-const exec = util.promisify(require("child_process").exec)
+import FirstSetupModal from "../generalPurpose/installation/firstSetupModal"
+import { WorkspaceContext } from "../workspace/workspaceContext"
+import ModulePage from "./moduleBasics/modulePage"
+
+
+var path = require("path")
+const { spawn } = require("child_process")
 
 /**
  * Settings page
+ * @param {Object} props
+ * @param {string} [props.pageId="settings"] - Page id for backend requests
+ * @param {boolean} [props.isActive=true] - Whether the Settings tab is visible in the layout
  * @returns {JSX.Element} Settings page
  */
-const SettingsPage = ({pageId = "settings", checkJupyterIsRunning, startJupyterServer, stopJupyterServer}) => {
+const SettingsPage = ({ pageId = "settings", isActive = true }) => {
   const { workspace, port } = useContext(WorkspaceContext)
-  const [settings, setSettings] = useState(null) // Settings object
-  const [serverIsRunning, setServerIsRunning] = useState(false) // Boolean to know if the server is running  
-  const [mongoServerIsRunning, setMongoServerIsRunning] = useState(false) // Boolean to know if the server is running
-  const [jupyterServerIsRunning, setjupyterServerIsRunning] = useState(false) // Boolean to know if Jupyter Noteobok is running
-  const [activeIndex, setActiveIndex] = useState(0) // Index of the active tab
-  const [condaPath, setCondaPath] = useState("") // Path to the conda environment
-  const [seed, setSeed] = useState(54288) // Seed for random number generation
-  const [pythonEmbedded, setPythonEmbedded] = useState({}) // Boolean to know if python is embedded
-  const [showPythonPackages, setShowPythonPackages] = useState(false) // Boolean to know if python packages are shown
+  const [settings, setSettings] = useState(null)
+  const [serverIsRunning, setServerIsRunning] = useState(false)
+  const [mongoServerIsRunning, setMongoServerIsRunning] = useState(false)
+  const [activeIndex, setActiveIndex] = useState(0)
+  const [condaPath, setCondaPath] = useState("")
+  const [seed, setSeed] = useState(54288)
+  const [bundledPythonPath, setBundledPythonPath] = useState(null)
+  const [pythonPackages, setPythonPackages] = useState(null)
+  const [showPythonPackages, setShowPythonPackages] = useState(false)
+  const [firstSetupModalVisible, setFirstSetupModalVisible] = useState(false)
+  const [missingRequirements, setMissingRequirements] = useState(null) // null until checked
+  const [requirementsCheckError, setRequirementsCheckError] = useState(null)
+  const [isCheckingRequirements, setIsCheckingRequirements] = useState(false)
+  const [isInstallingRequirements, setIsInstallingRequirements] = useState(false)
 
-  /**
-   * Check if the mongo server is running and set the state
-   * @returns {void}
-   */
-  const checkMongoIsRunning = () => {
+  const isMountedRef = useRef(true)
+  const saveSettingsTimeoutRef = useRef(null)
+
+  useEffect(() => {
+    isMountedRef.current = true
+    return () => {
+      isMountedRef.current = false
+      if (saveSettingsTimeoutRef.current) {
+        clearTimeout(saveSettingsTimeoutRef.current)
+      }
+    }
+  }, [])
+
+  const checkMongoIsRunning = useCallback(() => {
     ipcRenderer.invoke("checkMongoIsRunning").then((status) => {
-      console.log("MongoDB is running: ", status)
-      setMongoServerIsRunning(status)
+      if (!isMountedRef.current) return
+      setMongoServerIsRunning((prev) => (prev === status ? prev : status))
     })
-  }
+  }, [])
 
-  /**
-   * Check if the server is running
-   */
-  const checkServer = () => {
+  const checkServer = useCallback(() => {
     requestBackend(
       port,
       "get_server_health",
       { pageId: pageId },
       (data) => {
-        console.log("Server health: ", data)
-        if (data) {
-          setServerIsRunning(true)
-        }
+        if (!isMountedRef.current) return
+        setServerIsRunning((prev) => {
+          const next = !!data
+          return prev === next ? prev : next
+        })
       },
       () => {
-        setServerIsRunning(false)
+        if (!isMountedRef.current) return
+        setServerIsRunning((prev) => (prev ? false : prev))
       }
     )
-  }
+  }, [port, pageId])
+
+  const checkBundledPython = useCallback(() => {
+    ipcRenderer.invoke("getBundledPythonEnvironment").then((res) => {
+      if (!isMountedRef.current) return
+      setBundledPythonPath((prev) => (prev === res ? prev : res))
+    })
+  }, [])
+
+  const loadPythonPackages = useCallback((pythonPath) => {
+    if (!pythonPath) return
+    ipcRenderer.invoke("getInstalledPythonPackages", pythonPath).then((packages) => {
+      if (!isMountedRef.current) return
+      setPythonPackages(packages)
+    })
+  }, [])
+
+  useEffect(() => {
+    ipcRenderer.invoke("get-settings").then((receivedSettings) => {
+      if (!isMountedRef.current) return
+      setSettings(receivedSettings)
+      if (receivedSettings?.condaPath) {
+        setCondaPath(receivedSettings.condaPath)
+      }
+      if (receivedSettings?.seed) {
+        setSeed(receivedSettings.seed)
+      }
+    })
+    ipcRenderer.invoke("getBundledPythonEnvironment").then((res) => {
+      if (!isMountedRef.current) return
+      setBundledPythonPath((prev) => (prev === res ? prev : res))
+    })
+  }, [])
 
   /**
    * Get the settings from the main process
@@ -73,88 +122,91 @@ const SettingsPage = ({pageId = "settings", checkJupyterIsRunning, startJupyterS
    * Check if the server is running and set the state
    */
   useEffect(() => {
-    ipcRenderer.invoke("get-settings").then((receivedSettings) => {
-      console.log("received settings", receivedSettings)
-      setSettings(receivedSettings)
-      if (pythonEmbedded.pythonEmbedded) {
-        setCondaPath(pythonEmbedded.pythonEmbedded)
-      } else if (receivedSettings?.condaPath) {
-        setCondaPath(receivedSettings?.condaPath)
-      }
-      if (receivedSettings?.seed) {
-        setSeed(receivedSettings?.seed)
-      }
-    })
-    // ipcRenderer.invoke("server-is-running").then((status) => {
-    //   setServerIsRunning(status)
-    //   console.log("server is running", status)
-    // })
+    if (bundledPythonPath && !condaPath) {
+      setCondaPath(bundledPythonPath)
+    }
+  }, [bundledPythonPath])
+
+  useEffect(() => {
+    if (!isActive) return
     checkMongoIsRunning()
     checkServer()
-    getJupyterStatus()
+  }, [isActive, checkMongoIsRunning, checkServer])
+
+  useInterval(
+    () => {
+      checkServer()
+      checkMongoIsRunning()
+    },
+    isActive ? 5000 : null
+  )
+
+  const checkMissingRequirements = useCallback((pythonPath) => {
+    if (!pythonPath) return
+    setIsCheckingRequirements(true)
+    ipcRenderer
+      .invoke("getMissingPythonRequirements", pythonPath)
+      .then((missing) => {
+        if (!isMountedRef.current) return
+        setMissingRequirements(missing)
+        setRequirementsCheckError(null)
+      })
+      .catch((error) => {
+        if (!isMountedRef.current) return
+        setMissingRequirements(null)
+        setRequirementsCheckError(String(error?.message || error))
+      })
+      .finally(() => isMountedRef.current && setIsCheckingRequirements(false))
   }, [])
+
+  const installMissingRequirements = () => {
+    setIsInstallingRequirements(true)
+    ipcRenderer
+      .invoke("installMissingPythonRequirements", bundledPythonPath, missingRequirements.map((r) => r.requirement))
+      .then(({ success, code }) => {
+        if (success) {
+          toast.success("Missing Python packages installed")
+        } else {
+          toast.error(`Package installation failed (pip exit code ${code}). See the notifications for pip's output.`)
+        }
+      })
+      .finally(() => {
+        if (!isMountedRef.current) return
+        setIsInstallingRequirements(false)
+        checkMissingRequirements(bundledPythonPath)
+        if (showPythonPackages) loadPythonPackages(bundledPythonPath)
+      })
+  }
+
+  useEffect(() => {
+    checkMissingRequirements(bundledPythonPath)
+  }, [bundledPythonPath, checkMissingRequirements])
+
+  useEffect(() => {
+    if (showPythonPackages && bundledPythonPath) {
+      loadPythonPackages(bundledPythonPath)
+    } else if (!showPythonPackages) {
+      setPythonPackages(null)
+    }
+  }, [showPythonPackages, bundledPythonPath, loadPythonPackages])
 
   /**
    * Save the settings in the main process
    * @param {Object} newSettings - New settings object
    * @returns {void}
-   * Creates a timeout to avoid too many calls to the server when the user is typing
-   * The timeout is cleared and reset every time the user types
    */
   const saveSettings = (newSettings) => {
-    clearTimeout(window.saveSettingsTimeout)
-    window.saveSettingsTimeout = setTimeout(() => {
+    if (saveSettingsTimeoutRef.current) {
+      clearTimeout(saveSettingsTimeoutRef.current)
+    }
+    saveSettingsTimeoutRef.current = setTimeout(() => {
       ipcRenderer.send("save-settings", newSettings)
     }, 1000)
   }
 
-  /**
-   * Check if the server is running every 5 seconds
-   */
-  useEffect(() => {
-    const interval = setInterval(() => {
-      // ipcRenderer.invoke("server-is-running").then((status) => {
-      //   setServerIsRunning(status)
-      //   console.log("server is running", status)
-      // })
-      checkServer()
-      checkMongoIsRunning()
-      getJupyterStatus()
-      ipcRenderer.invoke("getBundledPythonEnvironment").then((res) => {
-        console.log("Python embedded: ", res)
-
-        if (res !== null) {
-          ipcRenderer.invoke("getInstalledPythonPackages", res).then((pythonPackages) => {
-            console.log("Installed Python Packages: ", pythonPackages)
-            setPythonEmbedded({ pythonEmbedded: res, pythonPackages: pythonPackages })
-          })
-        }
-      })
-    }, 5000)
-    return () => clearInterval(interval)
-  })
-
-  useEffect(() => {
-    ipcRenderer.invoke("getBundledPythonEnvironment").then((res) => {
-      console.log("Python embedded: ", res)
-      if (res !== null) {
-        ipcRenderer.invoke("getInstalledPythonPackages", res).then((pythonPackages) => {
-          console.log("Installed Python Packages: ", pythonPackages)
-          setPythonEmbedded({ pythonEmbedded: res, pythonPackages: pythonPackages })
-        })
-      }
-    })
-  }, [])
-
-  const getJupyterStatus = async () => {
-    console.log("Checking jupyter status")
-    const running = await checkJupyterIsRunning()
-    setjupyterServerIsRunning(running)
-  }
-
   const startMongo = () => {
     let workspacePath = workspace.workingDirectory.path
-    const mongoConfigPath = path.join(workspacePath, ".medomics", "mongod.conf")
+    const mongoConfigPath = path.join(workspacePath, ".mediml", "mongod.conf")
     let mongod = getMongoDBPath()
     let mongoResult = spawn(mongod, ["--config", mongoConfigPath])
 
@@ -172,7 +224,6 @@ const SettingsPage = ({pageId = "settings", checkJupyterIsRunning, startJupyterS
 
     mongoResult.on("error", (err) => {
       console.error("Failed to start MongoDB: ", err)
-      // reject(err)
     })
     console.log("Mongo result from start ", mongoResult)
   }
@@ -185,7 +236,6 @@ const SettingsPage = ({pageId = "settings", checkJupyterIsRunning, startJupyterS
 
   function getMongoDBPath() {
     if (process.platform === "win32") {
-      // Check if mongod is in the process.env.PATH
       const paths = process.env.PATH.split(path.delimiter)
       for (let i = 0; i < paths.length; i++) {
         const binPath = path.join(paths[i], "mongod.exe")
@@ -194,7 +244,6 @@ const SettingsPage = ({pageId = "settings", checkJupyterIsRunning, startJupyterS
         }
       }
 
-      // Check if mongod is in the default installation path on Windows - C:\Program Files\MongoDB\Server\<version to establish>\bin\mongod.exe
       const programFilesPath = process.env["ProgramFiles"]
       if (programFilesPath) {
         const mongoPath = path.join(programFilesPath, "MongoDB", "Server")
@@ -210,14 +259,13 @@ const SettingsPage = ({pageId = "settings", checkJupyterIsRunning, startJupyterS
       return null
     } else if (process.platform === "darwin") {
       if (process.env.NODE_ENV === "production") {
-        if (fs.existsSync(path.join(process.env.HOME, ".medomics", "mongodb", "bin", "mongod"))) {
-          return path.join(process.env.HOME, ".medomics", "mongodb", "bin", "mongod")
+        if (fs.existsSync(path.join(process.env.HOME, ".mediml", "mongodb", "bin", "mongod"))) {
+          return path.join(process.env.HOME, ".mediml", "mongodb", "bin", "mongod")
         }
       } else {
         return "mongod"
       }
     } else if (process.platform === "linux") {
-      // Check if mongod is in the process.env.PATH
       const paths = process.env.PATH.split(path.delimiter)
       for (let i = 0; i < paths.length; i++) {
         const binPath = path.join(paths[i], "mongod")
@@ -226,24 +274,18 @@ const SettingsPage = ({pageId = "settings", checkJupyterIsRunning, startJupyterS
         }
       }
       console.error("mongod not found in PATH"+paths)
-      // Check if mongod is in the default installation path on Linux - /usr/bin/mongod
       if (fs.existsSync("/usr/bin/mongod")) {
         return "/usr/bin/mongod"
       }
       console.error("mongod not found in /usr/bin/mongod")
-      
-      if (fs.existsSync("/home/"+process.env.USER+"/.medomics/mongodb/bin/mongod")) {
-        return "/home/"+process.env.USER+"/.medomics/mongodb/bin/mongod"
+
+      if (fs.existsSync("/home/"+process.env.USER+"/.mediml/mongodb/bin/mongod")) {
+        return "/home/"+process.env.USER+"/.mediml/mongodb/bin/mongod"
       }
       return null
 
     }
   }
-
-  const [firstSetupModalVisible, setFirstSetupModalVisible] = useState(false)
-  /**
-   *
-   */
 
   return (
     <>
@@ -260,7 +302,6 @@ const SettingsPage = ({pageId = "settings", checkJupyterIsRunning, startJupyterS
                     label="Start server"
                     className=" p-button-success"
                     onClick={() => {
-                      console.log("conda path", condaPath)
                       ipcRenderer.invoke("start-server", condaPath).then((status) => {
                         console.log("Server started manually", status)
                       })
@@ -284,25 +325,6 @@ const SettingsPage = ({pageId = "settings", checkJupyterIsRunning, startJupyterS
                   />
                 </Col>
                 <Col xs={12} md={12} style={{ display: "flex", flexDirection: "row", justifyContent: "flex-start", alignItems: "center", flexWrap: "wrap", marginTop: ".75rem" }}>
-                  <h5 style={{ marginBottom: "0rem" }}>Jupyter Notebook server status : </h5>
-                  <h5 style={{ marginBottom: "0rem", marginLeft: "1rem", color: jupyterServerIsRunning ? "green" : "#d55757" }}>{jupyterServerIsRunning ? "Running" : "Stopped"}</h5>
-                  {jupyterServerIsRunning ? <Check2Circle size="30" style={{ marginInline: "1rem", color: "green" }} /> : <XCircleFill size="25" style={{ marginInline: "1rem", color: "#d55757" }} />}
-                  <Button
-                    label="Start server"
-                    className=" p-button-success"
-                    onClick={() => {startJupyterServer()}}
-                    style={{ backgroundColor: jupyterServerIsRunning ? "grey" : "#54a559", borderColor: jupyterServerIsRunning ? "grey" : "#54a559", marginRight: "1rem" }}
-                    disabled={jupyterServerIsRunning}
-                  />
-                  <Button
-                    label="Stop server"
-                    className="p-button-danger"
-                    onClick={() => {stopJupyterServer()}}
-                    style={{ backgroundColor: jupyterServerIsRunning ? "#d55757" : "grey", borderColor: jupyterServerIsRunning ? "#d55757" : "grey" }}
-                    disabled={!jupyterServerIsRunning}
-                  />
-                </Col>
-                <Col xs={12} md={12} style={{ display: "flex", flexDirection: "row", justifyContent: "flex-start", alignItems: "center", flexWrap: "wrap", marginTop: ".75rem" }}>
                   <Col xs={12} md="auto" style={{ display: "flex", flexDirection: "row", justifyContent: "flex-start", alignItems: "center", flexWrap: "wrap" }}>
                     <h5>Python environment path : </h5>
                   </Col>
@@ -318,10 +340,9 @@ const SettingsPage = ({pageId = "settings", checkJupyterIsRunning, startJupyterS
                     />
                     <a
                       onClick={() => {
-                        ipcRenderer.invoke("open-dialog-exe").then((path) => {
-                          console.log("path", path)
-                          setCondaPath(path)
-                          saveSettings({ ...settings, condaPath: path })
+                        ipcRenderer.invoke("open-dialog-exe").then((selectedPath) => {
+                          setCondaPath(selectedPath)
+                          saveSettings({ ...settings, condaPath: selectedPath })
                         })
                       }}
                     >
@@ -338,6 +359,7 @@ const SettingsPage = ({pageId = "settings", checkJupyterIsRunning, startJupyterS
                       style={{ marginInline: "0.5rem", width: "90%" }}
                       value={seed}
                       onChange={(e) => {
+                        setSeed(e.value)
                         saveSettings({ ...settings, seed: e.value })
                       }}
                     />
@@ -363,12 +385,8 @@ const SettingsPage = ({pageId = "settings", checkJupyterIsRunning, startJupyterS
                     label="Show first setup modal"
                     className="p-button-info"
                     onClick={() => {
-                      console.log("show first setup modal")
                       setFirstSetupModalVisible(true)
-
                     }}
-                    // style={{ backgroundColor: serverIsRunning ? "#d55757" : "grey", borderColor: serverIsRunning ? "#d55757" : "grey" }}
-                    // disabled={!serverIsRunning}
                   />
                   </>)}
                 </Col>
@@ -377,33 +395,80 @@ const SettingsPage = ({pageId = "settings", checkJupyterIsRunning, startJupyterS
                     <h5>Python bundled : &nbsp;</h5>
                   </Col>
                   <Col xs={12} md="auto" style={{ display: "flex", flexDirection: "row", justifyContent: "flex-start", alignItems: "center", flexWrap: "nowrap", flexGrow: "1" }}>
-                    {pythonEmbedded.pythonEmbedded && <Check2Circle size="25" style={{ marginInline: "1rem", color: "green" }} />}
-                    {!pythonEmbedded.pythonEmbedded && <XCircleFill size="25" style={{ marginInline: "1rem", color: "#d55757" }} />}
-                    <h5>{pythonEmbedded.pythonEmbedded ? `Yes` : "No"} &nbsp;</h5>
+                    {bundledPythonPath && <Check2Circle size="25" style={{ marginInline: "1rem", color: "green" }} />}
+                    {!bundledPythonPath && <XCircleFill size="25" style={{ marginInline: "1rem", color: "#d55757" }} />}
+                    <h5>{bundledPythonPath ? `Yes` : "No"} &nbsp;</h5>
 
-                    {!pythonEmbedded.pythonEmbedded && (
+                    {!bundledPythonPath && (
                       <Button
                         label="Install Python"
                         onClick={() => {
-                          ipcRenderer.invoke("installBundledPythonExecutable")
+                          ipcRenderer.invoke("installBundledPythonExecutable").then(() => {
+                            checkBundledPython()
+                          })
                         }}
                       />
                     )}
-                    {pythonEmbedded.pythonEmbedded && (
+                    {bundledPythonPath && (
                       <Button
                         label={showPythonPackages ? "Hide Python Packages" : "Show Python Packages"}
                         onClick={() => {
-                          setShowPythonPackages(!showPythonPackages)
-                          console.log(pythonEmbedded.pythonPackages)
+                          setShowPythonPackages((prev) => !prev)
                         }}
                       />
                     )}
-                    {pythonEmbedded.pythonEmbedded && typeof pythonEmbedded.pythonEmbedded === "string" && <h6 style={{ marginTop: "0.5rem", marginLeft: "0.75rem" }}>at {pythonEmbedded.pythonEmbedded}</h6>}
                   </Col>
-                  {/* If pythonEmbedded.pythonEmbedded is defined and a string, show it in a label just under this way: "at ${pythonEmbedded.pythonEmbedded}"*/}
+                  {bundledPythonPath && typeof bundledPythonPath === "string" && <h6 style={{ marginTop: "0.5rem" }}>at {bundledPythonPath}</h6>}
                 </Col>
+                {bundledPythonPath && (
+                  <Col xs={12} md={12} className="d-flex flex-wrap align-items-center gap-3 mt-3">
+                    <h5 className="mb-0">Required packages :</h5>
+                    {isCheckingRequirements || isInstallingRequirements ? (
+                      <h5 className="mb-0 text-muted">{isInstallingRequirements ? "Installing..." : "Checking..."}</h5>
+                    ) : requirementsCheckError ? (
+                      <>
+                        <XCircleFill size="25" className="text-danger" />
+                        <h5 className="mb-0 text-danger">Could not check the requirements</h5>
+                      </>
+                    ) : missingRequirements?.length === 0 ? (
+                      <>
+                        <Check2Circle size="25" className="text-success" />
+                        <h5 className="mb-0">All requirements are met</h5>
+                      </>
+                    ) : missingRequirements ? (
+                      <>
+                        <XCircleFill size="25" className="text-danger" />
+                        <h5 className="mb-0 text-danger">
+                          {missingRequirements.length} missing or outdated package{missingRequirements.length > 1 ? "s" : ""}
+                        </h5>
+                      </>
+                    ) : null}
+                    <Button
+                      label="Check again"
+                      className="p-button-secondary p-button-outlined"
+                      onClick={() => checkMissingRequirements(bundledPythonPath)}
+                      disabled={isCheckingRequirements || isInstallingRequirements}
+                    />
+                    {missingRequirements?.length > 0 && (
+                      <Button
+                        label="Install missing packages"
+                        icon="pi pi-download"
+                        onClick={installMissingRequirements}
+                        disabled={isCheckingRequirements || isInstallingRequirements}
+                        loading={isInstallingRequirements}
+                      />
+                    )}
+                  </Col>
+                )}
+                {requirementsCheckError && <small className="d-block mt-2 text-danger">{requirementsCheckError}</small>}
+                {missingRequirements?.length > 0 && (
+                  <DataTable value={missingRequirements} size="small" className="mt-3">
+                    <Column field="requirement" header="Required" />
+                    <Column header="Installed" body={(row) => row.installed || "Not installed"} />
+                  </DataTable>
+                )}
                 {showPythonPackages && (
-                  <DataTable value={pythonEmbedded.pythonPackages} size="small" scrollable scrollHeight="25rem" style={{ marginTop: "1rem" }}>
+                  <DataTable value={pythonPackages} size="small" scrollable scrollHeight="25rem" style={{ marginTop: "1rem" }}>
                     <Column field="name" header="Name" />
                     <Column field="version" header="Version" />
                   </DataTable>
