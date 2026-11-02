@@ -1,9 +1,9 @@
 /* eslint-disable no-prototype-builtins */
 
-import React, { useState, useCallback, useMemo, useEffect, useContext } from "react"
+import React, { useState, useCallback, useMemo, useEffect, useContext, useRef } from "react"
 import { toast } from "react-toastify"
 import { useNodesState, useEdgesState, useReactFlow, addEdge } from "reactflow"
-import { loadJsonSync } from "../../utilities/fileManagementUtils"
+import { loadJsonSync, loadJsonPath } from "../../utilities/fileManagementUtils"
 import { requestBackend } from "../../utilities/requests"
 import BtnDiv from "../flow/btnDiv"
 import ProgressBarRequests from "../generalPurpose/progressBarRequests"
@@ -71,8 +71,19 @@ import RwNetworkNode from "./nodesTypes/flrwNetworkNode.jsx"
 import MedDataObject from "../workspace/medDataObject.js"
 import { overwriteMEDDataObjectContent } from "../mongoDB/mongoDBUtils.js"
 import FlShapNode from "./nodesTypes/flShapNode.jsx"
+import FlRwHoldoutNode, { DEFAULT_HOLDOUT_FILE } from "./nodesTypes/flRwHoldoutNode.jsx"
 
 const staticNodesParams = nodesParams // represents static nodes parameters
+
+// The server and client nodes of a network are generated from the devices: their setup params are not in the nodes params files
+const networkNodeSetupParam = (type) => ({
+  classes: "flClientNode",
+  input: [],
+  output: [],
+  possibleSettings: {},
+  nbInput: type === "flrwServerNode" ? 0 : 1,
+  nbOutput: type === "flrwServerNode" ? 1 : 0
+})
 
 /**
  *
@@ -165,6 +176,7 @@ const MedflrwWorkflow = ({ setWorkflowType, workflowType, mode = "fl" }) => {
       mlStrategyNode: MlStrategyNode,
       flrwNetworkNode: RwNetworkNode , 
             flShapNode: FlShapNode,
+      flRwHoldoutNode: FlRwHoldoutNode,
       
     }),
     []
@@ -231,6 +243,21 @@ const MedflrwWorkflow = ({ setWorkflowType, workflowType, mode = "fl" }) => {
         },
         "box-explainability"
       )
+      // holds the Federated Holdout node (nodes are checked against the box named like their section)
+      let evaluationBox = createBoxNode(
+        { x: 1800, y: 800 },
+        {
+          nodeType: "boxNode",
+          name: "Evaluation",
+          draggable: false,
+          selectable: true,
+          image: "",
+          size: { width: 500, height: 400 },
+          borderColor: "rgba(150, 190, 230, 0.8)",
+          selectedBorderColor: "rgb(0, 102, 255)"
+        },
+        "box-evaluation"
+      )
       let analysisBox = createBoxNode(
         { x: 1500, y: 350 },
         {
@@ -246,7 +273,7 @@ const MedflrwWorkflow = ({ setWorkflowType, workflowType, mode = "fl" }) => {
         "box-analysis"
       )
       // const newBoxes = [initBox, trainBox, analysisBox]
-      const newBoxes = [initBox, trainBox, netBox, explainabilityBox]
+      const newBoxes = [initBox, trainBox, netBox, explainabilityBox, evaluationBox]
       newBoxes.forEach((box) => {
         const exists = nodes.find((node) => node.name == box.name && (node.type == "boxNode" || node.type == "analysisBoxNode"))
         if (exists && exists.type === "analysisBoxNode" && !exists.data.setupParam) {
@@ -340,6 +367,28 @@ const MedflrwWorkflow = ({ setWorkflowType, workflowType, mode = "fl" }) => {
       console.log("No config file found for this page, base workflow will be used")
     }
   }, [config])
+
+  // Load the opened .rwfl scene (plain JSON) once its path is known.
+  // Read asynchronously like the simulation scene: the mount run of the MLType effect below must see an empty canvas
+  const sceneLoaded = useRef(false)
+  useEffect(() => {
+    if (sceneLoaded.current || !configPath) return
+    sceneLoaded.current = true
+    Promise.resolve()
+      .then(() => loadJsonPath(configPath))
+      .then((scene) => {
+        if (scene?.nodes) {
+          updateScene(scene)
+          toast.success("Scene has been loaded successfully")
+        } else {
+          toast.warn("No saved nodes were found in this scene")
+        }
+      })
+      .catch((error) => {
+        console.error("Failed to load the scene:", error)
+        toast.error("The scene could not be loaded")
+      })
+  }, [configPath])
 
   // when isResults is changed, we set the progressBar to completed state
   useEffect(() => {
@@ -573,6 +622,9 @@ const MedflrwWorkflow = ({ setWorkflowType, workflowType, mode = "fl" }) => {
     }
   }, [workflowType])
 
+  // an agent ID is the device hostname, or "<hostname>-<os>" by default (exact match: "client1" is not "client10")
+  const isAgentOfDevice = (hostname) => !!hostname && socketAgents.some((agent) => agent === hostname || agent.startsWith(hostname + "-"))
+
   const createNetworkFromDevices = (devices) => {
     const server = devices.find((d) => (d.tags || []).includes("tag:server"))
     const clients = devices.filter((d) => d.id !== server?.id)
@@ -582,14 +634,7 @@ const MedflrwWorkflow = ({ setWorkflowType, workflowType, mode = "fl" }) => {
       type: "flrwServerNode",
       position: { x: 0, y: 100 + (clients.length - 1) * 50 },
       data: {
-        setupParam: {
-          classes: "flClientNode",
-          input: [],
-          output: [],
-          possibleSettings: {},
-          nbInput: 0,
-          nbOutput: 1
-        },
+        setupParam: networkNodeSetupParam("flrwServerNode"),
         internal: {
           name: server.hostname,
           type: "flrwServerNode",
@@ -602,7 +647,7 @@ const MedflrwWorkflow = ({ setWorkflowType, workflowType, mode = "fl" }) => {
         },
         tooltipBy: "node",
         device: server,
-        isOnWs: socketAgents.some((agent) => agent.includes(server.hostname))
+        isOnWs: isAgentOfDevice(server.hostname)
       }
     }
 
@@ -611,14 +656,7 @@ const MedflrwWorkflow = ({ setWorkflowType, workflowType, mode = "fl" }) => {
       type: "flClientNode",
       position: { x: 400, y: 100 + i * 100 },
       data: {
-        setupParam: {
-          classes: "flClientNode",
-          input: [],
-          output: [],
-          possibleSettings: {},
-          nbInput: 1,
-          nbOutput: 0
-        },
+        setupParam: networkNodeSetupParam("flClientNode"),
         internal: {
           name: c.hostname,
           type: "flClientNode",
@@ -631,7 +669,7 @@ const MedflrwWorkflow = ({ setWorkflowType, workflowType, mode = "fl" }) => {
         },
         tooltipBy: "node",
         device: c,
-        isOnWs: socketAgents.some((agent) => agent.includes(c.hostname))
+        isOnWs: isAgentOfDevice(c.hostname)
       }
     }))
 
@@ -833,6 +871,9 @@ const MedflrwWorkflow = ({ setWorkflowType, workflowType, mode = "fl" }) => {
           if (!node.id.includes("opt")) {
             let subworkflowType = node.data.internal.subflowId != "MAIN" ? "rwflNetwork" : mode
             let setupParams = deepCopy(staticNodesParams[subworkflowType][node.data.internal.type])
+            if (!setupParams && ["flrwServerNode", "flClientNode"].includes(node.data.internal.type)) {
+              setupParams = networkNodeSetupParam(node.data.internal.type)
+            }
 
             node.data.setupParam = setupParams
           }
@@ -1203,7 +1244,15 @@ const MedflrwWorkflow = ({ setWorkflowType, workflowType, mode = "fl" }) => {
       ></NewServerLogsModal>
 
       <ManageScriptsModal onHide={() => setShowScriptConfigs(false)} show={showScriptConfigs} />
-      <NewtworkCheckModal onHide={() => setShowNetworkCheckModal(false)} show={showNetworkCheckModal} setNetworkChecked={setNetworkChecked} networkChecked={networkChecked} />
+      {/* the network check also looks for the holdout file of the Federated Holdout node (holdout.csv by default) */}
+      <NewtworkCheckModal
+        onHide={() => setShowNetworkCheckModal(false)}
+        show={showNetworkCheckModal}
+        setNetworkChecked={setNetworkChecked}
+        networkChecked={networkChecked}
+        holdoutFileName={nodes.find((node) => node.type === "flRwHoldoutNode")?.data?.internal?.settings?.holdoutFileName || DEFAULT_HOLDOUT_FILE}
+        holdoutRequired={nodes.some((node) => node.type === "flRwHoldoutNode")}
+      />
       <ClientDatasetModal setDatasetConfiguration={setDatasetConfiguration} onHide={() => setShowClientsDatasetModal(false)} show={showClientsDatasetModal} clients={socketAgents} />
       <Modal show={isSaveModal} onHide={() => openSaveModal(false)}>
         <Modal.Header>

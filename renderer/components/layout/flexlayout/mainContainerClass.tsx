@@ -204,9 +204,9 @@ class MainInnerContainer extends React.Component<any, { layoutFile: string | nul
     if (layoutRequestQueue.length > 0) {
       layoutRequestQueue.forEach((action) => {
         if (action.type === "ADD_TAB") {
-          this.addTab(action.tabParams)
+          this.addTab(action.payload)
         } else if (action.type === "DELETE_DATA_OBJECT") {
-          this.deleteDataObject(action.dataObject)
+          this.deleteDataObject(action.payload)
         }
       })
       setLayoutRequestQueue([])

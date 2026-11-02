@@ -4,6 +4,8 @@ import FlInput from "./flInput"
 import { DataTable } from "primereact/datatable"
 import { Column } from "@blueprintjs/table"
 import FlCompareResults from "./flCompareResults"
+import HoldoutResults from "./HoldoutResults"
+import FederatedHoldoutResults from "./rw/FederatedHoldoutResults"
 import { loadFileFromPathSync } from "../../utilities/fileManagementUtils"
 import { Button } from "primereact/button"
 import { JsonView, allExpanded } from "react-json-view-lite"
@@ -259,10 +261,20 @@ export default function FLResultsPage({ url }) {
               </div>
             </div>
           )}{" "}
-          <SelectButton value={resultsType} onChange={(e) => setResultsType(e.value)} options={["Global results", "By node", "Compare results"]} />
+          <SelectButton
+            value={resultsType}
+            onChange={(e) => setResultsType(e.value)}
+            options={["Global results", "By node", "Compare results", ...(res?.holdout_results ? ["Holdout results"] : [])]}
+          />
         </div>
 
-        {resultsType == "Compare results" ? (
+        {resultsType == "Holdout results" ? (
+          res?.holdout_results?.mode === "federated" ? (
+            <FederatedHoldoutResults result={res.holdout_results} />
+          ) : (
+            <HoldoutResults holdout={res?.holdout_results} testResults={res?.test_results || []} isXGBoost={String(res?.model_type || "").toLowerCase() === "xgboost"} />
+          )
+        ) : resultsType == "Compare results" ? (
           <div className="my-3">
             <FlCompareResults data={res["test_results"]} />
           </div>

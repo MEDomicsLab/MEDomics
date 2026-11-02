@@ -105,6 +105,18 @@ const nodesParams = {
     title: "Federated SHAP",
     section: "explainability",
     possibleSettings: {}
+  },
+  federated_holdout: {
+    type: "flRwHoldoutNode",
+    classes: "object",
+    nbInput: 1,
+    nbOutput: 0,
+    input: ["fl_strategy"],
+    output: ["federated_holdout"],
+    img: "results.png",
+    title: "Federated Holdout",
+    section: "evaluation",
+    possibleSettings: {}
   }
 
   // save_results: {

@@ -13,9 +13,12 @@ import { FlowFunctionsContext } from "../../flow/context/flowFunctionsContext"
  *   path, exists, file_size_bytes, modified_time,
  *   n_rows, n_cols, columns: string[],
  *   head, null_counts, numeric_summary, engine
+ *   holdout: same shape, stats of the holdout file (absent with older agents)
  * }
+ * holdoutFileName: holdout file looked for on each agent
+ * holdoutRequired: the flow has a Federated Holdout node (a missing holdout file is then an error, else a warning)
  */
-export default function DatasetOverview({ datasetStats = {} }) {
+export default function DatasetOverview({ datasetStats = {}, holdoutFileName = "holdout.csv", holdoutRequired = false }) {
   const { updateColumnsIntersectionFromNetworkCheck, columnsIntersectionFromNetworkCheck } = useMEDflContext()
   const { groupNodeId } = useContext(FlowFunctionsContext)
 
@@ -69,6 +72,26 @@ export default function DatasetOverview({ datasetStats = {} }) {
     const sameRows = rowSet.size === 1
     const sameCols = colSet.size === 1
 
+    // Holdout file of each agent: checked (the agent sent its stats), exists, and the dataset columns it lacks
+    const holdoutByAgent = Object.fromEntries(
+      agents.map((a) => {
+        const holdout = datasetStats[a]?.holdout
+        const holdoutCols = toSet(holdout?.columns)
+        return [
+          a,
+          {
+            checked: !!holdout,
+            exists: !!holdout?.exists,
+            rows: holdout?.n_rows ?? null,
+            error: holdout?.error,
+            missingColumns: holdout?.exists ? (columnsByAgent[a] || []).map(String).filter((c) => !holdoutCols.has(c)) : []
+          }
+        ]
+      })
+    )
+    const holdoutMissingCount = agents.filter((a) => !holdoutByAgent[a].exists).length
+    const holdoutColumnsOk = agents.every((a) => !holdoutByAgent[a].missingColumns.length)
+
     // Normalized intersection for downstream consumers: [{label, name}]
     const interArray = [...interCols].map((c) => ({ label: String(c), name: String(c) }))
 
@@ -88,6 +111,9 @@ export default function DatasetOverview({ datasetStats = {} }) {
       sameEngineEverywhere,
       sameRows,
       sameCols,
+      holdoutByAgent,
+      holdoutMissingCount,
+      holdoutColumnsOk,
       interArray
     }
   }, [datasetStats, agents])
@@ -103,7 +129,30 @@ export default function DatasetOverview({ datasetStats = {} }) {
     }
   }, [interHash, computed.interArray, updateColumnsIntersectionFromNetworkCheck])
 
-  const { existsByAgent, rowsByAgent, colsByAgent, engineByAgent, allExist, refAgent, sameColumnsEverywhere, interCols, unionCols, diffByAgent, sameEngineEverywhere, sameRows, sameCols } = computed
+  const {
+    existsByAgent,
+    rowsByAgent,
+    colsByAgent,
+    engineByAgent,
+    allExist,
+    refAgent,
+    sameColumnsEverywhere,
+    interCols,
+    unionCols,
+    diffByAgent,
+    sameEngineEverywhere,
+    sameRows,
+    sameCols,
+    holdoutByAgent,
+    holdoutMissingCount,
+    holdoutColumnsOk
+  } = computed
+
+  const holdoutBadge = (holdout) => {
+    if (!holdout.checked) return <Badge bg="secondary">Not checked</Badge>
+    if (!holdout.exists) return <Badge bg={holdoutRequired ? "danger" : "warning"}>Missing</Badge>
+    return <Badge bg={holdout.missingColumns.length ? "warning" : "success"}>Exists</Badge>
+  }
 
   const Pill = ({ ok, text, warning = false }) => (
     <span
@@ -140,6 +189,12 @@ export default function DatasetOverview({ datasetStats = {} }) {
             <Pill ok={sameEngineEverywhere} text={sameEngineEverywhere ? "Same engine" : "Different engines"} warning={!sameEngineEverywhere} />
             <Pill ok={sameRows} text={sameRows ? "Same #rows" : "Different #rows"} warning={!sameRows} />
             <Pill ok={sameCols} text={sameCols ? "Same #cols" : "Different #cols"} warning={!sameCols} />
+            <Pill
+              ok={!holdoutMissingCount}
+              text={!holdoutMissingCount ? `All ${holdoutFileName} files exist` : `${holdoutMissingCount} ${holdoutFileName} file(s) missing`}
+              warning={!!holdoutMissingCount && !holdoutRequired}
+            />
+            {!holdoutColumnsOk && <Pill ok={false} text="Some holdout files lack dataset columns" warning />}
           </div>
 
           {/* Columns union / intersection */}
@@ -171,6 +226,9 @@ export default function DatasetOverview({ datasetStats = {} }) {
                   <th>Engine</th>
                   <th>Missing vs {refAgent}</th>
                   <th>Extra vs {refAgent}</th>
+                  <th>Holdout ({holdoutFileName})</th>
+                  <th>Holdout rows</th>
+                  <th>Holdout missing columns</th>
                 </tr>
               </thead>
               <tbody>
@@ -183,11 +241,27 @@ export default function DatasetOverview({ datasetStats = {} }) {
                     <td>{engineByAgent[a]}</td>
                     <td className="small">{(computed.diffByAgent[a].missing.length && computed.diffByAgent[a].missing.join(", ")) || "-"}</td>
                     <td className="small">{(computed.diffByAgent[a].extra.length && computed.diffByAgent[a].extra.join(", ")) || "-"}</td>
+                    <td title={holdoutByAgent[a].error || (!holdoutByAgent[a].checked ? "This agent did not return holdout stats (older agent version?)" : "")}>{holdoutBadge(holdoutByAgent[a])}</td>
+                    <td className="text-end">{holdoutByAgent[a].rows ?? "-"}</td>
+                    <td className="small">{holdoutByAgent[a].missingColumns.join(", ") || "-"}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
+
+          {holdoutMissingCount > 0 && (
+            <div className={`alert ${holdoutRequired ? "alert-danger" : "alert-warning"} mt-3 mb-0`}>
+              <strong>Holdout:</strong> {holdoutMissingCount} agent(s) have no {holdoutFileName} in their data folder (next to dataset.csv).{" "}
+              {holdoutRequired ? "They will be reported as missing in the federated holdout test." : "It is only needed for the federated holdout test (Federated Holdout node)."}
+            </div>
+          )}
+
+          {!holdoutColumnsOk && (
+            <div className="alert alert-warning mt-3 mb-0">
+              <strong>Holdout columns:</strong> some holdout files lack columns of their agent dataset. The holdout test fails on a client whose holdout file lacks a training feature or the target.
+            </div>
+          )}
 
           {!sameColumnsEverywhere && (
             <div className="alert alert-warning mt-3 mb-0">

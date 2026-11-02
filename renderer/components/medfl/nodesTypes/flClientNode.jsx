@@ -64,6 +64,14 @@ export default function FlClientNode({ id, data }) {
     })
   }
 
+  const onHoldoutSelection = (inputUpdate) => {
+    data.internal.settings[inputUpdate.name] = inputUpdate.value
+    updateNode({
+      id: id,
+      updatedData: data.internal
+    })
+  }
+
   const onClientCheck = async (value) => {
     console.log("onClientCheck", value)
     data.internal.settings.isParticipating = value
@@ -137,6 +145,18 @@ export default function FlClientNode({ id, data }) {
                 }}
                 currentValue={data.internal.settings.Node_Dataset && data.internal.settings.Node_Dataset.id}
                 onInputChange={onFileSelection}
+                setHasWarning={() => {}}
+                acceptedExtensions={["csv"]}
+              />
+              <FlInput
+                name="Node_Holdout"
+                settingInfos={{
+                  type: "data-input",
+                  tooltip:
+                    "<p>Optional holdout dataset of this client (csv), used by the Holdout Test node in Federated mode. It must have the training columns and the binary target, and must not contain training rows.</p>"
+                }}
+                currentValue={data.internal.settings.Node_Holdout?.id || ""}
+                onInputChange={onHoldoutSelection}
                 setHasWarning={() => {}}
                 acceptedExtensions={["csv"]}
               />

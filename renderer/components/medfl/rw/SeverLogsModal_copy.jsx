@@ -34,6 +34,11 @@ import { Form, Button } from "react-bootstrap"
 import { buildNotebookText, buildServerNotebookText, buildXgbServerNotebookText } from "../../../utilities/medfl/flUtils"
 import XGBoostFeatureImportance from "./XGBoostFeatureImportance"
 import FederatedShapResults from "../ShapResults"
+import FederatedHoldoutResults from "./FederatedHoldoutResults"
+import { FaClipboardCheck } from "react-icons/fa"
+
+// The MEDfl server prints the federated holdout results as JSON on a line starting with this marker
+const HOLDOUT_LOG_MARKER = "[Server/Holdout] FEDERATED_HOLDOUT_RESULT "
 
 // ---------- helpers ----------
 const ensureIndex = (arr, index, initValue) => {
@@ -214,6 +219,11 @@ const NewServerLogsModal = ({ show, onHide, nodes, onSaveScean, setRunServer, co
 
   // Temporary buffer because SHAP JSON can arrive over multiple log events
   const shapLogBufferRef = useRef({})
+
+  const [federatedHoldoutResults, setFederatedHoldoutResults] = useState([])
+
+  // Same for the holdout JSON line
+  const holdoutLogBufferRef = useRef({})
 
   const parseImportanceDictionary = (rawValue) => {
     return JSON.parse(
@@ -433,6 +443,66 @@ const NewServerLogsModal = ({ show, onHide, nodes, onSaveScean, setRunServer, co
     }
   }
 
+  const saveFederatedHoldoutResult = (idx, result) => {
+    // the server answer has a "pending"/"disabled" status when there is no result
+    if (!result || result.status === "disabled" || result.status === "pending") return
+    setFederatedHoldoutResults((prev) => {
+      const next = ensureIndex(prev, idx, null)
+      next[idx] = result
+      return next
+    })
+    if (result.status !== "completed") toast.warn(`Federated holdout test of configuration ${idx + 1} failed: ${result.error || result.status}`)
+  }
+
+  // The result is one JSON line, but a long line can be split over several log events
+  const parseFederatedHoldoutLogs = (data, idx) => {
+    let buffer = holdoutLogBufferRef.current[idx] || ""
+    if (data.includes(HOLDOUT_LOG_MARKER)) {
+      buffer = data.slice(data.indexOf(HOLDOUT_LOG_MARKER) + HOLDOUT_LOG_MARKER.length)
+    } else if (buffer) {
+      buffer += data
+    } else {
+      return
+    }
+
+    const cleanedBuffer = buffer
+      // ANSI color codes
+      // eslint-disable-next-line no-control-regex
+      .replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, "")
+      .replace(/(?:\d{2}:\d{2}:\d{2}\.\d+\s*›\s*)?(?:\[\d{2}:\d{2}:\d{2}\]\s+)?(stdout|stderr):\s*/g, "")
+      .replace(/\d{4}\/\d{2}\/\d{2}\s+\d{2}:\d{2}:\d{2}\s*/g, "")
+    const jsonStart = cleanedBuffer.indexOf("{")
+    if (jsonStart === -1) {
+      holdoutLogBufferRef.current[idx] = buffer
+      return
+    }
+
+    // end of the JSON object (braces inside strings ignored)
+    let depth = 0
+    let insideString = false
+    let escaped = false
+    let jsonEnd = -1
+    for (let i = jsonStart; i < cleanedBuffer.length && jsonEnd === -1; i++) {
+      const char = cleanedBuffer[i]
+      if (escaped) escaped = false
+      else if (char === "\\" && insideString) escaped = true
+      else if (char === '"') insideString = !insideString
+      else if (!insideString && char === "{") depth++
+      else if (!insideString && char === "}" && --depth === 0) jsonEnd = i + 1
+    }
+    if (jsonEnd === -1) {
+      holdoutLogBufferRef.current[idx] = buffer
+      return
+    }
+
+    holdoutLogBufferRef.current[idx] = ""
+    try {
+      saveFederatedHoldoutResult(idx, JSON.parse(cleanedBuffer.slice(jsonStart, jsonEnd)))
+    } catch (error) {
+      console.error("Federated holdout JSON parse error:", error)
+    }
+  }
+
   // when experimentConfig changes, ensure buckets are sized
   useEffect(() => {
     const n = experimentConfig?.length || 0
@@ -507,6 +577,7 @@ const NewServerLogsModal = ({ show, onHide, nodes, onSaveScean, setRunServer, co
 
       parseFeatureImportanceLogs(data, idx)
       // parseFederatedShapLogs(data, idx)
+      parseFederatedHoldoutLogs(data, idx)
 
       if (data.includes("Server started with PID")) {
         const m = data.match(/PID (\d+)/)
@@ -925,7 +996,9 @@ const NewServerLogsModal = ({ show, onHide, nodes, onSaveScean, setRunServer, co
           split_mode: conf.mlStrategyNode.splitMode,
           id_col: "id",
           client_fractions: conf.mlStrategyNode.perClientConfig || {},
-          flShapNode: conf.flShapNode
+          flShapNode: conf.flShapNode,
+          // read by rw_holdout.py
+          flHoldoutNode: conf.flRwHoldoutNode
         },
         (json) => {
           console.log("------------------------------ ==== json", json)
@@ -934,6 +1007,8 @@ const NewServerLogsModal = ({ show, onHide, nodes, onSaveScean, setRunServer, co
             next[index] = json?.shap_results || {}
             return next
           })
+          // also in the server logs, the answer arrives when the server stops
+          saveFederatedHoldoutResult(index, json?.holdout_results)
           json?.error ? toast.error("Error: " + json.error) : MedDataObject.updateWorkspaceDataObject()
         },
         (err) => {
@@ -988,8 +1063,10 @@ const NewServerLogsModal = ({ show, onHide, nodes, onSaveScean, setRunServer, co
           saveOnRounds: conf.flRunServerNode.saveOnRounds || 1,
 
           // Optional threshold for binary classification
-          threshold: conf.flModelNode.Threshold || 0.5 , 
-          flShapNode: conf.flShapNode
+          threshold: conf.flModelNode.Threshold || 0.5 ,
+          flShapNode: conf.flShapNode,
+          // read by rw_holdout.py, the results are read from the server logs
+          flHoldoutNode: conf.flRwHoldoutNode
 
         },
         (json) => {
@@ -1010,7 +1087,14 @@ const NewServerLogsModal = ({ show, onHide, nodes, onSaveScean, setRunServer, co
             requestBackend(
               port,
               "/medfl/rw/ws/run/" + pageId,
-              { id: client, ServerAddr: "100.65.215.27:808" + String(index), DP: "none", model_type: conf.flModelNode.modelType },
+              {
+                id: client,
+                ServerAddr: "100.65.215.27:808" + String(index),
+                DP: "none",
+                model_type: conf.flModelNode.modelType,
+                // the agent looks for this file in its data folder
+                holdout_file: conf.flRwHoldoutNode ? conf.flRwHoldoutNode.holdoutFileName || "holdout.csv" : ""
+              },
               (json) => {
                 if (json?.error) {
                   toast.error("Error: " + json.error)
@@ -1119,7 +1203,8 @@ const NewServerLogsModal = ({ show, onHide, nodes, onSaveScean, setRunServer, co
         clientProperties: clientProperties[idx] || {},
         connectedClients: connectedClients[idx] || [],
         serverLogs: serverLogs[idx] || [],
-        federatedShapResults: federatedShapResults[idx] || null
+        federatedShapResults: federatedShapResults[idx] || null,
+        federatedHoldoutResults: federatedHoldoutResults[idx] || null
       }
       await MedDataObject.writeFileSync({ data, date: Date.now() }, dirPath, fileName, "json")
       await MedDataObject.writeFileSync({ data, date: Date.now() }, dirPath, fileName, "medflrw")
@@ -1137,9 +1222,8 @@ const NewServerLogsModal = ({ show, onHide, nodes, onSaveScean, setRunServer, co
     const port = Number("808" + String(currentExecConfig))
 
     let noteBook = buildNotebookText({
-      model_type: isXgb ? "xgb" : "nn",
       server_address: "100.65.215.27:8080",
-      data_path: "../data/client1.csv"
+      data_path: "./client1.csv"
     })
 
     const commonStrategyFields = {
@@ -1200,7 +1284,7 @@ const NewServerLogsModal = ({ show, onHide, nodes, onSaveScean, setRunServer, co
           learning_rate: Number(conf?.flModelNode["learning rate"]) > 0 ? Number(conf?.flModelNode["learning rate"]) : 0.01,
           optimizer_name: conf?.flModelNode.optimizer || "SGD",
           saveOnRounds: conf?.flRunServerNode.saveOnRounds || 11,
-          savingPath: "/.",
+          savingPath: null,
           total_rounds: conf?.flRunServerNode.numRounds || 10,
           ...commonStrategyFields
         }
@@ -1211,17 +1295,23 @@ const NewServerLogsModal = ({ show, onHide, nodes, onSaveScean, setRunServer, co
 
     console.log(servernoteBook)
 
-    if (configPath == "") {
-      let dirPath = savingPath != "" ? savingPath : await onSaveScean("FL_code")
-
-      console.log(dirPath)
-
-      await MedDataObject.writeFileSync(servernoteBook, dirPath + "/notebooks", "Server", "ipynb")
-      await MedDataObject.writeFileSync(noteBook, dirPath + "/notebooks", "Client", "ipynb")
-      setSavingPath(dirPath)
-
-      toast.success(`Notebooks saved to ${dirPath}`)
+    let dirPath
+    if (configPath && configPath !== "") {
+      // opened scene: its folder, next to the .rwfl file
+      dirPath = configPath.substring(0, configPath.lastIndexOf("/"))
+    } else {
+      dirPath = savingPath != "" ? savingPath : await onSaveScean("FL_code")
     }
+
+    console.log(dirPath)
+
+    // a scene folder can miss its notebooks folder (e.g. a .rwfl moved by hand)
+    MedDataObject.createFolderFromPath(dirPath + "/notebooks")
+    await MedDataObject.writeFileSync(servernoteBook, dirPath + "/notebooks", "Server", "ipynb")
+    await MedDataObject.writeFileSync(noteBook, dirPath + "/notebooks", "Client", "ipynb")
+    setSavingPath(dirPath)
+
+    toast.success(`Notebooks saved to ${dirPath}`)
   }
   return (
     <div>
@@ -1372,6 +1462,11 @@ const NewServerLogsModal = ({ show, onHide, nodes, onSaveScean, setRunServer, co
                             </Nav.Link>
                           </Nav.Item>
                           <Nav.Item>
+                            <Nav.Link eventKey="holdout" title="Federated holdout test">
+                              <FaClipboardCheck className="" size="22" />
+                            </Nav.Link>
+                          </Nav.Item>
+                          <Nav.Item>
                             <Nav.Link eventKey="third">
                               <FaNetworkWired className="" size="22" />
                             </Nav.Link>
@@ -1428,6 +1523,9 @@ const NewServerLogsModal = ({ show, onHide, nodes, onSaveScean, setRunServer, co
                             <div>
                               <FederatedShapResults results={federatedShapResults[cfgIdx] || []}  scrollable={false}/>
                             </div>
+                          </Tab.Pane>
+                          <Tab.Pane eventKey="holdout">
+                            <FederatedHoldoutResults result={federatedHoldoutResults[cfgIdx] || null} />
                           </Tab.Pane>
 
                           <Tab.Pane eventKey="third">

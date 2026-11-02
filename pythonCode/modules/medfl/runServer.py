@@ -17,6 +17,9 @@ sys.path.append(
 
 from med_libs.server_utils import go_print
 from med_libs.GoExecutionScript import GoExecutionScript, parse_arguments
+# this folder, for rw_holdout
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+from rw_holdout import build_holdout_config
 
 go_print("Starting the Federated Learning Server...")
 from datetime import datetime
@@ -165,12 +168,17 @@ class GoExecScriptRunPipelineFromMEDfl(GoExecutionScript):
            
         )
 
+        holdout_config = build_holdout_config(json_config)
+        if holdout_config is not None:
+            go_print(f"Federated holdout test enabled: {holdout_config}")
+
         server = FederatedServer(
             host="0.0.0.0",
             port=json_config['port'],
             num_rounds=json_config['num_rounds'],
             strategy=custom_strategy,
-            shap_config=shap_config
+            shap_config=shap_config,
+            holdout_config=holdout_config,
         )
         self.server = server
         server.start()
@@ -179,7 +187,11 @@ class GoExecScriptRunPipelineFromMEDfl(GoExecutionScript):
         """Start the server as a subprocess and return its PID."""
         go_print("Starting server in the same Python process...")
         self._start_server(json_config)
-        self.results = {"status": "server_stopped" , "shap_results": self.server.federated_shap_result}
+        self.results = {
+            "status": "server_stopped",
+            "shap_results": self.server.federated_shap_result,
+            "holdout_results": self.server.federated_holdout_result,
+        }
         return self.results
 
 

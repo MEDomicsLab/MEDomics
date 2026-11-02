@@ -60,7 +60,9 @@ const RunPipelineModal = ({ show, onHide, configs, nodes, onRun }) => {
                     {
                       name: client.data.internal.name,
                       type: client.data.internal.settings.nodeType,
-                      dataset: client.data.internal.settings.Node_Dataset
+                      dataset: client.data.internal.settings.Node_Dataset,
+                      // used by the federated holdout test
+                      holdout: client.data.internal.settings.Node_Holdout
                     }
                   ]
                 } else {

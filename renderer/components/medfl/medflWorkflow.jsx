@@ -1,6 +1,6 @@
 /* eslint-disable no-prototype-builtins */
 
-import React, { useState, useCallback, useMemo, useEffect, useContext } from "react"
+import React, { useState, useCallback, useMemo, useEffect, useContext, useRef } from "react"
 import { toast } from "react-toastify"
 import { useNodesState, useEdgesState, useReactFlow, addEdge } from "reactflow"
 import { loadJsonSync } from "../../utilities/fileManagementUtils"
@@ -19,6 +19,7 @@ import { createZipFileSync, modifyZipFileSync } from "../../utilities/customZipF
 import { UUID_ROOT, DataContext } from "../workspace/dataContext"
 
 import Path from "path"
+import fs from "fs"
 
 // here are the different types of nodes implemented in the workflow
 
@@ -43,6 +44,7 @@ import FlStrategyNode from "./nodesTypes/flStrategyNode.jsx"
 import FlPipelineNode from "./nodesTypes/flPipelineNode.jsx"
 import FlResultsNode from "./nodesTypes/flResultsNode.jsx"
 import FlShapNode from "./nodesTypes/flShapNode.jsx"
+import FlHoldoutNode from "./nodesTypes/flHoldoutNode.jsx"
 import { Button } from "primereact/button"
 import RunPipelineModal from "./runPipelineModal"
 import FlConfigModal from "./flConfigModal"
@@ -115,6 +117,11 @@ const MedflWorkflow = ({ setWorkflowType, workflowType }) => {
 
   const { globalData } = useContext(DataContext)
 
+  // Path of the .fl scene of this page: the opened scene (the page id is its workspace id), or the one saved from this page
+  const [savedScenePath, setSavedScenePath] = useState("")
+  const scenePath = configPath || savedScenePath || (globalData[pageId]?.type == "fl" ? globalData[pageId].path || "" : "")
+  const sceneLoaded = useRef(false)
+
   const [allConfigResults, setAllresults] = useState([])
 
   const { updatePipelineConfigs } = useMEDflContext()
@@ -139,6 +146,7 @@ const MedflWorkflow = ({ setWorkflowType, workflowType }) => {
       flSaveModelNode: FlSaveModelNode,
       flMergeresultsNode: FlCompareResults,
       flShapNode: FlShapNode,
+      flHoldoutNode: FlHoldoutNode,
       boxNode: boxNode,
       analysisBoxNode: analysisBoxNode
     }),
@@ -154,6 +162,39 @@ const MedflWorkflow = ({ setWorkflowType, workflowType }) => {
       console.log("No config file found for this page, base workflow will be used")
     }
   }, [config])
+
+  // Load the opened scene once its path is known (globalData can arrive after the first render)
+  useEffect(() => {
+    if (sceneLoaded.current || !scenePath || !fs.existsSync(scenePath)) return
+    sceneLoaded.current = true
+    modifyZipFileSync(scenePath, async (folder) => {
+      // the scene is in metadata.json; scenes saved before it was fixed kept it in <name>.fl inside the zip
+      const candidates = ["metadata.json", ...fs.readdirSync(folder).filter((file) => file.endsWith(".fl"))]
+      for (const file of candidates) {
+        const filePath = Path.join(folder, file)
+        if (!fs.existsSync(filePath)) continue
+        try {
+          const content = JSON.parse(await fs.promises.readFile(filePath, "utf8"))
+          if (content?.nodes) return content
+        } catch {
+          // empty or invalid file, try the next one
+        }
+      }
+      return null
+    })
+      .then((scene) => {
+        if (scene) {
+          updateScene(scene)
+          toast.success("Scene has been loaded successfully")
+        } else {
+          toast.warn("No saved nodes were found in this scene")
+        }
+      })
+      .catch((error) => {
+        console.error("Failed to load the scene:", error)
+        toast.error("The scene could not be loaded")
+      })
+  }, [scenePath])
 
   const createBoxNode = (position, node, id) => {
     const { nodeType, name, draggable, selectable, image, size, borderColor, selectedBorderColor } = node
@@ -234,7 +275,7 @@ const MedflWorkflow = ({ setWorkflowType, workflowType }) => {
       )
 
       let explainabilityBox = createBoxNode(
-        { x: 1500, y: 350 },
+        { x: 1500, y: 150 },
         {
           nodeType: "boxNode",
           name: "Explainability",
@@ -248,10 +289,25 @@ const MedflWorkflow = ({ setWorkflowType, workflowType }) => {
         "box-explainability"
       )
 
+      // holds the Holdout Test node (nodes are checked against the box named like their section)
+      let evaluationBox = createBoxNode(
+        { x: 1500, y: 550 },
+        {
+          nodeType: "boxNode",
+          name: "Evaluation",
+          draggable: false,
+          selectable: true,
+          image: "",
+          size: { width: 500, height: 300 },
+          borderColor: "rgba(150, 190, 230, 0.8)",
+          selectedBorderColor: "rgb(255, 187, 0)"
+        },
+        "box-evaluation"
+      )
+
       // const newBoxes = [initBox, trainBox, analysisBox]
-      const newBoxes = [initBox, trainBox, explainabilityBox]
+      const newBoxes = [initBox, trainBox, explainabilityBox, evaluationBox]
       newBoxes.forEach((box) => {
-       
         const exists = nodes.find((node) => node.name == box.name && (node.type == "boxNode" || node.type == "analysisBoxNode"))
         if (exists && exists.type === "analysisBoxNode" && !exists.data.setupParam) {
           // If the analysis box exists but does not have setupParam, we need to update it
@@ -896,57 +952,57 @@ const MedflWorkflow = ({ setWorkflowType, workflowType }) => {
     }
   }, [reactFlowInstance, MLType, nodes, edges, intersections, configPath])
 
+  // The scene is stored as metadata.json inside the .fl zip.
+  // The write is awaited so the zip is not repacked before it finishes (that left empty files in the scene)
+  const writeSceneMetadata = (folder, flow) => fs.promises.writeFile(Path.join(folder, "metadata.json"), JSON.stringify(flow, null, 2))
+
   /**
-   *
-   * @param {String} path The path of the folder where the scene will be created
-   * @param {String} sceneName The name of the scene
-   * @param {String} extension The extension of the scene
-   */
-  const createSceneContent = async (path, sceneName, extension, useMedStandard) => {
-    const emptyScene = { useMedStandard: useMedStandard }
-    // create custom zip file
-    console.log("zipFilePath", Path.join(path, sceneName + "." + extension))
-    await createZipFileSync(Path.join(path, sceneName + "." + extension), async (path) => {
-      // do custom actions in the folder while it is unzipped
-      await MEDDataObject.writeFileSync(emptyScene, path, "metadata", "json")
-    })
-  }
-  /**
-   * save the workflow as a json file
+   * save the workflow in the .fl scene file: in place for an opened (or already saved) scene, as a new scene otherwise
    */
   const onSave = useCallback(
-    async (scean) => {
-      if (reactFlowInstance) {
-        const flow = deepCopy(reactFlowInstance.toObject())
-        flow.MLType = MLType
-        console.log("flow debug", flow)
-        flow.nodes.forEach((node) => {
-          node.data.setupParam = null
-        })
-        flow.intersections = intersections
-        if (configPath && configPath != "") {
-          console.log("Heeeeeeere")
-          modifyZipFileSync(configPath, async (path) => {
-            // do custom actions in the folder while it is unzippsed
-            await MEDDataObject.writeFileSync(flow, path, "metadata", "json")
-            toast.success("Scene has been saved successfully")
+    async (sceneName) => {
+      if (!reactFlowInstance) return
+      const flow = deepCopy(reactFlowInstance.toObject())
+      flow.MLType = MLType
+      flow.nodes.forEach((node) => {
+        node.data.setupParam = null
+      })
+      flow.intersections = intersections
+
+      try {
+        if (scenePath) {
+          // modifyZipFileSync shows its own error and returns null when it fails
+          const saved = await modifyZipFileSync(scenePath, async (folder) => {
+            await writeSceneMetadata(folder, flow)
+            return true
           })
+          if (saved) toast.success("Scene has been saved successfully")
         } else {
-          console.log("here", scean)
-          console.log(globalData, "globalData")
-          let configPath = globalData["ROOT"].path + "/EXPERIMENTS/FL/Sceans"
-          createSceneContent(configPath, scean, "fl", null).then(() => {
-            console.log("Scene created successfully ================== ")
-            modifyZipFileSync(configPath + "/" + scean + ".fl", async (path) => {
-              // do custom actions in the folder while it is unzipped
-              await MEDDataObject.writeFileSync(flow, path, scean, "fl")
-              toast.success("Scene has been saved successfully")
-            })
-          })
+          const name = (sceneName || "").trim()
+          // the zip helpers split paths on ".", so the name must not contain one
+          if (!name || /[.\\/]/.test(name)) {
+            toast.error("The scene name must not be empty or contain '.', '/' or '\\'")
+            return
+          }
+          const scenesFolder = Path.join(globalData["ROOT"].path, "EXPERIMENTS", "FL", "Sceans")
+          const newScenePath = Path.join(scenesFolder, name + ".fl")
+          if (fs.existsSync(newScenePath) && !confirm(`A scene named "${name}" already exists. Overwrite it?`)) return
+
+          await fs.promises.mkdir(scenesFolder, { recursive: true })
+          await createZipFileSync(newScenePath, (folder) => writeSceneMetadata(folder, flow))
+          // the next saves of this page go to this file, and it must not be loaded back over the canvas
+          sceneLoaded.current = true
+          setSavedScenePath(newScenePath)
+          openSaveModal(false)
+          MEDDataObject.updateWorkspaceDataObject()
+          toast.success("Scene has been saved successfully")
         }
+      } catch (error) {
+        console.error("Failed to save the scene:", error)
+        toast.error("The scene could not be saved")
       }
     },
-    [reactFlowInstance, MLType, intersections]
+    [reactFlowInstance, MLType, intersections, scenePath, globalData]
   )
 
   /**
@@ -1012,7 +1068,13 @@ const MedflWorkflow = ({ setWorkflowType, workflowType }) => {
   }
 
   const runFlPipeline = (flConfig, dbConfigfile) => {
-    let JSONToSend = { flConfig: flConfig, dbConfigfile: dbConfigfile }
+    let JSONToSend = {
+      flConfig: flConfig,
+      dbConfigfile: dbConfigfile,
+      // the final model of each configuration is saved there as a .medflmodel file
+      modelsFolder: Path.join(globalData["ROOT"].path, EXPERIMENTS, "FL", "Models"),
+      sceneName: scenePath ? Path.basename(scenePath, ".fl") : ""
+    }
 
     setIsProgressUpdating(true)
     setIsUpdating(true)
@@ -1035,6 +1097,15 @@ const MedflWorkflow = ({ setWorkflowType, workflowType }) => {
           console.log("jsonResponse", jsonResponse)
           toast.success(jsonResponse["stringFromBackend"])
           updateFlowResults(jsonResponse)
+
+          // show the saved models in the workspace, and tell when one could not be saved (the run itself succeeded)
+          const savedModels = (jsonResponse.data || []).map((result) => result?.saved_model).filter(Boolean)
+          if (savedModels.some((model) => model.path)) MEDDataObject.updateWorkspaceDataObject()
+          savedModels.filter((model) => model.error).forEach((model) => toast.warn("The final model could not be saved: " + model.error))
+          const configResults = jsonResponse.data || []
+          configResults.forEach((result, index) => {
+            if (result?.holdout_results?.error) toast.warn(`Holdout test of configuration ${index + 1} failed: ${result.holdout_results.error}`)
+          })
           // save the results on a file
           if (flConfig[0]?.flSaveModelNode?.fileName) {
             try {
@@ -1352,7 +1423,7 @@ const MedflWorkflow = ({ setWorkflowType, workflowType }) => {
                     {
                       type: "save",
                       onClick: () => {
-                        configPath && configPath != "" ? onSave() : openSaveModal(true)
+                        scenePath ? onSave() : openSaveModal(true)
                       }
                     },
                     { type: "load", onClick: onLoad }

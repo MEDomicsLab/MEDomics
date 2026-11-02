@@ -24,6 +24,9 @@ export default function MasterDatasetNode({ id, data }) {
 
   // update the node internal data when the selection changes
   useEffect(() => {
+    // MEDfl defaults of the clients' test and validation splits
+    if (data.internal.settings.testFrac === undefined) data.internal.settings.testFrac = 0.15
+    if (data.internal.settings.validFrac === undefined) data.internal.settings.validFrac = 0.2
     if (data.internal.settings.files && data.internal.settings.files.path == "") {
       data.internal.hasWarning = { state: true, tooltip: <p>No file selected</p> }
     } else {
@@ -201,6 +204,25 @@ export default function MasterDatasetNode({ id, data }) {
                   customProps={{
                     filter: true
                   }}
+                />
+                <FlInput
+                  name="testFrac"
+                  currentValue={data.internal.settings.testFrac ?? 0.15}
+                  settingInfos={{
+                    type: "float",
+                    tooltip: "<p>Fraction of each training client's rows kept as its test set (between 0 and 1)</p>"
+                  }}
+                  onInputChange={onInputChange}
+                />
+                <FlInput
+                  name="validFrac"
+                  currentValue={data.internal.settings.validFrac ?? 0.2}
+                  settingInfos={{
+                    type: "float",
+                    tooltip:
+                      "<p>Fraction of the remaining rows (after the test split) kept as each training client's validation set (between 0 and 1). The validation sets are used to choose an optimized decision threshold in the Holdout Test node.</p>"
+                  }}
+                  onInputChange={onInputChange}
                 />
               </>
             </Stack>

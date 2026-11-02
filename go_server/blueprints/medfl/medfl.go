@@ -224,6 +224,8 @@ type runReq struct {
 	DP         string `json:"DP"`
 	ID         string `json:"id"`
 	ModelType  string `json:"model_type"`
+	// Optional holdout file name in the agent data folder (federated holdout test)
+	HoldoutFile string `json:"holdout_file"`
 }
 
 func handleWsRun(jsonConfig string, id string) (string, error) {
@@ -258,14 +260,20 @@ func handleWsRun(jsonConfig string, id string) (string, error) {
 		return "", fmt.Errorf("unsupported model_type %q", modelType)
 	}
 
+	args := map[string]any{
+		"server_addr": payload.ServerAddr,
+		"dp":          payload.DP,
+		"force":       true,
+		"model_type":  modelType,
+	}
+	// The agent keeps only the file name and looks for it in its data folder
+	if holdoutFile := strings.TrimSpace(payload.HoldoutFile); holdoutFile != "" {
+		args["holdout_file"] = holdoutFile
+	}
+
 	cmd := map[string]any{
 		"type": "RUN_CLIENT",
-		"args": map[string]any{
-			"server_addr": payload.ServerAddr,
-			"dp":          payload.DP,
-			"force":       true,
-			"model_type":  modelType,
-		},
+		"args": args,
 	}
 
 	ag.mu.Lock()
@@ -397,6 +405,8 @@ func handleWsStats(jsonConfig string, id string) (string, error) {
 	agent := ""
 	var payload struct {
 		ID string `json:"id"`
+		// Optional: also return the stats of this holdout file
+		HoldoutFile string `json:"holdout_file"`
 	}
 	if err := json.Unmarshal([]byte(jsonConfig), &payload); err == nil && payload.ID != "" {
 		agent = payload.ID
@@ -415,6 +425,9 @@ func handleWsStats(jsonConfig string, id string) (string, error) {
 	cmd := map[string]any{
 		"type": "GET_STATS",
 		"rid":  rid,
+	}
+	if holdoutFile := strings.TrimSpace(payload.HoldoutFile); holdoutFile != "" {
+		cmd["args"] = map[string]any{"holdout_file": holdoutFile}
 	}
 	ag.mu.Lock()
 	err := ag.ws.WriteJSON(cmd)

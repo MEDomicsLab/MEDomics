@@ -13,6 +13,9 @@ sys.path.append(
 
 from med_libs.server_utils import go_print
 from med_libs.GoExecutionScript import GoExecutionScript, parse_arguments
+# this folder, for rw_holdout
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+from rw_holdout import build_holdout_config
 
 
 from MEDfl.LearningManager.shap import (
@@ -312,12 +315,18 @@ class GoExecScriptRunXGBoostServerFromMEDfl(GoExecutionScript):
         xgb_log(f"Creating FederatedServer on {host}:{port}")
         xgb_log(f"Number of rounds: {num_rounds}")
 
+        # The response is sent before training: the app reads the holdout results from the server logs
+        holdout_config = build_holdout_config(json_config)
+        if holdout_config is not None:
+            xgb_log(f"Federated holdout test enabled: {holdout_config}")
+
         server = FederatedServer(
             host=host,
             port=port,
             num_rounds=num_rounds,
             strategy=custom_strategy,
-            shap_config=shap_config
+            shap_config=shap_config,
+            holdout_config=holdout_config,
         )
 
         xgb_log("FederatedServer created successfully")

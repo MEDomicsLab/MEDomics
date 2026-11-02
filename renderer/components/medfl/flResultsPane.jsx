@@ -18,11 +18,12 @@ import FlCompareResults from "./flCompareResults"
 
 import { Button } from "primereact/button"
 
-import { UUID_ROOT, DataContext } from "../workspace/dataContext"
+import { DataContext } from "../workspace/dataContext"
 
 import { EXPERIMENTS } from "../workspace/workspaceContext"
 
 import Path from "path"
+import fs from "fs"
 
 import { useMEDflContext } from "../workspace/medflContext"
 
@@ -36,6 +37,8 @@ import RoundMetricsChart, { TreeGrowthChart } from "./RoundMetricsChart"
 
 import XGBoostFeatureImportance from "./FeatureImportanceChart"
 import FederatedShapResults from "./ShapResults"
+import HoldoutResults from "./HoldoutResults"
+import FederatedHoldoutResults from "./rw/FederatedHoldoutResults"
 
 const EMPTY_CONFUSION_MATRIX = [
   [0, 0],
@@ -338,6 +341,15 @@ const XGBoostResults = ({ result }) => {
             <FederatedShapResults results={result?.federated_shap_result} />
           </div>
         </Tab>
+        {result?.holdout_results ? (
+          <Tab eventKey="holdout" title="Holdout results">
+            {result.holdout_results.mode === "federated" ? (
+              <FederatedHoldoutResults result={result.holdout_results} />
+            ) : (
+              <HoldoutResults holdout={result.holdout_results} testResults={result?.test_results || []} isXGBoost />
+            )}
+          </Tab>
+        ) : null}
       </Tabs>
     </div>
   )
@@ -851,27 +863,17 @@ export default function FlResultsPane() {
 
   const saveFlResults = async () => {
     try {
-      const resultsPath = Path.join(globalData[UUID_ROOT].path, EXPERIMENTS)
+      const folder = Path.join(globalData["ROOT"].path, EXPERIMENTS, "FL", "Results")
+      const name = resultsFileName.trim()
 
-      MEDDataObject.createFolderFromPath(`${resultsPath}/FL`)
-
-      MEDDataObject.createFolderFromPath(`${resultsPath}/FL/Results`)
-
-      await MEDDataObject.writeFileSync(flowResults.data, `${resultsPath}/FL/Results`, resultsFileName, "json")
-
-      await MEDDataObject.writeFileSync(
-        {
-          data: flowResults.data,
-
-          configs: flPipelineConfigs,
-
-          date: Date.now()
-        },
-
-        `${resultsPath}/FL/Results`,
-        resultsFileName,
-        "medflres"
-      )
+      // MEDDataObject.writeFileSync does not wait for the write and refreshes the workspace before it,
+      // so write here, then refresh once both files exist
+      await fs.promises.mkdir(folder, { recursive: true })
+      await Promise.all([
+        fs.promises.writeFile(Path.join(folder, `${name}.json`), JSON.stringify(flowResults.data, null, 2)),
+        fs.promises.writeFile(Path.join(folder, `${name}.medflres`), JSON.stringify({ data: flowResults.data, configs: flPipelineConfigs, date: Date.now() }, null, 2))
+      ])
+      MEDDataObject.updateWorkspaceDataObject()
 
       showFileName(false)
 
@@ -1042,7 +1044,7 @@ export default function FlResultsPane() {
               <div className="p-inputgroup flex-1 me-4">
                 <InputText placeholder="File name" value={resultsFileName} onChange={(event) => setResultsFileName(event.target.value)} />
 
-                <Button icon="pi pi-check" className="p-button-primary" onClick={saveFlResults} disabled={resultsFileName === ""} />
+                <Button icon="pi pi-check" className="p-button-primary" onClick={saveFlResults} disabled={resultsFileName.trim() === ""} />
               </div>
             ) : null}
 
@@ -1125,7 +1127,13 @@ export default function FlResultsPane() {
                   setResultsType(event.value)
                 }
               }}
-              options={res?.federated_shap_result ? ["Global results", "By node", "Compare results", "Shap results"] : ["Global results", "By node", "Compare results"]}
+              options={[
+                "Global results",
+                "By node",
+                "Compare results",
+                ...(res?.federated_shap_result ? ["Shap results"] : []),
+                ...(res?.holdout_results ? ["Holdout results"] : [])
+              ]}
             />
           ) : null}
         </div>
@@ -1136,6 +1144,12 @@ export default function FlResultsPane() {
           <div className="my-3">
             <FlCompareResults data={res?.test_results || []} />
           </div>
+        ) : resultsType === "Holdout results" ? (
+          res?.holdout_results?.mode === "federated" ? (
+            <FederatedHoldoutResults result={res.holdout_results} />
+          ) : (
+            <HoldoutResults holdout={res?.holdout_results} testResults={res?.test_results || []} />
+          )
         ) : resultsType === "Shap results" ? (
           <div className="my-3">
             <FederatedShapResults results={res?.federated_shap_result} />

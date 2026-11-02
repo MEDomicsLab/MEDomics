@@ -21,10 +21,19 @@ import torch.nn.functional as F
 
 sys.path.append(
     str(Path(os.path.dirname(os.path.abspath(__file__))).parent.parent))
+# this folder, for model_package
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 
 from med_libs.server_utils import go_print
 from med_libs.GoExecutionScript import GoExecutionScript, parse_arguments
+from model_package import (MODEL_PACKAGE_EXTENSION, build_preprocessing, safe_file_name, save_nn_model,
+                           save_xgboost_model, set_package_threshold)
+from holdout_eval import evaluate_federated_holdout, evaluate_model_package
+from rw_holdout import build_holdout_config
+from threshold_selection import optimize_model_threshold
+import shutil
+import tempfile
 
 import time
 
@@ -74,6 +83,20 @@ from MEDfl.LearningManager.shap import (
 json_params_dict, id_ = parse_arguments()
 
 
+VALIDATION_SPLIT_SEED = 42
+
+
+def read_fraction(settings, key, default):
+    """Reads a split fraction of the MasterDataset node: a number in [0, 1), the MEDfl default when not set."""
+    value = settings.get(key)
+    if value is None or value == "":
+        return default
+    value = float(value)
+    if not 0 <= value < 1:
+        raise ValueError(f"The {key} of the MasterDataset node must be between 0 and 1 (got {value})")
+    return value
+
+
 class GoExecScriptRunPipelineFromMEDfl(GoExecutionScript):
     """
         This class is used to execute a process from Go
@@ -86,6 +109,149 @@ class GoExecScriptRunPipelineFromMEDfl(GoExecutionScript):
     def __init__(self, json_params: dict, _id: str = None):
         super().__init__(json_params, _id)
         self.results = {"data": "nothing to return"}
+
+    def _save_final_model(self, json_config, config, index, train_clients, fl_setup, task, models_folder, name,
+                          save_function, *model_args):
+        """
+        Saves the final model of a configuration as a .medflmodel file (see model_package.py).
+        A failure is reported in the results instead of stopping the run, since the training itself succeeded.
+        """
+        try:
+            target = config['masterDatasetNode']['target']
+            base_metadata = {
+                "name": name,
+                "target": target,
+                "task": task,
+                **build_preprocessing(fl_setup, train_clients, target),
+                "training": {
+                    "scene": json_config.get("sceneName"),
+                    "configuration": index + 1,
+                    "master_dataset": config['masterDatasetNode'].get('path'),
+                    "clients": [
+                        {"name": client.get('name'), "type": client.get('type'), "dataset": (client.get('dataset') or {}).get('path')}
+                        for client in config['Network']['clients']
+                    ],
+                    "rounds": config['Network']['server'].get('nRounds'),
+                    "aggregation": config['flStrategyNode'].get('Aggregation algorithm'),
+                    "model_settings": config['flModelNode'],
+                },
+            }
+            path = save_function(models_folder, name, *model_args, base_metadata)
+            go_print(f"Final model saved: {path}")
+            return {"name": os.path.basename(path), "path": path}
+        except Exception as e:
+            go_print(f"Could not save the final model: {e}")
+            return {"error": str(e)}
+
+    def _run_federated_holdout(self, config, index, saved_model, holdout):
+        """
+        Federated holdout test: every client with a holdout dataset (Client node) tests the final model on it,
+        the results are aggregated as in the real-world mode. Returns the holdout results, with mode "federated".
+        """
+        if not saved_model.get('path'):
+            return {"mode": "federated", "status": "failed",
+                    "error": "The final model could not be prepared for the holdout test: " + str(saved_model.get('error'))}
+        self.set_progress(label=f"Configuration : {index + 1}, Federated holdout test on the clients", now=97)
+        try:
+            client_holdouts = [(client['name'], (client.get('holdout') or {}).get('path'))
+                               for client in config['Network']['clients']]
+            holdout_results = evaluate_federated_holdout(saved_model['path'], client_holdouts,
+                                                         build_holdout_config({'flHoldoutNode': holdout}))
+            go_print(f"Federated holdout results: {(holdout_results.get('pooled') or {}).get('metrics')}")
+        except Exception as e:
+            go_print(f"Federated holdout test failed: {e}")
+            holdout_results = {"status": "failed", "error": str(e)}
+        return {**holdout_results, "mode": "federated"}
+
+    def _optimize_threshold(self, index, holdout, saved_model, fl_dataset):
+        """
+        Chooses the decision threshold on the training clients' validation data and stores it in the saved model.
+        Returns the threshold selection, or {"error": ...}.
+        """
+        if not saved_model.get('path'):
+            return {"error": "The final model could not be prepared: " + str(saved_model.get('error'))}
+        self.set_progress(label=f"Configuration : {index + 1}, Optimizing the threshold on the validation data", now=96)
+        try:
+            selection = optimize_model_threshold(saved_model['path'], fl_dataset,
+                                                 holdout.get('thresholdCriterion') or "youden",
+                                                 holdout.get('targetSensitivity'))
+            set_package_threshold(saved_model['path'], selection)
+            go_print(f"Optimized threshold ({selection['criterion_label']}): {selection['threshold']}")
+            return selection
+        except Exception as e:
+            go_print(f"Threshold optimization failed: {e}")
+            return {"error": str(e)}
+
+    def _finalize_model(self, json_config, config, index, train_clients, fl_setup, fl_dataset, task, save_function,
+                        *model_args):
+        """
+        Saves the final model and, when the configuration has a Holdout Test node, tests it on the holdout dataset.
+        Without a Holdout Test node the model is always saved. With one, the node decides whether it is kept
+        (when it is not, it is written to a temporary folder only for the test), and whether the threshold is
+        optimized on the validation data first (then it is stored in the saved model and used for the test).
+        Returns (saved_model, holdout_results), each a dict or None.
+        """
+        holdout = config.get('flHoldoutNode') or None
+        keep_model = holdout is None or str(holdout.get('saveModel', True)).lower() != "false"
+        scene = json_config.get("sceneName") or "simulation"
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        custom_name = str((holdout or {}).get('modelName') or "").strip()
+        if custom_name:
+            several_configs = len(json_config.get('flConfig') or []) > 1
+            name = f"{custom_name}_config{index + 1}" if several_configs else custom_name
+        else:
+            name = f"{scene}_config{index + 1}_{timestamp}"
+
+        if keep_model:
+            models_folder = json_config.get("modelsFolder")
+            if not models_folder:
+                return {"skipped": "No models folder was given"}, None
+            # never overwrite a saved model: a reused custom name gets the date and time added
+            if os.path.exists(os.path.join(models_folder, safe_file_name(name) + MODEL_PACKAGE_EXTENSION)):
+                name = f"{name}_{timestamp}"
+        else:
+            models_folder = tempfile.mkdtemp(prefix="medfl_holdout_")
+
+        try:
+            saved_model = self._save_final_model(json_config, config, index, train_clients, fl_setup, task,
+                                                 models_folder, name, save_function, *model_args)
+            holdout_results = None
+            federated = holdout is not None and str(holdout.get('mode', '')).lower() == "federated"
+            threshold_selection = None
+            if holdout is not None and str(holdout.get('thresholdSource', '')).lower().startswith("optimized"):
+                threshold_selection = self._optimize_threshold(index, holdout, saved_model, fl_dataset)
+                holdout = {**holdout, 'threshold': threshold_selection.get('threshold')}
+
+            if threshold_selection and threshold_selection.get('error'):
+                # never fall back silently to another threshold
+                holdout_results = {"error": "The threshold could not be optimized on the validation data: "
+                                            + threshold_selection['error']}
+                if federated:
+                    holdout_results.update({"mode": "federated", "status": "failed"})
+            elif federated:
+                holdout_results = self._run_federated_holdout(config, index, saved_model, holdout)
+            elif holdout is not None:
+                holdout_path = (holdout.get('file') or {}).get('path')
+                if not holdout_path:
+                    holdout_results = {"error": "No holdout dataset was selected in the Holdout Test node"}
+                elif not saved_model.get('path'):
+                    holdout_results = {"error": "The final model could not be prepared for the holdout test: "
+                                                + str(saved_model.get('error'))}
+                else:
+                    self.set_progress(label=f"Configuration : {index + 1}, Testing on the holdout dataset", now=97)
+                    try:
+                        holdout_results = evaluate_model_package(saved_model['path'], holdout_path,
+                                                                 holdout.get('threshold', 0.5))
+                        go_print(f"Holdout results: {holdout_results['metrics']}")
+                    except Exception as e:
+                        go_print(f"Holdout test failed: {e}")
+                        holdout_results = {"error": str(e)}
+            if holdout_results is not None and threshold_selection and not threshold_selection.get('error'):
+                holdout_results['threshold_selection'] = threshold_selection
+            return (saved_model if keep_model else None), holdout_results
+        finally:
+            if not keep_model:
+                shutil.rmtree(models_folder, ignore_errors=True)
 
     def _custom_process(self, json_config: dict) -> dict:
         """
@@ -131,6 +297,7 @@ class GoExecScriptRunPipelineFromMEDfl(GoExecutionScript):
             # Create nodes
             self.set_progress(label=f"Configuration : {index +1 }, Creating the FL clients", now=25)
 
+            train_clients = []  # used to read the feature columns when saving the final model
             for client in config['Network']['clients']:
 
                 microseconds = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f").split('.')[1]
@@ -139,15 +306,27 @@ class GoExecScriptRunPipelineFromMEDfl(GoExecutionScript):
                     name= f"{client['name']}_{microseconds}" , train=1 if client['type'] == 'Train node' else 0)
                 Net_1.add_node(hospital)
                 hospital.upload_dataset("datasetName",  client["dataset"]['path'])
+                if client['type'] == 'Train node':
+                    train_clients.append(hospital)
 
             # Create FLDataSet
             self.set_progress(label=f"Configuration : {index +1 }, Creating the Federated dataset", now=35)
 
-            fl_dataset = autoFl.create_federated_dataset(
-                output=config['masterDatasetNode']['target'],
-                fit_encode=[],
-                to_drop=[config['masterDatasetNode']['target']]
-            )
+            # MEDfl splits train/validation with torch's global random generator: it is seeded so the validation
+            # sets (used to choose the decision threshold) are the same at every run, then restored so the
+            # training randomness is not fixed by this seed
+            rng_state = torch.get_rng_state()
+            torch.manual_seed(VALIDATION_SPLIT_SEED)
+            try:
+                fl_dataset = autoFl.create_federated_dataset(
+                    output=config['masterDatasetNode']['target'],
+                    fit_encode=[],
+                    to_drop=[config['masterDatasetNode']['target']],
+                    val_frac=read_fraction(config['masterDatasetNode'], 'validationFraction', 0.2),
+                    test_frac=read_fraction(config['masterDatasetNode'], 'testFraction', 0.15)
+                )
+            finally:
+                torch.set_rng_state(rng_state)
 
             # Create the model
             self.set_progress(label=f"Configuration : {index +1 }, Creating The model", now=40)
@@ -698,6 +877,18 @@ class GoExecScriptRunPipelineFromMEDfl(GoExecutionScript):
                             0.0,
                         )
 
+                saved_model, holdout_results = self._finalize_model(
+                    json_config, config, index, train_clients, autoFl, fl_dataset, task, save_xgboost_model,
+                    global_booster,
+                    {
+                        "num_classes": num_classes,
+                        "threshold": threshold,
+                        "num_trees": final_num_trees,
+                        "booster_feature_names": feature_names,
+                        "xgb_params": xgb_params,
+                    },
+                )
+
                 # ---------------------------------------------------------
                 # 13. Create frontend-compatible result
                 # ---------------------------------------------------------
@@ -733,7 +924,9 @@ class GoExecScriptRunPipelineFromMEDfl(GoExecutionScript):
                         "metrics_distributed_fit",
                         {},
                     ),
-                    "federated_shap_result" : xgb_server.shap_results
+                    "federated_shap_result" : xgb_server.shap_results,
+                    "saved_model": saved_model,
+                    "holdout_results": holdout_results,
                 }
 
                 global_results.append(results)
@@ -780,9 +973,11 @@ class GoExecScriptRunPipelineFromMEDfl(GoExecutionScript):
                     return value
 
                 # The architecture is always rebuilt from the node settings, with or without transfer learning
+                nn_num_layers = read_number('Number of layers', int)
+                nn_hidden_size = read_number('Hidden size', int)
                 model = BinaryClassifier(input_size=fl_dataset.size,
-                                        num_layers=read_number('Number of layers', int),
-                                        layer_size=read_number('Hidden size', int),)
+                                        num_layers=nn_num_layers,
+                                        layer_size=nn_hidden_size,)
 
                 if config['flModelNode']['activateTl'] == "true":
                     model_path = (config['flModelNode'].get('file') or {}).get('path')
@@ -1076,8 +1271,25 @@ class GoExecScriptRunPipelineFromMEDfl(GoExecutionScript):
                 # Final results
                 # ============================================================
 
+                # server.run() copied the final aggregated weights into server.global_model
+                saved_model, holdout_results = self._finalize_model(
+                    json_config, config, index, train_clients, autoFl, fl_dataset, "binary", save_nn_model,
+                    server.global_model.model,
+                    {
+                        "class": "BinaryClassifier",
+                        "input_size": fl_dataset.size,
+                        "num_layers": nn_num_layers,
+                        "hidden_size": nn_hidden_size,
+                        "activation": "relu",
+                        "output": "logit (apply a sigmoid to get the probability)",
+                    },
+                )
+
                 results = {
                     "results": server.auc,
+
+                    "saved_model": saved_model,
+                    "holdout_results": holdout_results,
 
                     "round_results": round_results,
 

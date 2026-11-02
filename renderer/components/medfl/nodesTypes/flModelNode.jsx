@@ -31,6 +31,10 @@ const FlModelNode = ({ id, data }) => {
   // architecture read from the pretrained file ({ num_layers, hidden_size, input_size } or { error })
   const [pthInfo, setPthInfo] = useState(null)
 
+  // The number inputs are uncontrolled: their key includes this counter, bumped only when values are filled
+  // from a file, so they remount to show those values (keying on the value itself remounted them on every keystroke)
+  const [autofillCount, setAutofillCount] = useState(0)
+
   // Handle the Transfer Learning Activation change
   const onSelectionChange = (e) => {
     setTLActivation(e.target.value)
@@ -96,6 +100,7 @@ const FlModelNode = ({ id, data }) => {
           return
         }
         setPthInfo(json.data)
+        setAutofillCount((count) => count + 1)
         data.internal.settings["Number of layers"] = json.data.num_layers
         data.internal.settings["Hidden size"] = json.data.hidden_size
         updateNode({
@@ -159,6 +164,7 @@ const FlModelNode = ({ id, data }) => {
             if (value !== undefined) data.internal.settings[name] = value
           })
           data.internal.settings["Model type"] = "Binary classifier"
+          setAutofillCount((count) => count + 1)
           updateNode({
             id: id,
             updatedData: data.internal
@@ -174,6 +180,7 @@ const FlModelNode = ({ id, data }) => {
       data.internal.settings["Hidden size"] = ""
       data.internal.settings["learning rate"] = ""
       data.internal.settings["optimizer"] = ""
+      setAutofillCount((count) => count + 1)
 
       updateNode({
         id: id,
@@ -301,9 +308,8 @@ const FlModelNode = ({ id, data }) => {
                       <Message severity="info" text={`Architecture read from the file (${pthInfo.input_size} input features)`} />
                     )}
 
-                    {/* the int inputs are uncontrolled, so the key remounts them when the file fills them */}
                     <FlInput
-                      key={"layers-" + data.internal.settings["Number of layers"]}
+                      key={"layers-" + autofillCount}
                       name="Number of layers"
                       settingInfos={{
                         type: "int",
@@ -316,7 +322,7 @@ const FlModelNode = ({ id, data }) => {
                     />
 
                     <FlInput
-                      key={"hidden-" + data.internal.settings["Hidden size"]}
+                      key={"hidden-" + autofillCount}
                       name="Hidden size"
                       settingInfos={{
                         type: "int",
@@ -430,9 +436,8 @@ const FlModelNode = ({ id, data }) => {
                           setHasWarning={() => {}}
                         />
 
-                        {/* the number inputs are uncontrolled, so the key remounts them when the optimization file fills them */}
                         <FlInput
-                          key={"custom-layers-" + data.internal.settings["Number of layers"]}
+                          key={"custom-layers-" + autofillCount}
                           name="Number of layers"
                           settingInfos={{
                             type: "int",
@@ -444,7 +449,7 @@ const FlModelNode = ({ id, data }) => {
                         />
 
                         <FlInput
-                          key={"custom-hidden-" + data.internal.settings["Hidden size"]}
+                          key={"custom-hidden-" + autofillCount}
                           name="Hidden size"
                           settingInfos={{
                             type: "int",
@@ -468,7 +473,7 @@ const FlModelNode = ({ id, data }) => {
                         />
 
                         <FlInput
-                          key={"custom-lr-" + data.internal.settings["learning rate"]}
+                          key={"custom-lr-" + autofillCount}
                           name="learning rate"
                           settingInfos={{
                             type: "float",

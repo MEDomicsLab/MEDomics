@@ -19,7 +19,7 @@ import DatasetOverview from "./DatasetsOverview"
 import { FlowFunctionsContext } from "../../flow/context/flowFunctionsContext"
 import { useMEDflContext } from "../../workspace/medflContext"
 
-export default function NetworkCheckModal({ show, onHide, setNetworkChecked, networkChecked }) {
+export default function NetworkCheckModal({ show, onHide, setNetworkChecked, networkChecked, holdoutFileName = "holdout.csv", holdoutRequired = false }) {
   const { port } = useContext(WorkspaceContext)
   const { pageId } = useContext(PageInfosContext)
   const { groupNodeId, updateNode } = useContext(FlowFunctionsContext)
@@ -187,7 +187,8 @@ export default function NetworkCheckModal({ show, onHide, setNetworkChecked, net
       requestBackend(
         port,
         "/medfl/rw/ws/stats/" + pageId,
-        { id: agentId },
+        // the agent also returns the stats of the holdout file (in its data folder, next to dataset.csv)
+        { id: agentId, holdout_file: holdoutFileName },
         (res) => {
           if (res?.error) {
             console.error("getDataAgentStats error:", res.error)
@@ -339,12 +340,13 @@ export default function NetworkCheckModal({ show, onHide, setNetworkChecked, net
 
               <Tab.Content>
                 <Tab.Pane eventKey="__overview__">
-                  <DatasetOverview datasetStats={currentDatasetStats} />
+                  <DatasetOverview datasetStats={currentDatasetStats} holdoutFileName={holdoutFileName} holdoutRequired={holdoutRequired} />
                 </Tab.Pane>
 
                 {Object.entries(currentDatasetStats).map(([agentId, data]) => (
                   <Tab.Pane eventKey={agentId} key={agentId}>
                     <DatasetInfo data={data} agent={agentId} />
+                    {data?.holdout && <DatasetInfo data={data.holdout} agent={agentId} title={`Holdout file (${holdoutFileName})`} />}
                   </Tab.Pane>
                 ))}
               </Tab.Content>

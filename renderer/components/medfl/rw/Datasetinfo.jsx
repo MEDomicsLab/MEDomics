@@ -11,7 +11,7 @@ import { FaFileCsv, FaDatabase, FaTable, FaCheckCircle, FaTimesCircle } from "re
  *    numeric_summary: Record<string, Record<string, number>>
  *  }
  */
-const DatasetInfo = ({ data, resumed = false }) => {
+const DatasetInfo = ({ data, resumed = false, title = "Dataset Information" }) => {
   if (!data) return null
 
   const { path, exists, file_size_bytes, modified_time, n_rows, n_cols, columns = [], head = [], null_counts = {}, numeric_summary = {}, engine } = data
@@ -63,7 +63,7 @@ const DatasetInfo = ({ data, resumed = false }) => {
         <div className="card-body">
           <h4 className="card-title d-flex align-items-center" style={{ gap: 10 }}>
             <FaFileCsv style={{ color: "#28a745" }} />
-            Dataset Information
+            {title}
           </h4>
 
           {/* Meta table */}

@@ -99,6 +99,18 @@ const nodesParams = {
     title: "Federated SHAP",
     section: "explainability",
     possibleSettings: {}
+  },
+  holdout_test: {
+    type: "flHoldoutNode",
+    classes: "object",
+    nbInput: 1,
+    nbOutput: 0,
+    input: ["fl_strategy"],
+    output: ["holdout_test"],
+    img: "results.png",
+    title: "Holdout Test",
+    section: "evaluation",
+    possibleSettings: {}
   }
   // fl_pipeline: {
   //   type: "flPipelineNode",

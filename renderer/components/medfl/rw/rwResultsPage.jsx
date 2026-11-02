@@ -7,6 +7,7 @@ import { loadFileFromPathSync } from "../../../utilities/fileManagementUtils"
 import ClientEvalLineChart from "./ ClientsLineChart"
 import ClientDetails from "./ClientDetails"
 import FederatedShapResults from "../ShapResults"
+import FederatedHoldoutResults from "./FederatedHoldoutResults"
 import { BsFillFileEarmarkBarGraphFill } from "react-icons/bs"
 import { PiGraphFill } from "react-icons/pi"
 import { FaHashtag, FaPlayCircle, FaClock, FaCalendarAlt } from "react-icons/fa"
@@ -45,7 +46,7 @@ const RwResultsPage = ({ url }) => {
       const os = client.os.toLowerCase()
       if (os.includes("linux")) acc.linux++
       else if (os.includes("windows")) acc.windows++
-      else if (os.includes("mac") ) acc.macOS++
+      else if (os.includes("mac")) acc.macOS++
       return acc
     },
     { linux: 0, windows: 0, macOS: 0 }
@@ -230,7 +231,7 @@ const RwResultsPage = ({ url }) => {
           </Row>
         </Tab>
 
-        <Tab eventKey="devices" title="Device Details">
+        {/*    <Tab eventKey="devices" title="Device Details">
           <Card className="mb-3">
             <Card.Body>
               <Card.Title>Server</Card.Title>
@@ -284,16 +285,22 @@ const RwResultsPage = ({ url }) => {
               </Table>
             </Card.Body>
           </Card>
-        </Tab>
-        <Tab eventKey="Datasets" title="Client Datasets">
-          <ClientDetails clientProperties={data ? data.clientProperties : []} />
-        </Tab>
+        </Tab> */}
 
         {data.federatedShapResults && (
           <Tab eventKey="shap" title="SHAP">
             <FederatedShapResults results={data.federatedShapResults} scrollable={false} />
           </Tab>
         )}
+
+        {data.federatedHoldoutResults && (
+          <Tab eventKey="holdout" title="Holdout">
+            <FederatedHoldoutResults result={data.federatedHoldoutResults} />
+          </Tab>
+        )}
+        <Tab eventKey="Datasets" title="Client Datasets">
+          <ClientDetails clientProperties={data ? data.clientProperties : []} />
+        </Tab>
       </Tabs>
     </Container>
   )
