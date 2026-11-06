@@ -1,6 +1,7 @@
 from pymongo import MongoClient
 from pymongo.errors import DuplicateKeyError, PyMongoError
 import gridfs
+import io
 import pickle
 import pandas as pd
 
@@ -64,6 +65,25 @@ def delete_large_binary(db, bucket_name, gridfs_id):
         gridfs.GridFS(db, collection=bucket_name).delete(gridfs_id)
     except Exception:
         pass
+
+
+def _deserialize_model(data):
+    """Deserialize stored model bytes, accepting both joblib and plain pickle.
+
+    joblib.dump writes numpy buffers outside the pickle opcode stream, so a
+    joblib artifact makes plain pickle.loads fail with "invalid load key".
+    import_external_model.py accepts .joblib files and reads them with joblib,
+    so re-reading them here with pickle alone would let a model import cleanly
+    and only fail later, when an analysis tries to load it.
+
+    joblib.load reads plain pickles too, so it is tried first; the fallback
+    covers the case where joblib is not installed.
+    """
+    try:
+        import joblib
+        return joblib.load(io.BytesIO(data))
+    except Exception:
+        return pickle.loads(data)
 
 
 def connect_to_mongo():
@@ -197,7 +217,7 @@ def get_pickled_model_from_collection(collection_name):
     if model_document and 'model' in model_document:
         # Deserialize the model
         pickled_model = model_document['model']
-        model = pickle.loads(pickled_model)
+        model = _deserialize_model(pickled_model)
         return model
     elif 'model_path' in model_document:
         model_path = model_document['model_path']
@@ -209,7 +229,7 @@ def get_pickled_model_from_collection(collection_name):
         return model
     elif 'pklContent' in model_document:
         pickled_model = model_document['pklContent']
-        model = pickle.loads(pickled_model)
+        model = _deserialize_model(pickled_model)
         return model
     return None
 
