@@ -376,7 +376,22 @@ class GoExecScriptRunMed3paAnalysis(GoExecutionScript):
                     if save_all:
                         return record
                     return {"id": record["id"], "path": record["path"]}
-                return to_serializable(o)
+
+                converted = to_serializable(o)
+                # to_serializable returns its input unchanged for any type it does
+                # not recognise. json then re-encounters the same object while it
+                # is still on the encoder's marker stack and reports "Circular
+                # reference detected" -- which names neither the field nor the
+                # type, and is not actually a cycle. Fall back to a readable form
+                # and record what happened, so a new type appearing in MED3pa's
+                # config degrades one value instead of failing the whole run.
+                if converted is o:
+                    self.warnings.append(
+                        f"{type(o).__name__} is not JSON-serializable by MED3pa's "
+                        f"to_serializable; stored as text."
+                    )
+                    return repr(o)
+                return converted
 
             return json.loads(json.dumps(obj, default=default))
 
