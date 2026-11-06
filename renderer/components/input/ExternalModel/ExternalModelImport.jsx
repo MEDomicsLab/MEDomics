@@ -55,6 +55,22 @@ const OPTIONAL_DEPENDENCY = {
 }
 
 /**
+ * @description Parse "Name: value" lines into a headers object.
+ * @param {String} text one header per line
+ * @returns {Object} header name -> value
+ */
+const parseHeaders = (text) =>
+  text
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line !== "" && line.includes(":"))
+    .reduce((acc, line) => {
+      const at = line.indexOf(":")
+      acc[line.slice(0, at).trim()] = line.slice(at + 1).trim()
+      return acc
+    }, {})
+
+/**
  * @returns {JSX.Element} a page
  *
  * @description
@@ -82,10 +98,20 @@ const ExternalModelImport = () => {
   // Null means "use whatever the extension implies". Set only when the user
   // corrects the guess, which matters for .json and .txt.
   const [frameworkOverride, setFrameworkOverride] = useState(null)
+  // "file" imports an artifact; "endpoint" keeps the model where it is served.
+  const [source, setSource] = useState("file")
+  const [endpointUrl, setEndpointUrl] = useState("")
+  const [headerText, setHeaderText] = useState("")
+  const [instancesKey, setInstancesKey] = useState("instances")
+  const [responseKey, setResponseKey] = useState("predictions")
+  const [timeoutSeconds, setTimeoutSeconds] = useState("30")
+  const [verifyTls, setVerifyTls] = useState(true)
+
+  const isRemote = source === "endpoint"
 
   const extension = filePath ? filePath.split(".").pop().toLowerCase() : null
   const detectedFramework = FRAMEWORK_BY_EXTENSION[extension] ?? null
-  const framework = frameworkOverride ?? detectedFramework
+  const framework = isRemote ? "remote" : frameworkOverride ?? detectedFramework
   const isOnnx = framework === "onnx"
   const isKnownExtension = detectedFramework !== null
   // sklearn estimators always return probabilities; every other framework can
@@ -156,7 +182,7 @@ const ExternalModelImport = () => {
       "learning/import_external_model/externalModelImport",
       {
         import_params: {
-          file_path: filePath,
+          file_path: isRemote ? null : filePath,
           model_name: modelName,
           parent_id: parentId,
           columns: features,
@@ -165,7 +191,17 @@ const ExternalModelImport = () => {
           threshold: threshold === "" ? null : parseFloat(threshold),
           framework: framework,
           raw_logits: supportsRawLogits ? rawLogits : false,
-          onnx_output: isOnnx ? onnxOutput : null
+          onnx_output: isOnnx ? onnxOutput : null,
+          endpoint: isRemote
+            ? {
+                url: endpointUrl,
+                headers: parseHeaders(headerText),
+                instances_key: instancesKey,
+                response_key: responseKey,
+                timeout: timeoutSeconds === "" ? null : parseFloat(timeoutSeconds),
+                verify_tls: verifyTls
+              }
+            : null
         }
       },
       (jsonResponse) => {
@@ -187,7 +223,15 @@ const ExternalModelImport = () => {
     )
   }
 
-  const canImport = filePath && isKnownExtension && modelName.trim() !== "" && target.trim() !== "" && !isImporting
+  // A remote model cannot report its own features, so the list is required;
+  // for a file it can still be inferred from the artifact.
+  const canImport =
+    !isImporting &&
+    modelName.trim() !== "" &&
+    target.trim() !== "" &&
+    (isRemote
+      ? endpointUrl.trim() !== "" && parseFeatures().length > 0
+      : filePath && isKnownExtension)
 
   return (
     <div className="p-3" style={{ maxWidth: 720 }}>
@@ -202,6 +246,82 @@ const ExternalModelImport = () => {
         }
       />
 
+      <div className="d-flex gap-3 mb-3">
+        <label className="d-flex align-items-center gap-2" style={{ fontSize: 13, cursor: "pointer" }}>
+          <input type="radio" name="model_source" checked={!isRemote} onChange={() => setSource("file")} />
+          Model file
+        </label>
+        <label className="d-flex align-items-center gap-2" style={{ fontSize: 13, cursor: "pointer" }}>
+          <input type="radio" name="model_source" checked={isRemote} onChange={() => setSource("endpoint")} />
+          HTTP endpoint
+        </label>
+      </div>
+
+      {isRemote ? (
+        <>
+          <Message
+            severity="warn"
+            className="mb-3 w-100"
+            content={
+              <span>
+                The model stays where it is served and <strong>patient features are sent to this endpoint</strong> on every analysis. The URL is
+                recorded with each session so results stay traceable. Only use an endpoint you are permitted to send this data to.
+              </span>
+            }
+          />
+
+          <label className="d-block mb-1">Endpoint URL</label>
+          <InputText
+            className="w-100 mb-1"
+            value={endpointUrl}
+            onChange={(e) => setEndpointUrl(e.target.value)}
+            placeholder="https://host/v1/models/my-model:predict"
+          />
+          <p style={{ fontSize: 11, color: "#6C757D", marginBottom: 12 }}>
+            Must accept a POST of all rows at once and return one probability per row. MED3pa calls it once per dataset, not once per patient.
+          </p>
+
+          <label className="d-block mb-1">Headers (optional)</label>
+          <InputTextarea className="w-100" rows={3} value={headerText} onChange={(e) => setHeaderText(e.target.value)} placeholder={"Authorization: Bearer ${MY_TOKEN}"} />
+          <p style={{ fontSize: 11, color: "#6C757D", marginBottom: 12 }}>
+            One <code>Name: value</code> per line. A value written as <code>{"${VAR_NAME}"}</code> is read from the environment when the model runs,
+            so the token is never stored in the workspace — anything else is saved in the local database as written.
+          </p>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 12 }}>
+            <div>
+              <label className="d-block mb-1" style={{ fontSize: 12 }}>
+                Request key
+              </label>
+              <InputText className="w-100" value={instancesKey} onChange={(e) => setInstancesKey(e.target.value)} placeholder="instances" />
+            </div>
+            <div>
+              <label className="d-block mb-1" style={{ fontSize: 12 }}>
+                Response key
+              </label>
+              <InputText className="w-100" value={responseKey} onChange={(e) => setResponseKey(e.target.value)} placeholder="predictions" />
+            </div>
+            <div>
+              <label className="d-block mb-1" style={{ fontSize: 12 }}>
+                Timeout (s)
+              </label>
+              <InputText className="w-100" value={timeoutSeconds} onChange={(e) => setTimeoutSeconds(e.target.value)} placeholder="30" />
+            </div>
+          </div>
+          <p style={{ fontSize: 11, color: "#6C757D", marginBottom: 12 }}>
+            The request is <code>{'{ "<request key>": [[...row...], ...] }'}</code>. Leave the response key blank if the body is the array of
+            predictions itself rather than an object wrapping it.
+          </p>
+
+          <div className="d-flex align-items-start gap-2 mb-3">
+            <Checkbox inputId="verifyTls" checked={verifyTls} onChange={(e) => setVerifyTls(e.checked)} />
+            <label htmlFor="verifyTls" style={{ fontSize: 13 }}>
+              Verify the TLS certificate
+            </label>
+          </div>
+        </>
+      ) : (
+        <>
       <label className="d-block mb-1">Model file</label>
       <div className="d-flex align-items-center gap-2 mb-1">
         <Button label="Choose file…" outlined onClick={chooseFile} />
@@ -242,6 +362,8 @@ const ExternalModelImport = () => {
               : `Detected from .${extension}. Change it if that is wrong — .json and .txt are ambiguous.`}
             {OPTIONAL_DEPENDENCY[framework] && ` Needs ${OPTIONAL_DEPENDENCY[framework]} in the app's python environment.`}
           </p>
+        </>
+      )}
         </>
       )}
 
@@ -290,7 +412,12 @@ const ExternalModelImport = () => {
         </div>
       )}
 
-      <Button label={isImporting ? "Importing…" : "Import model"} className="w-100" disabled={!canImport} onClick={runImport} />
+      <Button
+        label={isImporting ? (isRemote ? "Testing endpoint…" : "Importing…") : isRemote ? "Test and import endpoint" : "Import model"}
+        className="w-100"
+        disabled={!canImport}
+        onClick={runImport}
+      />
     </div>
   )
 }

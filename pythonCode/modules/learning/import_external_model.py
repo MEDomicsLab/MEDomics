@@ -25,7 +25,9 @@ from med_libs.MEDDataObject import MEDDataObject
 from med_libs.mongodb_utils import insert_med_data_object_if_not_exists
 from med_libs.model_loading import (DEFAULT_ARTIFACT_CHILD,
                                     FRAMEWORK_BY_EXTENSION,
+                                    REMOTE_FRAMEWORK,
                                     build_model_from_artifact,
+                                    build_remote_model,
                                     framework_for_extension)
 
 json_params_dict, id_ = parse_arguments()
@@ -74,7 +76,10 @@ class GoExecScriptImportExternalModel(GoExecutionScript):
         ml_type = params.get("ml_type") or "classification"
         threshold = params.get("threshold")
 
-        if not file_path or not os.path.isfile(file_path):
+        framework = params.get("framework")
+        is_remote = framework == REMOTE_FRAMEWORK
+
+        if not is_remote and (not file_path or not os.path.isfile(file_path)):
             raise ValueError(f"No file found at '{file_path}'.")
         if not model_name:
             raise ValueError("A name for the imported model is required.")
@@ -83,11 +88,51 @@ class GoExecScriptImportExternalModel(GoExecutionScript):
         if not target:
             raise ValueError("The name of the target column is required.")
 
+        # A remote model has no file at all: the endpoint stands in for the
+        # artifact, and the probe below is what validates it.
+        if is_remote:
+            endpoint = self._endpoint_from_params(params)
+            raw_logits = bool(params.get("raw_logits", False))
+            model = build_remote_model(endpoint, raw_logits)
+            if not columns:
+                raise ValueError(
+                    "A remote model cannot report its own features, so the "
+                    "ordered feature list has to be given explicitly."
+                )
+            self.set_progress(label="Calling the endpoint", now=45)
+            self._probe(model, len(columns))
+            self.set_progress(label="Saving model", now=70)
+            model_id = self._write_med_objects(
+                model_name=model_name,
+                parent_id=parent_id,
+                framework=REMOTE_FRAMEWORK,
+                artifact_bytes=None,
+                file_path=None,
+                columns=columns,
+                target=target,
+                ml_type=ml_type,
+                threshold=threshold,
+                onnx_output=None,
+                raw_logits=raw_logits,
+                artifact_child=None,
+                algorithm=type(model).__name__,
+                endpoint=endpoint,
+            )
+            self.results = {
+                "status": "completed",
+                "model_id": model_id,
+                "name": model_name + ".medmodel",
+                "columns": columns,
+                "warnings": self.warnings,
+            }
+            self.set_progress(label="Done", now=100)
+            return self.results
+
         extension = Path(file_path).suffix.lower()
         # An explicit framework from the form wins, so an ambiguous extension
         # (.json is an xgboost dump far more often than anything else, but not
         # always) can be corrected by the user.
-        framework = params.get("framework") or framework_for_extension(extension)
+        framework = framework or framework_for_extension(extension)
         if not framework:
             raise ValueError(
                 f"Unsupported model file '{extension}'. Expected one of "
@@ -165,6 +210,35 @@ class GoExecScriptImportExternalModel(GoExecutionScript):
         self.set_progress(label="Done", now=100)
         return self.results
 
+    def _endpoint_from_params(self, params):
+        """Pull the endpoint settings out of the form's payload.
+
+        Header values written as ${NAME} are kept verbatim and resolved from
+        the environment at call time, so a token need never be stored.
+        """
+        endpoint = params.get("endpoint") or {}
+        url = (endpoint.get("url") or "").strip()
+        if not url:
+            raise ValueError("A remote model needs an endpoint URL.")
+        headers = {
+            str(name).strip(): str(value).strip()
+            for name, value in (endpoint.get("headers") or {}).items()
+            if str(name).strip()
+        }
+        if url.lower().startswith("http://"):
+            self.warn(
+                f"{url} is plain HTTP, so patient features and the response travel unencrypted. Use https:// unless this endpoint is on localhost."
+            )
+        return {
+            "url": url,
+            "headers": headers,
+            "instances_key": (endpoint.get("instances_key") or "").strip() or None,
+            "response_key": (endpoint.get("response_key") or "").strip() or None,
+            "timeout": endpoint.get("timeout"),
+            "retries": endpoint.get("retries"),
+            "verify_tls": endpoint.get("verify_tls", True),
+        }
+
     def _declared_feature_count(self, model, framework):
         """How many features the artifact itself says it expects, if it says.
 
@@ -217,7 +291,8 @@ class GoExecScriptImportExternalModel(GoExecutionScript):
 
     def _write_med_objects(self, model_name, parent_id, framework, artifact_bytes,
                            file_path, columns, target, ml_type, threshold,
-                           onnx_output, raw_logits, artifact_child, algorithm):
+                           onnx_output, raw_logits, artifact_child, algorithm,
+                           endpoint=None):
         """Write the medmodel object and its children, matching what the
         Learning module's save_model node produces."""
         model_object = MEDDataObject(
@@ -234,6 +309,15 @@ class GoExecScriptImportExternalModel(GoExecutionScript):
                 f"A model named '{model_name}.medmodel' already exists in this folder. "
                 f"Choose another name."
             )
+
+        # A remote model stores no weights, so it has no artifact child at all;
+        # metadata.endpoint is the whole of it.
+        if framework == REMOTE_FRAMEWORK:
+            self._write_metadata(
+                model_id, columns, target, ml_type, threshold, framework,
+                None, raw_logits, None, algorithm, endpoint,
+            )
+            return model_id
 
         # onnx and sklearn keep their legacy child names, because that is what
         # every existing consumer falls back to; anything else is model<ext>
@@ -267,6 +351,17 @@ class GoExecScriptImportExternalModel(GoExecutionScript):
             )
         insert_med_data_object_if_not_exists(child_object, content)
 
+        self._write_metadata(
+            model_id, columns, target, ml_type, threshold, framework,
+            child_name, raw_logits, onnx_output, algorithm, None,
+        )
+        return model_id
+
+    def _write_metadata(self, model_id, columns, target, ml_type, threshold,
+                        framework, artifact_child, raw_logits, onnx_output,
+                        algorithm, endpoint):
+        """Write the metadata.json child -- the only description of how to load
+        this model again, so load_base_model never has to guess."""
         metadata = {
             "columns": columns,
             # Externally imported models do no preprocessing of their own inside
@@ -277,15 +372,18 @@ class GoExecScriptImportExternalModel(GoExecutionScript):
             "algorithm": algorithm,
             "source": "external",
             "framework": framework,
+            "raw_logits": raw_logits,
         }
         if threshold is not None:
             metadata["model_threshold"] = float(threshold)
-        # Where the artifact lives and how to drive it -- load_base_model needs
-        # both to rebuild this model without guessing.
-        metadata["artifact_child"] = child_name
-        metadata["raw_logits"] = raw_logits
+        # Where the artifact lives, for everything that has one.
+        if artifact_child is not None:
+            metadata["artifact_child"] = artifact_child
         if framework == "onnx" and onnx_output is not None:
             metadata["onnx_output"] = onnx_output
+        # A remote model stores its endpoint here instead of weights anywhere.
+        if endpoint is not None:
+            metadata["endpoint"] = endpoint
 
         metadata_object = MEDDataObject(
             id=str(uuid.uuid4()),
@@ -296,8 +394,6 @@ class GoExecScriptImportExternalModel(GoExecutionScript):
             inWorkspace=False,
         )
         insert_med_data_object_if_not_exists(metadata_object, [metadata])
-
-        return model_id
 
 
 importExternalModel = GoExecScriptImportExternalModel(json_params_dict, id_)

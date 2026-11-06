@@ -13,8 +13,10 @@ reads ``.threshold`` -- so anything satisfying it can serve as a base model.
 import importlib
 import io
 import os
+import re
 import sys
 import tempfile
+import time
 
 import numpy as np
 
@@ -547,6 +549,209 @@ def build_model_from_artifact(framework, data, options=None):
     return loader(data, options or {})
 
 
+# A remote model has no artifact to load, so it is not in ARTIFACT_LOADERS; it
+# is named here so error messages can list it alongside the rest.
+REMOTE_FRAMEWORK = "remote"
+
+# A header value written exactly like ${NAME} is read from the environment at
+# call time instead of being stored. That keeps a bearer token out of the
+# database entirely, which is the only way to avoid persisting it in cleartext.
+ENV_REFERENCE = re.compile(r"^\$\{([A-Za-z_][A-Za-z0-9_]*)\}$")
+
+DEFAULT_INSTANCES_KEY = "instances"
+DEFAULT_RESPONSE_KEY = "predictions"
+DEFAULT_TIMEOUT_SECONDS = 30
+DEFAULT_RETRIES = 2
+
+
+def resolve_header_values(headers):
+    """Substitute ${ENV_VAR} header values from the environment.
+
+    Raises rather than sending an empty header: a request that silently goes out
+    unauthenticated comes back as a 401 that looks like a server problem.
+    """
+    resolved = {}
+    for name, value in (headers or {}).items():
+        match = ENV_REFERENCE.match(str(value).strip())
+        if match is None:
+            resolved[name] = value
+            continue
+        variable = match.group(1)
+        if variable not in os.environ:
+            raise ValueError(
+                f"Header '{name}' is set to ${{{variable}}}, but {variable} is "
+                f"not set in this process's environment. Set it where the app "
+                f"is launched from, or store the value directly on the model."
+            )
+        resolved[name] = os.environ[variable]
+    return resolved
+
+
+class RemoteProbabilityModel:
+    """Adapts an HTTP scoring endpoint to the ``predict_proba`` contract.
+
+    This is the one model type whose weights never enter the workspace: the
+    model stays wherever it is served -- a vendor appliance, TorchServe,
+    BentoML, MLflow, hospital infrastructure that cannot export -- and only
+    features go out and probabilities come back. It is therefore also the one
+    model type that sends patient data off this machine, which is why the
+    endpoint is recorded in the session config for anyone reading a result.
+
+    MED3pa calls ``predict_proba`` once per dataset rather than per row, so one
+    request carries the whole matrix and a round trip per call is unremarkable.
+    """
+
+    def __init__(self, url, headers=None, instances_key=DEFAULT_INSTANCES_KEY,
+                 response_key=DEFAULT_RESPONSE_KEY, timeout=DEFAULT_TIMEOUT_SECONDS,
+                 retries=DEFAULT_RETRIES, raw_logits=False, verify_tls=True):
+        if not str(url).lower().startswith(("http://", "https://")):
+            raise ValueError(
+                f"A remote model needs an http:// or https:// endpoint, got '{url}'."
+            )
+        self.url = url
+        self._headers = dict(headers or {})
+        self.instances_key = instances_key or DEFAULT_INSTANCES_KEY
+        # Empty means the response body IS the array, which is what a bare
+        # TorchServe or a hand-rolled Flask endpoint usually returns.
+        self.response_key = response_key or None
+        self.timeout = float(timeout or DEFAULT_TIMEOUT_SECONDS)
+        self.retries = int(retries if retries is not None else DEFAULT_RETRIES)
+        self.raw_logits = bool(raw_logits)
+        self.verify_tls = bool(verify_tls)
+
+    def _post(self, payload):
+        """POST once, retrying only what is worth retrying.
+
+        A 4xx means the request itself is wrong and will stay wrong, so it
+        fails immediately; a timeout, a dropped connection or a 5xx can be
+        transient, and an analysis that dies two hours in because of one blip
+        is worse than one that waits.
+        """
+        requests = _require("requests", "remote")
+        headers = {"Content-Type": "application/json"}
+        headers.update(resolve_header_values(self._headers))
+
+        last_error = None
+        for attempt in range(self.retries + 1):
+            try:
+                response = requests.post(
+                    self.url, json=payload, headers=headers,
+                    timeout=self.timeout, verify=self.verify_tls,
+                )
+            except Exception as e:
+                last_error = e
+            else:
+                if response.status_code < 400:
+                    try:
+                        return response.json()
+                    except ValueError as e:
+                        raise ValueError(
+                            f"The endpoint at {self.url} returned "
+                            f"{response.status_code} but the body is not JSON: "
+                            f"{response.text[:200]!r}."
+                        ) from e
+                if 400 <= response.status_code < 500:
+                    raise ValueError(
+                        f"The endpoint at {self.url} rejected the request with "
+                        f"{response.status_code}: {response.text[:200]!r}. Check "
+                        f"the URL, the authentication headers and the payload key "
+                        f"('{self.instances_key}')."
+                    )
+                last_error = RuntimeError(
+                    f"{response.status_code}: {response.text[:200]!r}"
+                )
+
+            if attempt < self.retries:
+                # Linear rather than exponential: these are seconds-scale blips,
+                # and an analysis should not stall for minutes on a dead host.
+                time.sleep(1.0 * (attempt + 1))
+
+        raise RuntimeError(
+            f"The endpoint at {self.url} could not be reached after "
+            f"{self.retries + 1} attempt(s). Last error: {last_error}"
+        )
+
+    def _extract(self, body):
+        if self.response_key is None:
+            return body
+        if not isinstance(body, dict):
+            raise ValueError(
+                f"The endpoint returned a {type(body).__name__}, so there is no "
+                f"'{self.response_key}' field to read. Leave the response key "
+                f"blank if the body is the array of predictions itself."
+            )
+        if self.response_key not in body:
+            raise ValueError(
+                f"The endpoint's response has no '{self.response_key}' field. "
+                f"It contains: {sorted(body)[:10]}."
+            )
+        return body[self.response_key]
+
+    def predict_proba(self, X):
+        x = np.asarray(X, dtype=float)
+        # tolist() because numpy floats are not JSON-serialisable, and NaN would
+        # be emitted as a bare NaN token that strict JSON parsers reject.
+        instances = np.where(np.isfinite(x), x, None).tolist()
+        body = self._post({self.instances_key: instances})
+        probs = normalise_to_proba(self._extract(body), len(x), self.raw_logits, "remote")
+        return check_proba_range(probs, self.raw_logits, "remote")
+
+    def predict(self, X, threshold=0.5):
+        return (self.predict_proba(X)[:, 1] >= threshold).astype(int)
+
+    def get_params(self):
+        """Endpoint description for the session config -- without the secrets.
+
+        This dict is written into the session document through MED3pa's
+        experiment config, so header VALUES must never appear here: one of them
+        is usually a bearer token. The names are enough to tell how the call was
+        authenticated.
+        """
+        return {
+            "url": self.url,
+            "header_names": sorted(self._headers),
+            "instances_key": self.instances_key,
+            "response_key": self.response_key,
+            "timeout": self.timeout,
+            "retries": self.retries,
+            "verify_tls": self.verify_tls,
+            "raw_logits": self.raw_logits,
+        }
+
+    def get_info(self):
+        """Model description for MED3pa's experiment config.
+
+        BaseModelManager.get_info prefers this method and only falls back to
+        get_params() on the wrapped object when it is absent.
+        """
+        return {
+            "model": type(self).__name__,
+            "model_type": REMOTE_FRAMEWORK,
+            "params": self.get_params(),
+            "data_preparation_strategy": None,
+            "pickled_model": False,
+            "file_path": "",
+        }
+
+
+def build_remote_model(endpoint, raw_logits=False):
+    """Build a RemoteProbabilityModel from the endpoint dict stored in metadata."""
+    endpoint = endpoint or {}
+    url = endpoint.get("url")
+    if not url:
+        raise ValueError("This remote model records no endpoint URL.")
+    return RemoteProbabilityModel(
+        url,
+        headers=endpoint.get("headers"),
+        instances_key=endpoint.get("instances_key"),
+        response_key=endpoint.get("response_key"),
+        timeout=endpoint.get("timeout"),
+        retries=endpoint.get("retries"),
+        raw_logits=raw_logits,
+        verify_tls=endpoint.get("verify_tls", True),
+    )
+
+
 def get_model_metadata(model_object_id):
     """Read the ``metadata.json`` child of a ``.medmodel``.
 
@@ -608,6 +813,14 @@ def load_base_model(model_object_id):
         "artifact_child": metadata.get("artifact_child"),
     }
 
+    if framework == REMOTE_FRAMEWORK:
+        # Nothing is stored but the endpoint: the model never enters the
+        # workspace, so there is no artifact child to read.
+        return (
+            build_remote_model(metadata.get("endpoint"), options["raw_logits"]),
+            metadata,
+        )
+
     if framework == "sklearn":
         # Learning-module models and every pre-registry pickle import.
         # Prefer the pycaret-free estimator; fall back to the full
@@ -629,7 +842,7 @@ def load_base_model(model_object_id):
         raise ValueError(
             f"Model {model_object_id} declares framework '{framework}', which "
             f"this version cannot load. Known frameworks: "
-            f"{', '.join(sorted(ARTIFACT_LOADERS))}."
+            f"{', '.join(sorted(list(ARTIFACT_LOADERS) + [REMOTE_FRAMEWORK]))}."
         )
 
     child_name = options["artifact_child"] or DEFAULT_ARTIFACT_CHILD.get(framework)
