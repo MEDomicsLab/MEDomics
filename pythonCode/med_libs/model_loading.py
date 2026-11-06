@@ -10,6 +10,8 @@ only ever calls ``base_model_manager.predict_proba(observations)[:, 1]`` and
 reads ``.threshold`` -- so anything satisfying it can serve as a base model.
 """
 
+import sys
+
 import numpy as np
 
 from .mongodb_utils import (connect_to_mongo, get_child_id_by_name,
@@ -63,9 +65,19 @@ class OnnxProbabilityModel:
         try:
             import onnxruntime as ort
         except ImportError as e:
+            # onnxruntime is pinned in pythonEnv/requirements.txt, so reaching
+            # here usually means one of two quite different things: the
+            # requirements were never installed into the interpreter running
+            # this script, or onnxruntime is installed but cannot load (on Linux
+            # it needs libgomp.so.1, which minimal images lack). The original
+            # error distinguishes them, so do not hide it behind stock advice.
             raise ImportError(
-                "onnxruntime is required to use ONNX base models. "
-                "Install it with 'pip install onnxruntime'."
+                f"onnxruntime could not be imported by {sys.executable}: {e}. "
+                f"It is pinned in requirements.txt, so either the python "
+                f"environment was never set up (check Settings > Python "
+                f"environment path), or the install is broken - on Linux a "
+                f"missing libgomp.so.1 is the usual cause "
+                f"(sudo apt install libgomp1)."
             ) from e
 
         self.session = ort.InferenceSession(
