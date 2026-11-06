@@ -7,6 +7,18 @@ const fs = require("fs")
 const path = require("path")
 
 /**
+ * Per-workspace directories holding an app's own MongoDB config and data.
+ *
+ * These are plumbing, not the user's data, and each contains a *live* mongod
+ * data directory: recensing one means walking and inserting every WiredTiger
+ * file on every refresh. `.medomics` is this app's own; `.med3pa` belongs to the
+ * standalone MED3pa app, which deliberately uses a separate directory so the
+ * same folder can be opened in either app -- so a shared workspace must skip it
+ * here too.
+ */
+const APP_WORKSPACE_DIRS = [".medomics", ".med3pa"]
+
+/**
  * @param {Object} children - The children of the current directory
  * @param {String} parentID - The UUID of the parent directory
  * @param {Object} newGlobalData - The global data object
@@ -17,6 +29,11 @@ const path = require("path")
  */
 export async function recursivelyRecenseWorkspaceTree(children, parentID) {
   for (const child of children) {
+    // Skip the apps' own plumbing entirely rather than only declining to
+    // recurse into it, so the directory itself is not recensed either.
+    if (APP_WORKSPACE_DIRS.includes(child.name)) {
+      continue
+    }
     let isDirect = false
     // Check if the path exists
     if (fs.existsSync(child.path)) {
@@ -43,8 +60,20 @@ export async function recursivelyRecenseWorkspaceTree(children, parentID) {
       usedIn: null
     })
     // Real ID in DataBase if object already exists
-    const IDinDB = await insertMEDDataObjectIfNotExists(childObject, child.path)
-    if ((childType == "directory" || childType == "medmodel") && child.name != ".medomics") {
+    // One unreadable or malformed file must not abandon the rest of the scan:
+    // the caller uses the result to refresh globalData, so a throw here used to
+    // mean a freshly written object never showed up at all.
+    let IDinDB
+    try {
+      IDinDB = await insertMEDDataObjectIfNotExists(childObject, child.path)
+    } catch (error) {
+      console.error(`Could not recense ${child.path}: `, error)
+      continue
+    }
+    // directory-tree only sets `children` on actual directories, so a plain file
+    // named `<something>.medmodel` is typed "medmodel" but has none -- recursing
+    // on it threw "children is not iterable" and took the whole refresh with it.
+    if ((childType == "directory" || childType == "medmodel") && Array.isArray(child.children)) {
       await recursivelyRecenseWorkspaceTree(child.children, IDinDB)
     }
   }
