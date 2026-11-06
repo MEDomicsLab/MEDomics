@@ -7,6 +7,8 @@ import { Tooltip } from "react-tooltip";
 import { requestBackend } from "../../utilities/requests";
 import { PageInfosContext } from "../mainPages/moduleBasics/pageInfosContext";
 import { WorkspaceContext } from "../workspace/workspaceContext";
+import { DataContext } from "../workspace/dataContext";
+import { getModelMetadata } from "./med3paDB";
 import { ErrorRequestContext } from "../generalPurpose/errorRequestContext";
 import ProgressBarRequests from "../generalPurpose/progressBarRequests";
 import { toast } from "react-toastify";
@@ -193,6 +195,50 @@ export default function Med3paConfigForm({ onAnalysisComplete = null, onNextStep
     })
   }, []);
 
+  // Needed to resolve a .medmodel's metadata.json child; declared here rather
+  // than with the other contexts below so it precedes applyModelMetadata.
+  const { globalData } = useContext(DataContext);
+
+  // Set when the target was filled in from the chosen model, so the form can say
+  // where the value came from rather than silently typing for the user.
+  const [modelTargetNote, setModelTargetNote] = useState(null);
+
+  /**
+   * @description Fill the target column from the chosen model's metadata.
+   *
+   * Every .medmodel records the target it was trained with, so asking the user
+   * to retype it only invites a mismatch — and a wrong target is not caught
+   * until the analysis fails on a missing column.
+   *
+   * An existing value is never overwritten: if the user already typed one,
+   * theirs wins and the model's is only reported when it disagrees.
+   */
+  const applyModelMetadata = async (model) => {
+    setModelTargetNote(null);
+    if (!model?.id) return;
+    try {
+      const metadata = await getModelMetadata(globalData, model.id);
+      const modelTarget = metadata?.target;
+      if (!modelTarget) return;
+
+      setMed3paParams((p) => {
+        const current = (p.target_column ?? "").trim();
+        if (current === "") {
+          setModelTargetNote(`Target taken from '${model.name}'.`);
+          return { ...p, target_column: modelTarget };
+        }
+        if (current !== modelTarget) {
+          setModelTargetNote(`Note: '${model.name}' was trained with target '${modelTarget}'.`);
+        }
+        return p;
+      });
+    } catch (error) {
+      // Autocomplete is a convenience; a model without readable metadata must
+      // not stop the user configuring the run by hand.
+      console.warn("Could not read the model metadata: ", error);
+    }
+  };
+
   const [ipcCustomExpr, setIpcCustomExpr] = useState(false);
   const [mpcCustomExpr, setMpcCustomExpr] = useState(DEFAULT_MPC_STRATEGY);
   const [predictionSource, setPredictionSource] = useState("model");
@@ -352,7 +398,10 @@ export default function Med3paConfigForm({ onAnalysisComplete = null, onNextStep
               name="Base Model Source Architecture"
               settingInfos={{ type: "models-input", tooltip: "" }}
               currentValue={med3pa_params.base_model?.id}
-              onInputChange={(data) => setTop("base_model",data.value)}
+              onInputChange={(data) => {
+                setTop("base_model", data.value)
+                applyModelMetadata(data.value)
+              }}
               setHasWarning={setModelHasWarning}
             />
           ) : (
@@ -401,10 +450,15 @@ export default function Med3paConfigForm({ onAnalysisComplete = null, onNextStep
           <input
             type="text"
             placeholder="e.g. deceased"
-            style={{ width: "100%", boxSizing: "border-box", height: 28, marginBottom: 8 }}
+            style={{ width: "100%", boxSizing: "border-box", height: 28, marginBottom: modelTargetNote ? 2 : 8 }}
             value={med3pa_params.target_column ?? ""}
-            onChange={(e) => setTop("target_column", e.target.value || null)}
+            onChange={(e) => {
+              setTop("target_column", e.target.value || null)
+              // Once edited by hand, stop describing it as the model's value.
+              setModelTargetNote(null)
+            }}
           />
+          {modelTargetNote && <div style={{ fontSize: 10, color: "#0F6E56", marginBottom: 8 }}>{modelTargetNote}</div>}
           <label style={{ fontSize: 12, color: "#6C757D", display: "block", marginBottom: 4 }}>
           Session Name
         </label>
