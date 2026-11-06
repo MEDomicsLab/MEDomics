@@ -175,8 +175,17 @@ export async function insertMEDDataObjectIfNotExists(medData, path = null, jsonD
           console.error(`File at path ${path} does not exist`)
           break
         }
-        const fileContent = fs.readFileSync(path, "utf8")
-        const jsonContent = JSON.parse(fileContent)
+        // The workspace scan reaches every .json in the tree, including files
+        // this app never wrote. One that is not valid JSON used to throw out of
+        // here and abandon the whole refresh. The trim covers a byte-order
+        // mark, which readFileSync does not strip and JSON.parse rejects.
+        let jsonContent
+        try {
+          jsonContent = JSON.parse(fs.readFileSync(path, "utf8").trim())
+        } catch (error) {
+          console.error(`File at path ${path} is not valid JSON: `, error)
+          break
+        }
         const dataCollection = db.collection(medData.id)
         const result = await dataCollection.insertMany(Array.isArray(jsonContent) ? jsonContent : [jsonContent])
         if (!result.insertedCount > 0) {

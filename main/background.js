@@ -568,11 +568,21 @@ if (isProd) {
       let recentWorkspaces = loadWorkspaces()
       event.reply("recentWorkspaces", recentWorkspaces)
     } else if (data === "updateWorkingDirectory") {
-      event.reply("updateDirectory", {
-        workingDirectory: dirTree(app.getPath("sessionData")),
-        hasBeenSet: hasBeenSet,
-        newPort: serverPort
-      }) // Sends the folder structure to Next.js
+      // dirTree walks the workspace synchronously and can throw on a path this
+      // app does not control. An ipcMain listener has no caller to catch that,
+      // so the throw reached Electron's uncaught handler and took the whole app
+      // down -- which any import triggers, since it ends by asking for exactly
+      // this refresh.
+      try {
+        event.reply("updateDirectory", {
+          workingDirectory: dirTree(app.getPath("sessionData")),
+          hasBeenSet: hasBeenSet,
+          newPort: serverPort
+        }) // Sends the folder structure to Next.js
+      } catch (error) {
+        console.error("Failed to read the working directory: ", error)
+        sendStatusToWindow(`Could not read the workspace folder: ${error.message}`)
+      }
     } else if (data === "getServerPort") {
       event.reply("getServerPort", {
         newPort: serverPort

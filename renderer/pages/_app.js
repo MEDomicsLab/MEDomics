@@ -4,7 +4,7 @@ import Head from "next/head"
 import { ConfirmDialog } from "primereact/confirmdialog"
 import { ConfirmPopup } from "primereact/confirmpopup"
 import React, { useEffect, useState } from "react"
-import { ToastContainer } from "react-toastify"
+import { toast, ToastContainer } from "react-toastify"
 import { ActionContextProvider } from "../components/layout/actionContext"
 import { LayoutModelProvider } from "../components/layout/layoutContext"
 import LayoutManager from "../components/layout/layoutManager"
@@ -213,7 +213,18 @@ function App() {
   // This useEffect hook is called whenever the `workspaceObject` state changes.
   useEffect(() => {
     async function getGlobalData() {
-      await updateGlobalData(workspaceObject)
+      // Recensing the workspace touches the file system and MongoDB, so it can
+      // fail on a file this app does not control. When it does, still publish
+      // what the database already holds: the alternative is an unhandled
+      // rejection that leaves globalData on its previous value, so an object
+      // just written -- an imported base model, say -- never appears, and every
+      // later refresh fails the same way.
+      try {
+        await updateGlobalData(workspaceObject)
+      } catch (error) {
+        console.error("Failed to recense the workspace: ", error)
+        toast.error(`Could not scan the workspace: ${error.message}`)
+      }
       const newGlobalData = await loadMEDDataObjects()
       setGlobalData(newGlobalData)
     }

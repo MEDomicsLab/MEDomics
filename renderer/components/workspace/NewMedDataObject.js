@@ -22,7 +22,10 @@ export class MEDDataObject {
     this.name = name
     this.type = type
     this.parentID = parentID
-    this.childrenIDs = childrenIDs
+    // Defaults to an empty list because a document written by the python side
+    // may omit the field, and every consumer that iterates it would otherwise
+    // have to guard -- which is how getChildIDWithName came to throw.
+    this.childrenIDs = childrenIDs ?? []
     this.inWorkspace = inWorkspace
     this.path = path
     this.isLocked = isLocked
@@ -52,7 +55,15 @@ export class MEDDataObject {
    * @param {String} name The name of the child to find
    */
   static getChildIDWithName(dict, parentID, name) {
-    for (const childID of dict[parentID].childrenIDs) {
+    // The parent may be missing from the dict, or have no children recorded yet
+    // -- a model's folder is written before its contents. Returning null says
+    // "no such child", which is what every caller already handles; the
+    // unguarded lookup threw instead.
+    const parent = dict?.[parentID]
+    if (!parent || !Array.isArray(parent.childrenIDs)) {
+      return null
+    }
+    for (const childID of parent.childrenIDs) {
       if (dict[childID] && dict[childID].name == name) {
         return childID
       }
@@ -146,9 +157,19 @@ export class MEDDataObject {
    */
   static getFullPath(dict, id, workspacePath) {
     let object = dict[id]
+    if (!object) {
+      return null
+    }
     let pathParts = [object.name]
     while (object.parentID) {
-      object = dict[object.parentID]
+      // An object whose parent is no longer in the dict is orphaned; walking
+      // past it dereferenced undefined. Stop at the deepest known ancestor and
+      // return the path relative to it rather than bringing the caller down.
+      const parent = dict[object.parentID]
+      if (!parent) {
+        break
+      }
+      object = parent
       // Avoid to have 2 times the workspace name in the returned path
       if (object.id != "ROOT") {
         pathParts.unshift(object.name)
