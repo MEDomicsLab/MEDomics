@@ -448,7 +448,8 @@ if (isProd) {
       title: "Select a model file",
       properties: ["openFile"],
       filters: [
-        { name: "Model files", extensions: ["pkl", "pickle", "joblib", "onnx"] },
+        // Kept in step with FRAMEWORK_EXTENSIONS in med_libs/model_loading.py.
+        { name: "Model files", extensions: ["pkl", "pickle", "joblib", "onnx", "json", "ubj", "xgb", "txt", "lgb", "pt", "pth", "keras", "h5"] },
         { name: "All files", extensions: ["*"] }
       ]
     })

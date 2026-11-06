@@ -14,8 +14,45 @@ import { DataContext } from "../../workspace/dataContext"
 import { MEDDataObject } from "../../workspace/NewMedDataObject"
 import { WorkspaceContext } from "../../workspace/workspaceContext"
 
-const ONNX_EXTENSIONS = ["onnx"]
-const SKLEARN_EXTENSIONS = ["pkl", "pickle", "joblib"]
+/**
+ * Which framework each file extension belongs to.
+ *
+ * Mirrors FRAMEWORK_EXTENSIONS in pythonCode/med_libs/model_loading.py, which
+ * is authoritative -- the python side re-derives the framework and will reject
+ * a file this map guesses wrong about. Kept here only so the form can show the
+ * framework and the options that apply to it before anything is uploaded.
+ */
+const FRAMEWORK_BY_EXTENSION = {
+  onnx: "onnx",
+  pkl: "sklearn",
+  pickle: "sklearn",
+  joblib: "sklearn",
+  json: "xgboost",
+  ubj: "xgboost",
+  xgb: "xgboost",
+  txt: "lightgbm",
+  lgb: "lightgbm",
+  pt: "pytorch",
+  pth: "pytorch",
+  keras: "keras",
+  h5: "keras"
+}
+
+const FRAMEWORK_LABELS = {
+  onnx: "ONNX graph",
+  sklearn: "scikit-learn (pickled estimator)",
+  xgboost: "XGBoost (native Booster)",
+  lightgbm: "LightGBM (native Booster)",
+  pytorch: "PyTorch (saved module)",
+  keras: "Keras / TensorFlow"
+}
+
+// Frameworks whose libraries are not pinned in requirements.txt, so the import
+// can fail on a missing package rather than on the model itself.
+const OPTIONAL_DEPENDENCY = {
+  pytorch: "torch",
+  keras: "tensorflow (or keras)"
+}
 
 /**
  * @returns {JSX.Element} a page
@@ -23,7 +60,12 @@ const SKLEARN_EXTENSIONS = ["pkl", "pickle", "joblib"]
  * @description
  * Imports a model trained outside MEDomicsLab as a .medmodel, so it can be used
  * as a base model by MED3pa and by any other module that consumes .medmodel
- * objects. Accepts pickled sklearn-style estimators and ONNX graphs.
+ * objects.
+ *
+ * Which frameworks are accepted is decided by the adapter registry in
+ * med_libs/model_loading.py, not here: the only thing MED3pa asks of a base
+ * model is predict_proba(X) -> (n, 2), and each adapter is what makes one
+ * framework satisfy it.
  */
 const ExternalModelImport = () => {
   const { globalData } = useContext(DataContext)
@@ -37,10 +79,18 @@ const ExternalModelImport = () => {
   const [rawLogits, setRawLogits] = useState(false)
   const [onnxOutput, setOnnxOutput] = useState("")
   const [isImporting, setIsImporting] = useState(false)
+  // Null means "use whatever the extension implies". Set only when the user
+  // corrects the guess, which matters for .json and .txt.
+  const [frameworkOverride, setFrameworkOverride] = useState(null)
 
   const extension = filePath ? filePath.split(".").pop().toLowerCase() : null
-  const isOnnx = ONNX_EXTENSIONS.includes(extension)
-  const isKnownExtension = isOnnx || SKLEARN_EXTENSIONS.includes(extension)
+  const detectedFramework = FRAMEWORK_BY_EXTENSION[extension] ?? null
+  const framework = frameworkOverride ?? detectedFramework
+  const isOnnx = framework === "onnx"
+  const isKnownExtension = detectedFramework !== null
+  // sklearn estimators always return probabilities; every other framework can
+  // have been exported without its final activation.
+  const supportsRawLogits = framework !== null && framework !== "sklearn"
 
   /**
    * @description Parse the feature textarea into an ordered list of column names
@@ -59,6 +109,8 @@ const ExternalModelImport = () => {
     const selected = await ipcRenderer.invoke("select-model-file")
     if (!selected) return
     setFilePath(selected)
+    // A new file re-detects; a correction for the previous one must not stick.
+    setFrameworkOverride(null)
     if (!modelName) {
       const base = selected.split(/[\\/]/).pop()
       setModelName(base.substring(0, base.lastIndexOf(".")) || base)
@@ -111,8 +163,8 @@ const ExternalModelImport = () => {
           target: target,
           ml_type: "classification",
           threshold: threshold === "" ? null : parseFloat(threshold),
-          framework: isOnnx ? "onnx" : "sklearn",
-          onnx_raw_logits: isOnnx ? rawLogits : false,
+          framework: framework,
+          raw_logits: supportsRawLogits ? rawLogits : false,
           onnx_output: isOnnx ? onnxOutput : null
         }
       },
@@ -156,9 +208,42 @@ const ExternalModelImport = () => {
         <span style={{ fontSize: 12, color: "#6C757D", wordBreak: "break-all" }}>{filePath ?? "No file selected"}</span>
       </div>
       {filePath && !isKnownExtension && (
-        <Message severity="error" className="mb-2 w-100" text={`.${extension} is not a supported model file. Use .pkl, .pickle, .joblib or .onnx.`} />
+        <Message
+          severity="error"
+          className="mb-2 w-100"
+          text={`.${extension} is not a supported model file. Use ${Object.keys(FRAMEWORK_BY_EXTENSION)
+            .map((e) => `.${e}`)
+            .join(", ")}.`}
+        />
       )}
-      <p style={{ fontSize: 11, color: "#6C757D", marginBottom: 12 }}>Pickled estimator (.pkl, .pickle, .joblib) or ONNX graph (.onnx).</p>
+      <p style={{ fontSize: 11, color: "#6C757D", marginBottom: 12 }}>
+        Pickled estimator (.pkl, .pickle, .joblib), ONNX graph (.onnx), XGBoost Booster (.json, .ubj), LightGBM Booster (.txt), PyTorch module (.pt,
+        .pth) or Keras model (.keras, .h5).
+      </p>
+
+      {framework && (
+        <>
+          <label className="d-block mb-1">Framework</label>
+          <select
+            className="form-select mb-1"
+            value={framework}
+            onChange={(e) => setFrameworkOverride(e.target.value)}
+            style={{ fontSize: 13 }}
+          >
+            {Object.keys(FRAMEWORK_LABELS).map((key) => (
+              <option key={key} value={key}>
+                {FRAMEWORK_LABELS[key]}
+              </option>
+            ))}
+          </select>
+          <p style={{ fontSize: 11, color: "#6C757D", marginBottom: 12 }}>
+            {frameworkOverride && frameworkOverride !== detectedFramework
+              ? `Overriding the guess from .${extension}.`
+              : `Detected from .${extension}. Change it if that is wrong — .json and .txt are ambiguous.`}
+            {OPTIONAL_DEPENDENCY[framework] && ` Needs ${OPTIONAL_DEPENDENCY[framework]} in the app's python environment.`}
+          </p>
+        </>
+      )}
 
       <label className="d-block mb-1">Model name</label>
       <InputText className="w-100 mb-3" value={modelName} onChange={(e) => setModelName(e.target.value)} placeholder="saved as <name>.medmodel" />
@@ -177,9 +262,9 @@ const ExternalModelImport = () => {
       <InputText className="w-100 mb-1" value={threshold} onChange={(e) => setThreshold(e.target.value)} placeholder="0.5" />
       <p style={{ fontSize: 11, color: "#6C757D", marginBottom: 12 }}>Probability above which a prediction counts as positive. Defaults to 0.5.</p>
 
-      {isOnnx && (
+      {supportsRawLogits && (
         <div style={{ background: "#F8F9FA", border: "1px solid #E9ECEF", borderRadius: 6, padding: "10px 12px", marginBottom: 12 }}>
-          <p style={{ fontSize: 12, fontWeight: 500, margin: "0 0 8px" }}>ONNX options</p>
+          <p style={{ fontSize: 12, fontWeight: 500, margin: "0 0 8px" }}>{FRAMEWORK_LABELS[framework]} options</p>
 
           <div className="d-flex align-items-start gap-2 mb-2">
             <Checkbox inputId="rawLogits" checked={rawLogits} onChange={(e) => setRawLogits(e.checked)} />
@@ -188,15 +273,20 @@ const ExternalModelImport = () => {
             </label>
           </div>
           <p style={{ fontSize: 11, color: "#6C757D", margin: "0 0 10px" }}>
-            Tick this only if the graph was exported without its final sigmoid/softmax. It cannot be detected automatically, and getting it wrong
-            produces confidence scores that look plausible but are wrong.
+            Tick this only if the model was exported without its final sigmoid/softmax — an XGBoost <code>binary:logitraw</code> objective, a PyTorch
+            head with no sigmoid, an ONNX graph cut before its activation. It cannot be detected automatically, and getting it wrong produces
+            confidence scores that look plausible but are wrong.
           </p>
 
-          <label className="d-block mb-1" style={{ fontSize: 12 }}>
-            Probability output name (optional)
-          </label>
-          <InputText className="w-100" value={onnxOutput} onChange={(e) => setOnnxOutput(e.target.value)} placeholder="probabilities" />
-          <p style={{ fontSize: 11, color: "#6C757D", margin: "6px 0 0" }}>Only needed when the graph has several outputs and none is named for probabilities.</p>
+          {isOnnx && (
+            <>
+              <label className="d-block mb-1" style={{ fontSize: 12 }}>
+                Probability output name (optional)
+              </label>
+              <InputText className="w-100" value={onnxOutput} onChange={(e) => setOnnxOutput(e.target.value)} placeholder="probabilities" />
+              <p style={{ fontSize: 11, color: "#6C757D", margin: "6px 0 0" }}>Only needed when the graph has several outputs and none is named for probabilities.</p>
+            </>
+          )}
         </div>
       )}
 

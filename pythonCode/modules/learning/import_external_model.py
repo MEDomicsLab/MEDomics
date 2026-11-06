@@ -11,7 +11,6 @@ can still do something about it, rather than midway through an experiment.
 """
 
 import os
-import pickle
 import sys
 import uuid
 from pathlib import Path
@@ -24,7 +23,10 @@ from med_libs.server_utils import go_print
 from med_libs.GoExecutionScript import GoExecutionScript, parse_arguments
 from med_libs.MEDDataObject import MEDDataObject
 from med_libs.mongodb_utils import insert_med_data_object_if_not_exists
-from med_libs.model_loading import OnnxProbabilityModel
+from med_libs.model_loading import (DEFAULT_ARTIFACT_CHILD,
+                                    FRAMEWORK_BY_EXTENSION,
+                                    build_model_from_artifact,
+                                    framework_for_extension)
 
 json_params_dict, id_ = parse_arguments()
 go_print("running import_external_model.py:" + id_)
@@ -33,18 +35,16 @@ MONGO_BSON_MAX = 16_777_216  # 16MB
 MONGO_SAFETY_MARGIN = 1_000_000  # 1MB safety margin
 FITS_MONGO = MONGO_BSON_MAX - MONGO_SAFETY_MARGIN
 
-SKLEARN_EXTENSIONS = (".pkl", ".pickle", ".joblib")
-ONNX_EXTENSIONS = (".onnx",)
-
-
-def load_pickled_artifact(file_path):
-    """Load a .pkl/.joblib artifact, preferring joblib since it reads both."""
-    try:
-        import joblib
-        return joblib.load(file_path)
-    except Exception:
-        with open(file_path, "rb") as f:
-            return pickle.load(f)
+# (MEDDataObject type, document key) for the stored artifact, per framework.
+# onnx and sklearn keep what every existing model already uses. Newer
+# frameworks store under a neutral "artifact" key and take the framework as
+# their type, deliberately staying clear of the workspace scan's
+# extension-driven content parsing: an xgboost dump is called model.json,
+# and a .json in the workspace gets parsed as JSON documents.
+ARTIFACT_CHILD_SHAPE = {
+    "onnx": ("onnx", "onnx"),
+    "sklearn": ("pkl", "model"),
+}
 
 
 class GoExecScriptImportExternalModel(GoExecutionScript):
@@ -84,47 +84,45 @@ class GoExecScriptImportExternalModel(GoExecutionScript):
             raise ValueError("The name of the target column is required.")
 
         extension = Path(file_path).suffix.lower()
-        framework = params.get("framework")
+        # An explicit framework from the form wins, so an ambiguous extension
+        # (.json is an xgboost dump far more often than anything else, but not
+        # always) can be corrected by the user.
+        framework = params.get("framework") or framework_for_extension(extension)
         if not framework:
-            if extension in ONNX_EXTENSIONS:
-                framework = "onnx"
-            elif extension in SKLEARN_EXTENSIONS:
-                framework = "sklearn"
-            else:
-                raise ValueError(
-                    f"Unsupported model file '{extension}'. Expected one of "
-                    f"{', '.join(SKLEARN_EXTENSIONS + ONNX_EXTENSIONS)}."
-                )
+            raise ValueError(
+                f"Unsupported model file '{extension}'. Expected one of "
+                f"{', '.join(sorted(FRAMEWORK_BY_EXTENSION))}."
+            )
 
         self.set_progress(label="Loading model file", now=20)
 
-        onnx_raw_logits = bool(params.get("onnx_raw_logits", False))
-        onnx_output = params.get("onnx_output")
-        if onnx_output == "":
-            onnx_output = None
+        # onnx_raw_logits is what the form sent before other frameworks could
+        # also be exported without their final activation.
+        raw_logits = bool(params.get("raw_logits", params.get("onnx_raw_logits", False)))
+        onnx_output = params.get("onnx_output") or None
 
-        if framework == "onnx":
-            with open(file_path, "rb") as f:
-                artifact_bytes = f.read()
-            model = OnnxProbabilityModel(
-                artifact_bytes, output=onnx_output, raw_logits=onnx_raw_logits
-            )
-            declared_features = self._onnx_feature_count(model)
-        else:
-            with open(file_path, "rb") as f:
-                artifact_bytes = f.read()
-            model = load_pickled_artifact(file_path)
-            if not hasattr(model, "predict_proba"):
-                raise ValueError(
-                    f"This model has no predict_proba method, which MED3pa requires "
-                    f"to compute confidence. Loaded object is a "
-                    f"{type(model).__name__}."
-                )
-            if not columns:
-                inferred = getattr(model, "feature_names_in_", None)
-                if inferred is not None:
-                    columns = [str(c) for c in inferred]
-            declared_features = getattr(model, "n_features_in_", None)
+        with open(file_path, "rb") as f:
+            artifact_bytes = f.read()
+
+        # The child this artifact will be stored as. Decided before loading so
+        # the probe below runs against exactly the options an analysis will
+        # later rebuild the model with.
+        artifact_child = DEFAULT_ARTIFACT_CHILD.get(framework) or f"model{extension}"
+        options = {
+            "raw_logits": raw_logits,
+            "onnx_output": onnx_output,
+            "artifact_child": artifact_child,
+        }
+
+        # One code path with load_base_model, so the two can never disagree
+        # about what a stored model means.
+        model = build_model_from_artifact(framework, artifact_bytes, options)
+
+        if not columns:
+            inferred = getattr(model, "feature_names_in_", None)
+            if inferred is not None:
+                columns = [str(c) for c in inferred]
+        declared_features = self._declared_feature_count(model, framework)
 
         if not columns:
             raise ValueError(
@@ -152,7 +150,8 @@ class GoExecScriptImportExternalModel(GoExecutionScript):
             ml_type=ml_type,
             threshold=threshold,
             onnx_output=onnx_output,
-            onnx_raw_logits=onnx_raw_logits,
+            raw_logits=raw_logits,
+            artifact_child=artifact_child,
             algorithm=type(model).__name__,
         )
 
@@ -165,6 +164,26 @@ class GoExecScriptImportExternalModel(GoExecutionScript):
         }
         self.set_progress(label="Done", now=100)
         return self.results
+
+    def _declared_feature_count(self, model, framework):
+        """How many features the artifact itself says it expects, if it says.
+
+        Used only to catch a feature list that disagrees with the model, so
+        None (unknown) simply skips that check rather than failing the import.
+        """
+        if framework == "onnx":
+            return self._onnx_feature_count(model)
+        # sklearn-style estimators record this directly.
+        declared = getattr(model, "n_features_in_", None)
+        if declared is not None:
+            return declared
+        # The adapters surface a booster's own feature count through get_params.
+        if hasattr(model, "get_params"):
+            try:
+                return (model.get_params() or {}).get("num_features")
+            except Exception:
+                return None
+        return None
 
     def _onnx_feature_count(self, model):
         """Feature count from the graph's input shape, when it is static."""
@@ -198,7 +217,7 @@ class GoExecScriptImportExternalModel(GoExecutionScript):
 
     def _write_med_objects(self, model_name, parent_id, framework, artifact_bytes,
                            file_path, columns, target, ml_type, threshold,
-                           onnx_output, onnx_raw_logits, algorithm):
+                           onnx_output, raw_logits, artifact_child, algorithm):
         """Write the medmodel object and its children, matching what the
         Learning module's save_model node produces."""
         model_object = MEDDataObject(
@@ -216,11 +235,13 @@ class GoExecScriptImportExternalModel(GoExecutionScript):
                 f"Choose another name."
             )
 
-        # The child is named "model.pkl" even though nothing pycaret-shaped is
-        # inside, because that is the name every existing consumer falls back to.
-        child_name = "model.onnx" if framework == "onnx" else "model.pkl"
-        child_type = "onnx" if framework == "onnx" else "pkl"
-        content_key = "onnx" if framework == "onnx" else "model"
+        # onnx and sklearn keep their legacy child names, because that is what
+        # every existing consumer falls back to; anything else is model<ext>
+        # and is found again through metadata.artifact_child.
+        child_name = artifact_child
+        child_type, content_key = ARTIFACT_CHILD_SHAPE.get(
+            framework, (framework, "artifact")
+        )
 
         child_object = MEDDataObject(
             id=str(uuid.uuid4()),
@@ -259,10 +280,12 @@ class GoExecScriptImportExternalModel(GoExecutionScript):
         }
         if threshold is not None:
             metadata["model_threshold"] = float(threshold)
-        if framework == "onnx":
-            metadata["onnx_raw_logits"] = onnx_raw_logits
-            if onnx_output is not None:
-                metadata["onnx_output"] = onnx_output
+        # Where the artifact lives and how to drive it -- load_base_model needs
+        # both to rebuild this model without guessing.
+        metadata["artifact_child"] = child_name
+        metadata["raw_logits"] = raw_logits
+        if framework == "onnx" and onnx_output is not None:
+            metadata["onnx_output"] = onnx_output
 
         metadata_object = MEDDataObject(
             id=str(uuid.uuid4()),
