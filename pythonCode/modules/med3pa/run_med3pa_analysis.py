@@ -16,7 +16,9 @@ sys.path.append(str(Path(os.path.dirname(os.path.abspath(__file__))).parent.pare
 from med_libs.server_utils import go_print
 from med_libs.GoExecutionScript import GoExecutionScript, parse_arguments
 from med_libs.mongodb_utils import (connect_to_mongo,
-                                    get_dataset_as_pd_df)
+                                    delete_large_binary,
+                                    get_dataset_as_pd_df,
+                                    store_large_binary)
 from med_libs.model_loading import (get_model_feature_columns,
                                     load_base_model)
 
@@ -431,13 +433,37 @@ class GoExecScriptRunMed3paAnalysis(GoExecutionScript):
                     "The experiment produced no IPC model, which the deployment path requires."
                 )
 
+            # A trained forest pickles to well over MongoDB's 16MB document cap
+            # on a realistic dataset, and the insert used to just fail: the
+            # analysis was kept but the models were never written anywhere, so
+            # deploying the session failed later with a misleading error.
+            # Oversized payloads now go to GridFS, which chunks them inside
+            # MongoDB -- no file on disk, so no filename to collide or exceed a
+            # path limit.
+            previous = db["med3pa_models"].find_one({"session_name": session_name})
+
+            ipc_inline, ipc_gridfs = store_large_binary(db, "med3pa_model_files", pickle.dumps(ipc_model))
+            apc_inline, apc_gridfs = (
+                store_large_binary(db, "med3pa_model_files", pickle.dumps(apc_model))
+                if apc_model is not None
+                else (None, None)
+            )
+
             models_doc = {
                 "session_name": session_name,
                 "created_at": session_doc["created_at"],
-                "ipc_model": Binary(pickle.dumps(ipc_model)),
-                "apc_model": Binary(pickle.dumps(apc_model)) if apc_model is not None else None,
+                "ipc_model": Binary(ipc_inline) if ipc_inline is not None else None,
+                "apc_model": Binary(apc_inline) if apc_inline is not None else None,
+                "ipc_model_file": ipc_gridfs,
+                "apc_model_file": apc_gridfs,
             }
             db["med3pa_models"].replace_one({"session_name": session_name}, models_doc, upsert=True)
+
+            # Only once the new document is in place, so a failure above cannot
+            # leave the session with neither the old models nor the new.
+            if previous:
+                delete_large_binary(db, "med3pa_model_files", previous.get("ipc_model_file"))
+                delete_large_binary(db, "med3pa_model_files", previous.get("apc_model_file"))
         except Exception as e:
             # A model bigger than the 16MB BSON cap must not lose the analysis results,
             # so this stays non-fatal — but it has to be visible, because a silent

@@ -1,7 +1,70 @@
 from pymongo import MongoClient
 from pymongo.errors import DuplicateKeyError, PyMongoError
+import gridfs
 import pickle
 import pandas as pd
+
+# A BSON document cannot exceed 16MB, and the whole document counts, so leave
+# room for the fields sitting alongside the payload.
+MONGO_BSON_MAX = 16 * 1024 * 1024
+MONGO_SAFETY_MARGIN = 1024 * 1024
+FITS_MONGO = MONGO_BSON_MAX - MONGO_SAFETY_MARGIN
+
+
+def store_large_binary(db, bucket_name, payload):
+    """Put bytes somewhere they can be read back, whatever their size.
+
+    Small payloads stay inline in the document. Anything larger goes to GridFS,
+    which chunks it inside MongoDB — so there is no file on disk, and therefore
+    no filename to collide, exceed a path limit, or carry characters the
+    filesystem rejects.
+
+    Args:
+        db: the database handle
+        bucket_name (str): GridFS bucket to use when the payload is oversized
+        payload (bytes): the bytes to store
+
+    Returns:
+        tuple: (inline_bytes_or_None, gridfs_id_or_None) -- exactly one is set
+    """
+    if payload is None:
+        return None, None
+    if len(payload) <= FITS_MONGO:
+        return payload, None
+    file_id = gridfs.GridFS(db, collection=bucket_name).put(payload)
+    return None, file_id
+
+
+def load_large_binary(db, bucket_name, inline_value, gridfs_id):
+    """Read back what store_large_binary wrote, from wherever it went.
+
+    Args:
+        db: the database handle
+        bucket_name (str): the GridFS bucket used at write time
+        inline_value: the inline bytes, when the payload was small
+        gridfs_id: the GridFS id, when it was not
+
+    Returns:
+        bytes or None
+    """
+    if gridfs_id is not None:
+        return gridfs.GridFS(db, collection=bucket_name).get(gridfs_id).read()
+    return inline_value
+
+
+def delete_large_binary(db, bucket_name, gridfs_id):
+    """Drop a GridFS payload, ignoring one that is already gone.
+
+    Re-running a session overwrites its document; without this the GridFS
+    chunks from the previous run stay behind forever.
+    """
+    if gridfs_id is None:
+        return
+    try:
+        gridfs.GridFS(db, collection=bucket_name).delete(gridfs_id)
+    except Exception:
+        pass
+
 
 def connect_to_mongo():
     client = MongoClient('mongodb://localhost:54017/')

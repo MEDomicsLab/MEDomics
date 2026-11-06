@@ -11,7 +11,8 @@ sys.path.append(str(Path(os.path.dirname(os.path.abspath(__file__))).parent.pare
 from med_libs.server_utils import go_print
 from med_libs.GoExecutionScript import GoExecutionScript, parse_arguments
 from med_libs.mongodb_utils import (connect_to_mongo,
-                                    get_dataset_as_pd_df)
+                                    get_dataset_as_pd_df,
+                                    load_large_binary)
 from med_libs.model_loading import load_base_model
 
 from modules.med3pa.mpc_strategies import resolve_mpc_strategy
@@ -110,10 +111,19 @@ class GoExecScriptApplyMed3paModel(GoExecutionScript):
         base_mdl = load_base_model(base_model_id)[0] if base_model_id else None
 
         models_doc = db["med3pa_models"].find_one({"session_name": deployment["session_name"]})
-        if models_doc is None or models_doc.get("ipc_model") is None:
+        if models_doc is None:
             raise ValueError("The trained IPC/APC models for this session were not found. Re-run the analysis.")
-        ipc_model = pickle.loads(models_doc["ipc_model"]) #might need to import the sklearn or med3pa packages for this to work
-        apc_model = pickle.loads(models_doc["apc_model"]) if models_doc.get("apc_model") else None
+
+        # Stored inline when small, in GridFS when over MongoDB's 16MB document
+        # cap; load_large_binary reads whichever applies. Sessions written before
+        # GridFS existed only ever have the inline field, which still works.
+        ipc_bytes = load_large_binary(db, "med3pa_model_files", models_doc.get("ipc_model"), models_doc.get("ipc_model_file"))
+        if ipc_bytes is None:
+            raise ValueError("The trained IPC model for this session was not found. Re-run the analysis.")
+        apc_bytes = load_large_binary(db, "med3pa_model_files", models_doc.get("apc_model"), models_doc.get("apc_model_file"))
+
+        ipc_model = pickle.loads(ipc_bytes) #might need to import the sklearn or med3pa packages for this to work
+        apc_model = pickle.loads(apc_bytes) if apc_bytes is not None else None
 
         self.set_progress(label="Running base model", now=45)
         x_np = x.to_numpy()
