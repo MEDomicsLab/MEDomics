@@ -155,8 +155,10 @@ class GoExecScriptRunPipelineFromMEDfl(GoExecutionScript):
         try:
             client_holdouts = [(client['name'], (client.get('holdout') or {}).get('path'))
                                for client in config['Network']['clients']]
-            holdout_results = evaluate_federated_holdout(saved_model['path'], client_holdouts,
-                                                         build_holdout_config({'flHoldoutNode': holdout}))
+            # an optimized threshold was already chosen on the validation data and is in holdout['threshold']:
+            # the holdout test uses it as is (the clients send no validation data to optimize it again)
+            holdout_config = build_holdout_config({'flHoldoutNode': {**holdout, 'thresholdSource': 'Manual'}})
+            holdout_results = evaluate_federated_holdout(saved_model['path'], client_holdouts, holdout_config)
             go_print(f"Federated holdout results: {(holdout_results.get('pooled') or {}).get('metrics')}")
         except Exception as e:
             go_print(f"Federated holdout test failed: {e}")

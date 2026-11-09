@@ -18,6 +18,7 @@ import { UUID_ROOT, DataContext } from "../workspace/dataContext"
 import uuid from "react-native-uuid"
 
 import ManageScriptsModal from "./rw/ManageScriptsModal.jsx"
+import { fetchTailnetDevices, findServerDevice, findClientDevices } from "./rw/tailscale"
 
 import Path from "path"
 
@@ -604,21 +605,16 @@ const MedflrwWorkflow = ({ setWorkflowType, workflowType, mode = "fl" }) => {
   }
   useEffect(() => {
     if (workflowType === "rwflNetwork") {
-      requestBackend(
-        port,
-        "/medfl/devices/" + pageId,
-        {},
-        (json) => {
+      fetchTailnetDevices(port, pageId)
+        .then((json) => {
           if (!json?.devices) return
           createNetworkFromDevices(json.devices)
-
           console.log("Tailscale devices loaded", json.devices)
-        },
-        (err) => {
-          toast.error("Failed to load Tailscale devices")
+        })
+        .catch((err) => {
           console.error(err)
-        }
-      )
+          toast.error("Failed to load the Tailscale network: " + err.message + " (see Scripts > Tailscale)")
+        })
     }
   }, [workflowType])
 
@@ -626,8 +622,13 @@ const MedflrwWorkflow = ({ setWorkflowType, workflowType, mode = "fl" }) => {
   const isAgentOfDevice = (hostname) => !!hostname && socketAgents.some((agent) => agent === hostname || agent.startsWith(hostname + "-"))
 
   const createNetworkFromDevices = (devices) => {
-    const server = devices.find((d) => (d.tags || []).includes("tag:server"))
-    const clients = devices.filter((d) => d.id !== server?.id)
+    // server: the tag:server machine, or else this computer; clients: the tag:medfl-client machines, or else all the others
+    const server = findServerDevice(devices)
+    if (!server) {
+      toast.error("No server found in the Tailscale network: connect this computer to the study tailnet (see Scripts > Tailscale)")
+      return
+    }
+    const clients = findClientDevices(devices, server)
 
     const serverNode = {
       id: `server-${server.id}`,

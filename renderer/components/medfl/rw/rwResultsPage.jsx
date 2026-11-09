@@ -295,7 +295,7 @@ const RwResultsPage = ({ url }) => {
 
         {data.federatedHoldoutResults && (
           <Tab eventKey="holdout" title="Holdout">
-            <FederatedHoldoutResults result={data.federatedHoldoutResults} />
+            <FederatedHoldoutResults result={data.federatedHoldoutResults}  scroll={false} />
           </Tab>
         )}
         <Tab eventKey="Datasets" title="Client Datasets">

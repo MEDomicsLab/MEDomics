@@ -8,7 +8,7 @@ export default function ManageScriptsModal({ show, onHide }) {
     <div>
       <Modal show={show} onHide={onHide} size="xl" aria-labelledby="contained-modal-title-vcenter" centered className="modal-settings-chooser">
         <Modal.Header closeButton>
-          <Modal.Title id="contained-modal-title-vcenter">Script Configuration</Modal.Title>
+          <Modal.Title id="contained-modal-title-vcenter">Network setup</Modal.Title>
         </Modal.Header>
         {/* Display all the options available for the node */}
         <Modal.Body>

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useContext } from "react"
 import ModulePage from "./moduleBasics/modulePage"
 import dynamic from "next/dynamic"
 import { WorkspaceContext } from "../workspace/workspaceContext"
-import { requestBackend } from "../../utilities/requests"
+import { fetchTailnetDevices, findServerDevice } from "../medfl/rw/tailscale"
 import { toast } from "react-toastify"
 import { IoReload } from "react-icons/io5"
 import { IoClose } from "react-icons/io5"
@@ -16,7 +16,6 @@ import { FaAngleRight } from "react-icons/fa"
 const CytoscapeComponent = dynamic(() => import("react-cytoscapejs").then((m) => m.default), { ssr: false })
 
 export default function MEDflClientsPage({ pageId, configPath = "" }) {
-  const SERVER_TAG = "tag:server"
   const [devices, setDevices] = useState([])
   const [loading, setLoading] = useState(true)
   const [selected, setSelected] = useState(null)
@@ -25,23 +24,16 @@ export default function MEDflClientsPage({ pageId, configPath = "" }) {
 
   useEffect(() => {
     const fetchDevices = () => {
-      requestBackend(
-        port,
-        "/medfl/devices/" + pageId,
-        {},
-        (json) => {
-          if (json.error) toast.error("Error: " + json.error)
-          else {
-            setDevices(json.devices || [])
-            setLoading(false)
-          }
-        },
-        (err) => {
-          console.error(err)
-          toast.error("Fetch failed")
+      fetchTailnetDevices(port, pageId)
+        .then((json) => {
+          setDevices(json.devices || [])
           setLoading(false)
-        }
-      )
+        })
+        .catch((err) => {
+          console.error(err)
+          toast.error("Failed to load the Tailscale network: " + err.message)
+          setLoading(false)
+        })
     }
 
     // Fetch immediately
@@ -55,13 +47,13 @@ export default function MEDflClientsPage({ pageId, configPath = "" }) {
   }, [pageId, port, loading])
 
   // Build nodes + edges
-  const serverDevice = devices.find((d) => (d.tags || []).includes(SERVER_TAG))
+  const serverDevice = findServerDevice(devices)
   const nodes = devices.map((d) => {
     const lastSeen = new Date(d.lastSeen)
     const online = Date.now() - lastSeen.getTime() < 60 * 1000
     const expired = new Date(d.expires) < new Date()
 
-    const isServer = (d.tags || []).includes(SERVER_TAG)
+    const isServer = d.id === serverDevice?.id
 
     return {
       data: { id: d.id, label: d.hostname, device: d },

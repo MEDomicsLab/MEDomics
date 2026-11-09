@@ -1,4 +1,4 @@
-import { app, ipcMain, Menu, dialog, BrowserWindow, protocol, shell, nativeTheme } from "electron"
+import { app, ipcMain, Menu, dialog, BrowserWindow, protocol, shell, nativeTheme, safeStorage } from "electron"
 import axios from "axios"
 import os from "os"
 import serve from "electron-serve"
@@ -728,6 +728,84 @@ ipcMain.handle("tailscale-has-auth-key", async () => {
     console.error("Failed to check Auth key presence:", e);
     return { success: false, message: e.message };
   }
+});
+
+// --- Tailscale API credentials of the coordinator (MEDfl network setup) ---
+// An OAuth client { type: "oauth", client_id, client_secret } or an API access token { type: "api_key", api_key },
+// encrypted with the OS keychain (safeStorage) when it is available
+const readSettings = () => {
+  const settingsFilePath = path.join(app.getPath("userData"), "settings.json");
+  return fs.existsSync(settingsFilePath) ? JSON.parse(fs.readFileSync(settingsFilePath, "utf8")) : {};
+};
+const writeSettings = (settings) => {
+  fs.writeFileSync(path.join(app.getPath("userData"), "settings.json"), JSON.stringify(settings, null, 2));
+};
+
+ipcMain.handle("tailscale-save-credentials", async (_event, credentials) => {
+  try {
+    const type = credentials?.type === "oauth" ? "oauth" : "api_key";
+    const value =
+      type === "oauth"
+        ? { type, client_id: String(credentials.client_id || "").trim(), client_secret: String(credentials.client_secret || "").trim() }
+        : { type, api_key: String(credentials?.api_key || "").trim() };
+    if (type === "oauth" ? !value.client_id || !value.client_secret : !value.api_key) {
+      return { success: false, message: "The credentials are incomplete" };
+    }
+    const encrypted = safeStorage.isEncryptionAvailable();
+    const plain = JSON.stringify(value);
+    const settings = readSettings();
+    settings.tailscale = settings.tailscale || {};
+    settings.tailscale.credentials = {
+      encrypted,
+      value: encrypted ? safeStorage.encryptString(plain).toString("base64") : Buffer.from(plain, "utf8").toString("base64"),
+      savedAt: new Date().toISOString()
+    };
+    writeSettings(settings);
+    return { success: true, encrypted };
+  } catch (e) {
+    console.error("Failed to save the Tailscale credentials:", e);
+    return { success: false, message: e.message };
+  }
+});
+
+ipcMain.handle("tailscale-get-credentials", async () => {
+  try {
+    const stored = readSettings().tailscale?.credentials;
+    if (!stored?.value) return { success: true, credentials: null };
+    const buffer = Buffer.from(stored.value, "base64");
+    const credentials = JSON.parse(stored.encrypted ? safeStorage.decryptString(buffer) : buffer.toString("utf8"));
+    return { success: true, credentials, encrypted: !!stored.encrypted, savedAt: stored.savedAt || null };
+  } catch (e) {
+    console.error("Failed to read the Tailscale credentials:", e);
+    return { success: false, message: e.message, credentials: null };
+  }
+});
+
+ipcMain.handle("tailscale-delete-credentials", async () => {
+  try {
+    const settings = readSettings();
+    if (settings.tailscale?.credentials) {
+      delete settings.tailscale.credentials;
+      writeSettings(settings);
+    }
+    return { success: true };
+  } catch (e) {
+    console.error("Failed to delete the Tailscale credentials:", e);
+    return { success: false, message: e.message };
+  }
+});
+
+// Saves a text file (a MEDfl client setup script) where the user chooses
+ipcMain.handle("medfl-save-text-file", async (_event, { defaultName, content }) => {
+  const extension = path.extname(defaultName || "").slice(1);
+  const { canceled, filePath } = await dialog.showSaveDialog(mainWindow, {
+    title: "Save the setup script",
+    defaultPath: path.join(app.getPath("downloads"), defaultName || "script.txt"),
+    filters: extension ? [{ name: extension, extensions: [extension] }] : []
+  });
+  if (canceled || !filePath) return { success: false, canceled: true };
+  fs.writeFileSync(filePath, content, "utf8");
+  return { success: true, filePath };
 });
 
 

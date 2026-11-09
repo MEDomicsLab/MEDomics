@@ -50,30 +50,57 @@ const MetricCard = ({ label, value }) => (
   </div>
 )
 
-const RocCurve = ({ roc, auc }) => {
-  const option = useMemo(
-    () => ({
+/**
+ * ROC curve, with an optional marked operating point (the chosen threshold) and target sensitivity line
+ * @param {Object} point { fpr, tpr, label } of the chosen threshold
+ * @param {Number} targetSensitivity drawn as a horizontal dashed line
+ */
+const RocCurve = ({ roc, auc, point, targetSensitivity }) => {
+  const option = useMemo(() => {
+    const series = [
+      { name: `ROC (AUC ${format(auc)})`, type: "line", showSymbol: false, data: roc.fpr.map((fpr, index) => [fpr, roc.tpr[index]]) },
+      {
+        name: "Chance",
+        type: "line",
+        showSymbol: false,
+        lineStyle: { type: "dashed" },
+        data: [
+          [0, 0],
+          [1, 1]
+        ]
+      }
+    ]
+    if (Number.isFinite(Number(targetSensitivity))) {
+      series.push({
+        name: `Target sensitivity (${format(targetSensitivity, 2)})`,
+        type: "line",
+        showSymbol: false,
+        lineStyle: { type: "dotted" },
+        data: [
+          [0, Number(targetSensitivity)],
+          [1, Number(targetSensitivity)]
+        ]
+      })
+    }
+    if (point && Number.isFinite(point.fpr) && Number.isFinite(point.tpr)) {
+      series.push({
+        name: point.label || "Chosen threshold",
+        type: "scatter",
+        symbolSize: 12,
+        z: 10,
+        data: [[point.fpr, point.tpr]],
+        label: { show: true, position: "right", formatter: point.label || "Chosen threshold" }
+      })
+    }
+    return {
       tooltip: { trigger: "axis", valueFormatter: (value) => format(value) },
       grid: { left: 50, right: 20, top: 30, bottom: 45 },
       xAxis: { type: "value", min: 0, max: 1, name: "False positive rate", nameLocation: "middle", nameGap: 28 },
       yAxis: { type: "value", min: 0, max: 1, name: "True positive rate", nameLocation: "middle", nameGap: 35 },
-      series: [
-        { name: `ROC (AUC ${format(auc)})`, type: "line", showSymbol: false, data: roc.fpr.map((fpr, index) => [fpr, roc.tpr[index]]) },
-        {
-          name: "Chance",
-          type: "line",
-          showSymbol: false,
-          lineStyle: { type: "dashed" },
-          data: [
-            [0, 0],
-            [1, 1]
-          ]
-        }
-      ],
+      series,
       legend: { bottom: 0 }
-    }),
-    [roc, auc]
-  )
+    }
+  }, [roc, auc, point, targetSensitivity])
   return <ReactECharts option={option} style={{ height: 320 }} />
 }
 
@@ -124,6 +151,13 @@ export const ThresholdSelection = ({ selection }) => {
     selection.target_sensitivity !== undefined
 
   const isSmallSample = validation.rows < 100
+
+  // the chosen threshold on the validation ROC curve: (1 - specificity, sensitivity)
+  const rocPoint = {
+    fpr: 1 - Number(metrics.specificity),
+    tpr: Number(metrics.sensitivity),
+    label: `Threshold ${format(selection.threshold, 3)}`
+  }
 
   return (
     <Card className="mb-3 border shadow-sm overflow-hidden">
@@ -275,6 +309,24 @@ export const ThresholdSelection = ({ selection }) => {
             </div>
           ))}
         </div>
+
+        {/* Validation ROC curve with the chosen threshold */}
+        {selection.roc_curve && (
+          <div className="mt-4">
+            <h6 className="fw-semibold mb-1">Validation ROC Curve</h6>
+            <p className="text-muted small mb-2">
+              {selection.resolution
+                ? "Built from the pooled validation score histograms (one point per bin edge). The marker is the selected threshold."
+                : "Built from the pooled validation predictions. The marker is the selected threshold."}
+            </p>
+            <RocCurve
+              roc={selection.roc_curve}
+              auc={metrics.auc}
+              point={rocPoint}
+              targetSensitivity={hasTarget ? selection.target_sensitivity : null}
+            />
+          </div>
+        )}
 
         {/* Warning */}
         {isSmallSample && (

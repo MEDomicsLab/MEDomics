@@ -32,8 +32,9 @@ const ExcludedClients = ({ title, clients, severity, describe }) =>
  * Results of the federated holdout test of a real-world run (Federated Holdout node).
  * Each client tests the final global model on its own holdout file, the server pools the results.
  * @param {Object} result result printed by the MEDfl server (FEDERATED_HOLDOUT_RESULT log line)
+ * @param {boolean} scroll whether to enable scrolling for the results container
  */
-export default function FederatedHoldoutResults({ result }) {
+export default function FederatedHoldoutResults({ result , scroll = true}) {
   if (!result) {
     return <Message severity="info" className="w-100 my-3" text="No holdout results yet. Add a Federated Holdout node to the configuration: the results arrive after the last round." />
   }
@@ -79,7 +80,7 @@ export default function FederatedHoldoutResults({ result }) {
   }
 
   return (
-    <div className="my-3" style={{ maxHeight: "60vh", overflowY: "auto" }}>
+    <div className="my-3" style={scroll ? { maxHeight: "60vh", overflowY: "auto" } : {}}>
       <div className="fw-bold mb-2 h2">Federated holdout test</div>
       <div className="text-muted mb-2">
         {result.participating_clients} client(s) tested the final global model on their local holdout file · AUC {result.auc_method}

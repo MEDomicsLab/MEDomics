@@ -96,7 +96,8 @@ def select_threshold(y_true, y_prob, criterion, target_sensitivity=None):
     threshold = float(np.clip(threshold, MIN_THRESHOLD, MAX_THRESHOLD))
 
     # metrics at the threshold actually used
-    metrics, confusion, _ = binary_metrics(y_true, y_prob, threshold)
+    # the validation ROC curve, to show the chosen point on it
+    metrics, confusion, roc = binary_metrics(y_true, y_prob, threshold)
     return threshold, {
         "criterion": criterion,
         "criterion_label": CRITERIA[criterion],
@@ -105,6 +106,7 @@ def select_threshold(y_true, y_prob, criterion, target_sensitivity=None):
         "validation": {"rows": len(y_true), "positives": positives, "negatives": negatives},
         "metrics": metrics,
         "confusion_matrix": confusion,
+        "roc_curve": roc,
     }
 
 
